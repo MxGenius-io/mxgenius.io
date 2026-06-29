@@ -161,6 +161,93 @@
       cursor: pointer; transition: all 0.2s;
     }
     .starter-btn:hover { background: rgba(59, 130, 246, 0.2); border-color: var(--accent-teal); }
+    
+    /* User Profile & Modal */
+    .sidebar { position: relative; }
+    .user-profile-area {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .profile-btn {
+      width: 100%;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-teal);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .profile-btn:hover { background: rgba(59, 130, 246, 0.2); }
+    .user-info { display: flex; align-items: center; gap: 12px; width: 100%; }
+    .user-avatar {
+      width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
+      background: var(--bg-card); display: flex; align-items: center; justify-content: center;
+      border: 2px solid var(--border);
+    }
+    .user-details { flex: 1; overflow: hidden; }
+    .user-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-logout { font-size: 0.75rem; color: var(--text-muted); cursor: pointer; transition: color 0.2s; }
+    .user-logout:hover { color: #f87171; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-content {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      width: 100%; max-width: 400px;
+      padding: 2rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      transform: translateY(20px); transition: transform 0.3s;
+    }
+    .modal-overlay.active .modal-content { transform: translateY(0); }
+    .modal-header { margin-bottom: 1.5rem; text-align: center; }
+    .modal-header h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .modal-header p { color: var(--text-secondary); font-size: 0.9rem; }
+    
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+    .form-input {
+      width: 100%; background: var(--bg-primary); border: 1px solid var(--border);
+      color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 0.5rem; outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--accent-teal); }
+    
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 50%;
+      width: 100px; height: 100px; margin: 0 auto 1.5rem;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; overflow: hidden; position: relative;
+      transition: all 0.2s; background: var(--bg-primary);
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent-teal); background: rgba(59, 130, 246, 0.05); }
+    .dropzone img { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; display: none; }
+    .dropzone.has-image img { display: block; }
+    .dropzone.has-image svg { display: none; }
+    .dropzone input { display: none; }
+    
+    .btn-primary {
+      width: 100%; background: var(--accent-teal); color: #fff; border: none;
+      padding: 0.85rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #2563eb; }
+    .close-modal {
+      position: absolute; top: 1rem; right: 1rem; background: transparent; border: none;
+      color: var(--text-muted); cursor: pointer; padding: 0.25rem;
+    }
+    .close-modal:hover { color: var(--text-primary); }
   </style>
 </head>
 <body>
@@ -188,6 +275,10 @@
     <button class="action-btn" style="width: 100%; justify-content: center; color: var(--text-primary);">+ New Chat</button>
     <div class="history-list">
       <!-- Chat history will appear here -->
+    </div>
+    
+    <div class="user-profile-area" id="userProfileArea">
+      <!-- Rendered via JS -->
     </div>
   </div>
 
@@ -357,6 +448,128 @@
             }
         });
 
+</script>
+
+<!-- Auth Modal -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-content" style="position: relative;">
+    <button class="close-modal" onclick="closeAuthModal()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="modal-header">
+      <h2>Create Profile</h2>
+      <p>Identify yourself to save memory & history</p>
+    </div>
+    <form id="authForm" onsubmit="handleAuthSubmit(event)">
+      <div class="dropzone" id="avatarDropzone" onclick="document.getElementById('avatarInput').click()">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <img id="avatarPreview" src="" alt="Avatar Preview">
+        <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarSelect(event)">
+      </div>
+      
+      <div class="form-group">
+        <label for="userName">Full Name</label>
+        <input type="text" id="userName" class="form-input" placeholder="e.g. John Doe" required>
+      </div>
+      <div class="form-group">
+        <label for="userEmail">Email Address</label>
+        <input type="email" id="userEmail" class="form-input" placeholder="john@example.com" required>
+      </div>
+      
+      <button type="submit" class="btn-primary">Save Profile</button>
+    </form>
+  </div>
+</div>
+
+<script>
+    // --- AUTH & PROFILE LOGIC ---
+    let currentUser = JSON.parse(localStorage.getItem('mxgenius_user')) || null;
+    let selectedAvatarBase64 = null;
+
+    function renderProfileArea() {
+        const profileArea = document.getElementById('userProfileArea');
+        if (currentUser) {
+            profileArea.innerHTML = `
+                <div class="user-info">
+                    <img src="${currentUser.avatar || 'assets/default_avatar.png'}" class="user-avatar" alt="Avatar" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'40\\' height=\\'40\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'white\\' stroke-width=\\'2\\'><path d=\\'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2\\'/><circle cx=\\'12\\' cy=\\'7\\' r=\\'4\\'/></svg>'">
+                    <div class="user-details">
+                        <div class="user-name">${currentUser.name}</div>
+                        <div class="user-logout" onclick="handleLogout()">Sign Out</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            profileArea.innerHTML = `
+                <button class="profile-btn" onclick="openAuthModal()">Sign Up / Log In</button>
+            `;
+        }
+    }
+
+    function openAuthModal() {
+        document.getElementById('authModal').classList.add('active');
+    }
+
+    function closeAuthModal() {
+        document.getElementById('authModal').classList.remove('active');
+        document.getElementById('authForm').reset();
+        document.getElementById('avatarDropzone').classList.remove('has-image');
+        selectedAvatarBase64 = null;
+    }
+
+    function handleAvatarSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedAvatarBase64 = e.target.result;
+                document.getElementById('avatarPreview').src = selectedAvatarBase64;
+                document.getElementById('avatarDropzone').classList.add('has-image');
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // Handle drag and drop for avatar
+    const dropzone = document.getElementById('avatarDropzone');
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            document.getElementById('avatarInput').files = e.dataTransfer.files;
+            handleAvatarSelect({ target: document.getElementById('avatarInput') });
+        }
+    });
+
+    function handleAuthSubmit(event) {
+        event.preventDefault();
+        const name = document.getElementById('userName').value.trim();
+        const email = document.getElementById('userEmail').value.trim();
+        
+        currentUser = {
+            id: 'usr_' + Math.random().toString(36).substr(2, 9), // Mock ID
+            name,
+            email,
+            avatar: selectedAvatarBase64
+        };
+        
+        localStorage.setItem('mxgenius_user', JSON.stringify(currentUser));
+        renderProfileArea();
+        closeAuthModal();
+        
+        // Notify chat area
+        addMessage(`Welcome, ${name}! Your identity is now established. Your thread history and context will be tracked (UI container ready).`, false);
+    }
+
+    function handleLogout() {
+        currentUser = null;
+        localStorage.removeItem('mxgenius_user');
+        renderProfileArea();
+    }
+
+    // Initialize UI
+    renderProfileArea();
 </script>
 
 </body>
