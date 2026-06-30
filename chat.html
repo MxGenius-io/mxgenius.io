@@ -322,7 +322,18 @@
     </div>
 
     <div class="input-container">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0 1rem;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="autoReadToggle" style="accent-color: var(--accent-teal);"> Auto-Read Responses
+        </label>
+        <div id="recordingIndicator" style="display: none; align-items: center; gap: 0.5rem; color: #ef4444; font-size: 0.85rem; font-weight: 500;">
+          <div style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%; animation: pulse 1.5s infinite;"></div> Recording...
+        </div>
+      </div>
       <div class="input-box">
+        <button class="submit-btn" id="micBtn" style="color: var(--text-secondary); background: transparent; border: none; padding: 0.5rem; flex-shrink: 0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+        </button>
         <textarea id="chatInput" placeholder="Message MXGenius..." rows="1"></textarea>
         <button class="submit-btn" id="sendBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -331,6 +342,7 @@
     </div>
   </div>
 </main>
+<audio id="ttsAudio" style="display: none;"></audio>
 
 <script>
 
@@ -539,6 +551,91 @@
                 handleSend();
             }
         });
+
+        // Voice Integration
+        const micBtn = document.getElementById('micBtn');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const autoReadToggle = document.getElementById('autoReadToggle');
+        const ttsAudio = document.getElementById('ttsAudio');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        
+        if (micBtn) {
+            micBtn.addEventListener('click', async () => {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                    micBtn.style.color = "var(--text-secondary)";
+                    recordingIndicator.style.display = "none";
+                    return;
+                }
+                
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = e => {
+                        if (e.data.size > 0) audioChunks.push(e.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const formData = new FormData();
+                        formData.append('file', audioBlob, 'voice.webm');
+                        
+                        chatInput.placeholder = "Transcribing...";
+                        try {
+                            const res = await fetch('https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io/transcribe', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                chatInput.value = data.text;
+                                handleSend();
+                            } else {
+                                addMessage("System Error: Failed to transcribe audio.", false);
+                            }
+                        } catch (err) {
+                            addMessage("System Error: API is offline. Failed to transcribe.", false);
+                        }
+                        chatInput.placeholder = "Message MXGenius...";
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    micBtn.style.color = "#ef4444";
+                    recordingIndicator.style.display = "flex";
+                } catch (err) {
+                    console.error("Microphone access denied:", err);
+                    addMessage("System Error: Could not access microphone.", false);
+                }
+            });
+        }
+
+        async function playTTS(text) {
+            if (!autoReadToggle || !autoReadToggle.checked || !text) return;
+            try {
+                const res = await fetch('https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io/synthesize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    ttsAudio.src = url;
+                    ttsAudio.play();
+                }
+            } catch (err) {
+                console.error("Failed to fetch TTS:", err);
+            }
+        }
 
 </script>
 
