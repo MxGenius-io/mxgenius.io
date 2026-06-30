@@ -376,7 +376,10 @@
             try {
                 const response = await fetch('https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io/chat', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer mxg_dev_token_123'
+                    },
                     body: JSON.stringify({ message: text })
                 });
                 
