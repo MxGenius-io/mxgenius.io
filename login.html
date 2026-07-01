@@ -408,7 +408,7 @@
             try {
                 const response = await msalInstance.loginPopup({ scopes: ["user.read"] });
                 console.log("MSAL Success:", response.idToken);
-                await sendTokenToBackend(response.idToken, '/api/auth/microsoft');
+                await sendTokenToBackend(response.idToken, '/auth/microsoft');
             } catch(e) {
                 console.error(e);
                 showError('Microsoft authentication failed');
@@ -421,7 +421,7 @@
                 client_id: GOOGLE_CLIENT_ID,
                 callback: async (response) => {
                     console.log("Google Success:", response.credential);
-                    await sendTokenToBackend(response.credential, '/api/auth/google');
+                    await sendTokenToBackend(response.credential, '/auth/google');
                 }
             });
             document.getElementById('btn-google').addEventListener('click', () => {
