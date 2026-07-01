@@ -1712,6 +1712,7 @@ async function loadAircraft() {
 
   const body = {};
   let forSale = false;
+  let urgencyFilter = '';
 
   if (acSearchMode === 'direct') {
     // Direct Search mode — use text fields
@@ -1726,7 +1727,7 @@ async function loadAircraft() {
   } else {
     // MRO Scan mode — use scan filters
     const regionFilter = document.getElementById('acScanRegion')?.value || '';
-    const urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
+    urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
     if (regionFilter) body.basecountry = regionFilter;
     if (urgencyFilter === 'for-sale') { body.isForSale = true; forSale = true; }
   }
@@ -1763,16 +1764,30 @@ async function loadAircraft() {
       return;
     }
 
+    // Cache for LLM context (outreach mode)
+    cachedFleetSignals = data.aircraft.map(ac => ({ ...ac, mro: buildMROSignals(ac) }));
+
+    // Apply urgency filter client-side (for high-time since API doesn't support it directly)
+    if (acSearchMode === 'scan' && urgencyFilter && urgencyFilter !== 'for-sale') {
+      cachedFleetSignals = cachedFleetSignals.filter(ac => {
+        if (urgencyFilter === 'high-time') return ac.mro.aftt > 8000;
+        if (urgencyFilter === 'very-high') return ac.mro.aftt > 12000;
+        return true;
+      });
+    }
+
+    if (cachedFleetSignals.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No aircraft found matching your high-time criteria</div>';
+      return;
+    }
+
     // Store full dataset for infinite scroll
     aircraftScrollState = {
-      allAircraft: data.aircraft,
+      allAircraft: cachedFleetSignals,
       rendered: 0,
       forSale: forSale,
       CHUNK: 100,
     };
-
-    // Cache for LLM context (outreach mode)
-    cachedFleetSignals = data.aircraft.map(ac => ({ ...ac, mro: buildMROSignals(ac) }));
 
     // Populate MRO stats in Aircraft tab
     if (acSearchMode === 'scan') {
