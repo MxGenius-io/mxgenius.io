@@ -1,7 +1,7 @@
 // MXGenius - Frontend Application
 // Auto-login, tab routing, API calls, dynamic rendering
 
-const API = 'http://localhost:3000'; // Points to Azure Rust Backend Proxy
+const API = 'https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io'; // Live Azure Rust Backend Proxy
 let TOKEN = '';
 let BEARER = '';
 
