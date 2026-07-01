@@ -2593,3 +2593,147 @@ body.live-mode .api-status.connected .status-dot {
     font-size: 0.78rem;
   }
 }
+
+/* ============================================
+   Work Order Panel
+   ============================================ */
+.work-order-panel {
+  position: fixed;
+  top: 0;
+  left: -400px;
+  width: 380px;
+  height: 100dvh;
+  height: 100vh;
+  max-height: 100dvh;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(13, 17, 23, 0.95);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.work-order-panel.open {
+  left: 0;
+}
+
+.work-order-header {
+  height: 64px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+.work-order-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-primary);
+  font-weight: 600;
+  font-size: 1rem;
+  color: #fb923c;
+}
+
+.work-order-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.work-order-body .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.work-order-body label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.work-order-body input, .work-order-body textarea {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  color: var(--text-primary);
+  font-family: var(--font-primary);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.work-order-body input:focus, .work-order-body textarea:focus {
+  outline: none;
+  border-color: #fb923c;
+  box-shadow: 0 0 0 2px rgba(251,146,60,0.2);
+}
+
+.work-order-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+}
+
+.btn-email-invoice {
+  width: 100%;
+  background: #fb923c;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-email-invoice:hover {
+  background: #f97316;
+  transform: translateY(-1px);
+}
+
+.work-order-fab {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fb923c;
+  color: #000;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 999;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.2s;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.work-order-fab:hover {
+  transform: scale(1.05);
+  background: #f97316;
+}
+
+.work-order-fab.hidden {
+  display: none;
+}

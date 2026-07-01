@@ -748,6 +748,7 @@ function setupNavigation() {
   });
 
   setupChatPanel();
+  setupWorkOrderPanel();
 }
 
 function setupChatPanel() {
@@ -1007,6 +1008,43 @@ Rules:
   // ── Format model response into polished HTML ──
   function formatMxResponse(text) {
     if (!text) return '';
+
+    // Extract <workorder> JSON block if present
+    const woRegex = /<workorder>([\s\S]*?)<\/workorder>/i;
+    const woMatch = text.match(woRegex);
+    if (woMatch) {
+      try {
+        const woData = JSON.parse(woMatch[1]);
+        if (woData.registration) document.getElementById('woReg').value = woData.registration;
+        if (woData.title) document.getElementById('woTitle').value = woData.title;
+        if (woData.description) document.getElementById('woDesc').value = woData.description;
+        
+        if (woData.parts && Array.isArray(woData.parts)) {
+          document.getElementById('woParts').value = woData.parts.join('\n');
+        } else if (woData.parts) {
+          document.getElementById('woParts').value = woData.parts;
+        }
+        
+        if (woData.labor && Array.isArray(woData.labor)) {
+          document.getElementById('woLabor').value = woData.labor.join('\n');
+        } else if (woData.labor) {
+          document.getElementById('woLabor').value = woData.labor;
+        }
+        
+        // Open the Work Order panel automatically when generated
+        const panel = document.getElementById('work-order-panel');
+        const toggleBtn = document.getElementById('workOrderFab');
+        if (panel) {
+          panel.classList.add('open');
+          if (toggleBtn) toggleBtn.classList.add('hidden');
+        }
+      } catch (e) {
+        console.error('Failed to parse workorder JSON:', e);
+      }
+      // Remove the workorder block from the text so it doesn't render in the chat
+      text = text.replace(woRegex, '');
+    }
+
     // Escape HTML first
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -3125,4 +3163,52 @@ async function loadMarketplace() {
     '</div>';
   }).join('');
   grid.innerHTML = html;
+}
+
+// ============================================
+// Work Order Panel Setup
+// ============================================
+function setupWorkOrderPanel() {
+  const panel = document.getElementById('work-order-panel');
+  const toggleBtn = document.getElementById('workOrderFab');
+  const closeBtn = document.getElementById('closeWorkOrderBtn');
+  const emailBtn = document.getElementById('btnEmailInvoice');
+
+  if (toggleBtn && panel) {
+    toggleBtn.addEventListener('click', () => {
+      panel.classList.add('open');
+      toggleBtn.classList.add('hidden');
+    });
+  }
+
+  if (closeBtn && panel) {
+    closeBtn.addEventListener('click', () => {
+      panel.classList.remove('open');
+      if (toggleBtn) toggleBtn.classList.remove('hidden');
+    });
+  }
+
+  if (emailBtn) {
+    emailBtn.addEventListener('click', () => {
+      const reg = document.getElementById('woReg').value || '';
+      const title = document.getElementById('woTitle').value || '';
+      const desc = document.getElementById('woDesc').value || '';
+      const parts = document.getElementById('woParts').value || '';
+      const labor = document.getElementById('woLabor').value || '';
+      
+      const subject = encodeURIComponent('MRO Invoice / Work Order: ' + reg + ' - ' + title);
+      let bodyText = "MXGenius MRO Work Order\n";
+      bodyText += "==================================\n\n";
+      bodyText += "Aircraft Registration: " + reg + "\n";
+      bodyText += "Maintenance Action: " + title + "\n\n";
+      bodyText += "Description:\n" + desc + "\n\n";
+      bodyText += "Parts Required:\n" + parts + "\n\n";
+      bodyText += "Labor Operations:\n" + labor + "\n\n";
+      bodyText += "==================================\n";
+      bodyText += "Generated via MXGenius AI Copilot";
+      
+      const body = encodeURIComponent(bodyText);
+      window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+    });
+  }
 }
