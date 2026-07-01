@@ -661,7 +661,7 @@ async function login() {
     const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${API}/api/Admin/APILogin`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
       body: JSON.stringify({ EmailAddress: 'PROD@Advancedaog.com', Password: 'Advancedaog1$' }),
       signal: controller.signal
     });
@@ -1332,7 +1332,7 @@ Rules:
     try {
       const response = await fetch(`${API}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
         body: JSON.stringify({
           message: text,
           fleet_signals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : []
@@ -1559,15 +1559,15 @@ async function loadDashboard() {
     const dashTimeout = AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined;
     const [acRes, compRes, contRes] = await Promise.allSettled([
       fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
         body: JSON.stringify({}), signal: dashTimeout
       }).then(r => r.json()),
       fetch(`${API}/api/Company/getCompanyList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
         body: JSON.stringify({}), signal: dashTimeout
       }).then(r => r.json()),
       fetch(`${API}/api/Contact/getContactList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
         body: JSON.stringify({}), signal: dashTimeout
       }).then(r => r.json()),
     ]);
@@ -1627,7 +1627,7 @@ async function loadDashboard() {
     try {
       const histRes = await fetch(`${API}/api/Aircraft/getHistoryListPaged/${TOKEN}/10/1`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
         body: JSON.stringify({})
       });
       const histData = await histRes.json();
@@ -1787,7 +1787,7 @@ async function loadAircraft() {
   try {
     const res = await fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -2243,7 +2243,7 @@ async function loadCompanies() {
   try {
     const res = await fetch(`${API}/api/Company/getCompanyList/${TOKEN}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -2391,7 +2391,7 @@ async function loadContacts() {
   try {
     const res = await fetch(`${API}/api/Contact/getContactList/${TOKEN}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' },
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -2651,7 +2651,7 @@ async function loadGlobe() {
 
   const body = {};
   try {
-    const res = await fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mxg_dev_token_123' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') { container.innerHTML = `<div class="empty-state">API Error: ${data.responsestatus}</div>`; return; }
     const aircraft = data.aircraft || [];
