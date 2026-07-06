@@ -2758,3 +2758,10 @@ body.live-mode .api-status.connected .status-dot {
   0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(0.8); }
   50%      { opacity: 1;   transform: translateX(-50%) scale(1.1); }
 }
+@keyframes mxWord {
+  0%   { opacity: 0; transform: translateY(3px); }
+  6%   { opacity: 1; transform: translateY(0); }
+  20%  { opacity: 1; transform: translateY(0); }
+  26%  { opacity: 0; transform: translateY(-3px); }
+  100% { opacity: 0; }
+}
