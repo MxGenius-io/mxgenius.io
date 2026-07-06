@@ -154,6 +154,13 @@ body {
 .header-nav {
   display: flex;
   gap: 2px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+.header-nav::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .nav-tab {
