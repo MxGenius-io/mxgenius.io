@@ -1237,7 +1237,7 @@ Rules:
 
   // Click outside to close
   document.addEventListener('click', (e) => {
-    if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== toggleBtn) {
+    if (panel.classList.contains('open') && !panel.contains(e.target) && !toggleBtn.contains(e.target)) {
       togglePanel();
     }
   });

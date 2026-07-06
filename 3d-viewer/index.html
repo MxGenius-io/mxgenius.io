@@ -1613,19 +1613,6 @@
         function applyHDRI(texture) {
             scene.environment = texture;
             scene.background = texture;
-            // Apply envMap directly to all mesh materials (per Example_Viewport pattern)
-            if (currentModel) {
-                currentModel.traverse((child) => {
-                    if (child.isMesh && child.material) {
-                        const mats = Array.isArray(child.material) ? child.material : [child.material];
-                        mats.forEach(m => {
-                            m.envMap = texture;
-                            m.envMapIntensity = 1.0;
-                            m.needsUpdate = true;
-                        });
-                    }
-                });
-            }
         }
 
         function loadHDRI(path) {
