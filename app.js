@@ -662,7 +662,7 @@ async function login() {
     const res = await fetch(`${API}/api/Admin/APILogin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ EmailAddress: 'demo@mxgenius.io', Password: '' }),
+      body: JSON.stringify({ EmailAddress: '__MXG_API_EMAIL__', Password: '__MXG_API_PASSWORD__' }),
       signal: controller.signal
     });
     clearTimeout(timeout);
