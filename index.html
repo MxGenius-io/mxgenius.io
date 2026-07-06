@@ -852,6 +852,10 @@
             color: var(--text-white);
             cursor: pointer;
         }
+
+        .mobile-dashboard {
+            display: none;
+        }
         
         @media (max-width: 960px) {
             .nav-links {
@@ -875,6 +879,9 @@
             }
             #nav-cta {
                 display: none;
+            }
+            .mobile-dashboard {
+                display: list-item;
             }
         }
     </style>
@@ -920,6 +927,7 @@
             <ul class="nav-links">
                   <li><a href="trust-center.html">Trust Center</a></li>
                   <li><a href="login.html" class="nav-special">Login</a></li>
+                  <li class="mobile-dashboard"><a href="dashboard.html" class="nav-special" style="color: var(--primary-blue); text-shadow: 0 0 10px rgba(59, 130, 246, 0.4);">Open Dashboard</a></li>
             </ul>
             <a href="dashboard.html" class="cta-button" id="nav-cta">Open Dashboard</a>
             <div class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('active')">
