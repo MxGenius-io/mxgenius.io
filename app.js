@@ -773,80 +773,7 @@ function setupChatPanel() {
   let totalTokensUsed = parseInt(localStorage.getItem('mxgenius_total_tokens') || '0');
   let totalSaved = parseFloat(localStorage.getItem('mxgenius_total_saved') || '0');
 
-  // Inject status dot + cost counter into header
-  const chatHeader = panel.querySelector('.chat-header');
-  if (chatHeader) {
-    const headerControls = document.createElement('span');
-    headerControls.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-size:11px;';
-
-    const costBadge = document.createElement('span');
-    costBadge.id = 'cost-savings-badge';
-    costBadge.style.cssText = 'color:#34d399;font-weight:700;letter-spacing:0.3px;cursor:pointer;font-size:12px;text-shadow:0 0 8px rgba(52,211,153,0.3);transition:all 0.3s;';
-    costBadge.title = 'Tokens used on-device — tap for details';
-    costBadge.textContent = totalTokensUsed > 0 ? `${totalTokensUsed.toLocaleString()} tokens • $${totalSaved.toFixed(2)} saved` : '0 tokens';
-    costBadge.addEventListener('click', () => toggleTokenMarketplace());
-
-    const statusDot = document.createElement('span');
-    statusDot.id = 'backend-status-dot';
-    statusDot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:#888;transition:background 0.3s;cursor:help;';
-    statusDot.title = 'LLM: loading... (triple-tap for debug mode)';
-
-    // Triple-tap debug mode toggle
-    window._mxDebugMode = false;
-    let _tapCount = 0, _tapTimer = null;
-    statusDot.addEventListener('click', () => {
-      _tapCount++;
-      clearTimeout(_tapTimer);
-      _tapTimer = setTimeout(() => { _tapCount = 0; }, 800);
-      if (_tapCount >= 3) {
-        _tapCount = 0;
-        window._mxDebugMode = !window._mxDebugMode;
-        statusDot.style.boxShadow = window._mxDebugMode ? '0 0 6px 2px #6366f1' : 'none';
-        statusDot.title = window._mxDebugMode ? '🔍 DEBUG MODE ON (triple-tap to disable)' : 'LLM: ready (triple-tap for debug mode)';
-        // Flash feedback
-        const label = document.createElement('div');
-        label.textContent = window._mxDebugMode ? '🔍 Debug ON' : '🔍 Debug OFF';
-        label.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,0.9);color:white;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;transition:opacity 0.5s;';
-        document.body.appendChild(label);
-        setTimeout(() => { label.style.opacity = '0'; setTimeout(() => label.remove(), 500); }, 1200);
-      }
-    });
-
-    headerControls.appendChild(costBadge);
-    headerControls.appendChild(statusDot);
-    chatHeader.appendChild(headerControls);
-
-    // ── Auto-Speak Toggle Banner (below header) ──
-    let ttsAutoPlay = localStorage.getItem('mxgenius_tts_auto') === 'true';
-    const ttsBanner = document.createElement('div');
-    ttsBanner.id = 'tts-banner';
-    ttsBanner.style.cssText = `display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;
-      background:${ttsAutoPlay ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)'};
-      border-bottom:1px solid var(--border);cursor:pointer;transition:all 0.2s;`;
-    ttsBanner.innerHTML = `
-      <span style="font-size:18px;">${ttsAutoPlay ? '🔊' : '🔇'}</span>
-      <span style="font-size:12px;font-weight:600;color:${ttsAutoPlay ? '#a5b4fc' : '#8b949e'};">
-        Auto-Speak ${ttsAutoPlay ? 'ON' : 'OFF'}
-      </span>
-      <span style="width:36px;height:20px;border-radius:10px;background:${ttsAutoPlay ? '#6366f1' : '#30363d'};position:relative;display:inline-block;transition:all 0.2s;">
-        <span style="position:absolute;top:2px;${ttsAutoPlay ? 'right:2px' : 'left:2px'};width:16px;height:16px;border-radius:50%;background:white;transition:all 0.2s;"></span>
-      </span>`;
-    ttsBanner.onclick = () => {
-      ttsAutoPlay = !ttsAutoPlay;
-      localStorage.setItem('mxgenius_tts_auto', ttsAutoPlay);
-      ttsBanner.style.background = ttsAutoPlay ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)';
-      ttsBanner.querySelector('span:first-child').textContent = ttsAutoPlay ? '🔊' : '🔇';
-      const label = ttsBanner.querySelectorAll('span')[1];
-      label.textContent = `Auto-Speak ${ttsAutoPlay ? 'ON' : 'OFF'}`;
-      label.style.color = ttsAutoPlay ? '#a5b4fc' : '#8b949e';
-      const track = ttsBanner.querySelectorAll('span')[2];
-      track.style.background = ttsAutoPlay ? '#6366f1' : '#30363d';
-      const knob = track.querySelector('span');
-      knob.style.left = ttsAutoPlay ? 'auto' : '2px';
-      knob.style.right = ttsAutoPlay ? '2px' : 'auto';
-    };
-    chatHeader.after(ttsBanner);
-  }
+  // Header is now minimal — just the X close button
 
   function updateCostCounter(inputTokens, outputTokens) {
     const cloudCost = (inputTokens / 1_000_000 * CLOUD_COST_PER_M_INPUT) +
@@ -1264,10 +1191,8 @@ Rules:
 
   // ── Starter Prompt Suggestions ──
   const suggestions = [
-    '🔧 GL7500 fuel system leak check procedure',
-    '✈️ Falcon 8X APU starter generator overhaul',
-    '📋 Hydraulic bleeding procedure Falcon 900',
-    '🔍 King Air 300 propeller inspection interval'
+    '🔧 GL7500 fuel system leak check',
+    '✈️ Falcon 8X APU overhaul steps'
   ];
   const suggestionsBar = document.createElement('div');
   suggestionsBar.id = 'chat-suggestions';
@@ -1310,6 +1235,13 @@ Rules:
   toggleBtn.addEventListener('click', togglePanel);
   closeBtn.addEventListener('click', togglePanel);
 
+  // Click outside to close
+  document.addEventListener('click', (e) => {
+    if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== toggleBtn) {
+      togglePanel();
+    }
+  });
+
   async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
@@ -1339,13 +1271,16 @@ Rules:
         })
       });
       
-      const rawData = await response.json();
-      const data = rawData.response || rawData;
-      let answerText = "";
-      if (data && data.advisory) {
-        answerText = data.advisory;
-      } else if (data && data.answer) {
-        answerText = data.answer;
+      const rawText = await response.text();
+      let data, answerText = '';
+      try {
+        const rawData = JSON.parse(rawText);
+        data = rawData.response || rawData;
+        if (data && data.advisory) answerText = data.advisory;
+        else if (data && data.answer) answerText = data.answer;
+      } catch (_) {
+        // Backend returned non-JSON — treat raw text as the answer
+        answerText = rawText;
       }
       
       if (answerText) {
@@ -1354,18 +1289,9 @@ Rules:
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">No response generated</span>';
       }
       
-      // ── Speak button on every response ──
-      if (answerText && answerText.trim()) {
-        const speakBtn = document.createElement('button');
-        speakBtn.className = 'speak-btn';
-        speakBtn.innerHTML = '🔊 Speak';
-        speakBtn.onclick = () => alert("TTS is cloud-hosted now! (Not implemented in POC)");
-        aiMsg.querySelector('.msg-bubble').appendChild(speakBtn);
-      }
-      
     } catch (e) {
       console.error('[MXGenius] Inference:', e.message);
-      streamTarget.innerHTML = '<em>Inference error: ' + e.message + '</em>';
+      streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">Service temporarily unavailable — try again shortly</span>';
     }
     history.scrollTop = history.scrollHeight;
   }
