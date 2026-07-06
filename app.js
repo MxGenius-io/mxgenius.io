@@ -1203,7 +1203,8 @@ Rules:
     pill.textContent = s;
     pill.onmouseenter = () => { pill.style.background = 'rgba(99,102,241,0.25)'; };
     pill.onmouseleave = () => { pill.style.background = 'rgba(99,102,241,0.12)'; };
-    pill.onclick = () => {
+    pill.onclick = (e) => {
+      e.stopPropagation();
       input.value = s.replace(/^[^\s]+\s/, ''); // strip emoji
       sendMessage();
       suggestionsBar.remove();
@@ -1264,7 +1265,11 @@ Rules:
     try {
       const response = await fetch(`${API}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-api-key': '__MXG_CHAT_API_KEY__',
+          'api-key': '__MXG_CHAT_API_KEY__'
+        },
         body: JSON.stringify({
           message: text,
           fleet_signals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : []

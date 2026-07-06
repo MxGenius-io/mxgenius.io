@@ -29,6 +29,7 @@ jobs:
         run: |
           sed -i "s|__MXG_API_EMAIL__|${{ secrets.MXG_API_EMAIL }}|g" app.js
           sed -i "s|__MXG_API_PASSWORD__|${{ secrets.MXG_API_PASSWORD }}|g" app.js
+          sed -i "s|__MXG_CHAT_API_KEY__|${{ secrets.MXG_CHAT_API_KEY }}|g" app.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
