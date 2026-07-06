@@ -1265,11 +1265,7 @@ Rules:
     try {
       const response = await fetch(`${API}/chat`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'x-api-key': '__MXG_CHAT_API_KEY__',
-          'api-key': '__MXG_CHAT_API_KEY__'
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer __MXG_CHAT_API_KEY__' },
         body: JSON.stringify({
           message: text,
           fleet_signals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : []
