@@ -742,7 +742,7 @@
     </div>
 
     <!-- Advanced Controls Accordion -->
-    <div id="advanced-controls" style="display: none; align-items: center; gap: 15px; padding: 10px 20px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; z-index: 99; flex-shrink: 0;">
+    <div id="advanced-controls" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; z-index: 99; flex-shrink: 0;">
         <!-- Animation Controls (Moved from FAB) -->
         <div id="play-fab" style="align-items: center; gap: 8px;">
             <select id="anim-select" class="fab-anim-select" style="background:var(--bg-primary); border:1px solid var(--border); border-radius:4px; color:var(--text-secondary); font-family:var(--font-mono); font-size:0.62rem; padding:4px 8px;">
@@ -799,8 +799,8 @@
         <!-- Exposure -->
         <div style="display: flex; align-items: center; gap: 5px;">
             <span class="ft-label" style="font-family:var(--font-mono); font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">Exp</span>
-            <input type="range" class="slider" id="exposure-slider" min="0.1" max="3" step="0.1" value="1" style="width:50px;">
-            <span class="slider-val" id="exposure-val" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-primary); min-width:20px;">1.0</span>
+            <input type="range" class="slider" id="exposure-slider" min="0.1" max="3" step="0.1" value="0.5" style="width:50px;">
+            <span class="slider-val" id="exposure-val" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-primary); min-width:20px;">0.5</span>
         </div>
     </div>
 
@@ -924,7 +924,7 @@
             aoEnabled: false,
             hdriEnabled: false,
             wireframeEnabled: false,
-            exposure: 1.0,
+            exposure: 0.5,
             isPlaying: false,
             animationSpeed: 1.0,
             initialCameraPosition: new THREE.Vector3(0, 0, 2)

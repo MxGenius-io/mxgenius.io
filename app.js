@@ -1256,7 +1256,19 @@ Rules:
 
     const aiMsg = document.createElement('div');
     aiMsg.className = 'chat-msg ai-msg';
-    aiMsg.innerHTML = '<div class="msg-bubble"><span class="stream-target"><em>MXGenius is thinking...</em></span></div>';
+    aiMsg.innerHTML = `<div class="msg-bubble"><span class="stream-target">
+      <div style="position:relative;width:100px;height:100px;border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#E8F4F8 0%,#C8E0EC 55%,#A8CCE0 100%);box-shadow:0 8px 20px rgba(10,37,64,0.15);margin:8px auto;">
+        <div style="position:absolute;inset:0;z-index:1;">
+          <svg style="position:absolute;width:38px;top:48%;animation:mxFloat 10s linear infinite;" viewBox="0 0 60 24"><ellipse cx="30" cy="16" rx="28" ry="6" fill="white"/><circle cx="20" cy="12" r="8" fill="white"/><circle cx="35" cy="10" r="10" fill="white"/><circle cx="45" cy="13" r="7" fill="white"/></svg>
+          <svg style="position:absolute;width:28px;top:70%;opacity:0.85;animation:mxFloat 14s linear infinite;animation-delay:-5s;" viewBox="0 0 50 20"><ellipse cx="25" cy="14" rx="22" ry="5" fill="white"/><circle cx="15" cy="10" r="6" fill="white"/><circle cx="28" cy="8" r="8" fill="white"/><circle cx="38" cy="11" r="6" fill="white"/></svg>
+          <svg style="position:absolute;width:32px;top:36%;opacity:0.9;animation:mxFloat 12s linear infinite;animation-delay:-8s;" viewBox="0 0 55 22"><ellipse cx="27" cy="15" rx="25" ry="5" fill="white"/><circle cx="17" cy="11" r="7" fill="white"/><circle cx="32" cy="9" r="9" fill="white"/><circle cx="42" cy="12" r="6" fill="white"/></svg>
+        </div>
+        <div style="position:absolute;top:16px;left:50%;width:70px;height:28px;perspective:500px;z-index:3;">
+          <svg style="width:100%;height:100%;color:#0A2540;filter:drop-shadow(0 3px 6px rgba(10,37,64,0.3));transform-origin:50% 50%;animation:mxBank 4s ease-in-out infinite;" viewBox="0 0 140 40"><g fill="currentColor"><path d="M 6 22 C 6 19 12 17 20 17 L 95 17 C 102 17 108 15 114 12 L 130 6 L 134 6 L 134 10 L 130 16 L 114 22 C 108 25 102 27 95 27 L 20 27 C 12 27 6 25 6 22 Z"/><path d="M 118 17 L 126 3 L 130 3 L 128 17 Z"/><path d="M 45 27 L 80 27 L 75 34 L 50 34 Z" opacity="0.85"/><path d="M 105 27 L 120 27 L 117 31 L 108 31 Z" opacity="0.7"/><ellipse cx="105" cy="24" rx="5.5" ry="3" opacity="0.55"/><path d="M 12 19 L 20 18 L 22 21 L 12 21 Z" fill="#F5A623"/></g></svg>
+        </div>
+        <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#F5A623;box-shadow:0 0 6px rgba(245,166,35,0.6);animation:mxDot 1.6s ease-in-out infinite;z-index:4;"></div>
+      </div>
+    </span></div>`;
     history.appendChild(aiMsg);
     history.scrollTop = history.scrollHeight;
     const streamTarget = aiMsg.querySelector('.stream-target');

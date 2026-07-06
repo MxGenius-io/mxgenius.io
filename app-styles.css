@@ -2744,3 +2744,17 @@ body.live-mode .api-status.connected .status-dot {
 .work-order-fab.hidden {
   display: none;
 }
+
+/* MXGenius Cloud Loader — Chat Thinking Animation */
+@keyframes mxFloat {
+  0%   { left: -50px; }
+  100% { left: calc(100% + 50px); }
+}
+@keyframes mxBank {
+  0%, 100% { transform: translateX(-50%) rotateX(45deg); }
+  50%      { transform: translateX(-50%) rotateX(-45deg); }
+}
+@keyframes mxDot {
+  0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(0.8); }
+  50%      { opacity: 1;   transform: translateX(-50%) scale(1.1); }
+}
