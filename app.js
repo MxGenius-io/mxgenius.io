@@ -652,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget — app works without it)
-  login().then(() => loadDashboard()).catch(() => {});
+  login().then(() => loadDashboard()).catch(() => loadDashboard());
 });
 
 async function login() {
@@ -753,7 +753,7 @@ function setupNavigation() {
 
 function setupChatPanel() {
   const panel = document.getElementById('ai-chat-panel');
-  const toggleBtn = document.getElementById('chatToggleFab');
+  const toggleBtn = document.getElementById('chatToggleNav') || document.getElementById('chatToggleFab');
   const closeBtn = document.getElementById('closeChatBtn');
   const input = document.getElementById('chatInput');
   const sendBtn = document.querySelector('.chat-send-btn');
@@ -960,10 +960,9 @@ Rules:
         
         // Open the Work Order panel automatically when generated
         const panel = document.getElementById('work-order-panel');
-        const toggleBtn = document.getElementById('workOrderFab');
+        const toggleBtn = document.getElementById('workOrderNav') || document.getElementById('workOrderFab');
         if (panel) {
           panel.classList.add('open');
-          if (toggleBtn) toggleBtn.classList.add('hidden');
         }
       } catch (e) {
         console.error('Failed to parse workorder JSON:', e);
@@ -1424,15 +1423,13 @@ function reloadCurrentTab() {
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
   if (activeTab === 'dashboard') {
     loadDashboard();
+    loadGlobe();
+    loadAircraft();
+    loadCompanies();
+    loadContacts();
   } else if (activeTab) {
     tabLoaded[activeTab] = true;
     switch (activeTab) {
-      case 'globe': loadGlobe(); break;
-      case 'aircraft': loadAircraft(); break;
-
-      case 'companies': loadCompanies(); break;
-            case 'contacts': loadContacts(); break;
-      case 'outreach': loadCompanies(); loadContacts(); break;
       case 'docs': loadDocs(); break;
     }
   }
@@ -1448,8 +1445,10 @@ function switchTab(tabId) {
 
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.nav-tab[data-tab="${tabId}"]`).classList.add('active');
-  document.getElementById(`tab-${tabId}`).classList.add('active');
+  const tabBtn = document.querySelector(`.nav-tab[data-tab="${tabId}"]`);
+  if (tabBtn) tabBtn.classList.add('active');
+  const tabEl = document.getElementById(`tab-${tabId}`);
+  if (tabEl) tabEl.classList.add('active');
 
   // Reload 3D Viewer iframe to act as a "Home" reset button and break out of WebXR
   if (tabId === '3d-viewer') {
@@ -1469,15 +1468,51 @@ function switchTab(tabId) {
   if (!tabLoaded[tabId]) {
     tabLoaded[tabId] = true;
     switch (tabId) {
-      case 'globe': loadGlobe(); break;
-      case 'aircraft': loadAircraft(); break;
-      case 'companies': loadCompanies(); break;
-            case 'contacts': loadContacts(); break;
-      case 'outreach': loadCompanies(); loadContacts(); break;
+      case 'dashboard': loadGlobe(); loadAircraft(); loadCompanies(); loadContacts(); break;
       case 'docs': loadDocs(); break;
       case '3d-viewer': break;
-      case 'store': break; // Static HTML, no loader needed
+      case 'settings': initSettings(); break;
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════
+
+function initSettings() {
+  // Auto-speak toggle
+  const autoSpeakToggle = document.getElementById('settingsAutoSpeak');
+  if (autoSpeakToggle) {
+    autoSpeakToggle.checked = localStorage.getItem('mx_autoSpeak') === 'true';
+    autoSpeakToggle.addEventListener('change', function() {
+      localStorage.setItem('mx_autoSpeak', this.checked);
+    });
+  }
+
+  // Accent color picker
+  const colorPicker = document.getElementById('settingsAccentColor');
+  if (colorPicker) {
+    const savedColor = localStorage.getItem('mx_accentColor');
+    if (savedColor) {
+      colorPicker.value = savedColor;
+      document.documentElement.style.setProperty('--accent-cyan', savedColor);
+    }
+    colorPicker.addEventListener('input', function() {
+      document.documentElement.style.setProperty('--accent-cyan', this.value);
+      localStorage.setItem('mx_accentColor', this.value);
+    });
+  }
+
+  // Compact mode toggle
+  const compactToggle = document.getElementById('settingsCompactMode');
+  if (compactToggle) {
+    compactToggle.checked = localStorage.getItem('mx_compactMode') === 'true';
+    if (compactToggle.checked) document.body.classList.add('compact-mode');
+    compactToggle.addEventListener('change', function() {
+      localStorage.setItem('mx_compactMode', this.checked);
+      document.body.classList.toggle('compact-mode', this.checked);
+    });
   }
 }
 
@@ -1509,40 +1544,92 @@ function setOutreachMode(mode) {
 
 async function loadDashboard() {
   try {
-    // Fetch aggregate stats
-    if (!TOKEN) return; // No token — skip dashboard (offline mode)
-    const dashTimeout = AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined;
-    const [acRes, compRes, contRes] = await Promise.allSettled([
-      fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-        body: JSON.stringify({}), signal: dashTimeout
-      }).then(r => r.json()),
-      fetch(`${API}/api/Company/getCompanyList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-        body: JSON.stringify({}), signal: dashTimeout
-      }).then(r => r.json()),
-      fetch(`${API}/api/Contact/getContactList/${TOKEN}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-        body: JSON.stringify({}), signal: dashTimeout
-      }).then(r => r.json()),
-    ]);
+    let acList = [];
+    let compData = { count: 0 };
+    let contData = { count: 0 };
+    let bulkCount = 0;
 
-    const acData = acRes.status === 'fulfilled' ? acRes.value : {};
-    const compData = compRes.status === 'fulfilled' ? compRes.value : {};
-    const contData = contRes.status === 'fulfilled' ? contRes.value : {};
-    const acList = acData.aircraft || [];
+    if (TOKEN) {
+      // ── Fetch bulk export (295 fields, cached 15min) ──
+      const dashHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` };
+      try {
+        const bulkData = await MXCache.cachedFetch(
+          `${API}/api/Aircraft/getBulkAircraftExportPaged/${TOKEN}/5000/1`,
+          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({}) },
+          MXCache.TTL.BULK
+        );
+        acList = bulkData.aircraft || [];
+        bulkCount = bulkData.count || acList.length;
 
-    // Compute aggregate stats from live aircraft list
-    const totalAircraft = acData.count || acList.length || 0;
-    const totalCompanies = compData.count || (compData.companies || []).length || 0;
-    const totalContacts = contData.count || (contData.contacts || []).length || 0;
-    const forSale = acList.filter(a => a.forsale === true || a.forsale === 'true').length;
+        // ── Also fetch company/contact counts (cached 15min) ──
+        [compData, contData] = await Promise.all([
+          MXCache.cachedFetch(
+            `${API}/api/Company/getCompanyList/${TOKEN}`,
+            { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ pageSize: 1 }) },
+            MXCache.TTL.BULK
+          ),
+          MXCache.cachedFetch(
+            `${API}/api/Contact/getContactList/${TOKEN}`,
+            { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ pageSize: 1 }) },
+            MXCache.TTL.BULK
+          ),
+        ]);
+      } catch (fetchErr) {
+        console.warn('[Dashboard] API unavailable, rendering with zeros:', fetchErr.message);
+      }
+    }
 
-    // Aggregate flight hours and records
+    const acList_ = acList; // alias for closures
+
+    // ═══ Primary Stats ═══
+    const totalAircraft = bulkCount || acList.length || 0;
+    const totalCompanies = compData.count || 0;
+    const totalContacts = contData.count || 0;
+    const forSale = acList.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y').length;
     let totalHours = 0;
-    acList.forEach(a => { totalHours += (a.aftt || a.estaftt || 0); });
+    acList.forEach(a => { totalHours += (a.airfrmtt || a.estaftt || 0); });
 
-    // Fleet breakdown by make and type
+    animateNumber('statAircraft', totalAircraft);
+    animateNumber('statCompanies', totalCompanies);
+    animateNumber('statHours', totalHours, true);
+    animateNumber('statForSale', forSale);
+
+    // ═══ Secondary Stats ═══
+    // ADS-B
+    const adsbReady = acList.filter(a => a.hasadsb === 'Y' || a.hasadsb === true).length;
+    const adsbEl = document.getElementById('statADSB');
+    if (adsbEl) animateNumber('statADSB', adsbReady);
+
+    // Avg Fleet Age
+    const currentYear = new Date().getFullYear();
+    const withYear = acList.filter(a => a.yearmfr && a.yearmfr > 1900);
+    const avgAge = withYear.length > 0 ? Math.round(withYear.reduce((s, a) => s + (currentYear - a.yearmfr), 0) / withYear.length) : 0;
+    const avgAgeEl = document.getElementById('statAvgAge');
+    if (avgAgeEl) { avgAgeEl.textContent = avgAge + ' yr'; }
+
+    // Est. Cycles
+    const totalCycles = acList.reduce((s, a) => s + (a.estcycles || 0), 0);
+    if (totalCycles > 0) animateNumber('statEstCycles', totalCycles, true);
+
+    // Maintained
+    const maintCount = acList.filter(a => a.maintained === 'Y' || a.maintained === true).length;
+    const maintPct = totalAircraft > 0 ? Math.round((maintCount / totalAircraft) * 100) : 0;
+    const maintEl = document.getElementById('statMaintained');
+    if (maintEl) { maintEl.textContent = maintPct + '%'; }
+
+    // ═══ FAA AD Fleet Scan ═══
+    (async () => {
+      await FAA_ADS.load();
+      const fleetIcaos = [...new Set(acList.map(a => (a.modelicao || a.maketype || '')).filter(Boolean))];
+      const adScan = FAA_ADS.scanFleet(fleetIcaos);
+      const adEl = document.getElementById('statADs');
+      if (adEl) {
+        animateNumber('statADs', adScan.total);
+        adEl.title = Object.entries(adScan.byType).map(([k, v]) => `${k}: ${v}`).join('\n');
+      }
+    })();
+
+    // ═══ Fleet by Make/Type (existing) ═══
     const byMake = {};
     const byType = {};
     acList.forEach(a => {
@@ -1551,46 +1638,33 @@ async function loadDashboard() {
       const type = a.maketype || 'Unknown';
       byType[type] = (byType[type] || 0) + 1;
     });
-
-    // Sort and limit to top 6 makes
     const topMakes = Object.fromEntries(
       Object.entries(byMake).sort((a, b) => b[1] - a[1]).slice(0, 6)
     );
 
-    animateNumber('statAircraft', totalAircraft);
-    animateNumber('statCompanies', totalCompanies);
-    animateNumber('statHours', totalHours, true);
-    animateNumber('statForSale', forSale);
-
-    // ── FAA AD Fleet Scan — Predictive Maintenance ──
-    (async () => {
-      await FAA_ADS.load();
-      const fleetIcaos = [...new Set(acList.map(a => (a.icao || a.maketype || '')).filter(Boolean))];
-      const adScan = FAA_ADS.scanFleet(fleetIcaos);
-      const adEl = document.getElementById('statADs');
-      if (adEl) {
-        animateNumber('statADs', adScan.total);
-        adEl.title = Object.entries(adScan.byType).map(([k, v]) => `${k}: ${v}`).join('\n');
-      }
-      console.log(`[FAA] Fleet AD scan: ${adScan.total} ADs across ${Object.keys(adScan.byType).length} types`);
-    })();
-
     renderBarChart('chartMakes', topMakes, ['#00d4ff', '#0099ff', '#8b5cf6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#ec4899']);
     renderBarChart('chartTypes', byType, ['#00d4ff', '#8b5cf6', '#10b981', '#f59e0b']);
 
-    // Fetch dynamic Recent Transactions via Paged endpoint
-    try {
-      const histRes = await fetch(`${API}/api/Aircraft/getHistoryListPaged/${TOKEN}/10/1`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-        body: JSON.stringify({})
-      });
-      const histData = await histRes.json();
-      renderRecentTransactions(histData.history || histData.transactionhistory || []);
-    } catch (e) {
-      console.warn('Could not fetch paged history for dashboard:', e);
-      renderRecentTransactions([]);
-    }
+    // ═══ ADS-B Compliance Donut ═══
+    renderDonutChart('chartADSB', adsbReady, totalAircraft - adsbReady, 'ADS-B');
+
+    // ═══ Fleet Age Distribution Histogram ═══
+    renderAgeHistogram('chartAge', acList);
+
+    // ═══ Engine Health Overview ═══
+    renderEngineHealth('chartEngines', acList);
+
+    // ═══ Maintenance Program Breakdown ═══
+    renderMaintPrograms('chartMaint', acList);
+
+    // ═══ Recently Listed For Sale ═══
+    renderRecentListings(acList);
+
+    // ── Update cache stats in settings ──
+    MXCache.stats().then(s => {
+      const el = document.getElementById('cacheStats');
+      if (el) el.textContent = `${s.entries} cached entries`;
+    });
 
   } catch (e) {
     console.error('Dashboard load failed:', e);
@@ -1599,6 +1673,7 @@ async function loadDashboard() {
 
 function animateNumber(id, target, commas = false) {
   const el = document.getElementById(id);
+  if (!el) return;
   const duration = 1200;
   const start = performance.now();
 
@@ -1615,7 +1690,9 @@ function animateNumber(id, target, commas = false) {
 
 function renderBarChart(containerId, data, colors) {
   const container = document.getElementById(containerId);
+  if (!container) return;
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) { container.innerHTML = '<div class="empty-state">No data</div>'; return; }
   const max = Math.max(...entries.map(e => e[1]));
 
   container.innerHTML = entries.map(([label, value], i) => {
@@ -1640,31 +1717,170 @@ function renderBarChart(containerId, data, colors) {
   }, 50);
 }
 
-function renderRecentTransactions(transactions) {
-  const container = document.getElementById('recentTransactions');
-  if (!transactions || transactions.length === 0) {
-    container.innerHTML = '<div class="empty-state">No recent transactions</div>';
+// ═══════════════════════════════════════════════════
+//  DASHBOARD CHART RENDERERS
+// ═══════════════════════════════════════════════════
+
+function renderDonutChart(containerId, yesCount, noCount, label) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const total = yesCount + noCount;
+  if (total === 0) { container.innerHTML = '<div class="empty-state">No data</div>'; return; }
+  const pct = Math.round((yesCount / total) * 100);
+  const deg = Math.round((yesCount / total) * 360);
+
+  container.innerHTML = `
+    <div class="donut-chart" style="--pct:${deg}deg; --color-yes:#22d3ee; --color-no:rgba(255,255,255,0.08);">
+      <div class="donut-center">
+        <div class="donut-value">${pct}%</div>
+        <div class="donut-label">${label}</div>
+      </div>
+    </div>
+    <div class="donut-legend">
+      <div><span class="donut-dot" style="background:#22d3ee;"></span> Equipped: ${yesCount.toLocaleString()}</div>
+      <div><span class="donut-dot" style="background:rgba(255,255,255,0.15);"></span> Not Equipped: ${noCount.toLocaleString()}</div>
+    </div>`;
+}
+
+function renderAgeHistogram(containerId, acList) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const currentYear = new Date().getFullYear();
+  const decades = {};
+  acList.forEach(a => {
+    if (!a.yearmfr || a.yearmfr < 1950) return;
+    const decade = Math.floor(a.yearmfr / 10) * 10;
+    const label = `${decade}s`;
+    decades[label] = (decades[label] || 0) + 1;
+  });
+  const sorted = Object.fromEntries(Object.entries(decades).sort((a, b) => a[0].localeCompare(b[0])));
+  renderBarChart(containerId, sorted, ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#7c3aed', '#5b21b6']);
+}
+
+function renderEngineHealth(containerId, acList) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // Aggregate engines that have TBO and time data
+  let totalEngines = 0;
+  let green = 0, yellow = 0, red = 0;
+  const programs = {};
+
+  acList.forEach(a => {
+    // Check engines 1-4 (left/right/1/2 naming convention)
+    const suffixes = ['l', 'r', '1', '2'];
+    suffixes.forEach(s => {
+      const tt = a[`engtt${s}_new`];
+      const tbo = a[`tbo${s}_new`];
+      if (tt && tbo && tbo > 0) {
+        totalEngines++;
+        const ratio = tt / tbo;
+        if (ratio < 0.6) green++;
+        else if (ratio < 0.85) yellow++;
+        else red++;
+      }
+    });
+
+    // Engine program tracking
+    const prog = a.engineproviderprogram || a.emp || '';
+    if (prog && prog.trim()) {
+      const key = prog.trim();
+      programs[key] = (programs[key] || 0) + 1;
+    }
+  });
+
+  if (totalEngines === 0) {
+    container.innerHTML = '<div class="empty-state">No engine TBO data available</div>';
     return;
   }
+
+  container.innerHTML = `
+    <div class="engine-health-bars">
+      <div class="engine-bar-row">
+        <span class="engine-bar-label" style="color:#10b981;">Good (&lt;60% TBO)</span>
+        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(green/totalEngines*100)}%;background:#10b981;">${green}</div></div>
+      </div>
+      <div class="engine-bar-row">
+        <span class="engine-bar-label" style="color:#f59e0b;">Caution (60-85%)</span>
+        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(yellow/totalEngines*100)}%;background:#f59e0b;">${yellow}</div></div>
+      </div>
+      <div class="engine-bar-row">
+        <span class="engine-bar-label" style="color:#ef4444;">Due Soon (&gt;85%)</span>
+        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(red/totalEngines*100)}%;background:#ef4444;">${red}</div></div>
+      </div>
+    </div>
+    <div class="engine-summary">${totalEngines} engines tracked</div>`;
+
+  // Animate
+  setTimeout(() => {
+    container.querySelectorAll('.chart-bar').forEach(bar => {
+      const w = bar.style.width; bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = w; });
+    });
+  }, 50);
+}
+
+function renderMaintPrograms(containerId, acList) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const programs = {};
+  acList.forEach(a => {
+    const prog = a.mxprog || a.amp || '';
+    if (prog && prog.trim()) {
+      const key = prog.trim();
+      programs[key] = (programs[key] || 0) + 1;
+    }
+  });
+
+  if (Object.keys(programs).length === 0) {
+    container.innerHTML = '<div class="empty-state">No maintenance program data</div>';
+    return;
+  }
+
+  const topProgs = Object.fromEntries(
+    Object.entries(programs).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  );
+  renderBarChart(containerId, topProgs, ['#f472b6', '#ec4899', '#db2777', '#be185d', '#9d174d', '#831843', '#fb7185', '#fda4af']);
+}
+
+function renderRecentListings(acList) {
+  const container = document.getElementById('recentListings');
+  if (!container) return;
+
+  // Filter for-sale aircraft with listing dates, sort by most recent
+  const listings = acList
+    .filter(a => (a.forsale === true || a.forsale === 'true' || a.forsale === 'Y') && a.datelisted)
+    .sort((a, b) => new Date(b.datelisted) - new Date(a.datelisted))
+    .slice(0, 15);
+
+  if (listings.length === 0) {
+    container.innerHTML = '<div class="empty-state">No recent listings</div>';
+    return;
+  }
+
   container.innerHTML = `
     <table>
       <thead>
         <tr>
-          <th>Date</th><th>Make</th><th>Model</th><th>Reg</th><th>Serial</th><th>Type</th><th>Description</th>
+          <th>Listed</th><th>Make</th><th>Model</th><th>Reg</th><th>Year</th><th>AFTT</th><th>Asking</th><th>Base</th>
         </tr>
       </thead>
       <tbody>
-        ${transactions.map(t => `
-          <tr>
-            <td class="td-dim">${t.actiondate || '—'}</td>
-            <td class="td-accent">${t.make}</td>
-            <td>${t.model}</td>
-            <td class="td-mono">${t.regnbr}</td>
-            <td class="td-mono">${t.sernbr}</td>
-            <td><span class="badge badge-lifecycle">${t.transtype || '—'}</span></td>
-            <td class="td-dim">${t.description || '—'}</td>
-          </tr>
-        `).join('')}
+        ${listings.map(a => {
+          const asking = a.asking ? '$' + Number(a.asking).toLocaleString() : '—';
+          return `
+          <tr onclick="showAircraftDetail(${a.aircraftid})" style="cursor:pointer;">
+            <td class="td-dim">${a.datelisted || '—'}</td>
+            <td class="td-accent">${a.make || '—'}</td>
+            <td>${a.model || '—'}</td>
+            <td class="td-mono">${a.regnbr || '—'}</td>
+            <td>${a.yearmfr || '—'}</td>
+            <td>${a.airfrmtt ? a.airfrmtt.toLocaleString() : a.estaftt ? a.estaftt.toLocaleString() : '—'}</td>
+            <td class="td-accent">${asking}</td>
+            <td class="td-dim">${a.acbasecity || a.acbaseicao || '—'}</td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>`;
 }
@@ -3125,21 +3341,29 @@ async function loadMarketplace() {
 // ============================================
 function setupWorkOrderPanel() {
   const panel = document.getElementById('work-order-panel');
-  const toggleBtn = document.getElementById('workOrderFab');
+  const toggleBtn = document.getElementById('workOrderNav') || document.getElementById('workOrderFab');
   const closeBtn = document.getElementById('closeWorkOrderBtn');
   const emailBtn = document.getElementById('btnEmailInvoice');
 
   if (toggleBtn && panel) {
     toggleBtn.addEventListener('click', () => {
       panel.classList.add('open');
-      toggleBtn.classList.add('hidden');
     });
   }
 
   if (closeBtn && panel) {
     closeBtn.addEventListener('click', () => {
       panel.classList.remove('open');
-      if (toggleBtn) toggleBtn.classList.remove('hidden');
+    });
+  }
+
+  // Close work order panel when clicking outside
+  if (panel) {
+    document.addEventListener('click', (e) => {
+      if (!panel.classList.contains('open')) return;
+      if (panel.contains(e.target)) return;
+      if (toggleBtn && toggleBtn.contains(e.target)) return;
+      panel.classList.remove('open');
     });
   }
 
