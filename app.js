@@ -1579,7 +1579,72 @@ async function loadDashboard() {
       }
     }
 
-    const acList_ = acList; // alias for closures
+    // Store globally for filtering
+    window._dashboardData = { acList, compData, contData, bulkCount: bulkCount || acList.length };
+
+    // Populate filter dropdowns from live data
+    populateDashboardFilters(acList);
+
+    // Render with current filters (initially none)
+    renderDashboard(acList, compData, contData, bulkCount || acList.length);
+
+  } catch (e) {
+    console.error('Dashboard load failed:', e);
+  }
+}
+
+function populateDashboardFilters(acList) {
+  const makeSelect = document.getElementById('filterMake');
+  const typeSelect = document.getElementById('filterType');
+  if (!makeSelect || !typeSelect) return;
+
+  // Makes — sorted alphabetically
+  const makes = [...new Set(acList.map(a => a.make).filter(Boolean))].sort();
+  makes.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    makeSelect.appendChild(opt);
+  });
+
+  // Types
+  const types = [...new Set(acList.map(a => a.maketype).filter(Boolean))].sort();
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    typeSelect.appendChild(opt);
+  });
+}
+
+function applyDashboardFilters() {
+  const d = window._dashboardData;
+  if (!d) return;
+
+  const make = document.getElementById('filterMake')?.value || '';
+  const type = document.getElementById('filterType')?.value || '';
+  const status = document.getElementById('filterStatus')?.value || '';
+
+  let filtered = d.acList;
+  if (make) filtered = filtered.filter(a => a.make === make);
+  if (type) filtered = filtered.filter(a => a.maketype === type);
+  if (status === 'forsale') filtered = filtered.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y');
+  if (status === 'maintained') filtered = filtered.filter(a => a.maintained === 'Y' || a.maintained === true);
+  if (status === 'adsb') filtered = filtered.filter(a => a.hasadsb === 'Y' || a.hasadsb === true);
+
+  renderDashboard(filtered, d.compData, d.contData, filtered.length);
+}
+
+function clearDashboardFilters() {
+  const makeEl = document.getElementById('filterMake');
+  const typeEl = document.getElementById('filterType');
+  const statusEl = document.getElementById('filterStatus');
+  if (makeEl) makeEl.value = '';
+  if (typeEl) typeEl.value = '';
+  if (statusEl) statusEl.value = '';
+  const d = window._dashboardData;
+  if (d) renderDashboard(d.acList, d.compData, d.contData, d.bulkCount);
+}
+
+function renderDashboard(acList, compData, contData, bulkCount) {
 
     // ═══ Primary Stats ═══
     const totalAircraft = bulkCount || acList.length || 0;
@@ -1665,10 +1730,6 @@ async function loadDashboard() {
       const el = document.getElementById('cacheStats');
       if (el) el.textContent = `${s.entries} cached entries`;
     });
-
-  } catch (e) {
-    console.error('Dashboard load failed:', e);
-  }
 }
 
 function animateNumber(id, target, commas = false) {

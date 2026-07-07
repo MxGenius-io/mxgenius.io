@@ -364,6 +364,32 @@
         </div>
       </div>
 
+      <!-- Dashboard Filters -->
+      <div class="dashboard-filters" id="dashboardFilters">
+        <div class="search-field">
+          <label>Manufacturer</label>
+          <select id="filterMake" class="search-input" onchange="applyDashboardFilters()">
+            <option value="">All Makes</option>
+          </select>
+        </div>
+        <div class="search-field">
+          <label>Type</label>
+          <select id="filterType" class="search-input" onchange="applyDashboardFilters()">
+            <option value="">All Types</option>
+          </select>
+        </div>
+        <div class="search-field">
+          <label>Status</label>
+          <select id="filterStatus" class="search-input" onchange="applyDashboardFilters()">
+            <option value="">All</option>
+            <option value="forsale">For Sale</option>
+            <option value="maintained">Maintained</option>
+            <option value="adsb">ADS-B Equipped</option>
+          </select>
+        </div>
+        <button class="btn-primary" style="align-self:flex-end;padding:8px 16px;" onclick="clearDashboardFilters()">Clear</button>
+      </div>
+
       <div class="dashboard-grid">
         <div class="card">
           <h3 class="card-title">Fleet by Manufacturer</h3>

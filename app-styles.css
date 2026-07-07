@@ -722,6 +722,28 @@ main {
   margin-top: 8px;
 }
 
+/* ─── Dashboard Filters ─── */
+.dashboard-filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 16px 0 8px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dashboard-filters .search-field { flex: 1; }
+.dashboard-filters select {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
 /* ─── Search Bar ─── */
 .search-bar {
   display: flex;
