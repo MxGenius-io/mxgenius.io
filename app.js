@@ -652,19 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget — app works without it)
-  login().then(() => loadDashboard()).catch(() => loadDashboard());
-
-  // Phase 3: Globe deferred — only init when the collapsible section is opened
-  const fleetDetails = document.getElementById('fleetCollapsible');
-  if (fleetDetails) {
-    fleetDetails.addEventListener('toggle', () => {
-      if (fleetDetails.open && !globeInstance) {
-        setTimeout(() => loadGlobe(), 100); // small delay for DOM layout
-      } else if (fleetDetails.open && globeInstance) {
-        handleGlobeResize();
-      }
-    });
-  }
+  login().then(() => { loadDashboard(); loadGlobe(); }).catch(() => { loadDashboard(); loadGlobe(); });
 });
 
 async function login() {
@@ -1435,8 +1423,7 @@ function reloadCurrentTab() {
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
   if (activeTab === 'dashboard') {
     loadDashboard();
-    const fc = document.getElementById('fleetCollapsible');
-    if (fc && fc.open) loadGlobe();
+    loadGlobe();
     loadAircraft();
     loadCompanies();
     loadContacts();
@@ -1481,7 +1468,7 @@ function switchTab(tabId) {
   if (!tabLoaded[tabId]) {
     tabLoaded[tabId] = true;
     switch (tabId) {
-      case 'dashboard': loadAircraft(); loadCompanies(); loadContacts(); break;
+      case 'dashboard': loadGlobe(); loadAircraft(); loadCompanies(); loadContacts(); break;
       case 'docs': loadDocs(); break;
       case '3d-viewer': break;
       case 'settings': initSettings(); break;
