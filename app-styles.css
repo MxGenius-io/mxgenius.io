@@ -1637,6 +1637,28 @@ body.live-mode .api-status.connected .status-dot {
 .globe-sheet.half, .globe-sheet.full {
   pointer-events: auto; /* when expanded, capture everything */
 }
+.globe-sheet-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text-primary);
+  font-size: 1.3rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 20;
+  transition: background 0.2s;
+}
+.globe-sheet-close:hover {
+  background: rgba(239, 68, 68, 0.5);
+}
 .globe-sheet.half { transform: translateY(calc(100% - 220px)); }
 .globe-sheet.full { transform: translateY(0); }
 

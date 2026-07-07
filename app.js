@@ -2819,6 +2819,14 @@ function setupGlobeSheet() {
     currentState = (currentState + 1) % states.length;
     sheet.className = 'globe-sheet' + (states[currentState] ? ' ' + states[currentState] : '');
   });
+  // Close button
+  const closeBtn = document.getElementById('globeSheetClose');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      currentState = 0;
+      sheet.className = 'globe-sheet';
+    });
+  }
   handle.addEventListener('touchstart', (e) => { handle._startY = e.touches[0].clientY; sheet.style.transition = 'none'; }, { passive: true });
   handle.addEventListener('touchmove', (e) => {
     const dy = e.touches[0].clientY - handle._startY;
