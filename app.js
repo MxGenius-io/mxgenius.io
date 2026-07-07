@@ -1544,6 +1544,17 @@ function setOutreachMode(mode) {
 
 async function loadDashboard() {
   try {
+    // Show loading throbbers
+    const spinner = '<div class="loading-spinner"></div>';
+    ['statAircraft','statCompanies','statContacts','statHours','statForSale','statADs','statADSB','statAvgAge','statEstCycles','statMaintained'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = spinner;
+    });
+    ['chartMakes','chartTypes','chartADSB','chartAge','chartEngines','chartMaint','recentListings'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:120px;">${spinner}<span style="margin-left:10px;color:var(--text-muted);font-size:0.8rem;">Loading data...</span></div>`;
+    });
+
     let acList = [];
     let compData = { count: 0 };
     let contData = { count: 0 };
@@ -2835,6 +2846,17 @@ function setupGlobeSheet() {
   document.getElementById('globeTextureSelect')?.addEventListener('change', (e) => {
     if (globeInstance) globeInstance.globeImageUrl(e.target.value);
   });
+
+  // Click outside sheet to close it
+  const gc = document.getElementById('globeContainer');
+  if (gc) {
+    gc.addEventListener('click', (e) => {
+      if (!sheet.contains(e.target)) {
+        currentState = 0;
+        sheet.className = 'globe-sheet';
+      }
+    });
+  }
 }
 
 function handleGlobeClick(point) {

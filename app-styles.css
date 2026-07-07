@@ -2,6 +2,18 @@
    JETNET Connect Simulator - Premium Aviation Theme
    ═══════════════════════════════════════════════════ */
 
+/* ─── Loading Spinner ─── */
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--border, #2a3150);
+  border-top-color: var(--accent-cyan, #00d4ff);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 :root {
   --bg-primary: #0a0e1a;
   --bg-secondary: #111827;
