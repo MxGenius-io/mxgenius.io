@@ -1571,23 +1571,27 @@ async function loadDashboard() {
         );
         acList = bulkData.aircraft || [];
         bulkCount = bulkData.count || acList.length;
+      } catch (e) { console.warn('[Dashboard] Bulk export failed:', e.message); }
 
-        // ── Also fetch company/contact counts (cached 15min) ──
-        [compData, contData] = await Promise.all([
-          MXCache.cachedFetch(
-            `${API}/api/Company/getCompanyList/${TOKEN}`,
-            { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ pageSize: 1 }) },
-            MXCache.TTL.BULK
-          ),
-          MXCache.cachedFetch(
-            `${API}/api/Contact/getContactList/${TOKEN}`,
-            { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ pageSize: 1 }) },
-            MXCache.TTL.BULK
-          ),
-        ]);
-      } catch (fetchErr) {
-        console.warn('[Dashboard] API unavailable, rendering with zeros:', fetchErr.message);
-      }
+      // ── Fetch company count ──
+      try {
+        compData = await MXCache.cachedFetch(
+          `${API}/api/Company/getCompanyList/${TOKEN}`,
+          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({}) },
+          MXCache.TTL.BULK
+        );
+        console.log('[Dashboard] Companies response:', JSON.stringify(compData).substring(0, 200));
+      } catch (e) { console.warn('[Dashboard] Company fetch failed:', e.message); }
+
+      // ── Fetch contact count ──
+      try {
+        contData = await MXCache.cachedFetch(
+          `${API}/api/Contact/getContactList/${TOKEN}`,
+          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({}) },
+          MXCache.TTL.BULK
+        );
+        console.log('[Dashboard] Contacts response:', JSON.stringify(contData).substring(0, 200));
+      } catch (e) { console.warn('[Dashboard] Contact fetch failed:', e.message); }
     }
 
     // Store globally for filtering
@@ -1659,14 +1663,15 @@ function renderDashboard(acList, compData, contData, bulkCount) {
 
     // ═══ Primary Stats ═══
     const totalAircraft = bulkCount || acList.length || 0;
-    const totalCompanies = compData.count || 0;
-    const totalContacts = contData.count || 0;
+    const totalCompanies = compData.count || (compData.companies || []).length || 0;
+    const totalContacts = contData.count || (contData.contacts || []).length || 0;
     const forSale = acList.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y').length;
     let totalHours = 0;
     acList.forEach(a => { totalHours += (a.airfrmtt || a.estaftt || 0); });
 
     animateNumber('statAircraft', totalAircraft);
     animateNumber('statCompanies', totalCompanies);
+    animateNumber('statContacts', totalContacts);
     animateNumber('statHours', totalHours, true);
     animateNumber('statForSale', forSale);
 
