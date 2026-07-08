@@ -1617,25 +1617,27 @@ function setOutreachMode(mode) {
 
 async function loadDashboard() {
   try {
-    // Show loading throbbers
+    // Show loading throbbers in chart containers
     const spinner = '<div class="loading-spinner"></div>';
-    ['statAircraft','statCompanies','statContacts','statHours','statForSale','statADs','statADSB','statAvgAge','statEstCycles','statMaintained'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = spinner;
-    });
     ['chartMakes','chartTypes','chartADSB','chartAge','chartEngines','chartMaint','recentListings'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:120px;">${spinner}<span style="margin-left:10px;color:var(--text-muted);font-size:0.8rem;">Loading data...</span></div>`;
     });
 
     let acList = [];
-    let compData = { count: 0 };
-    let contData = { count: 0 };
     let bulkCount = 0;
 
     if (TOKEN) {
-      // ── Fetch bulk export (295 fields, cached 15min) ──
       const dashHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` };
+
+      // One-time cache bust to clear stale Gulfstream-only data
+      const cacheVersion = '2';
+      if (localStorage.getItem('mx_cacheVer') !== cacheVersion) {
+        await MXCache.clearAll();
+        localStorage.setItem('mx_cacheVer', cacheVersion);
+        console.log('[Dashboard] Cache cleared for version upgrade');
+      }
+
       try {
         const bulkData = await MXCache.cachedFetch(
           `${API}/api/Aircraft/getBulkAircraftExportPaged/${TOKEN}/5000/1`,
@@ -1645,34 +1647,16 @@ async function loadDashboard() {
         acList = bulkData.aircraft || [];
         bulkCount = bulkData.count || acList.length;
       } catch (e) { console.warn('[Dashboard] Bulk export failed:', e.message); }
-
-      // ── Fetch company count (API requires at least one param) ──
-      try {
-        compData = await MXCache.cachedFetch(
-          `${API}/api/Company/getCompanyList/${TOKEN}`,
-          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ name: '%' }) },
-          MXCache.TTL.BULK
-        );
-      } catch (e) { console.warn('[Dashboard] Company fetch failed:', e.message); }
-
-      // ── Fetch contact count (API requires at least one param) ──
-      try {
-        contData = await MXCache.cachedFetch(
-          `${API}/api/Contact/getContactList/${TOKEN}`,
-          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({ companyname: '%' }) },
-          MXCache.TTL.BULK
-        );
-      } catch (e) { console.warn('[Dashboard] Contact fetch failed:', e.message); }
     }
 
     // Store globally for filtering
-    window._dashboardData = { acList, compData, contData, bulkCount: bulkCount || acList.length };
+    window._dashboardData = { acList, bulkCount: bulkCount || acList.length };
 
     // Populate filter dropdowns from live data
     populateDashboardFilters(acList);
 
     // Render with current filters (initially none)
-    renderDashboard(acList, compData, contData, bulkCount || acList.length);
+    renderDashboard(acList, bulkCount || acList.length);
 
   } catch (e) {
     console.error('Dashboard load failed:', e);
@@ -1716,7 +1700,7 @@ function applyDashboardFilters() {
   if (status === 'maintained') filtered = filtered.filter(a => a.maintained === 'Y' || a.maintained === true);
   if (status === 'adsb') filtered = filtered.filter(a => a.hasadsb === 'Y' || a.hasadsb === true);
 
-  renderDashboard(filtered, d.compData, d.contData, filtered.length);
+  renderDashboard(filtered, filtered.length);
 }
 
 function clearDashboardFilters() {
@@ -1727,59 +1711,13 @@ function clearDashboardFilters() {
   if (typeEl) typeEl.value = '';
   if (statusEl) statusEl.value = '';
   const d = window._dashboardData;
-  if (d) renderDashboard(d.acList, d.compData, d.contData, d.bulkCount);
+  if (d) renderDashboard(d.acList, d.bulkCount);
 }
 
-function renderDashboard(acList, compData, contData, bulkCount) {
+function renderDashboard(acList, bulkCount) {
 
-    // ═══ Primary Stats ═══
     const totalAircraft = bulkCount || acList.length || 0;
-    const totalCompanies = compData.count || (compData.companies || []).length || 0;
-    const totalContacts = contData.count || (contData.contacts || []).length || 0;
-    const forSale = acList.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y').length;
-    let totalHours = 0;
-    acList.forEach(a => { totalHours += (a.airfrmtt || a.estaftt || 0); });
-
-    animateNumber('statAircraft', totalAircraft);
-    animateNumber('statCompanies', totalCompanies);
-    animateNumber('statContacts', totalContacts);
-    animateNumber('statHours', totalHours, true);
-    animateNumber('statForSale', forSale);
-
-    // ═══ Secondary Stats ═══
-    // ADS-B
     const adsbReady = acList.filter(a => a.hasadsb === 'Y' || a.hasadsb === true).length;
-    const adsbEl = document.getElementById('statADSB');
-    if (adsbEl) animateNumber('statADSB', adsbReady);
-
-    // Avg Fleet Age
-    const currentYear = new Date().getFullYear();
-    const withYear = acList.filter(a => a.yearmfr && a.yearmfr > 1900);
-    const avgAge = withYear.length > 0 ? Math.round(withYear.reduce((s, a) => s + (currentYear - a.yearmfr), 0) / withYear.length) : 0;
-    const avgAgeEl = document.getElementById('statAvgAge');
-    if (avgAgeEl) { avgAgeEl.textContent = avgAge + ' yr'; }
-
-    // Est. Cycles
-    const totalCycles = acList.reduce((s, a) => s + (a.estcycles || 0), 0);
-    if (totalCycles > 0) animateNumber('statEstCycles', totalCycles, true);
-
-    // Maintained
-    const maintCount = acList.filter(a => a.maintained === 'Y' || a.maintained === true).length;
-    const maintPct = totalAircraft > 0 ? Math.round((maintCount / totalAircraft) * 100) : 0;
-    const maintEl = document.getElementById('statMaintained');
-    if (maintEl) { maintEl.textContent = maintPct + '%'; }
-
-    // ═══ FAA AD Fleet Scan ═══
-    (async () => {
-      await FAA_ADS.load();
-      const fleetIcaos = [...new Set(acList.map(a => (a.modelicao || a.maketype || '')).filter(Boolean))];
-      const adScan = FAA_ADS.scanFleet(fleetIcaos);
-      const adEl = document.getElementById('statADs');
-      if (adEl) {
-        animateNumber('statADs', adScan.total);
-        adEl.title = Object.entries(adScan.byType).map(([k, v]) => `${k}: ${v}`).join('\n');
-      }
-    })();
 
     // ═══ Fleet by Make/Type (existing) ═══
     const byMake = {};
