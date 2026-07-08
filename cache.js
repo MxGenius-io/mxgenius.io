@@ -125,8 +125,9 @@ const MXCache = (() => {
     const res = await fetch(url, options);
     const data = await res.json();
 
-    // Only cache successful responses
-    if (data && (!data.responsestatus || data.responsestatus === 'SUCCESS' || data.responsestatus === 'Success')) {
+    // Only cache successful responses (not 400/500 errors)
+    if (data && !data.errors && res.ok &&
+        (!data.responsestatus || data.responsestatus === 'SUCCESS' || data.responsestatus === 'Success')) {
       await put(key, data, ttlMs);
     }
 
