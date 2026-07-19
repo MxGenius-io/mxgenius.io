@@ -8,6 +8,7 @@ const client = await readFile(new URL('../application-client.js', import.meta.ur
 const cache = await readFile(new URL('../cache.js', import.meta.url), 'utf8');
 const caseWorkspace = await readFile(new URL('../case-workspace.js', import.meta.url), 'utf8');
 const realtimeClient = await readFile(new URL('../realtime-client.js', import.meta.url), 'utf8');
+const capabilityWorkbench = await readFile(new URL('../capability-workbench.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
@@ -24,7 +25,7 @@ test('dashboard element IDs are unique', () => {
 
 test('every navigation tab resolves to exactly one panel', () => {
   const tabs = matches(/\bdata-tab="([^"]+)"/g);
-  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'settings']);
+  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'operations', 'settings']);
 
   for (const tab of tabs) {
     const escaped = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -56,6 +57,15 @@ test('technical evidence stays behind case and chat boundaries instead of a dead
   assert.doesNotMatch(dashboard, /id="tab-docs"/);
   assert.match(application, /MXApplicationClient\.compliance\.applicableAds/);
   assert.match(client, /mxg\.compliance\.applicable_ads/);
+});
+
+test('all mounted typed capabilities are surfaced through the operations workbench', () => {
+  assert.match(dashboard, /data-tab="operations"/);
+  assert.match(dashboard, /id="capabilityCatalog"/);
+  assert.match(dashboard, /src="capability-workbench\.js"/);
+  assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.list/);
+  assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.call/);
+  assert.match(capabilityWorkbench, /mxg:case-selected/);
 });
 
 test('known POC-only data and loaders are absent', () => {
