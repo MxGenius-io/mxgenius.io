@@ -63,11 +63,14 @@ test('technical evidence stays behind case and chat boundaries instead of a dead
 test('all mounted typed capabilities are surfaced through the operations workbench', () => {
   assert.match(dashboard, /data-tab="operations"/);
   assert.match(dashboard, /id="capabilityCatalog"/);
+  assert.match(dashboard, /id="capabilityFields"/);
+  assert.match(dashboard, /Advanced request/);
+  assert.match(dashboard, /id="capabilityResultSummary"/);
   assert.match(dashboard, /src="capability-workbench\.js(?:\?v=\d+)?"/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.list/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.call/);
   assert.match(capabilityWorkbench, /mxg:case-selected/);
-  assert.match(capabilityWorkbench, /typed capabilities ready/);
+  assert.match(capabilityWorkbench, /operations ready/);
 });
 
 test('known POC-only data and loaders are absent', () => {
@@ -121,7 +124,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
   const appIndex = dashboard.indexOf('<script src="app.js?v=3"></script>');
-  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=2">');
+  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=3">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
   assert.ok(clientIndex > cacheIndex, 'application-client.js should load after cache.js');

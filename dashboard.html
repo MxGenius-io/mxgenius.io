@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="app-styles.css">
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="realtime.css">
-  <link rel="stylesheet" href="production-ui.css?v=2">
+  <link rel="stylesheet" href="production-ui.css?v=3">
 </head>
 
 <body style="position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;">
@@ -413,24 +413,41 @@
 
     <section id="tab-operations" class="tab-content capability-workbench">
       <div class="tab-header">
-        <h1>Operational Capabilities</h1>
-        <p class="subtitle">Aircraft, cases, parts, MRO, weather, compliance, 3D, scheduling, evidence, and fleet analytics</p>
+        <h1>Operations</h1>
+        <p class="subtitle">Choose the job you need to do. MXGenius will use the active case when one is selected.</p>
       </div>
       <div class="capability-toolbar">
         <div id="capabilityStatus" class="capability-status" role="status" aria-live="polite">Loading mounted capabilities…</div>
-        <label class="capability-search">Find a capability<input id="capabilitySearch" type="search" placeholder="Parts, weather, evidence…"></label>
+        <label class="capability-search">Find an operation<input id="capabilitySearch" type="search" placeholder="Aircraft, parts, weather…"></label>
         <button id="capabilityRefresh" class="btn-primary" type="button">Refresh</button>
       </div>
       <div id="capabilityCatalog"></div>
       <section id="capabilityRunner" class="capability-runner" hidden>
-        <header><div><span id="capabilityRunnerName"></span><h2 id="capabilityRunnerTitle"></h2></div></header>
+        <header>
+          <div>
+            <span id="capabilityRunnerName"></span>
+            <h2 id="capabilityRunnerTitle"></h2>
+            <p id="capabilityRunnerDescription"></p>
+          </div>
+          <button id="capabilityRunnerClose" class="capability-runner__close" type="button" aria-label="Close operation">Close</button>
+        </header>
         <form id="capabilityRunnerForm">
-          <label for="capabilityArguments">Typed request</label>
-          <textarea id="capabilityArguments" rows="10" spellcheck="false">{}</textarea>
-          <details><summary>Request schema</summary><pre id="capabilitySchema"></pre></details>
-          <button id="capabilityRunButton" class="btn-email-invoice" type="submit">Run capability</button>
+          <div id="capabilityFields" class="capability-fields"></div>
+          <details class="capability-advanced">
+            <summary>Advanced request</summary>
+            <div class="capability-advanced__body">
+              <label for="capabilityArguments">Request data</label>
+              <textarea id="capabilityArguments" rows="8" spellcheck="false">{}</textarea>
+              <details><summary>Contract details</summary><pre id="capabilitySchema"></pre></details>
+            </div>
+          </details>
+          <button id="capabilityRunButton" class="btn-email-invoice" type="submit">Run operation</button>
         </form>
-        <pre id="capabilityResult" class="capability-result" hidden></pre>
+        <section id="capabilityResultSummary" class="capability-result-summary" aria-live="polite" hidden></section>
+        <details id="capabilityResultAdvanced" class="capability-advanced capability-result-advanced" hidden>
+          <summary>Technical result</summary>
+          <pre id="capabilityResult" class="capability-result"></pre>
+        </details>
       </section>
     </section>
 
@@ -588,7 +605,7 @@
   <script src="application-client.js?v=3"></script>
   <script src="realtime-client.js"></script>
   <script src="case-workspace.js?v=2"></script>
-  <script src="capability-workbench.js?v=2"></script>
+  <script src="capability-workbench.js?v=3"></script>
   <script src="app.js?v=3"></script>
 </body>
 
