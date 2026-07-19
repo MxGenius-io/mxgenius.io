@@ -153,6 +153,7 @@
     let panelView = 'location';
     let listPage = 0;
     let detailPage = 0;
+    let imagePage = 0;
     let detailModel = null;
     let panelHitRegions = [];
     let imageGridGeneration = 0;
@@ -339,7 +340,11 @@
     function populateDetailImageGrid(urls) {
       clearDetailImageGrid();
       const generation = imageGridGeneration;
-      const sources = urls.slice(0, 6).map((url) => MXApplicationClient.aircraftImageUrl(url)).filter(Boolean);
+      const pageCount = Math.max(1, Math.ceil(urls.length / 6));
+      imagePage = THREE.MathUtils.clamp(imagePage, 0, pageCount - 1);
+      const sources = urls.slice(imagePage * 6, (imagePage + 1) * 6)
+        .map((url) => MXApplicationClient.aircraftImageUrl(url))
+        .filter(Boolean);
       if (!sources.length) return;
       detailImageGrid.visible = true;
       sources.forEach((url, index) => {
@@ -376,7 +381,18 @@
       detailsContext.font = '700 52px ui-monospace, monospace';
       detailsContext.fillText(cleanText(detailModel.registration), 220, 167);
 
-      const contentTop = 214;
+      const imagePageCount = Math.max(1, Math.ceil(detailModel.pictures.length / 6));
+      if (detailModel.pictures.length) {
+        drawButton(650, 122, 150, 'IMG PREV', { type: 'image-page', delta: -1 });
+        drawButton(838, 122, 150, 'IMG NEXT', { type: 'image-page', delta: 1 });
+        detailsContext.fillStyle = '#718da3';
+        detailsContext.font = '20px ui-monospace, monospace';
+        detailsContext.textAlign = 'right';
+        detailsContext.fillText(`IMAGES ${imagePage + 1} / ${imagePageCount} · ${detailModel.pictures.length} TOTAL`, 988, 211);
+        detailsContext.textAlign = 'left';
+      }
+
+      const contentTop = 232;
 
       const visibleLines = detailModel.lines.slice(detailPage * pageSize, (detailPage + 1) * pageSize);
       visibleLines.forEach((line, index) => {
@@ -412,6 +428,7 @@
         const bundle = await MXApplicationClient.aircraftBundle({ id: summary.aircraftid, token: TOKEN });
         detailModel = buildDetailModel(bundle, summary);
         detailPage = 0;
+        imagePage = 0;
         populateDetailImageGrid(detailModel.pictures);
         drawAircraftDetails();
       } catch (error) {
@@ -448,6 +465,12 @@
       }
       if (action.type === 'detail-page') {
         detailPage += action.delta;
+        return drawAircraftDetails();
+      }
+      if (action.type === 'image-page') {
+        const pageCount = Math.max(1, Math.ceil((detailModel?.pictures.length || 0) / 6));
+        imagePage = THREE.MathUtils.clamp(imagePage + action.delta, 0, pageCount - 1);
+        populateDetailImageGrid(detailModel?.pictures || []);
         return drawAircraftDetails();
       }
     }

@@ -130,7 +130,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=4"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=10"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=11"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -253,7 +253,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=5/);
+  assert.match(application, /globe-vr\.html\?v=6/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -271,6 +271,10 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(client, /function aircraftImageUrl/);
   assert.match(globeVr, /JetNetImageGrid/);
   assert.match(globeVr, /MXApplicationClient\.aircraftImageUrl/);
+  assert.match(globeVr, /Math\.ceil\(urls\.length \/ 6\)/);
+  assert.match(globeVr, /slice\(imagePage \* 6, \(imagePage \+ 1\) \* 6\)/);
+  assert.match(globeVr, /IMAGES \$\{imagePage \+ 1\} \/ \$\{imagePageCount\}/);
+  assert.match(globeVr, /type: 'image-page'/);
   assert.match(fleetProxy, /evo-assets-3wl\.s3\.us-west-2\.amazonaws\.com/);
   assert.match(fleetProxy, /Cross-Origin-Resource-Policy/);
   assert.match(globeVr, /JETNET AIRCRAFT/);
@@ -294,7 +298,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=10"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=11"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);
