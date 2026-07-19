@@ -949,6 +949,8 @@
         let scene, camera, renderer, controls, composer;
         let bloomPass, saoPass;
         let currentModel = null;
+        let xrSupported = false;
+        let xrPresentationState = null;
         let mixer = null;
         let animations = [];
         let currentAction = null;
@@ -1386,6 +1388,7 @@
             scene.add(currentModel);
 
             fitCameraToModel();
+            updateXRButtonState();
             if (window.parent !== window) {
                 const entry = currentCatalogEntry() || {};
                 window.parent.postMessage({
@@ -1423,9 +1426,9 @@
                     button.title = 'No compatible immersive VR runtime or headset was detected';
                     return;
                 }
-                button.disabled = false;
-                button.textContent = 'Enter VR';
-                button.title = 'Connect to a browser-compatible OpenXR headset';
+                xrSupported = true;
+                renderer.xr.setReferenceSpaceType('local-floor');
+                updateXRButtonState();
             } catch (error) {
                 button.textContent = 'VR unavailable';
                 button.title = error?.message || 'Unable to check WebXR device support';
@@ -1442,26 +1445,79 @@
                 button.disabled = true;
                 button.textContent = 'Connecting…';
                 try {
+                    if (!currentModel) throw new Error('Wait for the 3D scene to finish loading');
+                    stageSceneForXR();
                     const session = await navigator.xr.requestSession('immersive-vr', {
-                        optionalFeatures: ['local-floor', 'bounded-floor']
+                        requiredFeatures: ['local-floor'],
+                        optionalFeatures: ['bounded-floor']
                     });
                     session.addEventListener('end', () => {
-                        button.disabled = false;
-                        button.textContent = 'Enter VR';
-                        button.title = 'Connect to a browser-compatible OpenXR headset';
+                        restoreSceneFromXR();
+                        updateXRButtonState();
                     }, { once: true });
                     await renderer.xr.setSession(session);
-                    button.disabled = false;
-                    button.textContent = 'Exit VR';
-                    button.title = 'End the active immersive session';
+                    updateXRButtonState();
                 } catch (error) {
-                    button.disabled = false;
-                    button.textContent = 'Enter VR';
+                    restoreSceneFromXR();
+                    updateXRButtonState();
                     button.title = error?.name === 'NotAllowedError'
                         ? 'Headset access was not granted'
                         : (error?.message || 'Unable to start the immersive session');
                 }
             });
+        }
+
+        function updateXRButtonState() {
+            const button = document.getElementById('enter-vr-button');
+            if (!button || !xrSupported) return;
+            if (renderer?.xr?.isPresenting) {
+                button.disabled = false;
+                button.textContent = 'Exit VR';
+                button.title = 'End the active immersive session';
+                return;
+            }
+            button.disabled = !currentModel;
+            button.textContent = currentModel ? 'Enter VR' : 'Loading sceneâ€¦';
+            button.title = currentModel
+                ? 'Connect to a browser-compatible OpenXR headset'
+                : 'Wait for the current 3D model to finish loading';
+        }
+
+        function stageSceneForXR() {
+            if (!currentModel || xrPresentationState) return;
+            xrPresentationState = {
+                modelPosition: currentModel.position.clone(),
+                modelQuaternion: currentModel.quaternion.clone(),
+                modelScale: currentModel.scale.clone(),
+                cameraPosition: camera.position.clone(),
+                cameraQuaternion: camera.quaternion.clone(),
+                controlsEnabled: controls.enabled
+            };
+
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const targetCenter = new THREE.Vector3(0, 1.35, -Math.max(1.75, size.z * 1.5));
+            currentModel.position.add(targetCenter.sub(center));
+            currentModel.updateMatrixWorld(true);
+
+            controls.enabled = false;
+            camera.position.set(0, 0, 0);
+            camera.quaternion.identity();
+            camera.updateMatrixWorld(true);
+        }
+
+        function restoreSceneFromXR() {
+            if (!xrPresentationState || !currentModel) return;
+            currentModel.position.copy(xrPresentationState.modelPosition);
+            currentModel.quaternion.copy(xrPresentationState.modelQuaternion);
+            currentModel.scale.copy(xrPresentationState.modelScale);
+            currentModel.updateMatrixWorld(true);
+            camera.position.copy(xrPresentationState.cameraPosition);
+            camera.quaternion.copy(xrPresentationState.cameraQuaternion);
+            controls.enabled = xrPresentationState.controlsEnabled;
+            controls.update();
+            xrPresentationState = null;
         }
 
         function fitCameraToModel() {
