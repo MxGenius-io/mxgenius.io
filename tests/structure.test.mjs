@@ -167,14 +167,19 @@ test('3D viewer uses capability-gated browser WebXR without Apple-specific produ
   assert.match(viewer, /import \{ VRButton \} from 'three\/addons\/webxr\/VRButton\.js'/);
   assert.match(viewer, /VRButton\.createButton\(renderer\)/);
   assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
-  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionInit \)/);
+  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionOptions \)/);
   assert.match(viewerVrButton, /renderer\.xr\.setSession\( session \)/);
   assert.match(viewerVrButton, /sessionRequestPending/);
+  assert.match(viewerVrButton, /supportPollMs = 7500/);
+  assert.match(viewerVrButton, /visibilitychange/);
   assert.match(viewerVrButton, /renderer\.xr\.getSession\(\)/);
   assert.match(viewerVrButton, /CHECKING VR…/);
   assert.doesNotMatch(viewerVrButton, /offerSession\(/);
   assert.doesNotMatch(viewerVrButton, /xrSessionIsGranted \) button\.click/);
-  assert.match(viewerVrButton, /optionalFeatures: \[ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' \]/);
+  assert.match(viewerVrButton, /optionalFeatures: \[/);
+  assert.match(viewerVrButton, /'local-floor'/);
+  assert.match(viewerVrButton, /'bounded-floor'/);
+  assert.match(viewerVrButton, /'layers'/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
@@ -191,10 +196,21 @@ test('VR entry permits only one in-flight immersive session request', async () =
   const originalWindow = globalThis.window;
   let requestCount = 0;
   let resolveSession;
+  let clickHandler;
   const pendingSession = new Promise((resolve) => { resolveSession = resolve; });
-  const button = { style: {}, dataset: {} };
+  const button = {
+    style: {},
+    dataset: {},
+    addEventListener(type, handler) {
+      if (type === 'click') clickHandler = handler;
+    }
+  };
 
-  globalThis.document = { createElement: () => button };
+  globalThis.document = {
+    visibilityState: 'visible',
+    createElement: () => button,
+    addEventListener() {}
+  };
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
     value: {
@@ -209,7 +225,12 @@ test('VR entry permits only one in-flight immersive session request', async () =
       userAgent: 'test'
     }
   });
-  globalThis.window = { isSecureContext: true };
+  globalThis.window = {
+    isSecureContext: true,
+    setInterval: () => 1,
+    clearInterval() {},
+    addEventListener() {}
+  };
 
   try {
     const moduleUrl = `data:text/javascript;base64,${Buffer.from(viewerVrButton).toString('base64')}`;
@@ -223,8 +244,8 @@ test('VR entry permits only one in-flight immersive session request', async () =
     VRButton.createButton(renderer);
     await Promise.resolve();
 
-    const firstClick = button.onclick();
-    const secondClick = button.onclick();
+    const firstClick = clickHandler();
+    const secondClick = clickHandler();
     assert.equal(requestCount, 1);
 
     resolveSession({ addEventListener() {} });

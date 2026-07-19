@@ -1,202 +1,158 @@
 class VRButton {
 
-	static createButton( renderer ) {
+	static createButton( renderer, sessionInit = {} ) {
 
 		const button = document.createElement( 'button' );
+		const supportPollMs = 7500;
+		const sessionOptions = {
+			...sessionInit,
+			optionalFeatures: [
+				'local-floor',
+				'bounded-floor',
+				'layers',
+				...( sessionInit.optionalFeatures || [] )
+			]
+		};
+		let currentSession = null;
+		let sessionRequestPending = false;
+		let supportCheckPending = false;
+		let supportPollId = null;
 
-		function showEnterVR() {
+		function setState( state, title = '' ) {
 
-			let currentSession = null;
-			let sessionRequestPending = false;
+			const states = {
+				checking: [ 'CHECKING VR…', true ],
+				ready: [ 'ENTER VR', false ],
+				connecting: [ 'CONNECTING…', true ],
+				active: [ 'EXIT VR', false ],
+				conflict: [ 'VR SESSION ACTIVE', false ],
+				unsupported: [ 'VR NOT SUPPORTED', true ],
+				unavailable: [ 'VR UNAVAILABLE', true ]
+			};
+			const [ label, disabled ] = states[ state ];
+			button.dataset.xrState = state;
+			button.textContent = label;
+			button.disabled = disabled;
+			button.title = title;
 
-			async function onSessionStarted( session ) {
+		}
 
-				session.addEventListener( 'end', onSessionEnded );
-				await renderer.xr.setSession( session );
-				button.textContent = 'EXIT VR';
-				button.disabled = false;
-				currentSession = session;
+		async function detectSupport() {
+
+			if ( supportCheckPending || sessionRequestPending || currentSession || renderer.xr.getSession() ) return;
+			supportCheckPending = true;
+
+			try {
+
+				const supported = await navigator.xr.isSessionSupported( 'immersive-vr' );
+				setState(
+					supported ? 'ready' : 'unsupported',
+					supported ? 'Start an immersive OpenXR session' : 'No immersive VR runtime or headset is currently available'
+				);
+
+			} catch ( error ) {
+
+				console.warn( 'Unable to detect immersive VR support', error );
+				setState( 'unavailable', error?.message || 'Unable to query WebXR support' );
+
+			} finally {
+
+				supportCheckPending = false;
 
 			}
 
-			function onSessionEnded() {
+		}
 
-				currentSession.removeEventListener( 'end', onSessionEnded );
-				button.textContent = 'ENTER VR';
-				button.disabled = false;
-				currentSession = null;
+		async function onSessionStarted( session ) {
+
+			session.addEventListener( 'end', onSessionEnded, { once: true } );
+			await renderer.xr.setSession( session );
+			currentSession = session;
+			setState( 'active', 'End the active immersive session' );
+
+		}
+
+		function onSessionEnded() {
+
+			currentSession = null;
+			setState( 'checking', 'Checking whether the headset remains available' );
+			void detectSupport();
+
+		}
+
+		async function requestSession() {
+
+			if ( sessionRequestPending ) return;
+
+			const rendererSession = renderer.xr.getSession();
+			if ( rendererSession ) {
+
+				currentSession = rendererSession;
+				await currentSession.end();
+				return;
 
 			}
 
-			function onSessionFailed( error ) {
+			sessionRequestPending = true;
+			setState( 'connecting', 'Waiting for the browser and OpenXR runtime' );
+
+			try {
+
+				const session = await navigator.xr.requestSession( 'immersive-vr', sessionOptions );
+				await onSessionStarted( session );
+
+			} catch ( error ) {
 
 				console.warn( 'Unable to start immersive VR session', error );
-				button.disabled = false;
-				button.textContent = error?.name === 'InvalidStateError' ? 'END ACTIVE VR SESSION' : 'ENTER VR';
-				button.title = error?.message || 'Unable to start immersive VR';
+				setState(
+					error?.name === 'InvalidStateError' ? 'conflict' : 'ready',
+					error?.message || 'Unable to start immersive VR'
+				);
+
+			} finally {
+
+				sessionRequestPending = false;
 
 			}
 
-			button.style.display = '';
-			button.style.cursor = 'pointer';
-			button.style.left = 'calc(50% - 50px)';
-			button.style.width = '100px';
-			button.textContent = 'ENTER VR';
-
-			const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] };
-
-			button.onmouseenter = function () {
-
-				button.style.opacity = '1.0';
-
-			};
-
-			button.onmouseleave = function () {
-
-				button.style.opacity = '0.5';
-
-			};
-
-			button.onclick = async function () {
-
-				const rendererSession = renderer.xr.getSession();
-				if ( rendererSession ) currentSession = rendererSession;
-
-				if ( currentSession !== null ) {
-
-					await currentSession.end();
-					return;
-
-				}
-
-				if ( sessionRequestPending ) return;
-
-				sessionRequestPending = true;
-				button.disabled = true;
-				button.textContent = 'CONNECTING…';
-
-				try {
-
-					const session = await navigator.xr.requestSession( 'immersive-vr', sessionInit );
-					await onSessionStarted( session );
-
-				} catch ( error ) {
-
-					onSessionFailed( error );
-
-				} finally {
-
-					sessionRequestPending = false;
-
-				}
-
-			};
-
 		}
 
-		function disableButton() {
-
-			button.style.display = '';
-			button.style.cursor = 'auto';
-			button.style.left = 'calc(50% - 75px)';
-			button.style.width = '150px';
-			button.onmouseenter = null;
-			button.onmouseleave = null;
-			button.onclick = null;
-
-		}
-
-		function showWebXRNotFound() {
-
-			disableButton();
-			button.textContent = 'VR NOT SUPPORTED';
-
-		}
-
-		function showVRNotAllowed( exception ) {
-
-			disableButton();
-			console.warn( 'Exception when trying to call xr.isSessionSupported', exception );
-			button.textContent = 'VR NOT ALLOWED';
-
-		}
-
-		function stylizeElement( element ) {
-
-			element.style.position = 'absolute';
-			element.style.bottom = '20px';
-			element.style.padding = '12px 6px';
-			element.style.border = '1px solid #fff';
-			element.style.borderRadius = '4px';
-			element.style.background = 'rgba(0,0,0,0.1)';
-			element.style.color = '#fff';
-			element.style.font = 'normal 13px sans-serif';
-			element.style.textAlign = 'center';
-			element.style.opacity = '0.5';
-			element.style.outline = 'none';
-			element.style.zIndex = '999';
-
-		}
-
-		if ( 'xr' in navigator ) {
-
-			button.id = 'VRButton';
-			stylizeElement( button );
-			button.style.display = '';
-			button.textContent = 'CHECKING VR…';
-
-			navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) {
-
-				supported ? showEnterVR() : showWebXRNotFound();
-
-			} ).catch( showVRNotAllowed );
-
-			return button;
-
-		}
-
-		const message = document.createElement( 'a' );
+		button.id = 'VRButton';
+		button.type = 'button';
+		button.style.display = '';
+		button.addEventListener( 'click', requestSession );
 
 		if ( window.isSecureContext === false ) {
 
-			message.href = document.location.href.replace( /^http:/, 'https:' );
-			message.innerHTML = 'WEBXR NEEDS HTTPS';
+			setState( 'unavailable', 'WebXR requires HTTPS' );
+
+		} else if ( ! ( 'xr' in navigator ) ) {
+
+			setState( 'unavailable', 'This browser does not expose the WebXR Device API' );
 
 		} else {
 
-			message.href = 'https://immersiveweb.dev/';
-			message.innerHTML = 'WEBXR NOT AVAILABLE';
+			setState( 'checking', 'Checking browser headset support' );
+			void detectSupport();
+			supportPollId = window.setInterval( detectSupport, supportPollMs );
+			document.addEventListener( 'visibilitychange', () => {
 
-		}
-
-		message.style.left = 'calc(50% - 90px)';
-		message.style.width = '180px';
-		message.style.textDecoration = 'none';
-		stylizeElement( message );
-
-		return message;
-
-	}
-
-	static registerSessionGrantedListener() {
-
-		if ( typeof navigator !== 'undefined' && 'xr' in navigator ) {
-
-			if ( /WebXRViewer\//i.test( navigator.userAgent ) ) return;
-
-			navigator.xr.addEventListener( 'sessiongranted', () => {
-
-				VRButton.xrSessionIsGranted = true;
+				if ( document.visibilityState === 'visible' ) void detectSupport();
 
 			} );
 
+			window.addEventListener( 'pagehide', () => {
+
+				if ( supportPollId !== null ) window.clearInterval( supportPollId );
+
+			}, { once: true } );
+
 		}
+
+		return button;
 
 	}
 
 }
-
-VRButton.xrSessionIsGranted = false;
-VRButton.registerSessionGrantedListener();
 
 export { VRButton };
