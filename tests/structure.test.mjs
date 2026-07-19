@@ -121,7 +121,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
   const appIndex = dashboard.indexOf('<script src="app.js?v=3"></script>');
-  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css">');
+  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=2">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
   assert.ok(clientIndex > cacheIndex, 'application-client.js should load after cache.js');
@@ -162,7 +162,10 @@ test('3D viewer uses capability-gated browser WebXR without Apple-specific produ
   assert.match(viewer, /id="enter-vr-button"/);
   assert.match(viewer, /isSessionSupported\('immersive-vr'\)/);
   assert.match(viewer, /requestSession\('immersive-vr'/);
-  assert.match(viewer, /optionalFeatures: \['local-floor', 'bounded-floor'\]/);
+  assert.match(viewer, /requiredFeatures: \['local-floor'\]/);
+  assert.match(viewer, /setReferenceSpaceType\('local-floor'\)/);
+  assert.match(viewer, /stageSceneForXR\(\)/);
+  assert.match(viewer, /restoreSceneFromXR\(\)/);
   assert.doesNotMatch(viewer, /Apple Vision|ARButton/);
 });
 

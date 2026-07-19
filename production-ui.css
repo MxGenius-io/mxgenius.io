@@ -124,8 +124,8 @@ summary:focus-visible {
 }
 
 .case-workspace select option {
-  color: #f8fafc;
-  background-color: #111827;
+  color: #111827;
+  background-color: #f8fafc;
 }
 
 .case-workspace__trace {
