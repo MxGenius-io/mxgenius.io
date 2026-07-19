@@ -423,3 +423,5 @@ const MXApplicationClient = (() => {
     })
   });
 })();
+
+globalThis.MXApplicationClient = MXApplicationClient;

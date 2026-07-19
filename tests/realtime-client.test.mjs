@@ -75,6 +75,23 @@ test('barge-in cancels current output and service errors become an honest degrad
   assert.ok(events.some((event) => event.type === 'state' && event.code === 'rate_limit'));
 });
 
+test('spatial transcript buffers reset at each new utterance', () => {
+  const MXRealtime = loadClient();
+  const events = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0' }),
+    mediaDevices: {},
+    onEvent: (event) => events.push(event)
+  });
+  session.channel = { readyState: 'open', send() {} };
+  session.userTranscript = 'previous user utterance';
+  session.assistantTranscript = 'previous assistant utterance';
+  session.handleMessage(JSON.stringify({ type: 'input_audio_buffer.speech_started' }));
+  session.handleMessage(JSON.stringify({ type: 'response.created' }));
+  assert.equal(session.userTranscript, '');
+  assert.equal(session.assistantTranscript, '');
+});
+
 test('microphone denial fails closed and releases partially-created peer resources', async () => {
   const MXRealtime = loadClient();
   const events = [];

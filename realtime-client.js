@@ -79,11 +79,13 @@ const MXRealtime = (() => {
       try { event = JSON.parse(raw); } catch { return; }
       this.emit('server-event', { event });
       if (event.type === 'input_audio_buffer.speech_started') {
+        this.userTranscript = '';
         this.interrupt();
         this.setState('listening');
       } else if (event.type === 'input_audio_buffer.speech_stopped') {
         this.setState('thinking');
       } else if (event.type === 'response.created') {
+        this.assistantTranscript = '';
         this.setState('thinking');
       } else if (event.type === 'response.output_audio.delta') {
         this.setState('speaking');

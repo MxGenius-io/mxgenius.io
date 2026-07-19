@@ -952,6 +952,9 @@
     }
     </script>
 
+    <script src="../runtime-config.js?v=3"></script>
+    <script src="../application-client.js?v=6"></script>
+    <script src="../realtime-client.js?v=2"></script>
     <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
@@ -976,6 +979,7 @@
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRMediaPanel } from './xr-media-panel.js';
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=1';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -1031,6 +1035,7 @@
         let viewerContext = {};
         let xrMediaPanel = null;
         let xrAnimationScrubber = null;
+        let xrVoice = null;
         const xrControllers = [];
         const xrHands = [];
         const xrFingerTargets = new Map();
@@ -1120,6 +1125,11 @@
             scene.add(xrMediaPanel.group);
             xrAnimationScrubber = new XRAnimationScrubber({ onAction: emitXRAction });
             scene.add(xrAnimationScrubber.group);
+            xrVoice = new XRRealtimePresence({
+                contextProvider: () => viewerContext?.caseId ? { caseId: viewerContext.caseId } : null,
+                onAction: emitXRAction
+            });
+            scene.add(xrVoice.group);
             
             container.appendChild(renderer.domElement);
             setupXRButton();
@@ -1603,10 +1613,12 @@
                 stageSceneForXR('local-floor');
                 xrMediaPanel?.setPresenting(true);
                 xrAnimationScrubber?.setPresenting(true);
+                xrVoice?.setPresenting(true);
             });
             renderer.xr.addEventListener('sessionend', () => {
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
+                xrVoice?.setPresenting(false);
                 restoreSceneFromXR();
             });
         }
@@ -1631,12 +1643,14 @@
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
             const targets = [
                 ...(currentModel ? [currentModel] : []),
+                ...(xrVoice?.interactiveObjects() || []),
                 ...(xrMediaPanel?.interactiveObjects() || []),
                 ...(xrAnimationScrubber?.group.visible ? [xrAnimationScrubber.group] : [])
             ];
             const hit = raycaster.intersectObjects(targets, true).find((item) => item.object?.isMesh);
             if (!hit) return;
             const input = `controller-${index}`;
+            if (xrVoice?.handleObject(hit.object, input)) return;
             if (xrMediaPanel?.handleObject(hit.object, input)) return;
             if (xrAnimationScrubber?.owns(hit.object)) {
                 xrAnimationScrubber.scrubAtWorldPoint(hit.point, input);
@@ -1651,6 +1665,9 @@
             for (let index = 0; index < 2; index += 1) {
                 const controller = renderer.xr.getController(index);
                 controller.addEventListener('select', () => selectFromXRController(controller, index));
+                controller.addEventListener('connected', (event) => {
+                    controller.userData.handedness = event.data?.handedness || '';
+                });
                 controller.addEventListener('squeezestart', () => {
                     xrActiveGrips.set(index, controller);
                     captureXRWorldGesture();
@@ -1665,6 +1682,9 @@
                 xrControllers.push(controller);
 
                 const hand = renderer.xr.getHand(index);
+                hand.addEventListener('connected', (event) => {
+                    hand.userData.handedness = event.data?.handedness || '';
+                });
                 scene.add(hand);
                 xrHands.push(hand);
             }
@@ -1761,6 +1781,13 @@
                 const tip = hand.joints?.['index-finger-tip'];
                 if (!tip?.visible) return;
                 tip.getWorldPosition(xrFingerPoint);
+                const voiceTarget = xrVoice?.fingerTargetAt(xrFingerPoint);
+                if (voiceTarget) {
+                    const previousVoice = xrFingerTargets.get(index) || null;
+                    if (voiceTarget !== previousVoice) xrVoice.handleObject(voiceTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, voiceTarget);
+                    return;
+                }
                 if (xrAnimationScrubber?.fingerScrub(xrFingerPoint, `finger-${index}`)) {
                     state.isPlaying = false;
                     document.getElementById('anim-playpause').textContent = '▶ Play';
@@ -2368,6 +2395,13 @@
                 });
             }
             updateXRFingerInteractions(time);
+            const rightHand = xrHands.find((hand) => hand.userData.handedness === 'right');
+            const rightWrist = rightHand?.joints?.wrist;
+            const rightController = xrControllers.find((controller) => controller.userData.handedness === 'right');
+            xrVoice?.update(delta, time, {
+                anchor: rightWrist?.visible ? rightWrist : rightController,
+                camera
+            });
             
             if (renderer.xr.isPresenting) {
                 renderer.render(scene, camera);

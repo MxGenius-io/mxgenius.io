@@ -23,7 +23,8 @@
   </script>
   <script src="runtime-config.js?v=3"></script>
   <script src="cache.js"></script>
-  <script src="application-client.js?v=4"></script>
+  <script src="application-client.js?v=6"></script>
+  <script src="realtime-client.js?v=2"></script>
 </head>
 <body>
   <div class="hud">
@@ -35,6 +36,7 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=1';
 
     const status = document.getElementById('fleetStatus');
     let fleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
@@ -58,6 +60,12 @@
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
+    const xrVoice = new XRRealtimePresence({
+      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
+        detail: { action, input, target, context: { surface: 'fleet-globe' } }
+      }))
+    });
+    scene.add(xrVoice.group);
     const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();
@@ -159,6 +167,8 @@
     let imageGridGeneration = 0;
     let leftHand = null;
     let leftController = null;
+    let rightHand = null;
+    let rightController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
     const panelWorldQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.22, 0));
     const panelCameraPosition = new THREE.Vector3();
@@ -560,6 +570,7 @@
     const xrActiveGrips = new Map();
     let xrGlobeGesture = null;
     const fingerTargets = new Map();
+    const voiceFingerTargets = new Map();
     const fingerPoint = new THREE.Vector3();
     const markerWorldPoint = new THREE.Vector3();
     const panelLocalPoint = new THREE.Vector3();
@@ -608,10 +619,16 @@
         controller.userData.handedness = event.data?.handedness || '';
         grip.userData.handedness = controller.userData.handedness;
         if (controller.userData.handedness === 'left') leftController = grip;
+        if (controller.userData.handedness === 'right') rightController = grip;
       });
       controller.addEventListener('select', () => {
         xrRaycaster.setFromXRController(controller);
-        const uiHit = xrRaycaster.intersectObjects([detailsSurface, rotateButton], false)[0];
+        const uiHit = xrRaycaster.intersectObjects([
+          ...xrVoice.interactiveObjects(),
+          detailsSurface,
+          rotateButton
+        ], false)[0];
+        if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
         if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
         const hit = xrRaycaster.intersectObject(markers, false)[0];
@@ -635,6 +652,7 @@
       hand.addEventListener('connected', (event) => {
         hand.userData.handedness = event.data?.handedness || '';
         if (hand.userData.handedness === 'left') leftHand = hand;
+        if (hand.userData.handedness === 'right') rightHand = hand;
       });
       xrHands.push(hand);
       scene.add(hand);
@@ -705,6 +723,14 @@
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
 
+        const voiceTarget = xrVoice.fingerTargetAt(fingerPoint);
+        const previousVoiceTarget = voiceFingerTargets.get(handIndex) || null;
+        if (voiceTarget && voiceTarget !== previousVoiceTarget) {
+          xrVoice.handleObject(voiceTarget, `finger-${handIndex}`);
+        }
+        voiceFingerTargets.set(handIndex, voiceTarget);
+        if (voiceTarget) return;
+
         let panelRegion = -1;
         if (detailsPanel.visible) {
           detailsSurface.updateMatrixWorld(true);
@@ -759,10 +785,12 @@
 
     renderer.xr.addEventListener('sessionstart', () => {
       detailsTarget = 0;
+      xrVoice.setPresenting(true);
       status.textContent = `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
     });
     renderer.xr.addEventListener('sessionend', () => {
       detailsTarget = 0;
+      xrVoice.setPresenting(false);
       xrActiveGrips.clear();
       xrGlobeGesture = null;
       scene.attach(detailsPanel);
@@ -779,6 +807,11 @@
       updateRotationButtonPosition();
       updateDetailsPresentation(delta);
       updateFingerCollisions(time);
+      const rightWrist = rightHand?.joints?.wrist;
+      xrVoice.update(delta, time, {
+        anchor: rightWrist?.visible ? rightWrist : rightController,
+        camera
+      });
       renderer.render(scene, camera);
     });
 
