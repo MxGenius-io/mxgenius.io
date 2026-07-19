@@ -1,0 +1,10 @@
+[
+  {
+    "id": "model:fixture-fa100-airframe",
+    "name": "FA-100 Airframe",
+    "revision": "v1",
+    "lod": "LOD0",
+    "applicable_aircraft": ["FA-100"],
+    "resource_url": "models/fa100.glb"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "aircraft_id": "aircraft:fixture-001",
+  "registration": "N100FX",
+  "serial_number": "FX-9001",
+  "make": "Fixture Aviation",
+  "model": "FA-100",
+  "year": 2018,
+  "base_icao": "KFXF",
+  "base_iata": "FXF",
+  "base_city": "Fixtureville",
+  "base_country": "US",
+  "metadata": {
+    "fixture": true,
+    "note": "fictional data; do not use in production"
+  }
+}

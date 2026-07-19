@@ -4,13 +4,12 @@
   "version": "0.1.0",
   "description": "Contract-independent characterization checks for the MXGenius web application.",
   "scripts": {
-    "test": "node --test tests/structure.test.mjs",
+    "test": "node --test tests/structure.test.mjs tests/application-client.test.mjs tests/realtime-client.test.mjs",
     "test:structure": "node --test tests/structure.test.mjs",
     "test:live": "node --test tests/live-smoke.test.mjs",
-    "test:all": "npm run test:structure && npm run test:live"
+    "test:all": "npm test && npm run test:live"
   },
   "engines": {
     "node": ">=20"
   }
 }
-

@@ -4,6 +4,30 @@
 const API = MXApplicationClient.API_BASE;
 let TOKEN = '';
 let BEARER = '';
+let cachedFleetSignals = [];
+
+function escapeMarkup(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function safeRecordId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id >= 0 ? id : null;
+}
+
+function safeImageUrl(value) {
+  try {
+    const url = new URL(String(value || ''), window.location.href);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
 
 // Stable application boundary for the embedded 3D viewer. Canonical case and
 // component identifiers can be mounted here without coupling them to Three.js.
@@ -49,6 +73,62 @@ const MX3DViewer = {
 
 window.MX3DViewer = MX3DViewer;
 
+const MXCaseState = {
+  active: null,
+  normalizeRegistration(value) {
+    return String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  },
+  matchesAircraft(aircraft) {
+    if (!this.active || !aircraft) return false;
+    const aircraftId = String(aircraft.aircraftid || aircraft.aircraft_id || '');
+    if (aircraftId && aircraftId === String(this.active.case?.aircraft_id || '')) return true;
+    return this.normalizeRegistration(aircraft.regnbr || aircraft.registration) === this.active.registration;
+  },
+  set(detail) {
+    const matches = detail?.aircraft?.matches || [];
+    const canonical = matches.find((match) => match.aircraft_id === detail?.case?.aircraft_id) || matches[0] || {};
+    this.active = { ...detail, registration: this.normalizeRegistration(canonical.registration) };
+    const card = document.getElementById('activeCaseCard');
+    const value = document.getElementById('activeCaseValue');
+    const label = document.getElementById('activeCaseLabel');
+    if (card) card.dataset.state = 'active';
+    if (value) value.textContent = canonical.registration || 'Case';
+    if (label) label.textContent = `${detail.case?.status || 'open'} · v${detail.case?.version ?? '—'}`;
+    const nav = document.getElementById('caseNav');
+    if (nav) {
+      nav.dataset.activeCaseId = detail.caseId || '';
+      nav.title = `Active maintenance case ${detail.caseId || ''}`;
+    }
+    document.querySelectorAll('.ac-card[data-aircraft-reg]').forEach((element) => {
+      const matched = element.dataset.aircraftReg === encodeURIComponent(this.registration);
+      element.dataset.hasActiveCase = String(matched);
+      const existing = element.querySelector('.case-card-badge');
+      if (matched && !existing) {
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-jet case-card-badge';
+        badge.textContent = 'ACTIVE CASE';
+        element.querySelector('.ac-card-badges')?.appendChild(badge);
+      } else if (!matched) {
+        existing?.remove();
+      }
+    });
+    if (allClusters.length) {
+      allClusters.forEach((cluster) => {
+        cluster.hasActiveCase = cluster.aircraft.some((aircraft) => this.matchesAircraft(aircraft));
+      });
+      if (globeInstance) {
+        globeInstance.pointsData(allClusters).pointColor(clusterColor).pointRadius(clusterRadius).pointAltitude(clusterAltitude);
+        const cluster = allClusters.find((item) => item.hasActiveCase);
+        if (cluster) globeInstance.pointOfView({ lat: cluster.lat, lng: cluster.lng, altitude: 1.1 }, 700);
+      }
+      const activeCount = document.getElementById('pillActiveCase');
+      if (activeCount) activeCount.textContent = allClusters.some((cluster) => cluster.hasActiveCase) ? '1' : '0';
+    }
+  }
+};
+
+window.MXCaseState = MXCaseState;
+
 window.addEventListener('message', (event) => {
   const frame = MX3DViewer.frame();
   if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
@@ -64,131 +144,38 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// Transparent POC heuristic retained for current fleet views. These are
-// triage signals, not maintenance findings or regulatory determinations.
+window.addEventListener('mxg:case-selected', (event) => {
+  const selected = event.detail || {};
+  MXCaseState.set(selected);
+  const caseState = selected.case || {};
+  document.documentElement.dataset.activeCaseId = selected.caseId || '';
+  MX3DViewer.setContext({
+    caseId: selected.caseId || null,
+    aircraftId: caseState.aircraft_id || null,
+    caseVersion: caseState.version ?? null
+  });
+});
+
+// Source-backed fleet attributes used for triage. AFTT bands are descriptive
+// screening metadata, not maintenance-due findings or regulatory determinations.
 function buildMROSignals(aircraft) {
   const aftt = Number(aircraft.aftt || aircraft.estaftt || 0) || 0;
   const isHighTime = aftt > 8000;
+  const isVeryHighTime = aftt > 12000;
   const isForSale = aircraft.forsale === true || aircraft.forsale === 'true';
   const lifecycle = aircraft.lifecycle || '';
   const isAOG = lifecycle.toUpperCase().includes('AOG');
 
-  let urgency = 'current';
-  if (isAOG) urgency = 'critical';
-  else if (aftt > 12000) urgency = 'overdue';
-  else if (isHighTime) urgency = 'due-soon';
-
   return {
     aftt,
     isHighTime,
+    isVeryHighTime,
     isForSale,
     isAOG,
     lifecycle,
-    urgency,
     maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || '—'
   };
 }
-
-// ═══════════════════════════════════════════════════
-//  FAA Airworthiness Directives — Predictive Maintenance
-//  5,434 ADs covering Bombardier, Dassault, Gulfstream, Textron
-//  Loaded on-demand from faa_data/faa_ads_slim.json
-// ═══════════════════════════════════════════════════
-
-const FAA_ADS = {
-  data: null,
-  loaded: false,
-
-  // Manufacturer name normalization — FAA uses messy names
-  MFR_MAP: {
-    'bombardier':  /bombardier|c\s*series|csalp/i,
-    'dassault':    /dassault/i,
-    'gulfstream':  /gulfstream/i,
-    'textron':     /textron|cessna|beech|hawker|raytheon/i,
-  },
-
-  async load() {
-    if (this.loaded) return;
-    try {
-      this.data = await MXApplicationClient.staticJson('faa_data/faa_ads_slim.json');
-      this.loaded = true;
-      console.log(`[FAA] Loaded ${this.data.length} Airworthiness Directives`);
-    } catch (e) {
-      console.warn('[FAA] AD data not available:', e.message);
-      this.data = [];
-    }
-  },
-
-  // Match a fleet aircraft ICAO/model against FAA AD manufacturer+title
-  searchByAircraft(icaoOrModel) {
-    if (!this.data) return [];
-    const q = icaoOrModel.toLowerCase();
-    return this.data.filter(ad => {
-      const model = (ad.model || '').toLowerCase();
-      const title = (ad.title || '').toLowerCase();
-      return model.includes(q) || title.includes(q);
-    });
-  },
-
-  // Search ADs by keyword (for AI copilot context)
-  searchByKeyword(query) {
-    if (!this.data) return [];
-    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    if (terms.length === 0) return [];
-    return this.data.filter(ad => {
-      const haystack = ((ad.model || '') + ' ' + (ad.title || '') + ' ' + (ad.abs || '')).toLowerCase();
-      return terms.every(t => haystack.includes(t));
-    }).slice(0, 10);  // Cap at 10 results
-  },
-
-  // Scan fleet types against ADs (for dashboard card)
-  scanFleet(fleetIcaoCodes) {
-    if (!this.data || !fleetIcaoCodes?.length) return { total: 0, byType: {} };
-    // Normalize fleet ICAO codes to searchable terms
-    const searchTerms = [...new Set(fleetIcaoCodes.map(c => c.toLowerCase()))];
-    const byType = {};
-    let total = 0;
-
-    // Also map ICAO to manufacturer for broader matching
-    const icaoToMfr = {
-      'galx': 'gulfstream', 'g150': 'gulfstream', 'g200': 'gulfstream', 'g280': 'gulfstream',
-      'glex': 'bombardier', 'gl5t': 'bombardier', 'gl7t': 'bombardier',
-      'cl30': 'bombardier', 'cl35': 'bombardier', 'cl60': 'bombardier',
-      'f2th': 'dassault', 'fa50': 'dassault', 'fa7x': 'dassault', 'fa8x': 'dassault',
-      'f900': 'dassault', 'c525': 'textron', 'c560': 'textron', 'c680': 'textron',
-      'c750': 'textron', 'be20': 'textron', 'be30': 'textron', 'be40': 'textron',
-    };
-
-    for (const icao of searchTerms) {
-      const mfr = icaoToMfr[icao];
-      const regex = mfr ? this.MFR_MAP[mfr] : null;
-      const matches = this.data.filter(ad => {
-        const model = (ad.model || '').toLowerCase();
-        const title = (ad.title || '').toLowerCase();
-        // Try exact ICAO match in title, or manufacturer-level match
-        if (title.includes(icao) || model.includes(icao)) return true;
-        if (regex && regex.test(ad.model)) return true;
-        return false;
-      });
-      if (matches.length > 0) {
-        byType[icao.toUpperCase()] = matches.length;
-        total += matches.length;
-      }
-    }
-    return { total, byType };
-  },
-
-  // Get recent ADs (last 90 days) for a manufacturer
-  getRecent(manufacturer, days = 90) {
-    if (!this.data) return [];
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
-    const regex = this.MFR_MAP[manufacturer.toLowerCase()];
-    if (!regex) return [];
-    return this.data.filter(ad => ad.pub >= cutoffStr && regex.test(ad.model)).slice(0, 20);
-  }
-};
 
 // ═══════════════════════════════════════════════════
 //  RAG — On-demand search over display_index library
@@ -550,118 +537,13 @@ function debounce(fn, delay) {
   };
 }
 
-// ═══════════════════════════════════════════════════
-//  API CONSOLE LOG
-// ═══════════════════════════════════════════════════
-
-const apiConsole = {
-  logs: [],
-  counter: 0,
-  collapsed: true,
-
-  init() {
-    const toggle = document.getElementById('consoleToggle');
-    const clearBtn = document.getElementById('consoleClear');
-    if (toggle) toggle.addEventListener('click', () => this.toggle());
-    if (clearBtn) clearBtn.addEventListener('click', () => this.clear());
-  },
-
-  toggle() {
-    this.collapsed = !this.collapsed;
-    const panel = document.getElementById('consolePanel');
-    const arrow = document.getElementById('consoleArrow');
-    if (panel) panel.classList.toggle('expanded', !this.collapsed);
-    if (arrow) arrow.textContent = this.collapsed ? '▲' : '▼';
-  },
-
-  clear() {
-    this.logs = [];
-    this.counter = 0;
-    const el = document.getElementById('consoleLogs');
-    const badge = document.getElementById('consoleBadge');
-    if (el) el.innerHTML = '<div class="console-empty">API calls will appear here</div>';
-    if (badge) badge.textContent = '0';
-  },
-
-  log(entry) {
-    this.counter++;
-    this.logs.unshift(entry);
-    if (this.logs.length > 50) this.logs.pop();
-    const badge = document.getElementById('consoleBadge');
-    if (badge) badge.textContent = this.counter;
-    this.render();
-  },
-
-  summarize(obj, depth = 0) {
-    if (depth > 2) return typeof obj;
-    if (obj === null || obj === undefined) return String(obj);
-    if (Array.isArray(obj)) {
-      if (obj.length === 0) return '[]';
-      return `Array(${obj.length}) [${this.summarize(obj[0], depth + 1)}, ...]`;
-    }
-    if (typeof obj === 'object') {
-      const keys = Object.keys(obj);
-      const preview = keys.slice(0, 6).map(k => {
-        const v = obj[k];
-        if (Array.isArray(v)) return `${k}: Array(${v.length})`;
-        if (v && typeof v === 'object') return `${k}: {…}`;
-        return `${k}: ${JSON.stringify(v)}`;
-      });
-      if (keys.length > 6) preview.push(`…+${keys.length - 6} more`);
-      return `{ ${preview.join(', ')} }`;
-    }
-    return JSON.stringify(obj);
-  },
-
-  render() {
-    const el = document.getElementById('consoleLogs');
-    if (!el) return;
-    el.innerHTML = this.logs.map((log, i) => {
-      const methodClass = log.method === 'GET' ? 'method-get' : log.method === 'PUT' ? 'method-put' : 'method-post';
-      const statusClass = log.status < 300 ? 'status-ok' : 'status-err';
-      const id = `consoleEntry${i}`;
-      return `
-        <div class="console-entry">
-          <div class="console-entry-header" onclick="document.getElementById('${id}').classList.toggle('expanded')">
-            <span class="console-method ${methodClass}">${log.method}</span>
-            <span class="console-url">${log.url}</span>
-            <span class="console-status ${statusClass}">${log.status}</span>
-            <span class="console-duration">${log.duration}ms</span>
-            <span class="console-time">${log.time}</span>
-          </div>
-          <div class="console-entry-detail" id="${id}">
-            ${log.requestBody ? `<div class="console-section">
-              <div class="console-section-label">▸ Request Body</div>
-              <pre class="console-json">${JSON.stringify(log.requestBody, null, 2)}</pre>
-            </div>` : ''}
-            <div class="console-section">
-              <div class="console-section-label">▸ Response Shape</div>
-              <pre class="console-json">${log.responseShape}</pre>
-            </div>
-            ${log.responseKeys ? `<div class="console-section">
-              <div class="console-section-label">▸ Response Keys</div>
-              <pre class="console-json">${log.responseKeys}</pre>
-            </div>` : ''}
-          </div>
-        </div>`;
-    }).join('');
-  }
-};
-
-// Wrap fetch to intercept API calls
+// Preserve the compatibility API's legacy method and bearer conventions.
 const _originalFetch = window.fetch;
 window.fetch = async function (url, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const urlStr = typeof url === 'string' ? url : (url.url || url.toString());
 
-  // Only log /api/ calls (skip non-API resources)
   const isApi = urlStr.includes('/api/');
-  const startTime = performance.now();
-
-  let requestBody = null;
-  if (options.body) {
-    try { requestBody = JSON.parse(options.body); } catch (e) { requestBody = options.body; }
-  }
 
   // Translate PUT to POST natively and inject Bearer token
   if (isApi) {
@@ -680,43 +562,7 @@ window.fetch = async function (url, options = {}) {
     }
   }
 
-  const response = await _originalFetch(url, options);
-
-  if (isApi) {
-    const duration = Math.round(performance.now() - startTime);
-    const now = new Date();
-    const time = now.toLocaleTimeString('en-US', { hour12: false });
-
-    // Clone the response to read it without consuming
-    const clone = response.clone();
-    try {
-      const data = await clone.json();
-      const keys = Object.keys(data);
-      apiConsole.log({
-        method,
-        url: urlStr.replace(window.location.origin, ''),
-        status: response.status,
-        duration,
-        time,
-        requestBody: Object.keys(requestBody || {}).length > 0 ? requestBody : null,
-        responseShape: apiConsole.summarize(data),
-        responseKeys: keys.length > 0 ? keys.join(', ') : null
-      });
-    } catch (e) {
-      apiConsole.log({
-        method,
-        url: urlStr.replace(window.location.origin, ''),
-        status: response.status,
-        duration,
-        time,
-        requestBody: Object.keys(requestBody || {}).length > 0 ? requestBody : null,
-        responseShape: '(non-JSON response)',
-        responseKeys: null
-      });
-    }
-  }
-
-  return response;
+  return _originalFetch(url, options);
 };
 
 // ═══════════════════════════════════════════════════
@@ -726,7 +572,6 @@ window.fetch = async function (url, options = {}) {
 document.addEventListener('DOMContentLoaded', () => {
   // Phase 1: UI + local engines (instant, no network)
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
-  apiConsole.init();
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget — app works without it)
@@ -737,23 +582,16 @@ async function login() {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const data = await MXApplicationClient.adminLogin({
-      email: '__MXG_API_EMAIL__',
-      password: '__MXG_API_PASSWORD__',
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
+    const data = await window.MXGENIUS_CONFIG.getCompatibilitySession({ signal: controller.signal })
+      .finally(() => clearTimeout(timeout));
     
     if (data.bearerToken && data.apiToken) {
       BEARER = data.bearerToken;
       TOKEN = data.apiToken;
       
-      const tokenField = document.getElementById('apiToken');
-      if (tokenField) tokenField.value = TOKEN;
-
       const status = document.getElementById('apiStatus');
       status.classList.add('connected');
-      status.querySelector('span:last-child').textContent = `Connected (Live App)`;
+      status.querySelector('span:last-child').textContent = 'Fleet source connected';
     } else {
       throw new Error('No tokens returned from API');
     }
@@ -761,7 +599,7 @@ async function login() {
     console.error('Login failed:', e);
     const status = document.getElementById('apiStatus');
     status.classList.remove('connected');
-    status.querySelector('span:last-child').textContent = 'Connection Failed';
+    status.querySelector('span:last-child').textContent = 'Fleet source unavailable';
   }
 }
 
@@ -781,6 +619,7 @@ function setupNavigation() {
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
+  document.getElementById('activeCaseCard')?.addEventListener('click', () => switchTab('case'));
 
   // Search handlers — live search as you type (debounced) + button fallback
   const acFields = ['acMake', 'acReg', 'acSerial', 'acCountry'];
@@ -796,7 +635,7 @@ function setupNavigation() {
   document.getElementById('acTypeFilter')?.addEventListener('change', () => { tabLoaded['aircraft'] = true; loadAircraft(); });
   document.getElementById('acForSale')?.addEventListener('change', () => { tabLoaded['aircraft'] = true; loadAircraft(); });
 
-  // Aircraft MRO Scan filters
+  // Aircraft fleet-triage filters
   document.getElementById('acDirectSearchBtn')?.addEventListener('click', loadAircraft);
   ['acScanUrgency', 'acScanRegion'].forEach(id => {
     const el = document.getElementById(id);
@@ -809,7 +648,7 @@ function setupNavigation() {
   document.getElementById('contSearchBtn')?.addEventListener('click', loadContacts);
   contFields.forEach(id => document.getElementById(id)?.addEventListener('input', debouncedContacts));
 
-  // Lazy-load companies when outreach section opens
+  // Lazy-load directory data when its section opens.
   document.getElementById('outreachCollapsible')?.addEventListener('toggle', (e) => {
     if (e.target.open && !isCompaniesInitialized) loadCompanies();
   });
@@ -822,7 +661,6 @@ function setupNavigation() {
   });
 
   setupChatPanel();
-  setupWorkOrderPanel();
 }
 
 function setupChatPanel() {
@@ -832,8 +670,21 @@ function setupChatPanel() {
   const input = document.getElementById('chatInput');
   const sendBtn = document.querySelector('.chat-send-btn');
   const history = document.getElementById('chatHistory');
+  let activeCaseContext = null;
 
   if (!panel || !toggleBtn) return;
+
+  window.addEventListener('mxg:case-selected', (event) => {
+    activeCaseContext = event.detail || null;
+    const notice = document.createElement('div');
+    notice.className = 'chat-msg ai-msg';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = `Case ${activeCaseContext?.caseId || ''} is now the active copilot context.`;
+    notice.appendChild(bubble);
+    history.appendChild(notice);
+    history.scrollTop = history.scrollHeight;
+  });
 
   // ── On-Device LLM State ──
   let llamaContext = null;
@@ -881,7 +732,7 @@ Rules:
 2. Cite the chapter name.
 3. Be concise and direct. Give the key answer in 2-3 sentences.
 4. End with "NEXT STEP:" and one recommendation.
-5. If no manual is provided, say what you know or suggest loading the right manual.
+5. If no authoritative manual is provided, state that evidence is unavailable and do not supply a maintenance procedure.
 6. Never explain your reasoning. Never say "I need to" or "Let me think".`;
 
   // ── Aggressive model output cleanup (single source of truth) ──
@@ -942,41 +793,6 @@ Rules:
   // ── Format model response into polished HTML ──
   function formatMxResponse(text) {
     if (!text) return '';
-
-    // Extract <workorder> JSON block if present
-    const woRegex = /<workorder>([\s\S]*?)<\/workorder>/i;
-    const woMatch = text.match(woRegex);
-    if (woMatch) {
-      try {
-        const woData = JSON.parse(woMatch[1]);
-        if (woData.registration) document.getElementById('woReg').value = woData.registration;
-        if (woData.title) document.getElementById('woTitle').value = woData.title;
-        if (woData.description) document.getElementById('woDesc').value = woData.description;
-        
-        if (woData.parts && Array.isArray(woData.parts)) {
-          document.getElementById('woParts').value = woData.parts.join('\n');
-        } else if (woData.parts) {
-          document.getElementById('woParts').value = woData.parts;
-        }
-        
-        if (woData.labor && Array.isArray(woData.labor)) {
-          document.getElementById('woLabor').value = woData.labor.join('\n');
-        } else if (woData.labor) {
-          document.getElementById('woLabor').value = woData.labor;
-        }
-        
-        // Open the Work Order panel automatically when generated
-        const panel = document.getElementById('work-order-panel');
-        const toggleBtn = document.getElementById('workOrderNav') || document.getElementById('workOrderFab');
-        if (panel) {
-          panel.classList.add('open');
-        }
-      } catch (e) {
-        console.error('Failed to parse workorder JSON:', e);
-      }
-      // Remove the workorder block from the text so it doesn't render in the chat
-      text = text.replace(woRegex, '');
-    }
 
     // Escape HTML first
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1095,13 +911,11 @@ Rules:
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // ── Fleet Data Serializer (MRO Signals → LLM Context) ──
-  let cachedFleetSignals = [];
-
+  // ── Fleet Data Serializer (source attributes → compatibility context) ──
   function serializeFleetContext() {
     if (!cachedFleetSignals || cachedFleetSignals.length === 0) return '';
 
-    // Sort by AFTT descending (most urgent first)
+    // Sort by reported AFTT for deterministic screening, never as due status.
     const sorted = [...cachedFleetSignals].sort((a, b) => {
       const afttA = (a.mro || buildMROSignals(a)).aftt;
       const afttB = (b.mro || buildMROSignals(b)).aftt;
@@ -1111,30 +925,17 @@ Rules:
     const lines = sorted.slice(0, 8).map((ac, i) => {
       const m = ac.mro || buildMROSignals(ac);
 
-      // Pre-compute maintenance urgency so the model doesn't have to
-      let urgencyNote = '';
-      if (m.aftt > 12000) {
-        urgencyNote = `D-check overdue by ${(m.aftt - 12000).toLocaleString()} hrs`;
-      } else if (m.aftt > 6000) {
-        urgencyNote = `approaching D-check (${(12000 - m.aftt).toLocaleString()} hrs remaining)`;
-      } else if (m.aftt > 4000) {
-        urgencyNote = `C-check zone (${m.aftt.toLocaleString()} hrs)`;
-      } else {
-        urgencyNote = 'current — low hours';
-      }
-
       const flags = [];
       if (m.isForSale) flags.push('FOR SALE');
       if (m.isAOG) flags.push('AOG');
 
-      return `${i + 1}. ${ac.regnbr || '?'} | ${ac.make} ${ac.model} | ${ac.yearmfg || '?'} | ${m.aftt.toLocaleString()} hrs | ${ac.baseicao || ac.basecity || '?'} | ${urgencyNote}${flags.length ? ' | ' + flags.join(', ') : ''}`;
+      return `${i + 1}. ${ac.regnbr || '?'} | ${ac.make} ${ac.model} | ${ac.yearmfg || '?'} | reported AFTT ${m.aftt.toLocaleString()} hrs | ${ac.baseicao || ac.basecity || '?'}${flags.length ? ' | ' + flags.join(', ') : ''}`;
     });
 
-    return '\n\n--- FLEET DATA (ranked by maintenance urgency, ' + cachedFleetSignals.length + ' aircraft) ---\n' +
-      'Higher hours = more overdue maintenance = better MRO outreach target.\n' +
-      'D-check due every 12,000 hrs. C-check due every 4,000-6,000 hrs.\n' +
+    return '\n\n--- COMPATIBILITY FLEET CONTEXT (sorted by reported AFTT, ' + cachedFleetSignals.length + ' aircraft) ---\n' +
+      'AFTT alone does not establish inspection status, maintenance due status, or airworthiness. Do not infer any of those from this list.\n' +
       lines.join('\n') +
-      '\n--- END FLEET DATA ---\n';
+      '\n--- END COMPATIBILITY FLEET CONTEXT ---\n';
   }
 
   // ── Model Initialization (daisy-chained: LLM first, then TTS) ──
@@ -1255,7 +1056,10 @@ Rules:
     
     const userMsg = document.createElement('div');
     userMsg.className = 'chat-msg user-msg';
-    userMsg.innerHTML = '<div class="msg-bubble">' + text + '</div>';
+    const userBubble = document.createElement('div');
+    userBubble.className = 'msg-bubble';
+    userBubble.textContent = text;
+    userMsg.appendChild(userBubble);
     history.appendChild(userMsg);
     input.value = '';
     history.scrollTop = history.scrollHeight;
@@ -1284,10 +1088,18 @@ Rules:
 
     // ── Cloud Inference (Azure Rust Backend) ──
     try {
+      const applicationSession = window.MXGENIUS_CONFIG?.getSession?.() || {};
       const response = await MXApplicationClient.chat({
         message: text,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
-        apiKey: '__MXG_CHAT_API_KEY__'
+        caseContext: activeCaseContext && {
+          case_id: activeCaseContext.caseId,
+          version: activeCaseContext.case?.version,
+          capability_trace: activeCaseContext.trace
+        },
+        accessToken: applicationSession.accessToken,
+        organizationId: applicationSession.organizationId,
+        correlationId: window.crypto?.randomUUID?.()
       });
       
       const rawText = await response.text();
@@ -1322,8 +1134,43 @@ Rules:
       }
       
     } catch (e) {
-      console.error('[MXGenius] Inference:', e.message);
-      streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">Service temporarily unavailable — try again shortly</span>';
+      console.error('[MXGenius] Cloud inference:', e.message);
+      if (llamaContext && modelReady) {
+        try {
+          const { text: ragText, hits: ragHits } = await RAG.buildContextAsync(text);
+          const fleetText = /fleet|aircraft|tail|registration|aftt|aog|for.sale/i.test(text)
+            ? serializeFleetContext()
+            : '';
+          const prompt = '<|im_start|>system\n' + AOG_SYSTEM_PROMPT + fleetText + (ragText || '') +
+            '\n<|im_end|>\n<|im_start|>user\n' + text +
+            '\n<|im_end|>\n<|im_start|>assistant\n<think>\n</think>\nAnswer:\n';
+          const result = await llamaContext.completion({
+            id: 1,
+            params: {
+              prompt,
+              n_predict: 300,
+              stop: ['<|im_end|>', '</s>', '<|im_start|>', '<|end_of_sentence|>', '<|endoftext|>'],
+              temperature: 0.2,
+              repeat_penalty: 1.6,
+              top_p: 0.7
+            }
+          });
+          const answer = cleanModelOutput(result?.text || result?.content || '');
+          if (!answer) throw new Error('On-device model returned no usable response');
+          streamTarget.innerHTML = formatMxResponse(answer);
+          if (ragHits?.length) {
+            const references = document.createElement('div');
+            references.innerHTML = formatProcedureBlock(ragHits);
+            aiMsg.querySelector('.msg-bubble')?.appendChild(references);
+          }
+          updateCostCounter(Math.ceil(prompt.length / 4), result?.tokens_predicted || Math.ceil(answer.length / 4));
+        } catch (fallbackError) {
+          console.error('[MXGenius] On-device fallback:', fallbackError.message);
+          streamTarget.textContent = 'Cloud and on-device assistance are unavailable. Case and fleet tools remain usable.';
+        }
+      } else {
+        streamTarget.textContent = 'Assistance is temporarily unavailable. Case and fleet tools remain usable.';
+      }
     }
     history.scrollTop = history.scrollHeight;
   }
@@ -1333,74 +1180,208 @@ Rules:
     if (e.key === 'Enter') sendMessage();
   });
 
-  // --- Voice Input (Speech-to-Text) ---
+  // --- Authenticated OpenAI Realtime voice ---
   const micBtn = document.querySelector('.chat-mic-btn');
-  let isListening = false;
-  let recognition = null;
+  const realtimeState = document.getElementById('realtimeState');
+  const realtimeStateLabel = document.getElementById('realtimeStateLabel');
+  const realtimeTranscript = document.getElementById('realtimeTranscript');
+  const realtimeUserTranscript = document.getElementById('realtimeUserTranscript');
+  const realtimeAssistantTranscript = document.getElementById('realtimeAssistantTranscript');
+  const realtimeInterruptBtn = document.getElementById('realtimeInterruptBtn');
+  const realtimeConfirmation = document.getElementById('realtimeConfirmation');
+  const realtimeConfirmationSummary = document.getElementById('realtimeConfirmationSummary');
+  const realtimeConfirmationArguments = document.getElementById('realtimeConfirmationArguments');
+  const realtimeConfirmationCancel = document.getElementById('realtimeConfirmationCancel');
+  const realtimeConfirmationApprove = document.getElementById('realtimeConfirmationApprove');
+  let realtimeSession = null;
+  let realtimeApplicationSession = null;
+  let pendingRealtimeMutation = null;
+  const handledRealtimeCalls = new Set();
 
   function setupVoiceInput() {
     if (!micBtn) return;
-
-    // Use Web Speech API (powered by iOS SFSpeechRecognizer — works offline on iOS 17+)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia || !window.MXRealtime) {
       micBtn.style.opacity = '0.3';
-      micBtn.title = 'Voice input not supported';
+      micBtn.disabled = true;
+      micBtn.title = 'Realtime voice is unavailable in this browser; text chat remains available';
+      setRealtimeUiState('degraded', 'Voice unavailable · use text');
       return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    realtimeSession = new MXRealtime.RealtimeSession({
+      exchangeSdp: ({ sdp, session }) => MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
+      onEvent: handleRealtimeEvent
+    });
 
-    recognition.onstart = () => {
-      isListening = true;
-      micBtn.style.color = '#ef4444';
-      micBtn.classList.add('pulse-mic');
-      input.placeholder = 'Listening...';
-    };
-
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+    micBtn.addEventListener('click', async () => {
+      if (realtimeSession.state !== 'disconnected' && realtimeSession.state !== 'failed') {
+        realtimeSession.disconnect();
+        return;
       }
-      input.value = transcript;
-
-      // Auto-send on final result
-      if (event.results[event.results.length - 1].isFinal) {
-        setTimeout(() => {
-          if (input.value.trim()) sendMessage();
-        }, 300);
+      const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+      if (!session.accessToken) {
+        setRealtimeUiState('failed', 'Sign in to use Realtime voice');
+        return;
       }
-    };
-
-    recognition.onerror = (event) => {
-      console.warn('[Voice] Error:', event.error);
-      isListening = false;
-      micBtn.style.color = '';
-      micBtn.classList.remove('pulse-mic');
-      input.placeholder = 'Ask MXGenius...';
-      if (event.error === 'not-allowed') {
-        input.placeholder = 'Microphone access denied';
-      }
-    };
-
-    recognition.onend = () => {
-      isListening = false;
-      micBtn.style.color = '';
-      micBtn.classList.remove('pulse-mic');
-      input.placeholder = 'Ask MXGenius...';
-    };
-
-    micBtn.addEventListener('click', () => {
-      if (isListening) {
-        recognition.stop();
-      } else {
-        recognition.start();
+      try {
+        realtimeApplicationSession = {
+          accessToken: session.accessToken,
+          organizationId: session.organizationId,
+          correlationId: window.crypto?.randomUUID?.()
+        };
+        await realtimeSession.connect({
+          session: realtimeApplicationSession
+        });
+      } catch (error) {
+        console.warn('[Realtime] Connection failed:', error.code || error.message);
       }
     });
+    realtimeInterruptBtn?.addEventListener('click', () => realtimeSession.interrupt());
+    realtimeConfirmationCancel?.addEventListener('click', declineRealtimeMutation);
+    realtimeConfirmationApprove?.addEventListener('click', confirmRealtimeMutation);
+  }
+
+  function setRealtimeUiState(state, label) {
+    const labels = {
+      disconnected: 'Voice disconnected',
+      connecting: 'Connecting voice…',
+      listening: 'Listening',
+      thinking: 'Thinking / tool use',
+      speaking: 'MXGenius speaking',
+      degraded: 'Voice connection degraded',
+      failed: 'Voice connection failed'
+    };
+    realtimeState.dataset.state = state;
+    realtimeStateLabel.textContent = label || labels[state] || state;
+    const active = !['disconnected', 'failed'].includes(state);
+    micBtn.setAttribute('aria-pressed', String(active));
+    micBtn.title = active ? 'Disconnect Realtime voice' : 'Start Realtime voice';
+    micBtn.classList.toggle('pulse-mic', state === 'listening');
+    realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
+    input.placeholder = state === 'failed' ? 'Voice unavailable · use text chat' : 'Ask MXGenius…';
+  }
+
+  async function handleRealtimeEvent(event) {
+    if (event.type === 'state') {
+      setRealtimeUiState(event.state, event.reason);
+      return;
+    }
+    if (event.type === 'transcript') {
+      realtimeTranscript.hidden = false;
+      const target = event.role === 'user' ? realtimeUserTranscript : realtimeAssistantTranscript;
+      target.textContent = event.text || '';
+      return;
+    }
+    if (event.type === 'channel-open') {
+      try {
+        const listed = await MXApplicationClient.capabilities.list(realtimeApplicationSession);
+        const caseDescription = activeCaseContext
+          ? `The active application case is ${activeCaseContext.caseId} at version ${activeCaseContext.case?.version}. Never select a different tenant or claim an action completed before its function result is returned.`
+          : 'No maintenance case is currently active. Ask the user to select or create a case before requesting a case-bound action.';
+        realtimeSession.configureTools(listed.tools, {
+          instructions: `You are the MXGenius maintenance copilot. Use only the supplied typed capabilities for operational facts and actions. ${caseDescription} Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
+        });
+      } catch (error) {
+        setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
+      }
+      return;
+    }
+    if (event.type === 'tool-request') {
+      setRealtimeUiState('thinking', `Tool requested: ${event.name}`);
+      await routeRealtimeTool(event);
+    }
+  }
+
+  async function routeRealtimeTool(event) {
+    if (!event.callId || handledRealtimeCalls.has(event.callId) || pendingRealtimeMutation?.callId === event.callId) return;
+    let capabilityArguments;
+    try {
+      capabilityArguments = typeof event.arguments === 'string'
+        ? JSON.parse(event.arguments)
+        : event.arguments;
+    } catch {
+      realtimeSession.sendToolOutput(event.callId, { status: 'failed', error: { code: 'INVALID_TOOL_ARGUMENTS', message: 'Tool arguments were not valid JSON.' } });
+      handledRealtimeCalls.add(event.callId);
+      return;
+    }
+    if (!event.spec?.name || !/^mxg\.[a-z_]+\.[a-z_]+$/.test(event.spec.name)) {
+      realtimeSession.sendToolOutput(event.callId, { status: 'failed', error: { code: 'UNKNOWN_CAPABILITY', message: 'Requested capability is not in the authenticated registry.' } });
+      handledRealtimeCalls.add(event.callId);
+      return;
+    }
+    if (event.spec.meta?.requires_human_approval) {
+      pendingRealtimeMutation = { ...event, arguments: capabilityArguments };
+      showRealtimeConfirmation(pendingRealtimeMutation);
+      return;
+    }
+    await executeRealtimeCapability(event.callId, event.spec.name, capabilityArguments);
+  }
+
+  async function executeRealtimeCapability(callId, name, capabilityArguments, confirmationGrant) {
+    try {
+      const envelope = await MXApplicationClient.capabilities.call(name, capabilityArguments, {
+        ...realtimeApplicationSession,
+        correlationId: window.crypto?.randomUUID?.(),
+        confirmationGrant
+      });
+      realtimeSession.sendToolOutput(callId, envelope);
+    } catch (error) {
+      realtimeSession.sendToolOutput(callId, {
+        status: 'failed',
+        error: { code: error.code || 'CAPABILITY_FAILED', message: error.message }
+      });
+    } finally {
+      handledRealtimeCalls.add(callId);
+      setRealtimeUiState('listening');
+    }
+  }
+
+  function showRealtimeConfirmation(request) {
+    const target = request.arguments.case_id || request.arguments.aircraft_id || request.arguments.part_id || 'unbound target';
+    const version = request.arguments.expected_version ?? activeCaseContext?.case?.version ?? 'not supplied';
+    realtimeConfirmationSummary.textContent = `${request.name} proposes changing ${target} at version ${version}. Confirm only after reviewing the exact typed arguments below.`;
+    realtimeConfirmationArguments.textContent = JSON.stringify(request.arguments, null, 2);
+    realtimeConfirmation.hidden = false;
+    realtimeConfirmationApprove.disabled = false;
+    realtimeConfirmationCancel.disabled = false;
+  }
+
+  async function confirmRealtimeMutation() {
+    const request = pendingRealtimeMutation;
+    if (!request || handledRealtimeCalls.has(request.callId)) return;
+    realtimeConfirmationApprove.disabled = true;
+    realtimeConfirmationCancel.disabled = true;
+    realtimeConfirmationSummary.textContent = `Issuing a single-use confirmation for ${request.name}…`;
+    try {
+      const qualifiedApproval = request.name === 'mxg.maintenance_case.update_status'
+        && request.arguments.target_status === 'closed';
+      const grant = await MXApplicationClient.confirmations.issue({
+        toolName: request.name,
+        arguments: request.arguments,
+        qualifiedApproval,
+        session: { ...realtimeApplicationSession, correlationId: window.crypto?.randomUUID?.() }
+      });
+      realtimeConfirmation.hidden = true;
+      pendingRealtimeMutation = null;
+      await executeRealtimeCapability(request.callId, request.name, request.arguments, grant.token);
+    } catch (error) {
+      realtimeConfirmationSummary.textContent = `Confirmation failed: ${error.message}`;
+      realtimeConfirmationApprove.disabled = false;
+      realtimeConfirmationCancel.disabled = false;
+    }
+  }
+
+  function declineRealtimeMutation() {
+    const request = pendingRealtimeMutation;
+    if (!request) return;
+    realtimeSession.sendToolOutput(request.callId, {
+      status: 'declined',
+      error: { code: 'HUMAN_DECLINED', message: 'The user declined the proposed operational action.' }
+    });
+    handledRealtimeCalls.add(request.callId);
+    pendingRealtimeMutation = null;
+    realtimeConfirmation.hidden = true;
+    setRealtimeUiState('listening');
   }
 
   setupVoiceInput();
@@ -1434,7 +1415,7 @@ function reloadCurrentTab() {
   } else if (activeTab) {
     tabLoaded[activeTab] = true;
     switch (activeTab) {
-      case 'docs': loadDocs(); break;
+      case '3d-viewer': MX3DViewer.ensureLoaded(); break;
     }
   }
 }
@@ -1464,7 +1445,6 @@ function switchTab(tabId) {
     tabLoaded[tabId] = true;
     switch (tabId) {
       case 'dashboard': loadGlobe(); loadAircraft(); loadCompanies(); loadContacts(); break;
-      case 'docs': loadDocs(); break;
       case '3d-viewer': break;
       case 'settings': initSettings(); break;
     }
@@ -1476,15 +1456,6 @@ function switchTab(tabId) {
 // ═══════════════════════════════════════════════════
 
 function initSettings() {
-  // Auto-speak toggle
-  const autoSpeakToggle = document.getElementById('settingsAutoSpeak');
-  if (autoSpeakToggle) {
-    autoSpeakToggle.checked = localStorage.getItem('mx_autoSpeak') === 'true';
-    autoSpeakToggle.addEventListener('change', function() {
-      localStorage.setItem('mx_autoSpeak', this.checked);
-    });
-  }
-
   // Accent color picker
   const colorPicker = document.getElementById('settingsAccentColor');
   if (colorPicker) {
@@ -1774,7 +1745,7 @@ function renderBarChart(containerId, data, colors) {
     const color = colors[i % colors.length];
     return `
       <div class="chart-row">
-        <span class="chart-label">${label}</span>
+        <span class="chart-label">${escapeMarkup(label)}</span>
         <div class="chart-bar-bg">
           <div class="chart-bar" style="width: ${pct}%; background: ${color};">${value}</div>
         </div>
@@ -1871,15 +1842,15 @@ function renderEngineHealth(containerId, acList) {
   container.innerHTML = `
     <div class="engine-health-bars">
       <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#10b981;">Good (&lt;60% TBO)</span>
+        <span class="engine-bar-label" style="color:#10b981;">Under 60% reported TT/TBO</span>
         <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(green/totalEngines*100)}%;background:#10b981;">${green}</div></div>
       </div>
       <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#f59e0b;">Caution (60-85%)</span>
+        <span class="engine-bar-label" style="color:#f59e0b;">60–85% reported TT/TBO</span>
         <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(yellow/totalEngines*100)}%;background:#f59e0b;">${yellow}</div></div>
       </div>
       <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#ef4444;">Due Soon (&gt;85%)</span>
+        <span class="engine-bar-label" style="color:#ef4444;">Over 85% reported TT/TBO</span>
         <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(red/totalEngines*100)}%;background:#ef4444;">${red}</div></div>
       </div>
     </div>
@@ -1944,19 +1915,25 @@ function renderRecentListings(acList) {
         ${listings.map(a => {
           const asking = a.asking ? '$' + Number(a.asking).toLocaleString() : '—';
           return `
-          <tr onclick="showAircraftDetail(${a.aircraftid})" style="cursor:pointer;">
-            <td class="td-dim">${a.datelisted || '—'}</td>
-            <td class="td-accent">${a.make || '—'}</td>
-            <td>${a.model || '—'}</td>
-            <td class="td-mono">${a.regnbr || '—'}</td>
-            <td>${a.yearmfr || '—'}</td>
+          <tr data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}" style="cursor:pointer;">
+            <td class="td-dim">${escapeMarkup(a.datelisted || '—')}</td>
+            <td class="td-accent">${escapeMarkup(a.make || '—')}</td>
+            <td>${escapeMarkup(a.model || '—')}</td>
+            <td class="td-mono">${escapeMarkup(a.regnbr || '—')}</td>
+            <td>${escapeMarkup(a.yearmfr || '—')}</td>
             <td>${a.airfrmtt ? a.airfrmtt.toLocaleString() : a.estaftt ? a.estaftt.toLocaleString() : '—'}</td>
             <td class="td-accent">${asking}</td>
-            <td class="td-dim">${a.acbasecity || a.acbaseicao || '—'}</td>
+            <td class="td-dim">${escapeMarkup(a.acbasecity || a.acbaseicao || '—')}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>`;
+  container.querySelectorAll('tr[data-aircraft-id]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = safeRecordId(row.dataset.aircraftId);
+      if (id !== null) showAircraftDetail(id);
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -2008,7 +1985,7 @@ async function loadAircraft() {
     if (sernbr) body.sernbr = sernbr;
     if (basecountry) body.basecountry = basecountry;
   } else {
-    // MRO Scan mode — use scan filters
+    // Fleet triage mode — use source-attribute filters
     const regionFilter = document.getElementById('acScanRegion')?.value || '';
     urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
     if (regionFilter) body.basecountry = regionFilter;
@@ -2033,7 +2010,7 @@ async function loadAircraft() {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
 
     if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') {
-      grid.innerHTML = `<div class="empty-state">API Error: ${data.responsestatus}</div>`;
+      grid.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`;
       return;
     }
 
@@ -2042,10 +2019,10 @@ async function loadAircraft() {
       return;
     }
 
-    // Cache for LLM context (outreach mode)
+    // Cache as explicitly non-authoritative compatibility context.
     cachedFleetSignals = data.aircraft.map(ac => ({ ...ac, mro: buildMROSignals(ac) }));
 
-    // Apply urgency filter client-side (for high-time since API doesn't support it directly)
+    // Apply descriptive AFTT bands client-side; these are not due-status filters.
     if (acSearchMode === 'scan' && urgencyFilter && urgencyFilter !== 'for-sale') {
       cachedFleetSignals = cachedFleetSignals.filter(ac => {
         if (urgencyFilter === 'high-time') return ac.mro.aftt > 8000;
@@ -2067,7 +2044,7 @@ async function loadAircraft() {
       CHUNK: 100,
     };
 
-    // Populate MRO stats in Aircraft tab
+    // Populate fleet screening stats in Aircraft tab.
     if (acSearchMode === 'scan') {
       const htCount = cachedFleetSignals.filter(a => a.mro.isHighTime).length;
       const fsCount = cachedFleetSignals.filter(a => a.mro.isForSale).length;
@@ -2100,25 +2077,26 @@ function renderAircraftCard(ac, forSale) {
   const typeClass = (type === 'BusinessJet' || type === 'JetAirliner') ? 'badge-jet' : type === 'Piston' ? 'badge-heli' : 'badge-turbo';
   const mro = buildMROSignals(ac);
   const mroBadge = mro.isAOG ? '<span class="badge badge-aog">AOG</span>'
-    : mro.urgency === 'overdue' ? '<span class="badge badge-overdue">HIGH-TIME</span>'
-    : mro.isHighTime ? '<span class="badge badge-due-soon">HIGH-TIME</span>' : '';
+    : mro.isVeryHighTime ? '<span class="badge badge-overdue">12K+ AFTT</span>'
+    : mro.isHighTime ? '<span class="badge badge-due-soon">8K+ AFTT</span>' : '';
+  const hasActiveCase = MXCaseState.matchesAircraft(ac);
   return `
-    <div class="ac-card" onclick="showAircraftDetail(${ac.aircraftid})">
+    <div class="ac-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}" data-aircraft-reg="${encodeURIComponent(reg)}" data-has-active-case="${hasActiveCase}">
       <div class="ac-card-header">
         <div>
-          <div class="ac-card-make">${ac.make}</div>
-          <div class="ac-card-model">${ac.model}</div>
+          <div class="ac-card-make">${escapeMarkup(ac.make)}</div>
+          <div class="ac-card-model">${escapeMarkup(ac.model)}</div>
         </div>
-        <div class="ac-card-reg">${reg}</div>
+        <div class="ac-card-reg">${escapeMarkup(reg)}</div>
       </div>
       <div class="ac-card-details">
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Year</span>
-          <span class="ac-card-detail-value">${year}</span>
+          <span class="ac-card-detail-value">${escapeMarkup(year)}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Serial</span>
-          <span class="ac-card-detail-value">${ac.sernbr || '—'}</span>
+          <span class="ac-card-detail-value">${escapeMarkup(ac.sernbr || '—')}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">AFTT</span>
@@ -2126,14 +2104,15 @@ function renderAircraftCard(ac, forSale) {
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Base</span>
-          <span class="ac-card-detail-value">${base}</span>
+          <span class="ac-card-detail-value">${escapeMarkup(base)}</span>
         </div>
       </div>
       <div class="ac-card-badges">
-        <span class="badge ${typeClass}">${type}</span>
+        <span class="badge ${typeClass}">${escapeMarkup(type)}</span>
         ${forSale ? '<span class="badge badge-forsale">FOR SALE</span>' : ''}
         ${mroBadge}
-        <span class="badge badge-lifecycle">${ac.lifecycle || '—'}</span>
+        ${hasActiveCase ? '<span class="badge badge-jet case-card-badge">ACTIVE CASE</span>' : ''}
+        <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || '—')}</span>
       </div>
     </div>`;
 }
@@ -2154,6 +2133,14 @@ function renderAircraftChunk(grid) {
   }
 
   grid.insertAdjacentHTML('beforeend', html);
+  grid.querySelectorAll('.ac-card[data-aircraft-id]').forEach((card) => {
+    if (card.dataset.detailBound === 'true') return;
+    card.dataset.detailBound = 'true';
+    card.addEventListener('click', () => {
+      const id = safeRecordId(card.dataset.aircraftId);
+      if (id !== null) showAircraftDetail(id);
+    });
+  });
   s.rendered = end;
 
   // Add new sentinel and observe it
@@ -2201,31 +2188,35 @@ async function showAircraftDetail(id) {
 
     const pictures = picData.pictures || [];
     const detailedEngines = engData.engines || [];
+    const activeCase = MXCaseState.matchesAircraft({ aircraftid: ident.aircraftid, regnbr: ident.regnbr }) ? MXCaseState.active : null;
+    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case · ${escapeMarkup(activeCase.case.status)} · version ${escapeMarkup(activeCase.case.version)}</div>` : '';
+    const faaRegistrationSuffix = String(ident.regnbr || '').replace(/^N/i, '').replace(/[^a-z0-9]/gi, '');
 
     const galleryHtml = pictures.length > 0 ? `
       <div class="photo-gallery" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:15px; margin-bottom:15px; border-bottom:1px solid var(--border);">
-        ${pictures.map(p => `<img src="${p.pictureurl}" alt="Aircraft" style="height:200px; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer;" onclick="openImageLightbox(this.src)" onerror="this.style.display='none'">`).join('')}
+        ${pictures.map(p => safeImageUrl(p.pictureurl)).filter(Boolean).map(url => `<img src="${escapeMarkup(url)}" alt="Aircraft" class="aircraft-gallery-image" style="height:200px; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer;">`).join('')}
       </div>
     ` : '';
 
     body.innerHTML = `
+      ${activeCaseHtml}
       ${galleryHtml}
       <div class="detail-header">
         <div class="detail-title-group">
-          <div class="detail-make">${ident.make}</div>
-          <div class="detail-model">${ident.model}</div>
+          <div class="detail-make">${escapeMarkup(ident.make)}</div>
+          <div class="detail-model">${escapeMarkup(ident.model)}</div>
           <div style="margin-top:4px">
-            <span class="badge badge-jet">${ident.maketype || ident.categorysize}</span>
+            <span class="badge badge-jet">${escapeMarkup(ident.maketype || ident.categorysize)}</span>
           </div>
         </div>
         <div class="detail-reg" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-          <div>${ident.regnbr}</div>
+          <div>${escapeMarkup(ident.regnbr)}</div>
           ${ident.regnbr && ident.regnbr.toUpperCase().startsWith('N') ? `
-            <a href="https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=${ident.regnbr.replace(/^N/i, '')}" 
+            <a href="https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=${encodeURIComponent(faaRegistrationSuffix)}"
                target="_blank" 
                class="badge badge-heli" 
                style="text-decoration:none; cursor:pointer; font-size:0.65rem;">
-               FAA Registry ↗
+                FAA Registry ↗
             </a>
           ` : ''}
         </div>
@@ -2266,7 +2257,7 @@ async function showAircraftDetail(id) {
           <div class="detail-section-title">Engines</div>
           ${detailedEngines.length > 0 ? detailedEngines.map((e, i) => `
             <div style="margin-top:8px;padding-top:8px;border-top:${i === 0 ? 'none' : '1px solid var(--border)'};">
-              <div style="font-size:0.72rem;color:var(--accent-cyan);font-weight:600;">Engine ${e.position}</div>
+              <div style="font-size:0.72rem;color:var(--accent-cyan);font-weight:600;">Engine ${escapeMarkup(e.position)}</div>
               ${detailRow('Make/Model', `${e.engine_make} ${e.engine_model}`)}
               ${detailRow('Serial', e.serial_number)}
               ${detailRow('Total Time', e.tsn)}
@@ -2299,7 +2290,7 @@ async function showAircraftDetail(id) {
         <div class="detail-section full-width">
           <div class="detail-section-title">Avionics</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${(ac.avionics || []).map(a => `<span class="badge badge-jet">${a.name}</span>`).join('')}
+            ${(ac.avionics || []).map(a => `<span class="badge badge-jet">${escapeMarkup(a.name)}</span>`).join('')}
           </div>
         </div>
 
@@ -2311,9 +2302,9 @@ async function showAircraftDetail(id) {
             <tbody>
               ${ac.companyrelationships.map(r => `
                 <tr>
-                  <td class="td-accent">${r.name}</td>
-                  <td>${r.relationtype}</td>
-                  <td class="td-dim">${r.businesstype}</td>
+                  <td class="td-accent">${escapeMarkup(r.name)}</td>
+                  <td>${escapeMarkup(r.relationtype)}</td>
+                  <td class="td-dim">${escapeMarkup(r.businesstype)}</td>
                   <td>${r.isoperator === 'Y' ? '✓' : ''}</td>
                 </tr>
               `).join('')}
@@ -2329,8 +2320,8 @@ async function showAircraftDetail(id) {
             <tbody>
               ${ac.flights.map(f => `
                 <tr>
-                  <td>${f.flightyear}</td><td>${f.flightmonth}</td>
-                  <td class="td-accent">${f.flights}</td><td>${f.flighthours}</td>
+                  <td>${escapeMarkup(f.flightyear)}</td><td>${escapeMarkup(f.flightmonth)}</td>
+                  <td class="td-accent">${escapeMarkup(f.flights)}</td><td>${escapeMarkup(f.flighthours)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2352,79 +2343,75 @@ async function showAircraftDetail(id) {
         <div class="detail-section full-width">
           <div class="detail-section-title">MXGenius AI Chat</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <button class="badge badge-heli" style="cursor:pointer;border:none;font-size:0.75rem;" onclick="window.openChatWith('${ident.make} ${ident.model} maintenance schedule')">🔧 Maintenance Schedule</button>
-            <button class="badge badge-heli" style="cursor:pointer;border:none;font-size:0.75rem;" onclick="window.openChatWith('${ident.make} ${ident.model} common AOG issues')">⚠️ Common AOG Issues</button>
-            <button class="badge badge-heli" style="cursor:pointer;border:none;font-size:0.75rem;" onclick="window.openChatWith('${ident.make} ${ident.model} D-check interval')">⏱️ D-Check Interval</button>
-            <button class="badge badge-heli" style="cursor:pointer;border:none;font-size:0.75rem;" onclick="window.openChatWith('${ident.make} ${ident.model} engine overhaul cycle')">⚙️ Engine Overhaul</button>
+            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="maintenance schedule">Maintenance schedule</button>
+            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="common AOG issues">Common AOG issues</button>
+            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="inspection intervals">Inspection intervals</button>
+            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="engine overhaul cycle">Engine overhaul</button>
           </div>
         </div>
 
         <div class="detail-section full-width" id="acDetailADs">
-          <div class="detail-section-title" style="color:#fb923c; display:flex; justify-content:space-between; align-items:center;">
-            <span>⚠️ FAA Airworthiness Directives</span>
-            <button id="injectADsBtn" class="badge badge-heli" style="cursor:pointer; border:none; font-size:0.7rem; display:none;">Inject into Chat</button>
-          </div>
-          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Scanning...</div>
+          <div class="detail-section-title">FAA Airworthiness Directives</div>
+          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capability…</div>
         </div>
       </div>
     `;
 
-    // ── Populate FAA AD section asynchronously ──
+    body.querySelectorAll('.aircraft-gallery-image').forEach((image) => {
+      image.addEventListener('click', () => openImageLightbox(image.src));
+      image.addEventListener('error', () => { image.hidden = true; });
+    });
+    const aircraftPromptPrefix = [ident.make, ident.model].filter(Boolean).join(' ');
+    body.querySelectorAll('.aircraft-chat-prompt').forEach((button) => {
+      button.addEventListener('click', () => {
+        window.openChatWith(`${aircraftPromptPrefix} ${button.dataset.promptSuffix || ''}`.trim());
+      });
+    });
+
+    // Populate the compliance section through the authenticated MCP boundary.
     (async () => {
-      await FAA_ADS.load();
       const adContainer = document.getElementById('acDetailADList');
       if (!adContainer) return;
-      
-      const makeModel = (ident.make + ' ' + ident.model).toLowerCase();
-      // Search by manufacturer name
-      let ads = FAA_ADS.data.filter(ad => {
-        const model = (ad.model || '').toLowerCase();
-        const title = (ad.title || '').toLowerCase();
-        const abs = (ad.abs || '').toLowerCase();
-        return model.includes(ident.make?.toLowerCase() || '___') || 
-               title.includes(ident.make?.toLowerCase() || '___') ||
-               title.includes((ident.model || '___').toLowerCase());
-      });
-      
-      // Sort by date descending
-      ads.sort((a, b) => (b.pub || '').localeCompare(a.pub || ''));
-      ads = ads.slice(0, 15);
-      
-      if (ads.length === 0) {
-        adContainer.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">No ADs found for this aircraft type</div>';
+      const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+      if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecureLocal) {
+        adContainer.textContent = 'Sign in to retrieve regulatory evidence.';
         return;
       }
-
-      const injectBtn = document.getElementById('injectADsBtn');
-      if (injectBtn) {
-        injectBtn.style.display = 'block';
-        const adText = ads.map(a => `- ${a.ad || a.doc}: ${a.title || a.abs}`).join('\\n');
-        injectBtn.onclick = () => {
-          window.openChatWith(`Review these FAA Airworthiness Directives for the ${ident.make} ${ident.model}:\\n${adText}`);
-        };
+      try {
+        const envelope = await MXApplicationClient.compliance.applicableAds({
+          aircraftId: ident.aircraftid || id,
+          caseId: MXCaseState.active?.caseId || null,
+          session
+        });
+        const output = MXApplicationClient.caseWorkspace.output(envelope);
+        const ads = output?.ads || [];
+        if (!ads.length) {
+          adContainer.textContent = envelope.warnings?.[0]?.message || 'No candidate ADs were returned by the configured source.';
+          return;
+        }
+        adContainer.replaceChildren(...ads.slice(0, 15).map((ad) => {
+          const row = document.createElement('div');
+          row.className = 'compliance-result';
+          const heading = document.createElement('strong');
+          heading.textContent = ad.ad_number || 'AD';
+          const title = document.createElement('span');
+          title.textContent = ad.title || 'Untitled directive';
+          const state = document.createElement('small');
+          state.textContent = `Applicability: ${String(ad.applicability || 'unknown').replaceAll('_', ' ')}`;
+          row.append(heading, title, state);
+          return row;
+        }));
+      } catch (error) {
+        adContainer.textContent = `${error.code || 'COMPLIANCE_UNAVAILABLE'}: ${error.message}`;
       }
-
-      adContainer.innerHTML = ads.map(ad => `
-        <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;color:var(--text-primary);font-size:0.78rem;">${ad.ad || ad.doc}</div>
-            <div style="color:var(--text-muted);font-size:0.72rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${ad.abs || ad.title || ''}</div>
-          </div>
-          <div style="flex-shrink:0;text-align:right;">
-            <div style="font-size:0.7rem;color:var(--text-muted);">${ad.pub || ''}</div>
-            ${ad.url ? '<a href="' + ad.url + '" target="_blank" rel="noopener" style="font-size:0.7rem;color:#fb923c;text-decoration:none;">View ↗</a>' : ''}
-          </div>
-        </div>
-      `).join('');
     })();
   } catch (e) {
     body.innerHTML = '<div class="empty-state">Error loading details</div>';
     console.error(e);
   }
 }
-
 function detailRow(label, value) {
-  return `<div class="detail-row"><span class="detail-row-label">${label}</span><span class="detail-row-value">${value ?? '—'}</span></div>`;
+  return `<div class="detail-row"><span class="detail-row-label">${escapeMarkup(label)}</span><span class="detail-row-value">${escapeMarkup(value ?? '—')}</span></div>`;
 }
 
 function openImageLightbox(src) {
@@ -2436,7 +2423,13 @@ function openImageLightbox(src) {
     lb.addEventListener('click', () => lb.style.display = 'none');
     document.body.appendChild(lb);
   }
-  lb.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;object-fit:contain;">`;
+  const safeSrc = safeImageUrl(src);
+  if (!safeSrc) return;
+  const image = document.createElement('img');
+  image.src = safeSrc;
+  image.alt = 'Aircraft detail';
+  image.style.cssText = 'max-width:92vw;max-height:92vh;border-radius:8px;object-fit:contain;';
+  lb.replaceChildren(image);
   lb.style.display = 'flex';
 }
 
@@ -2479,16 +2472,22 @@ async function loadCompanies() {
     }
 
     grid.innerHTML = data.companies.map(c => `
-      <div class="comp-card" onclick="showCompanyDetail(${c.companyid})">
-        <div class="comp-card-name">${c.name}</div>
-        <div class="comp-card-type">${c.entitytype || 'Company'}</div>
+      <div class="comp-card" data-company-id="${safeRecordId(c.companyid) ?? ''}">
+        <div class="comp-card-name">${escapeMarkup(c.name)}</div>
+        <div class="comp-card-type">${escapeMarkup(c.entitytype || 'Company')}</div>
         <div class="comp-card-info">
-          <span>📍 ${[c.city, c.state, c.country].filter(Boolean).join(', ')}</span>
-          ${c.email ? `<span>✉ ${c.email}</span>` : ''}
-          ${c.website ? `<span>🔗 ${c.website}</span>` : ''}
+          <span>${escapeMarkup([c.city, c.state, c.country].filter(Boolean).join(', '))}</span>
+          ${c.email ? `<span>${escapeMarkup(c.email)}</span>` : ''}
+          ${c.website ? `<span>${escapeMarkup(c.website)}</span>` : ''}
         </div>
       </div>
     `).join('');
+    grid.querySelectorAll('.comp-card[data-company-id]').forEach((card) => {
+      card.addEventListener('click', () => {
+        const id = safeRecordId(card.dataset.companyId);
+        if (id !== null) showCompanyDetail(id);
+      });
+    });
   } catch (e) {
     grid.innerHTML = '<div class="empty-state">Error loading companies</div>';
     console.error(e);
@@ -2510,8 +2509,8 @@ async function showCompanyDetail(id) {
     body.innerHTML = `
       <div class="detail-header">
         <div class="detail-title-group">
-          <div class="detail-make">${ident.agencytype || 'Company'}</div>
-          <div class="detail-model">${ident.name}</div>
+          <div class="detail-make">${escapeMarkup(ident.agencytype || 'Company')}</div>
+          <div class="detail-model">${escapeMarkup(ident.name)}</div>
         </div>
       </div>
 
@@ -2534,7 +2533,7 @@ async function showCompanyDetail(id) {
           <div style="margin-top:16px">
             <div class="detail-section-title">Business Types</div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${b}</span>`).join('') || '<span class="td-dim">—</span>'}
+              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${escapeMarkup(b)}</span>`).join('') || '<span class="td-dim">—</span>'}
             </div>
           </div>
         </div>
@@ -2547,9 +2546,9 @@ async function showCompanyDetail(id) {
             <tbody>
               ${comp.contacts.map(c => `
                 <tr>
-                  <td class="td-accent">${c.firstname} ${c.lastname}</td>
-                  <td>${c.title || '—'}</td>
-                  <td class="td-dim">${c.email || '—'}</td>
+                  <td class="td-accent">${escapeMarkup([c.firstname, c.lastname].filter(Boolean).join(' '))}</td>
+                  <td>${escapeMarkup(c.title || '—')}</td>
+                  <td class="td-dim">${escapeMarkup(c.email || '—')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2564,8 +2563,8 @@ async function showCompanyDetail(id) {
             <tbody>
               ${comp.aircraftrelationships.slice(0, 20).map(a => `
                 <tr>
-                  <td class="td-mono td-accent" style="cursor:pointer" onclick="closeModal('compDetailModal');showAircraftDetail(${a.aircraftid})">${a.aircraftid}</td>
-                  <td>${a.relationtype}</td>
+                  <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
+                  <td>${escapeMarkup(a.relationtype)}</td>
                   <td>${a.isoperator === 'Y' ? '✓ Yes' : 'No'}</td>
                 </tr>
               `).join('')}
@@ -2574,6 +2573,14 @@ async function showCompanyDetail(id) {
         </div>` : ''}
       </div>
     `;
+    body.querySelectorAll('.related-aircraft[data-aircraft-id]').forEach((cell) => {
+      cell.addEventListener('click', () => {
+        const aircraftId = safeRecordId(cell.dataset.aircraftId);
+        if (aircraftId === null) return;
+        closeModal('compDetailModal');
+        showAircraftDetail(aircraftId);
+      });
+    });
   } catch (e) {
     body.innerHTML = '<div class="empty-state">Error loading details</div>';
     console.error(e);
@@ -2630,17 +2637,17 @@ async function loadContacts() {
         <tbody>
            ${data.contacts.map(c => `
             <tr>
-              <td class="td-accent">${[c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' ')}</td>
-              <td>${c.title || '—'}</td>
-              <td>${c.companyname || '—'}</td>
-              <td class="td-dim">${c.email || '—'}</td>
-              <td class="td-mono">${c.phonenumber || '—'}</td>
+              <td class="td-accent">${escapeMarkup([c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' '))}</td>
+              <td>${escapeMarkup(c.title || '—')}</td>
+              <td>${escapeMarkup(c.companyname || '—')}</td>
+              <td class="td-dim">${escapeMarkup(c.email || '—')}</td>
+              <td class="td-mono">${escapeMarkup(c.phonenumber || '—')}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
       <div style="padding:12px;color:var(--text-muted);font-size:0.78rem;">
-        ${data.count} contacts
+        ${escapeMarkup(data.count)} contacts
       </div>`;
   } catch (e) {
     container.innerHTML = '<div class="empty-state">Error loading contacts</div>';
@@ -2727,35 +2734,37 @@ const ICAO_COORDS = {
 
 function clusterByAirport(aircraft) {
   const clusters = {};
-  const counts = { critical: 0, overdue: 0, hightime: 0, current: 0 };
+  const counts = { aog: 0, aftt12000: 0, aftt8000: 0, other: 0 };
   aircraft.forEach(ac => {
     const icao = (ac.baseicao || ac.baseicaocode || '').toUpperCase().trim();
     const coords = ICAO_COORDS[icao];
     if (!coords) return;
-    if (!clusters[icao]) clusters[icao] = { icao, lat: coords[0], lng: coords[1], aircraft: [], worstUrgency: 'current', hasHighTime: false, city: '', country: '' };
+    if (!clusters[icao]) clusters[icao] = { icao, lat: coords[0], lng: coords[1], aircraft: [], hasAog: false, hasVeryHighTime: false, hasHighTime: false, city: '', country: '' };
     const c = clusters[icao];
     c.aircraft.push(ac);
     if (!c.city) c.city = ac.basecity || '';
     if (!c.country) c.country = ac.basecountry || ac.country || '';
     const mro = buildMROSignals(ac);
-    if (mro.urgency === 'critical') { c.worstUrgency = 'critical'; counts.critical++; }
-    else if (mro.urgency === 'overdue') { if (c.worstUrgency !== 'critical') c.worstUrgency = 'overdue'; counts.overdue++; }
-    else if (mro.isHighTime) { c.hasHighTime = true; if (c.worstUrgency === 'current') c.worstUrgency = 'high-time'; counts.hightime++; }
-    else { counts.current++; }
+    if (mro.isAOG) { c.hasAog = true; counts.aog++; }
+    else if (mro.isVeryHighTime) { c.hasVeryHighTime = true; counts.aftt12000++; }
+    else if (mro.isHighTime) { c.hasHighTime = true; counts.aftt8000++; }
+    else { counts.other++; }
   });
   return { clusters: Object.values(clusters), counts };
 }
 
 function clusterColor(d) {
-  if (d.worstUrgency === 'critical') return '#ff4444';
-  if (d.worstUrgency === 'overdue') return '#ef4444';
+  if (d.hasActiveCase) return '#00d4ff';
+  if (d.hasAog) return '#ff4444';
+  if (d.hasVeryHighTime) return '#ef4444';
   if (d.hasHighTime) return '#f59e0b';
   return '#10b981';
 }
-function clusterRadius(d) { return Math.min(0.6, 0.12 + d.aircraft.length * 0.02); }
+function clusterRadius(d) { return d.hasActiveCase ? Math.min(0.75, 0.2 + d.aircraft.length * 0.02) : Math.min(0.6, 0.12 + d.aircraft.length * 0.02); }
 function clusterAltitude(d) {
-  if (d.worstUrgency === 'critical') return 0.03;
-  if (d.worstUrgency === 'overdue') return 0.015;
+  if (d.hasActiveCase) return 0.045;
+  if (d.hasAog) return 0.03;
+  if (d.hasVeryHighTime) return 0.015;
   if (d.hasHighTime) return 0.008;
   return 0.004; // small offset prevents z-fighting
 }
@@ -2767,10 +2776,11 @@ function applyGlobeFilters() {
   let filtered = allClusters;
   if (activeUrgencyFilter) {
     filtered = filtered.filter(c => {
-      if (activeUrgencyFilter === 'critical') return c.worstUrgency === 'critical';
-      if (activeUrgencyFilter === 'overdue') return c.worstUrgency === 'overdue';
-      if (activeUrgencyFilter === 'hightime') return c.hasHighTime;
-      if (activeUrgencyFilter === 'current') return c.worstUrgency === 'current' && !c.hasHighTime;
+      if (activeUrgencyFilter === 'active-case') return c.hasActiveCase;
+      if (activeUrgencyFilter === 'aog') return c.hasAog;
+      if (activeUrgencyFilter === 'aftt-12000') return c.hasVeryHighTime;
+      if (activeUrgencyFilter === 'aftt-8000') return c.hasHighTime;
+      if (activeUrgencyFilter === 'other') return !c.hasAog && !c.hasVeryHighTime && !c.hasHighTime;
       return true;
     });
   }
@@ -2848,13 +2858,19 @@ function handleGlobeClick(point) {
   const sheet = document.getElementById('globeSheet');
   const results = document.getElementById('globeSheetResults');
   sheet.className = 'globe-sheet full';
-  results.innerHTML = `<div class="drill-header"><span class="drill-icao">${point.icao}</span>${point.city ? '<span>' + point.city + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span></div>` +
+  results.innerHTML = `<div class="drill-header"><span class="drill-icao">${escapeMarkup(point.icao)}</span>${point.city ? '<span>' + escapeMarkup(point.city) + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span></div>` +
     point.aircraft.map(ac => {
       const mro = buildMROSignals(ac);
-      const ul = mro.urgency === 'critical' ? 'AOG' : mro.urgency === 'overdue' ? 'Overdue' : mro.isHighTime ? 'High-Time' : 'Current';
-      const uc = mro.urgency === 'critical' ? 'critical' : mro.urgency === 'overdue' ? 'overdue' : mro.isHighTime ? 'high-time' : 'current';
-      return `<div class="drill-card" onclick="showAircraftDetail(${ac.aircraftid})"><span class="drill-reg">${ac.regnbr || '—'}</span><span class="drill-model">${ac.make || ''} ${ac.model || ''}</span><span class="drill-owner">${ac.owner || ac.operator || ''}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
+      const ul = mro.isAOG ? 'AOG' : mro.isVeryHighTime ? '12K+ AFTT' : mro.isHighTime ? '8K+ AFTT' : 'Other';
+      const uc = mro.isAOG ? 'critical' : mro.isVeryHighTime ? 'overdue' : mro.isHighTime ? 'high-time' : 'current';
+      return `<div class="drill-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}"><span class="drill-reg">${escapeMarkup(ac.regnbr || '—')}</span><span class="drill-model">${escapeMarkup([ac.make, ac.model].filter(Boolean).join(' '))}</span><span class="drill-owner">${escapeMarkup(ac.owner || ac.operator || '')}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
     }).join('');
+  results.querySelectorAll('.drill-card[data-aircraft-id]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const id = safeRecordId(card.dataset.aircraftId);
+      if (id !== null) showAircraftDetail(id);
+    });
+  });
   globeInstance.pointOfView({ lat: point.lat, lng: point.lng, altitude: 0.8 }, 800);
 }
 
@@ -2864,8 +2880,8 @@ function handleGlobeHover(point) {
   const container = document.getElementById('globeContainer');
   if (point) {
     globeInstance.controls().autoRotate = false;
-    const ul = point.worstUrgency === 'critical' ? '🔴 AOG' : point.worstUrgency === 'overdue' ? '🟠 Overdue' : point.hasHighTime ? '🟡 High-Time' : '🟢 Current';
-    tooltip.innerHTML = `<div class="tt-icao">${point.icao}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">Worst: ${ul}${point.city ? ' · ' + point.city : ''}</div>`;
+    const ul = point.hasAog ? 'AOG reported' : point.hasVeryHighTime ? '12K+ reported AFTT' : point.hasHighTime ? '8K+ reported AFTT' : 'No selected triage flag';
+    tooltip.innerHTML = `<div class="tt-icao">${escapeMarkup(point.icao)}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">${ul}${point.city ? ' · ' + escapeMarkup(point.city) : ''}</div>`;
     tooltip.classList.remove('hidden');
     const mh = (e) => { const r = container.getBoundingClientRect(); tooltip.style.left = Math.min(e.clientX - r.left + 15, r.width - tooltip.offsetWidth - 10) + 'px'; tooltip.style.top = Math.min(e.clientY - r.top + 15, r.height - tooltip.offsetHeight - 10) + 'px'; };
     container._globeMouseMove = mh; container.addEventListener('mousemove', mh);
@@ -2890,9 +2906,12 @@ async function loadGlobe() {
   const body = {};
   try {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
-    if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') { container.innerHTML = `<div class="empty-state">API Error: ${data.responsestatus}</div>`; return; }
+    if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') { container.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`; return; }
     const aircraft = data.aircraft || [];
     const { clusters, counts } = clusterByAirport(aircraft);
+    clusters.forEach((cluster) => {
+      cluster.hasActiveCase = cluster.aircraft.some((item) => MXCaseState.matchesAircraft(item));
+    });
     allClusters = clusters;
     globeData = { totalAircraft: aircraft.length, mappedAircraft: clusters.reduce((s, c) => s + c.aircraft.length, 0), byCountry: {}, counts };
     clusters.forEach(c => { if (c.country) globeData.byCountry[c.country] = true; });
@@ -2903,7 +2922,8 @@ async function loadGlobe() {
   document.getElementById('globeCountries').textContent = Object.keys(globeData.byCountry).length;
   const cn = globeData.counts;
   const pe = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  pe('pillCritical', cn.critical); pe('pillOverdue', cn.overdue); pe('pillHighTime', cn.hightime); pe('pillCurrent', cn.current);
+  pe('pillAog', cn.aog); pe('pillAftt12000', cn.aftt12000); pe('pillAftt8000', cn.aftt8000); pe('pillOther', cn.other);
+  pe('pillActiveCase', allClusters.some((cluster) => cluster.hasActiveCase) ? 1 : 0);
 
   if (!globeInstance) {
     container.innerHTML = '';
@@ -2927,181 +2947,5 @@ async function loadGlobe() {
     setupGlobeSheet();
   } else {
     globeInstance.pointsData(allClusters).pointColor(clusterColor).pointRadius(clusterRadius).pointAltitude(clusterAltitude);
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  DOCS
-// ═══════════════════════════════════════════════════
-
-let _docsCatalog = null;
-let _docsCurrentView = 'root';
-let _docsCurrentAircraft = null;
-let _docsCurrentManual = null;
-
-async function loadDocs() {
-  if (_docsCatalog) { renderDocsGrid(_docsCatalog); return; }
-  try {
-    _docsCatalog = await MXApplicationClient.staticJson('display_index/catalog.json');
-    const sidebar = document.getElementById('docs-manufacturer-list');
-    const mfrs = {};
-    _docsCatalog.forEach(a => { const m = a.manufacturer || 'Unknown'; if (!mfrs[m]) mfrs[m] = 0; mfrs[m]++; });
-    sidebar.innerHTML = Object.entries(mfrs).sort((a,b) => b[1]-a[1]).map(([m,c]) =>
-      `<div style="padding:10px 12px;border-radius:6px;color:var(--text-muted);margin-bottom:6px;cursor:pointer;font-size:0.85rem;" onmouseover="this.style.background='rgba(0,212,255,0.08)'" onmouseout="this.style.background=''" onclick="docsFilterMfr('${m.replace(/'/g,"\\'")}')">${m} <span style="float:right;opacity:0.5;">${c}</span></div>`
-    ).join('');
-    renderDocsGrid(_docsCatalog);
-  } catch(e) { document.getElementById('docs-content').innerHTML = '<div class="empty-state">Could not load catalog. Ensure display_index/catalog.json is present.</div>'; }
-}
-
-function renderDocsGrid(list) {
-  _docsCurrentView = 'root';
-  document.getElementById('docs-breadcrumb').innerHTML = '<span style="color:var(--accent-cyan);font-weight:500;">All Aircraft</span> <span style="margin-left:8px;color:var(--text-muted);">' + list.length + ' aircraft</span>';
-  document.getElementById('docs-content').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">' +
-    list.map(a => {
-      const mc = a.manual_count || 0, cc = a.total_chapters || 0;
-      return `<div class="ac-card" style="cursor:pointer;" onclick="loadAircraftManuals('${a.id}')">
-        <div class="ac-card-header"><div><div class="ac-card-make">${a.manufacturer}</div><div class="ac-card-model">${a.aircraft}</div></div><span class="badge badge-jet">${mc} manuals</span></div>
-        <div class="ac-card-details"><div class="ac-card-detail"><span class="ac-card-detail-label">Chapters</span><span class="ac-card-detail-value">${cc}</span></div></div></div>`;
-    }).join('') + '</div>';
-}
-
-async function loadAircraftManuals(id) {
-  document.getElementById('docs-content').innerHTML = '<div class="loading">Loading manuals...</div>';
-  try {
-    const data = await MXApplicationClient.staticJson('display_index/' + id + '.json');
-    _docsCurrentAircraft = { id, data };
-    _docsCurrentView = 'aircraft';
-    document.getElementById('docs-breadcrumb').innerHTML =
-      '<span style="cursor:pointer;color:var(--accent-cyan);" onclick="docsNavigate(\'root\')">All Aircraft</span><span style="margin:0 6px;">›</span><span style="color:var(--text-main);font-weight:500;">' + data.manufacturer + ' ' + data.aircraft + '</span>';
-    const manuals = data.manuals || {};
-    const keys = Object.keys(manuals);
-    document.getElementById('docs-content').innerHTML = '<div style="max-width:800px;">' + keys.map((name, idx) => {
-      const chapters = Object.keys(manuals[name]);
-      const headerId = 'docs-manual-' + idx;
-      const listId = 'docs-chapters-' + idx;
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden;">
-        <div class="docs-manual-header" id="${headerId}" aria-expanded="false" onclick="docsToggleManual('${headerId}','${listId}')">
-          <div><div style="color:var(--text-main);font-weight:600;">${name}</div><div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px;">${chapters.length} chapters</div></div>
-          <span class="docs-chevron">▸</span></div>
-        <div class="docs-chapter-list" id="${listId}">` +
-        chapters.map(ch => {
-          const c = manuals[name][ch];
-          return `<div class="docs-chapter-item" onclick="loadChapter('${id}','${name.replace(/'/g,"\\'")}','${ch.replace(/'/g,"\\'")}')">
-            <span>${ch}</span>
-            <span>${c.ata ? 'ATA '+c.ata : ''} ${((c.char_count||0)/1000).toFixed(0)}K</span></div>`;
-        }).join('') + '</div></div>';
-    }).join('') + '</div>';
-  } catch(e) { document.getElementById('docs-content').innerHTML = '<div class="empty-state">Could not load manuals for this aircraft.</div>'; }
-}
-
-function docsToggleManual(headerId, listId) {
-  const header = document.getElementById(headerId);
-  const list = document.getElementById(listId);
-  const isOpen = header.getAttribute('aria-expanded') === 'true';
-  header.setAttribute('aria-expanded', !isOpen);
-  list.classList.toggle('docs-open', !isOpen);
-}
-
-function loadChapter(aircraftId, manualName, chapterKey) {
-  if (!_docsCurrentAircraft || _docsCurrentAircraft.id !== aircraftId) return;
-  const data = _docsCurrentAircraft.data;
-  const chapter = data.manuals?.[manualName]?.[chapterKey];
-  if (!chapter) return;
-  _docsCurrentView = 'chapter'; _docsCurrentManual = manualName;
-  document.getElementById('docs-breadcrumb').innerHTML =
-    '<span style="cursor:pointer;color:var(--accent-cyan);" onclick="docsNavigate(\'root\')">All Aircraft</span><span style="margin:0 6px;">›</span>' +
-    '<span style="cursor:pointer;color:var(--accent-cyan);" onclick="loadAircraftManuals(\'' + aircraftId + '\')">' + data.manufacturer + ' ' + data.aircraft + '</span><span style="margin:0 6px;">›</span>' +
-    '<span style="color:var(--text-main);font-weight:500;">' + chapterKey + '</span>';
-  const text = (chapter.text || 'No content available.').replace(/\n/g, '<br>');
-  let imagesHtml = '';
-  const imgs = chapter.images || [];
-  if (imgs.length > 0) {
-    const resolved = imgs.map(p => { const ext = p.split('.').pop().toLowerCase(); const hash = _md5(p).substring(0,10); return { src: 'rag_images/' + hash + '.' + ext, caption: p.split('/').pop() }; });
-    imagesHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding:12px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:10px;">
-      <div style="width:100%;font-size:11px;color:#8b949e;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;">📎 ${resolved.length} DIAGRAM${resolved.length>1?'S':''} FROM MAINTENANCE MANUALS</div>
-      ${resolved.map(img => `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid rgba(99,102,241,0.2);cursor:pointer;max-width:160px;" onclick="openImageLightbox('${img.src}')">
-        <img src="${img.src}" alt="${img.caption}" style="width:100%;height:auto;display:block;" loading="lazy" onerror="this.parentElement.style.display='none'">
-        <div style="font-size:9px;color:#8b949e;padding:3px 6px;background:rgba(13,17,23,0.9);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${img.caption}</div></div>`).join('')}</div>`;
-  }
-  document.getElementById('docs-content').innerHTML = `<div class="docs-reader">
-    <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);"><h2 class="docs-reader-title">${chapterKey}</h2>
-      <div class="docs-reader-meta">${chapter.ata ? 'ATA ' + chapter.ata + ' • ' : ''}${manualName} • ${(chapter.char_count||0).toLocaleString()} characters${imgs.length ? ' • ' + imgs.length + ' diagrams' : ''}</div>
-      ${chapter.source ? '<div class="docs-reader-meta">Source: ' + chapter.source + '</div>' : ''}</div>
-    ${imagesHtml}
-    <div class="docs-reader-text">${text}</div></div>`;
-}
-
-function _md5(s){var h=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476],K=[],i;for(i=0;i<64;i++)K[i]=Math.floor(Math.abs(Math.sin(i+1))*4294967296);var S=[[7,12,17,22],[5,9,14,20],[4,11,16,23],[6,10,15,21]];var b=[];for(i=0;i<s.length;i++){b.push(s.charCodeAt(i));}var origLen=b.length*8;b.push(0x80);while(b.length%64!==56)b.push(0);var lo=origLen>>>0,hi=0;b.push(lo&0xff,lo>>>8&0xff,lo>>>16&0xff,lo>>>24&0xff);b.push(hi&0xff,hi>>>8&0xff,hi>>>16&0xff,hi>>>24&0xff);for(var off=0;off<b.length;off+=64){var M=[];for(i=0;i<16;i++)M[i]=(b[off+i*4])|(b[off+i*4+1]<<8)|(b[off+i*4+2]<<16)|(b[off+i*4+3]<<24);var a=h[0],bb=h[1],c=h[2],d=h[3];for(i=0;i<64;i++){var g,F;if(i<16){F=(bb&c)|((~bb)&d);g=i;}else if(i<32){F=(d&bb)|((~d)&c);g=(5*i+1)%16;}else if(i<48){F=bb^c^d;g=(3*i+5)%16;}else{F=c^(bb|(~d));g=(7*i)%16;}var r=Math.floor(i/16);var tmp=d;d=c;c=bb;var x=((a+F+K[i]+(M[g]>>>0))>>>0);var ss=S[r][i%4];bb=(bb+(((x<<ss)|(x>>>(32-ss)))>>>0))>>>0;a=tmp;}h[0]=(h[0]+a)>>>0;h[1]=(h[1]+bb)>>>0;h[2]=(h[2]+c)>>>0;h[3]=(h[3]+d)>>>0;}var hex='';for(i=0;i<4;i++)for(var j=0;j<4;j++)hex+=('0'+((h[i]>>>(j*8))&0xff).toString(16)).slice(-2);return hex;}
-
-function docsNavigate(target) {
-  if (target === 'root') { if (_docsCatalog) renderDocsGrid(_docsCatalog); }
-  else if (target === 'aircraft' && _docsCurrentAircraft) loadAircraftManuals(_docsCurrentAircraft.id);
-}
-
-function docsFilterMfr(mfr) {
-  if (!_docsCatalog) return;
-  renderDocsGrid(_docsCatalog.filter(a => a.manufacturer === mfr));
-}
-
-function docsSearch(q) {
-  if (!_docsCatalog) return;
-  if (!q) { renderDocsGrid(_docsCatalog); return; }
-  q = q.toLowerCase();
-  renderDocsGrid(_docsCatalog.filter(a => (a.manufacturer + ' ' + a.aircraft).toLowerCase().includes(q)));
-}
-
-// ============================================
-// Work Order Panel Setup
-// ============================================
-function setupWorkOrderPanel() {
-  const panel = document.getElementById('work-order-panel');
-  const toggleBtn = document.getElementById('workOrderNav') || document.getElementById('workOrderFab');
-  const closeBtn = document.getElementById('closeWorkOrderBtn');
-  const emailBtn = document.getElementById('btnEmailInvoice');
-
-  if (toggleBtn && panel) {
-    toggleBtn.addEventListener('click', () => {
-      panel.classList.add('open');
-    });
-  }
-
-  if (closeBtn && panel) {
-    closeBtn.addEventListener('click', () => {
-      panel.classList.remove('open');
-    });
-  }
-
-  // Close work order panel when clicking outside
-  if (panel) {
-    document.addEventListener('click', (e) => {
-      if (!panel.classList.contains('open')) return;
-      if (panel.contains(e.target)) return;
-      if (toggleBtn && toggleBtn.contains(e.target)) return;
-      panel.classList.remove('open');
-    });
-  }
-
-  if (emailBtn) {
-    emailBtn.addEventListener('click', () => {
-      const reg = document.getElementById('woReg').value || '';
-      const title = document.getElementById('woTitle').value || '';
-      const desc = document.getElementById('woDesc').value || '';
-      const parts = document.getElementById('woParts').value || '';
-      const labor = document.getElementById('woLabor').value || '';
-      
-      const subject = encodeURIComponent('MRO Invoice / Work Order: ' + reg + ' - ' + title);
-      let bodyText = "MXGenius MRO Work Order\n";
-      bodyText += "==================================\n\n";
-      bodyText += "Aircraft Registration: " + reg + "\n";
-      bodyText += "Maintenance Action: " + title + "\n\n";
-      bodyText += "Description:\n" + desc + "\n\n";
-      bodyText += "Parts Required:\n" + parts + "\n\n";
-      bodyText += "Labor Operations:\n" + labor + "\n\n";
-      bodyText += "==================================\n";
-      bodyText += "Generated via MXGenius AI Copilot";
-      
-      const body = encodeURIComponent(bodyText);
-      window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
-    });
   }
 }

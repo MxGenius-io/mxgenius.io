@@ -1,0 +1,11 @@
+{
+  "documents": [
+    {
+      "document_id": "doc:fixture-manual-001",
+      "title": "Fixture Aviation FA-100 Maintenance Manual",
+      "doc_type": "maintenance_manual",
+      "revision": "rev-A",
+      "effective_date": "2024-01-15"
+    }
+  ]
+}

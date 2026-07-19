@@ -1,0 +1,140 @@
+.realtime-header {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.realtime-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #8b949e;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+
+.realtime-state__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.realtime-state[data-state="connecting"] .realtime-state__dot,
+.realtime-state[data-state="thinking"] .realtime-state__dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, .12);
+}
+
+.realtime-state[data-state="listening"] .realtime-state__dot,
+.realtime-state[data-state="speaking"] .realtime-state__dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, .12);
+}
+
+.realtime-state[data-state="failed"] .realtime-state__dot,
+.realtime-state[data-state="degraded"] .realtime-state__dot {
+  background: #ef4444;
+}
+
+.realtime-interrupt {
+  margin-left: auto;
+  border: 1px solid rgba(239, 68, 68, .35);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(239, 68, 68, .09);
+  color: #f87171;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.realtime-transcript {
+  display: grid;
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, .14);
+  background: rgba(15, 23, 42, .5);
+}
+
+.realtime-transcript[hidden] {
+  display: none;
+}
+
+.realtime-transcript div {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 8px;
+}
+
+.realtime-transcript span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.realtime-transcript p {
+  min-width: 0;
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.realtime-confirmation {
+  margin: 10px 12px;
+  padding: 12px;
+  border: 1px solid rgba(245, 158, 11, .42);
+  border-radius: 10px;
+  background: rgba(120, 53, 15, .14);
+}
+
+.realtime-confirmation[hidden] {
+  display: none;
+}
+
+.realtime-confirmation strong {
+  color: #fbbf24;
+  font-size: 12px;
+}
+
+.realtime-confirmation p,
+.realtime-confirmation pre {
+  margin: 8px 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.realtime-confirmation pre {
+  max-height: 150px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.realtime-confirmation > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.realtime-confirmation button {
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, .72);
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#realtimeConfirmationApprove {
+  border-color: rgba(245, 158, 11, .5);
+  color: #fbbf24;
+}

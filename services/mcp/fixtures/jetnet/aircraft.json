@@ -1,0 +1,29 @@
+[
+  {
+    "aircraft_id": "aircraft:fixture-001",
+    "registration": "N100FX",
+    "serial_number": "FX-9001",
+    "make": "Fixture Aviation",
+    "model": "FA-100",
+    "year": 2018,
+    "base_icao": "KFXF"
+  },
+  {
+    "aircraft_id": "aircraft:fixture-002",
+    "registration": "N200FX",
+    "serial_number": "FX-9002",
+    "make": "Fixture Aviation",
+    "model": "FA-200",
+    "year": 2020,
+    "base_icao": "KFXG"
+  },
+  {
+    "aircraft_id": "aircraft:fixture-003",
+    "registration": "N300FX",
+    "serial_number": "FX-9003",
+    "make": "Fixture Aviation",
+    "model": "FA-300",
+    "year": 2022,
+    "base_icao": "KFXH"
+  }
+]

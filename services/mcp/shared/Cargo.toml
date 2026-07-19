@@ -1,0 +1,29 @@
+[package]
+name = "mxgenius-shared"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "MXGenius shared core: domain, application, adapters, schemas."
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+schemars = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+
+[features]
+default = []

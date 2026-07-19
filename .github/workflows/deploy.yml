@@ -1,4 +1,4 @@
-# Deploy MXGenius to GitHub Pages with secret injection
+# Deploy the static MXGenius application shell to GitHub Pages.
 name: Deploy to Pages
 
 on:
@@ -25,11 +25,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject API credentials
+      - name: Assemble static release
+        shell: bash
         run: |
-          sed -i "s|__MXG_API_EMAIL__|${{ secrets.MXG_API_EMAIL }}|g" app.js
-          sed -i "s|__MXG_API_PASSWORD__|${{ secrets.MXG_API_PASSWORD }}|g" app.js
-          sed -i "s|__MXG_CHAT_API_KEY__|${{ secrets.MXG_CHAT_API_KEY }}|g" app.js
+          set -euo pipefail
+          mkdir _site
+          cp -- *.html *.js *.css *.jpg *.png CNAME _site/
+          cp -R -- 3d-viewer assets icons media "Training Data" _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -37,7 +39,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
