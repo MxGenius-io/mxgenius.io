@@ -13,6 +13,8 @@ const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const viewerArButton = await readFile(new URL('../3d-viewer/lib/webxr/ARButton.js', import.meta.url), 'utf8');
+const xrMediaPanel = await readFile(new URL('../3d-viewer/xr-media-panel.js', import.meta.url), 'utf8');
+const xrAnimationScrubber = await readFile(new URL('../3d-viewer/xr-animation-scrubber.js', import.meta.url), 'utf8');
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
@@ -127,7 +129,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=6"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=7"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -192,6 +194,56 @@ test('3D viewer uses Quest passthrough XR without an HDRI during presentation', 
   assert.doesNotMatch(`${viewer}\n${viewerArButton}`, /Apple Vision/);
 });
 
+test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=9/);
+  assert.match(viewer, /id="procedure-media-video"/);
+  assert.match(viewer, /id="procedure-media-button"/);
+  assert.match(viewer, /import \{ XRMediaPanel \}/);
+  assert.match(viewer, /mxgenius\.viewer\.set-tutorial/);
+  assert.match(application, /setTutorial\(tutorial, context\)/);
+  assert.match(xrMediaPanel, /new THREE\.VideoTexture\(video\)/);
+  assert.match(xrMediaPanel, /mediaUrl/);
+  assert.match(xrMediaPanel, /definition\.cues/);
+  assert.match(xrMediaPanel, /onMeshSelector/);
+  assert.match(xrMediaPanel, /toggle-playback/);
+  assert.doesNotMatch(xrMediaPanel, /youtube\.com|youtu\.be/);
+});
+
+test('XR animation scrubber drives authored clips from controller or fingertip position', () => {
+  assert.match(viewer, /import \{ XRAnimationScrubber \}/);
+  assert.match(viewer, /xrAnimationScrubber\.scrubAtWorldPoint/);
+  assert.match(viewer, /xrAnimationScrubber\?\.fingerScrub/);
+  assert.match(xrAnimationScrubber, /action\.time = normalized \* this\.clip\.duration/);
+  assert.match(xrAnimationScrubber, /scrub-animation/);
+  assert.match(xrAnimationScrubber, /EXPLODED VIEW/);
+  assert.match(xrAnimationScrubber, /presentationTarget/);
+  assert.match(xrAnimationScrubber, /Math\.exp\(-12/);
+  assert.match(xrMediaPanel, /presentationTarget/);
+  assert.match(xrMediaPanel, /Math\.exp\(-12/);
+});
+
+test('XR workspace uses one-grab translation and two-grab scale rotation', () => {
+  assert.match(viewer, /squeezestart/);
+  assert.match(viewer, /squeezeend/);
+  assert.match(viewer, /mode: 'move-world'/);
+  assert.match(viewer, /mode: 'scale-rotate-world'/);
+  assert.match(viewer, /setFromUnitVectors/);
+  assert.match(viewer, /distance \/ xrWorldGesture\.distance/);
+});
+
+test('public Sketchfab models are additive and share desktop animation controls', () => {
+  const external = modelCatalog.find((model) => model.provider === 'sketchfab');
+  assert.ok(external, 'a public Sketchfab catalog entry should be present');
+  assert.ok(modelCatalog.some((model) => model.file?.endsWith('.glb')), 'local GLB models must remain available');
+  assert.equal(external.uid, '967cfd4aac234b2583e9e50060ff10af');
+  assert.equal(external.attribution.license, 'CC BY 4.0');
+  assert.match(viewer, /sketchfab-viewer-1\.12\.1\.js/);
+  assert.match(viewer, /id="sketchfab-frame"/);
+  assert.match(viewer, /getAnimations/);
+  assert.match(viewer, /seekTo/);
+  assert.match(viewer, /animation_autoplay: 0/);
+});
+
 test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
   assert.match(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
@@ -220,7 +272,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=6"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=7"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);
@@ -246,7 +298,12 @@ test('compatibility-source cards escape text and avoid external identifiers in i
 test('bundled 3D catalog does not claim demo assets are validated operational twins', () => {
   assert.ok(modelCatalog.length > 0);
   for (const model of modelCatalog) {
-    assert.equal(model.operationalStatus, 'demo_asset', `${model.file} must be explicitly classified`);
+    if (model.provider === 'sketchfab') {
+      assert.equal(model.operationalStatus, 'external_reference', `${model.uid} must remain an external reference`);
+      assert.ok(model.sourceUrl && model.attribution?.required, `${model.uid} must retain source attribution`);
+    } else {
+      assert.equal(model.operationalStatus, 'demo_asset', `${model.file} must be explicitly classified`);
+    }
   }
 });
 

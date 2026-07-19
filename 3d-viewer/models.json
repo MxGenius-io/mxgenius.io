@@ -54,5 +54,21 @@
     "lod": "LOD0",
     "revision": "v1",
     "operationalStatus": "demo_asset"
+  },
+  {
+    "provider": "sketchfab",
+    "uid": "967cfd4aac234b2583e9e50060ff10af",
+    "name": "Air Brake Test (Public Embed)",
+    "type": "aircraft_component",
+    "revision": "external",
+    "animationCount": 1,
+    "operationalStatus": "external_reference",
+    "sourceUrl": "https://sketchfab.com/3d-models/air-brake-test-967cfd4aac234b2583e9e50060ff10af",
+    "attribution": {
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "creator": "DJS Associates",
+      "required": true
+    }
   }
 ]

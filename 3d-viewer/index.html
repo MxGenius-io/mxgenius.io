@@ -641,6 +641,17 @@
             pointer-events: none;
         }
 
+        #sketchfab-frame {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #0a0e14;
+            z-index: 2;
+        }
+        #sketchfab-frame[hidden] { display: none; }
+
         #part-inspector {
             position: absolute;
             left: 16px;
@@ -758,6 +769,37 @@
             cursor: default;
             opacity: 0.55;
         }
+
+        #procedure-media-button {
+            margin-left: 10px;
+            padding: 7px 11px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font: 600 0.7rem/1 var(--font-primary);
+            cursor: pointer;
+        }
+        #procedure-media-button[data-ready="true"] { border-color: rgba(34, 211, 238, 0.5); color: #8beaff; }
+        #procedure-media-button:disabled { opacity: 0.45; cursor: default; }
+        .procedure-media-drawer {
+            position: absolute;
+            top: calc(var(--header-height) + 12px);
+            right: 12px;
+            z-index: 95;
+            width: min(440px, calc(100vw - 24px));
+            padding: 12px;
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            border-radius: 8px;
+            background: rgba(7, 17, 31, 0.96);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+        }
+        .procedure-media-drawer[hidden] { display: none; }
+        .procedure-media-drawer__head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+        .procedure-media-drawer__head strong { flex: 1; color: var(--text-primary); font-size: 0.8rem; }
+        .procedure-media-drawer__head button { border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+        #procedure-media-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 5px; }
+        #procedure-media-pairing { margin-top: 8px; color: var(--text-muted); font: 0.65rem/1.4 var(--font-mono); }
     </style>
 </head>
 
@@ -778,6 +820,7 @@
         <div id="xr-button-container" style="margin-left: 15px;">
             <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
         </div>
+        <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
         
         <div style="flex: 1;"></div>
         
@@ -785,6 +828,15 @@
 
         <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
     </div>
+
+    <section class="procedure-media-drawer" id="procedure-media-drawer" hidden aria-label="Procedure media">
+        <div class="procedure-media-drawer__head">
+            <strong id="procedure-media-title">Procedure media</strong>
+            <button id="procedure-media-close" type="button" aria-label="Close procedure media">Close</button>
+        </div>
+        <video id="procedure-media-video" controls playsinline preload="metadata" crossorigin="anonymous"></video>
+        <div id="procedure-media-pairing">No paired mesh</div>
+    </section>
 
     <!-- Advanced Controls Accordion -->
     <div id="advanced-controls" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; z-index: 99; flex-shrink: 0;">
@@ -794,6 +846,7 @@
                 <option value="">No animations</option>
             </select>
             <button class="fab-play-btn" id="anim-playpause" style="background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-mono); font-size:0.68rem; padding:4px 10px; border-radius:4px; cursor:pointer;">▶ Play</button>
+            <input type="range" class="slider" id="anim-scrubber" min="0" max="1000" step="1" value="0" aria-label="Animation position" style="width:120px;">
             <span class="fab-speed" style="display:flex; align-items:center; gap:5px; font-family:var(--font-mono); font-size:0.58rem; color:var(--text-muted);">
                 <input type="range" class="slider" id="anim-speed" min="0.1" max="2" step="0.1" value="1" style="width:40px;">
                 <span id="speed-val">1.0x</span>
@@ -866,6 +919,7 @@
 
         <!-- Canvas -->
         <div id="canvas-container"></div>
+        <iframe id="sketchfab-frame" title="Public 3D model" hidden allow="autoplay; fullscreen; xr-spatial-tracking" allowfullscreen></iframe>
 
         <div id="part-inspector" aria-live="polite">
             <div class="part-inspector-label">Part selection</div>
@@ -898,6 +952,7 @@
     }
     </script>
 
+    <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
@@ -919,6 +974,8 @@
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
         import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { XRMediaPanel } from './xr-media-panel.js';
+        import { XRAnimationScrubber } from './xr-animation-scrubber.js';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -960,6 +1017,11 @@
         let mixer = null;
         let animations = [];
         let currentAction = null;
+        let activeModelProvider = 'local';
+        let sketchfabApi = null;
+        let sketchfabAnimations = [];
+        let sketchfabLoadToken = 0;
+        let lastSketchfabTimePoll = 0;
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
         let selectedMesh = null;
@@ -967,12 +1029,21 @@
         let selectedHighlightMaterial = null;
         let pointerDownPosition = null;
         let viewerContext = {};
+        let xrMediaPanel = null;
+        let xrAnimationScrubber = null;
         const xrControllers = [];
         const xrHands = [];
         const xrFingerTargets = new Map();
         const xrControllerMatrix = new THREE.Matrix4();
         const xrFingerPoint = new THREE.Vector3();
         const xrFingerBounds = new THREE.Box3();
+        const xrActiveGrips = new Map();
+        const xrGrabPointA = new THREE.Vector3();
+        const xrGrabPointB = new THREE.Vector3();
+        const xrGrabMidpoint = new THREE.Vector3();
+        const xrGrabVector = new THREE.Vector3();
+        const xrGrabRotation = new THREE.Quaternion();
+        let xrWorldGesture = null;
         let xrLastFingerCheck = 0;
 
         const state = {
@@ -1040,6 +1111,15 @@
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.setClearColor(0x000000, 0);
             renderer.xr.enabled = true;
+
+            xrMediaPanel = new XRMediaPanel({
+                video: document.getElementById('procedure-media-video'),
+                onAction: emitXRAction,
+                onMeshSelector: selectPartBySelector
+            });
+            scene.add(xrMediaPanel.group);
+            xrAnimationScrubber = new XRAnimationScrubber({ onAction: emitXRAction });
+            scene.add(xrAnimationScrubber.group);
             
             container.appendChild(renderer.domElement);
             setupXRButton();
@@ -1152,7 +1232,7 @@
 
             if (catalog.length > 0) {
                 // Find helmet index if it exists, otherwise default to 0
-                let startIdx = catalog.findIndex(c => c.file.toLowerCase().includes('helmet'));
+                let startIdx = catalog.findIndex(c => String(c.file || '').toLowerCase().includes('helmet'));
                 if (startIdx === -1) startIdx = 0;
                 
                 catalogIndex = startIdx;
@@ -1180,6 +1260,11 @@
             if (idx < 0 || idx >= catalog.length) return;
             catalogIndex = idx;
             const entry = catalog[idx];
+            if (entry.provider === 'sketchfab') {
+                loadSketchfabModel(entry);
+                return;
+            }
+            activateLocalProvider();
             const modelPath = entry.file;
             const ext = modelPath.split('.').pop().toLowerCase();
 
@@ -1419,6 +1504,92 @@
             }
         }
 
+        function activateLocalProvider() {
+            activeModelProvider = 'local';
+            sketchfabApi?.stop?.();
+            sketchfabApi = null;
+            sketchfabAnimations = [];
+            const frame = document.getElementById('sketchfab-frame');
+            frame.hidden = true;
+            container.style.display = '';
+            document.getElementById('part-inspector').style.display = '';
+            document.getElementById('xr-button-container').hidden = false;
+            document.getElementById('procedure-media-button').hidden = false;
+        }
+
+        function loadSketchfabModel(entry) {
+            activeModelProvider = 'sketchfab';
+            const token = ++sketchfabLoadToken;
+            clearPartSelection(false);
+            if (mixer) mixer.stopAllAction();
+            mixer = null;
+            currentAction = null;
+            animations = [];
+            state.isPlaying = false;
+            document.getElementById('anim-playpause').textContent = '▶ Play';
+            document.getElementById('anim-scrubber').value = '0';
+            updateNavBar();
+            updateModelMeta(entry);
+            loaderEl.classList.remove('hidden');
+            updateProgress(15, `Connecting ${entry.name || 'public model'}...`);
+
+            container.style.display = 'none';
+            document.getElementById('part-inspector').style.display = 'none';
+            document.getElementById('xr-button-container').hidden = true;
+            document.getElementById('procedure-media-button').hidden = true;
+            const frame = document.getElementById('sketchfab-frame');
+            frame.hidden = false;
+
+            if (typeof window.Sketchfab !== 'function') {
+                updateProgress(100, 'Sketchfab viewer unavailable');
+                return;
+            }
+
+            const client = new window.Sketchfab('1.12.1', frame);
+            client.init(entry.uid, {
+                autostart: 1,
+                animation_autoplay: 0,
+                dnt: 1,
+                success(api) {
+                    if (token !== sketchfabLoadToken) return;
+                    sketchfabApi = api;
+                    api.start();
+                    api.addEventListener('viewerready', () => {
+                        if (token !== sketchfabLoadToken) return;
+                        api.getAnimations((error, available) => {
+                            if (error) console.warn('Sketchfab animation catalog unavailable', error);
+                            sketchfabAnimations = Array.isArray(available)
+                                ? available.map(([uid, name, duration]) => ({ uid, name, duration: Number(duration) || 0 }))
+                                : [];
+                            setupSketchfabAnimations();
+                        });
+                        updateProgress(100, 'Ready · public Sketchfab embed');
+                        setTimeout(() => loaderEl.classList.add('hidden'), 250);
+                    });
+                },
+                error() {
+                    if (token !== sketchfabLoadToken) return;
+                    updateProgress(100, 'Could not load public Sketchfab model');
+                }
+            });
+        }
+
+        function setupSketchfabAnimations() {
+            const select = document.getElementById('anim-select');
+            select.replaceChildren();
+            sketchfabAnimations.forEach((animation, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = animation.name || `Animation ${index + 1}`;
+                select.appendChild(option);
+            });
+            document.getElementById('play-fab').classList.toggle('active', sketchfabAnimations.length > 0);
+            if (sketchfabAnimations.length) {
+                select.value = '0';
+                onAnimationChange();
+            }
+        }
+
         function setupXRButton() {
             const container = document.getElementById('xr-button-container');
             if (!container) return;
@@ -1430,8 +1601,12 @@
 
             renderer.xr.addEventListener('sessionstart', () => {
                 stageSceneForXR('local');
+                xrMediaPanel?.setPresenting(true);
+                xrAnimationScrubber?.setPresenting(true);
             });
             renderer.xr.addEventListener('sessionend', () => {
+                xrMediaPanel?.setPresenting(false);
+                xrAnimationScrubber?.setPresenting(false);
                 restoreSceneFromXR();
             });
         }
@@ -1451,18 +1626,41 @@
         }
 
         function selectFromXRController(controller, index) {
-            if (!currentModel) return;
             xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
-            const hit = raycaster.intersectObject(currentModel, true).find((item) => item.object?.isMesh);
-            if (hit) activateXRPart(hit.object, `controller-${index}`);
+            const targets = [
+                ...(currentModel ? [currentModel] : []),
+                ...(xrMediaPanel?.interactiveObjects() || []),
+                ...(xrAnimationScrubber?.group.visible ? [xrAnimationScrubber.group] : [])
+            ];
+            const hit = raycaster.intersectObjects(targets, true).find((item) => item.object?.isMesh);
+            if (!hit) return;
+            const input = `controller-${index}`;
+            if (xrMediaPanel?.handleObject(hit.object, input)) return;
+            if (xrAnimationScrubber?.owns(hit.object)) {
+                xrAnimationScrubber.scrubAtWorldPoint(hit.point, input);
+                state.isPlaying = false;
+                document.getElementById('anim-playpause').textContent = '▶ Play';
+                return;
+            }
+            activateXRPart(hit.object, input);
         }
 
         function setupXRInteractions() {
             for (let index = 0; index < 2; index += 1) {
                 const controller = renderer.xr.getController(index);
                 controller.addEventListener('select', () => selectFromXRController(controller, index));
+                controller.addEventListener('squeezestart', () => {
+                    xrActiveGrips.set(index, controller);
+                    captureXRWorldGesture();
+                });
+                controller.addEventListener('squeezeend', () => {
+                    const completedMode = xrWorldGesture?.mode || null;
+                    xrActiveGrips.delete(index);
+                    if (completedMode) emitXRWorldTransform(completedMode, `controller-${index}`);
+                    captureXRWorldGesture();
+                });
                 scene.add(controller);
                 xrControllers.push(controller);
 
@@ -1472,6 +1670,90 @@
             }
         }
 
+        function captureXRWorldGesture() {
+            if (!currentModel || !renderer.xr.isPresenting || xrActiveGrips.size === 0) {
+                xrWorldGesture = null;
+                return;
+            }
+            const controllers = [...xrActiveGrips.values()];
+            if (controllers.length === 1) {
+                controllers[0].getWorldPosition(xrGrabPointA);
+                xrWorldGesture = {
+                    mode: 'move-world',
+                    controller: controllers[0],
+                    controllerPosition: xrGrabPointA.clone(),
+                    modelPosition: currentModel.position.clone()
+                };
+                return;
+            }
+            controllers[0].getWorldPosition(xrGrabPointA);
+            controllers[1].getWorldPosition(xrGrabPointB);
+            xrWorldGesture = {
+                mode: 'scale-rotate-world',
+                controllers: controllers.slice(0, 2),
+                midpoint: xrGrabPointA.clone().add(xrGrabPointB).multiplyScalar(0.5),
+                direction: xrGrabPointB.clone().sub(xrGrabPointA).normalize(),
+                distance: Math.max(0.001, xrGrabPointA.distanceTo(xrGrabPointB)),
+                modelPosition: currentModel.position.clone(),
+                modelQuaternion: currentModel.quaternion.clone(),
+                modelScale: currentModel.scale.clone()
+            };
+        }
+
+        function updateXRWorldGesture() {
+            if (!xrWorldGesture || !currentModel || !renderer.xr.isPresenting) return;
+            if (xrWorldGesture.mode === 'move-world') {
+                xrWorldGesture.controller.getWorldPosition(xrGrabPointA);
+                currentModel.position.copy(xrWorldGesture.modelPosition).add(xrGrabPointA.sub(xrWorldGesture.controllerPosition));
+                return;
+            }
+            const [first, second] = xrWorldGesture.controllers;
+            first.getWorldPosition(xrGrabPointA);
+            second.getWorldPosition(xrGrabPointB);
+            xrGrabMidpoint.copy(xrGrabPointA).add(xrGrabPointB).multiplyScalar(0.5);
+            xrGrabVector.copy(xrGrabPointB).sub(xrGrabPointA);
+            const distance = Math.max(0.001, xrGrabVector.length());
+            const scaleFactor = THREE.MathUtils.clamp(distance / xrWorldGesture.distance, 0.2, 5);
+            xrGrabVector.normalize();
+            xrGrabRotation.setFromUnitVectors(xrWorldGesture.direction, xrGrabVector);
+
+            const offset = xrWorldGesture.modelPosition.clone().sub(xrWorldGesture.midpoint);
+            offset.multiplyScalar(scaleFactor).applyQuaternion(xrGrabRotation);
+            currentModel.position.copy(xrGrabMidpoint).add(offset);
+            currentModel.quaternion.copy(xrGrabRotation).multiply(xrWorldGesture.modelQuaternion);
+            currentModel.scale.copy(xrWorldGesture.modelScale).multiplyScalar(scaleFactor);
+        }
+
+        function emitXRWorldTransform(action, input) {
+            if (!currentModel) return;
+            emitXRAction(action, input, {
+                position: currentModel.position.toArray(),
+                quaternion: currentModel.quaternion.toArray(),
+                scale: currentModel.scale.toArray()
+            });
+        }
+
+        function configureProcedureMedia(tutorial) {
+            const ready = xrMediaPanel?.configure(tutorial) || false;
+            const button = document.getElementById('procedure-media-button');
+            const drawer = document.getElementById('procedure-media-drawer');
+            const title = document.getElementById('procedure-media-title');
+            const pairing = document.getElementById('procedure-media-pairing');
+            button.disabled = !ready;
+            button.dataset.ready = String(ready);
+            button.textContent = ready ? 'Procedure media' : 'No procedure media';
+            drawer.hidden = true;
+            title.textContent = ready ? String(tutorial.title || 'Procedure media') : 'Procedure media';
+            const selector = tutorial?.meshSelector;
+            const cueCount = Array.isArray(tutorial?.cues) ? tutorial.cues.length : 0;
+            pairing.textContent = ready
+                ? selector?.meshName || selector?.path
+                    ? `Paired mesh: ${selector.meshName || selector.path}${cueCount ? ` · ${cueCount} timed cues` : ''}`
+                    : cueCount ? `${cueCount} timed mesh cues` : 'No paired mesh'
+                : 'No paired mesh';
+            return ready;
+        }
+
         function updateXRFingerInteractions(time) {
             if (!renderer.xr.isPresenting || !currentModel || time - xrLastFingerCheck < 100) return;
             xrLastFingerCheck = time;
@@ -1479,6 +1761,19 @@
                 const tip = hand.joints?.['index-finger-tip'];
                 if (!tip?.visible) return;
                 tip.getWorldPosition(xrFingerPoint);
+                if (xrAnimationScrubber?.fingerScrub(xrFingerPoint, `finger-${index}`)) {
+                    state.isPlaying = false;
+                    document.getElementById('anim-playpause').textContent = '▶ Play';
+                    xrFingerTargets.set(index, xrAnimationScrubber.rail);
+                    return;
+                }
+                const mediaTarget = xrMediaPanel?.fingerTargetAt(xrFingerPoint);
+                if (mediaTarget) {
+                    const previousMedia = xrFingerTargets.get(index) || null;
+                    if (mediaTarget !== previousMedia) xrMediaPanel.handleObject(mediaTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, mediaTarget);
+                    return;
+                }
                 let hitMesh = null;
                 currentModel.traverse((node) => {
                     if (hitMesh || !node.isMesh || !node.visible) return;
@@ -1729,6 +2024,17 @@
 
         function onAnimationChange() {
             const idx = parseInt(document.getElementById('anim-select').value);
+            if (activeModelProvider === 'sketchfab') {
+                const animation = sketchfabAnimations[idx];
+                if (!sketchfabApi || !animation) return;
+                sketchfabApi.setCurrentAnimationByUID(animation.uid, (error) => {
+                    if (error) return console.warn('Sketchfab animation selection failed', error);
+                    sketchfabApi.pause();
+                    sketchfabApi.seekTo(0);
+                    document.getElementById('anim-scrubber').value = '0';
+                });
+                return;
+            }
             if (isNaN(idx) || !mixer || !animations[idx]) return;
 
             if (currentAction) currentAction.stop();
@@ -1737,13 +2043,29 @@
             currentAction.setLoop(THREE.LoopRepeat);
             currentAction.clampWhenFinished = false;
             currentAction.timeScale = state.animationSpeed;
+            xrAnimationScrubber?.configure(currentAction, animations[idx]);
+            if (renderer.xr.isPresenting) xrAnimationScrubber?.setPresenting(true);
 
-            if (state.isPlaying) currentAction.play();
+            if (state.isPlaying) {
+                currentAction.paused = false;
+                currentAction.play();
+            }
         }
 
         function toggleAnimation() {
             state.isPlaying = !state.isPlaying;
             const btn = document.getElementById('anim-playpause');
+
+            if (activeModelProvider === 'sketchfab' && sketchfabApi) {
+                if (state.isPlaying) {
+                    sketchfabApi.play();
+                    btn.textContent = '⏸ Pause';
+                } else {
+                    sketchfabApi.pause();
+                    btn.textContent = '▶ Play';
+                }
+                return;
+            }
 
             if (currentAction) {
                 if (state.isPlaying) {
@@ -1761,6 +2083,15 @@
         //  Event Listeners
         // =============================================
         function setupEventListeners() {
+            const procedureButton = document.getElementById('procedure-media-button');
+            const procedureDrawer = document.getElementById('procedure-media-drawer');
+            procedureButton.addEventListener('click', () => {
+                if (!procedureButton.disabled) procedureDrawer.hidden = !procedureDrawer.hidden;
+            });
+            document.getElementById('procedure-media-close').addEventListener('click', () => {
+                procedureDrawer.hidden = true;
+            });
+
             renderer.domElement.addEventListener('pointerdown', (event) => {
                 if (event.button === 0) pointerDownPosition = { x: event.clientX, y: event.clientY };
             });
@@ -1781,8 +2112,11 @@
                     viewerContext = message.context && typeof message.context === 'object'
                         ? { ...message.context }
                         : {};
+                    if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                 } else if (message.type === 'mxgenius.viewer.highlight-part') {
                     selectPartBySelector(message.selector);
+                } else if (message.type === 'mxgenius.viewer.set-tutorial') {
+                    configureProcedureMedia(message.tutorial);
                 } else if (message.type === 'mxgenius.viewer.clear-selection') {
                     clearPartSelection();
                 }
@@ -1828,10 +2162,26 @@
             // Animation controls
             document.getElementById('anim-select').addEventListener('change', onAnimationChange);
             document.getElementById('anim-playpause').addEventListener('click', toggleAnimation);
+            document.getElementById('anim-scrubber').addEventListener('input', (event) => {
+                const progress = Number(event.target.value) / 1000;
+                state.isPlaying = false;
+                document.getElementById('anim-playpause').textContent = '▶ Play';
+                if (activeModelProvider === 'sketchfab') {
+                    const idx = parseInt(document.getElementById('anim-select').value);
+                    const animation = sketchfabAnimations[idx];
+                    if (sketchfabApi && animation) {
+                        sketchfabApi.pause();
+                        sketchfabApi.seekTo(progress * animation.duration);
+                    }
+                } else {
+                    xrAnimationScrubber?.setProgress(progress, 'desktop-slider', true);
+                }
+            });
             document.getElementById('anim-speed').addEventListener('input', (e) => {
                 state.animationSpeed = parseFloat(e.target.value);
                 document.getElementById('speed-val').textContent = state.animationSpeed.toFixed(1) + 'x';
                 if (currentAction) currentAction.timeScale = state.animationSpeed;
+                if (activeModelProvider === 'sketchfab') sketchfabApi?.setSpeed(state.animationSpeed);
             });
 
             // Wireframe toggle
@@ -1999,6 +2349,22 @@
             const delta = clock.getDelta();
             controls.update();
             if (mixer) mixer.update(delta);
+            xrMediaPanel?.update(delta);
+            xrAnimationScrubber?.syncFromAction();
+            xrAnimationScrubber?.updatePresentation(delta);
+            updateXRWorldGesture();
+            if (activeModelProvider === 'local' && currentAction && animations.length) {
+                const idx = parseInt(document.getElementById('anim-select').value);
+                const duration = animations[idx]?.duration || 0;
+                if (duration) document.getElementById('anim-scrubber').value = String(Math.round(((currentAction.time % duration) / duration) * 1000));
+            } else if (activeModelProvider === 'sketchfab' && state.isPlaying && sketchfabApi && time - lastSketchfabTimePoll > 250) {
+                lastSketchfabTimePoll = time;
+                const idx = parseInt(document.getElementById('anim-select').value);
+                const duration = sketchfabAnimations[idx]?.duration || 0;
+                sketchfabApi.getCurrentTime((error, currentTime) => {
+                    if (!error && duration) document.getElementById('anim-scrubber').value = String(Math.round((currentTime / duration) * 1000));
+                });
+            }
             updateXRFingerInteractions(time);
             
             if (renderer.xr.isPresenting) {

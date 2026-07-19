@@ -34,6 +34,7 @@ function safeImageUrl(value) {
 const MX3DViewer = {
   context: {},
   pendingSelector: null,
+  tutorial: null,
 
   frame() {
     return document.getElementById('viewer-iframe');
@@ -63,6 +64,12 @@ const MX3DViewer = {
     if (this.pendingSelector) {
       this.post({ type: 'mxgenius.viewer.highlight-part', selector: this.pendingSelector });
     }
+  },
+
+  setTutorial(tutorial, context) {
+    if (context) this.setContext(context);
+    this.tutorial = tutorial && typeof tutorial === 'object' ? { ...tutorial } : null;
+    this.post({ type: 'mxgenius.viewer.set-tutorial', tutorial: this.tutorial });
   },
 
   clearSelection() {
@@ -140,6 +147,9 @@ window.addEventListener('message', (event) => {
   const message = event.data || {};
   if (message.type === 'mxgenius.viewer.ready') {
     MX3DViewer.post({ type: 'mxgenius.viewer.set-context', context: MX3DViewer.context });
+    if (MX3DViewer.tutorial) {
+      MX3DViewer.post({ type: 'mxgenius.viewer.set-tutorial', tutorial: MX3DViewer.tutorial });
+    }
     if (MX3DViewer.pendingSelector) {
       MX3DViewer.post({ type: 'mxgenius.viewer.highlight-part', selector: MX3DViewer.pendingSelector });
     }
