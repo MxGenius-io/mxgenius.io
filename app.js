@@ -579,28 +579,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function login() {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const data = await window.MXGENIUS_CONFIG.getCompatibilitySession({ signal: controller.signal })
-      .finally(() => clearTimeout(timeout));
-    
-    if (data.bearerToken && data.apiToken) {
-      BEARER = data.bearerToken;
-      TOKEN = data.apiToken;
-      
-      const status = document.getElementById('apiStatus');
-      status.classList.add('connected');
-      status.querySelector('span:last-child').textContent = 'Fleet source connected';
-    } else {
-      throw new Error('No tokens returned from API');
-    }
-  } catch (e) {
-    console.error('Login failed:', e);
-    const status = document.getElementById('apiStatus');
-    status.classList.remove('connected');
-    status.querySelector('span:last-child').textContent = 'Fleet source unavailable';
-  }
+  // The Azure proxy owns JetNet authentication and replaces this marker
+  // server-side. No JetNet credential or token is exposed to the browser.
+  TOKEN = 'LIVE_TOKEN';
+  BEARER = '';
+  const status = document.getElementById('apiStatus');
+  status.classList.add('connected');
+  status.querySelector('span:last-child').textContent = 'Fleet proxy ready';
 }
 
 // ═══════════════════════════════════════════════════

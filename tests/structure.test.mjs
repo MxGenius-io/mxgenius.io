@@ -62,7 +62,7 @@ test('technical evidence stays behind case and chat boundaries instead of a dead
 test('all mounted typed capabilities are surfaced through the operations workbench', () => {
   assert.match(dashboard, /data-tab="operations"/);
   assert.match(dashboard, /id="capabilityCatalog"/);
-  assert.match(dashboard, /src="capability-workbench\.js"/);
+  assert.match(dashboard, /src="capability-workbench\.js(?:\?v=\d+)?"/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.list/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.call/);
   assert.match(capabilityWorkbench, /mxg:case-selected/);
@@ -194,4 +194,11 @@ test('retained JetNet, cache, globe, chat, 3D, and document boundaries remain mo
   assert.match(application, /Cloud and on-device assistance are unavailable/);
   assert.match(application, /MX3DViewer/);
   assert.match(dashboard, /src="cache\.js"[\s\S]*src="application-client\.js"[\s\S]*src="case-workspace\.js"[\s\S]*src="app\.js"/);
+});
+
+test('fleet access uses the server-side proxy marker without browser credentials', () => {
+  assert.match(application, /TOKEN = 'LIVE_TOKEN'/);
+  assert.match(application, /BEARER = ''/);
+  assert.doesNotMatch(application, /MXGENIUS_CONFIG\.getCompatibilitySession/);
+  assert.doesNotMatch(application, /EmailAddress\s*:/);
 });
