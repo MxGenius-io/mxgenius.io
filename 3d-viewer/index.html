@@ -1427,7 +1427,6 @@
                     return;
                 }
                 xrSupported = true;
-                renderer.xr.setReferenceSpaceType('local-floor');
                 updateXRButtonState();
             } catch (error) {
                 button.textContent = 'VR unavailable';
@@ -1444,20 +1443,30 @@
 
                 button.disabled = true;
                 button.textContent = 'Connecting…';
+                let session = null;
                 try {
                     if (!currentModel) throw new Error('Wait for the 3D scene to finish loading');
-                    stageSceneForXR();
-                    const session = await navigator.xr.requestSession('immersive-vr', {
-                        requiredFeatures: ['local-floor'],
-                        optionalFeatures: ['bounded-floor']
+                    // Keep the user-activation path immediate. Model traversal and scene
+                    // staging happen only after the headset grants the session.
+                    session = await navigator.xr.requestSession('immersive-vr', {
+                        optionalFeatures: ['local-floor', 'bounded-floor']
                     });
+                    const enabledFeatures = Array.from(session.enabledFeatures || []);
+                    const referenceSpaceType = enabledFeatures.includes('local-floor')
+                        ? 'local-floor'
+                        : 'local';
+                    renderer.xr.setReferenceSpaceType(referenceSpaceType);
                     session.addEventListener('end', () => {
                         restoreSceneFromXR();
                         updateXRButtonState();
                     }, { once: true });
                     await renderer.xr.setSession(session);
+                    stageSceneForXR(referenceSpaceType);
                     updateXRButtonState();
                 } catch (error) {
+                    if (session && renderer.xr.getSession() !== session) {
+                        try { await session.end(); } catch { /* Session never became active. */ }
+                    }
                     restoreSceneFromXR();
                     updateXRButtonState();
                     button.title = error?.name === 'NotAllowedError'
@@ -1483,7 +1492,7 @@
                 : 'Wait for the current 3D model to finish loading';
         }
 
-        function stageSceneForXR() {
+        function stageSceneForXR(referenceSpaceType = 'local') {
             if (!currentModel || xrPresentationState) return;
             xrPresentationState = {
                 modelPosition: currentModel.position.clone(),
@@ -1497,7 +1506,8 @@
             const box = new THREE.Box3().setFromObject(currentModel);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
-            const targetCenter = new THREE.Vector3(0, 1.35, -Math.max(1.75, size.z * 1.5));
+            const targetHeight = referenceSpaceType === 'local-floor' ? 1.35 : 0;
+            const targetCenter = new THREE.Vector3(0, targetHeight, -Math.max(1.75, size.z * 1.5));
             currentModel.position.add(targetCenter.sub(center));
             currentModel.updateMatrixWorld(true);
 
