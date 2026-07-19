@@ -221,9 +221,18 @@ fn parse_aircraft(value: &Value) -> Option<JetNetAircraftDto> {
         source_id,
         registration: value_string(
             value,
-            &["registration", "tailnumber", "tail_number", "regnumber"],
+            &[
+                "registration",
+                "tailnumber",
+                "tail_number",
+                "regnumber",
+                "regnbr",
+            ],
         ),
-        serial_number: value_string(value, &["serialnumber", "serial_number", "serialno", "msn"]),
+        serial_number: value_string(
+            value,
+            &["serialnumber", "serial_number", "serialno", "sernbr", "msn"],
+        ),
         make: value_string(value, &["make", "manufacturer", "aircraftmake"]),
         model: value_string(value, &["model", "modelname", "aircraftmodel"]),
         year: value_i32(value, &["year", "yearmfr", "manufactureyear"]),

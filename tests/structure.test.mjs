@@ -118,7 +118,7 @@ test('maintenance case workspace is mounted through the canonical client boundar
 
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
-  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=2"></script>');
+  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
   const appIndex = dashboard.indexOf('<script src="app.js?v=3"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css">');
@@ -205,8 +205,9 @@ test('fleet access uses the server-side proxy marker without browser credentials
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {
-  assert.match(dashboard, /src="runtime-config\.js\?v=2"/);
+  assert.match(dashboard, /src="runtime-config\.js\?v=3"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
+  assert.match(runtimeConfig, /https:\/\/mxg-fleet\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /allowInsecurePilot: true/);
   assert.doesNotMatch(runtimeConfig, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
 });

@@ -11,6 +11,7 @@ const MXApplicationClient = (() => {
   const MCP_PROTOCOL_VERSION = '2025-11-25';
   const runtimeConfig = globalThis.MXGENIUS_CONFIG || {};
   const MCP_BASE = String(runtimeConfig.mcpBase || API_BASE).replace(/\/$/, '');
+  const FLEET_API_BASE = String(runtimeConfig.fleetBase || API_BASE).replace(/\/$/, '');
   let rpcSequence = 0;
 
   async function request(path, options = {}) {
@@ -19,6 +20,12 @@ const MXApplicationClient = (() => {
 
   async function requestJson(path, options = {}) {
     const response = await request(path, options);
+    const data = await response.json();
+    return { response, data };
+  }
+
+  async function fleetRequestJson(path, options = {}) {
+    const response = await fetch(`${FLEET_API_BASE}${path}`, options);
     const data = await response.json();
     return { response, data };
   }
@@ -32,13 +39,13 @@ const MXApplicationClient = (() => {
   async function jetNetJson(path, { bearer, method = 'GET', body } = {}) {
     const options = { method, headers: jetNetHeaders(bearer) };
     if (body !== undefined) options.body = JSON.stringify(body);
-    return (await requestJson(`/api/${path}`, options)).data;
+    return (await fleetRequestJson(`/api/${path}`, options)).data;
   }
 
   async function bulkAircraft({ token, bearer, pageSize = 5000, page = 1, cacheTtl }) {
     const path = `/api/Aircraft/getBulkAircraftExportPaged/${token}/${pageSize}/${page}`;
     return MXCache.cachedFetch(
-      `${API_BASE}${path}`,
+      `${FLEET_API_BASE}${path}`,
       { method: 'PUT', headers: jetNetHeaders(bearer), body: JSON.stringify({}) },
       cacheTtl
     );
