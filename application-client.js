@@ -87,7 +87,7 @@ const MXApplicationClient = (() => {
   }
 
   function chat({ message, fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
-    if (!accessToken) throw new Error('Authenticated application session required');
+    if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`
@@ -103,7 +103,7 @@ const MXApplicationClient = (() => {
   }
 
   async function exchangeRealtimeSdp({ sdp, session = {} }) {
-    if (!session.accessToken) throw new Error('Authenticated application session required');
+    if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     if (typeof sdp !== 'string' || !sdp.startsWith('v=0')) {
       throw new TypeError('A valid WebRTC SDP offer is required');
     }
@@ -141,7 +141,7 @@ const MXApplicationClient = (() => {
   }
 
   async function issueConfirmation({ toolName, arguments: capabilityArguments, qualifiedApproval = false, session = {} }) {
-    if (!session.accessToken) throw new Error('Authenticated application session required');
+    if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',

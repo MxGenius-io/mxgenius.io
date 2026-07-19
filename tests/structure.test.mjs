@@ -9,6 +9,7 @@ const cache = await readFile(new URL('../cache.js', import.meta.url), 'utf8');
 const caseWorkspace = await readFile(new URL('../case-workspace.js', import.meta.url), 'utf8');
 const realtimeClient = await readFile(new URL('../realtime-client.js', import.meta.url), 'utf8');
 const capabilityWorkbench = await readFile(new URL('../capability-workbench.js', import.meta.url), 'utf8');
+const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
@@ -117,9 +118,9 @@ test('maintenance case workspace is mounted through the canonical client boundar
 
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
-  const clientIndex = dashboard.indexOf('<script src="application-client.js"></script>');
+  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=2"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=2"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=3"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -193,7 +194,7 @@ test('retained JetNet, cache, globe, chat, 3D, and document boundaries remain mo
   assert.match(application, /llamaContext\.completion/);
   assert.match(application, /Cloud and on-device assistance are unavailable/);
   assert.match(application, /MX3DViewer/);
-  assert.match(dashboard, /src="cache\.js"[\s\S]*src="application-client\.js"[\s\S]*src="case-workspace\.js"[\s\S]*src="app\.js(?:\?v=\d+)?"/);
+  assert.match(dashboard, /src="cache\.js"[\s\S]*src="application-client\.js(?:\?v=\d+)?"[\s\S]*src="case-workspace\.js(?:\?v=\d+)?"[\s\S]*src="app\.js(?:\?v=\d+)?"/);
 });
 
 test('fleet access uses the server-side proxy marker without browser credentials', () => {
@@ -201,4 +202,11 @@ test('fleet access uses the server-side proxy marker without browser credentials
   assert.match(application, /BEARER = ''/);
   assert.doesNotMatch(application, /MXGENIUS_CONFIG\.getCompatibilitySession/);
   assert.doesNotMatch(application, /EmailAddress\s*:/);
+});
+
+test('public runtime configuration mounts the live core without embedding credentials', () => {
+  assert.match(dashboard, /src="runtime-config\.js\?v=1"/);
+  assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
+  assert.match(runtimeConfig, /allowInsecurePilot: true/);
+  assert.doesNotMatch(runtimeConfig, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
 });

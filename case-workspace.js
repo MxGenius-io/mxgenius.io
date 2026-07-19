@@ -146,7 +146,7 @@ const MXCaseWorkspace = (() => {
       }
     });
     const config = globalThis.MXGENIUS_CONFIG || {};
-    if (!config.getSession && !config.allowInsecureLocal) {
+    if (!config.getSession && !config.allowInsecureLocal && !config.allowInsecurePilot) {
       byId('caseCreateButton').disabled = true;
       setStatus('Sign in through the application identity provider to create a case.', 'idle');
     } else {

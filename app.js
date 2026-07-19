@@ -1204,7 +1204,7 @@ Rules:
         return;
       }
       const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
-      if (!session.accessToken) {
+      if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
         setRealtimeUiState('failed', 'Sign in to use Realtime voice');
         return;
       }
@@ -2358,7 +2358,7 @@ async function showAircraftDetail(id) {
       const adContainer = document.getElementById('acDetailADList');
       if (!adContainer) return;
       const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
-      if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecureLocal) {
+      if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecureLocal && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
         adContainer.textContent = 'Sign in to retrieve regulatory evidence.';
         return;
       }
