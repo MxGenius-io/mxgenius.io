@@ -74,14 +74,20 @@
     );
     globeGroup.add(atmosphere);
 
-    const markerGeometry = new THREE.SphereGeometry(0.012, 8, 6);
-    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const markerGeometry = new THREE.CircleGeometry(0.011, 18);
+    const markerMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1
+    });
     const markers = new THREE.InstancedMesh(markerGeometry, markerMaterial, fleet.clusters.length);
     const marker = new THREE.Object3D();
     const color = new THREE.Color();
     const markerPositions = [];
 
-    function pointOnGlobe(lat, lng, radius = 0.698) {
+    function pointOnGlobe(lat, lng, radius = 0.697) {
       const phi = THREE.MathUtils.degToRad(90 - lat);
       const theta = THREE.MathUtils.degToRad(lng + 180);
       return new THREE.Vector3(
@@ -102,7 +108,8 @@
       const position = pointOnGlobe(Number(cluster.lat), Number(cluster.lng));
       markerPositions.push(position.clone());
       marker.position.copy(position);
-      const scale = Math.min(2.5, 0.8 + Math.log2(Math.max(1, Number(cluster.count))) * 0.22);
+      marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), position.clone().normalize());
+      const scale = Math.min(1.75, 0.72 + Math.log2(Math.max(1, Number(cluster.count)) + 1) * 0.13 + (cluster.hasActiveCase || cluster.hasAog ? 0.12 : 0));
       marker.scale.setScalar(scale);
       marker.updateMatrix();
       markers.setMatrixAt(index, marker.matrix);

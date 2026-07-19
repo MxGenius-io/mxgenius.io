@@ -117,7 +117,12 @@ const MXCaseState = {
         cluster.hasActiveCase = cluster.aircraft.some((aircraft) => this.matchesAircraft(aircraft));
       });
       if (globeInstance) {
-        globeInstance.pointsData(allClusters).pointColor(clusterColor).pointRadius(clusterRadius).pointAltitude(clusterAltitude);
+        globeInstance
+          .pointsData(allClusters)
+          .ringsData(attentionClusters(allClusters))
+          .pointColor(clusterColor)
+          .pointRadius(clusterRadius)
+          .pointAltitude(clusterAltitude);
         const cluster = allClusters.find((item) => item.hasActiveCase);
         if (cluster) globeInstance.pointOfView({ lat: cluster.lat, lng: cluster.lng, altitude: 1.1 }, 700);
       }
@@ -2748,14 +2753,15 @@ function clusterColor(d) {
   if (d.hasHighTime) return '#f59e0b';
   return '#10b981';
 }
-function clusterRadius(d) { return d.hasActiveCase ? Math.min(0.75, 0.2 + d.aircraft.length * 0.02) : Math.min(0.6, 0.12 + d.aircraft.length * 0.02); }
-function clusterAltitude(d) {
-  if (d.hasActiveCase) return 0.045;
-  if (d.hasAog) return 0.03;
-  if (d.hasVeryHighTime) return 0.015;
-  if (d.hasHighTime) return 0.008;
-  return 0.004; // small offset prevents z-fighting
+function clusterRadius(d) {
+  const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
+  const emphasis = d.hasActiveCase || d.hasAog ? 0.025 : 0;
+  return Math.min(0.22, 0.055 + Math.log2(count + 1) * 0.022 + emphasis);
 }
+function clusterAltitude() { return 0.0015; }
+function attentionClusters(clusters) { return clusters.filter((cluster) => cluster.hasActiveCase || cluster.hasAog); }
+function clusterRingRadius(d) { return Math.min(0.55, Math.max(0.22, clusterRadius(d) * 2.4)); }
+function clusterRingColor(d) { const color = clusterColor(d); return [`${color}cc`, `${color}00`]; }
 
 function applyGlobeFilters() {
   if (!globeInstance || !allClusters.length) return;
@@ -2780,7 +2786,7 @@ function applyGlobeFilters() {
     );
     if (filtered.length === 1) globeInstance.pointOfView({ lat: filtered[0].lat, lng: filtered[0].lng, altitude: 1.2 }, 600);
   }
-  globeInstance.pointsData(filtered);
+  globeInstance.pointsData(filtered).ringsData(attentionClusters(filtered));
 }
 
 function setupGlobeSheet() {
@@ -2912,7 +2918,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=1');
+  window.location.assign('globe-vr.html?v=2');
 }
 
 async function loadGlobe() {
@@ -2957,7 +2963,11 @@ async function loadGlobe() {
       .backgroundImageUrl('night-sky.png')
       .pointsData(allClusters).pointLat('lat').pointLng('lng')
       .pointAltitude(clusterAltitude).pointRadius(clusterRadius).pointColor(clusterColor)
-      .pointsMerge(false).onPointHover(handleGlobeHover).onPointClick(handleGlobeClick)
+      .pointResolution(12).pointsMerge(false).pointsTransitionDuration(250)
+      .onPointHover(handleGlobeHover).onPointClick(handleGlobeClick)
+      .ringsData(attentionClusters(allClusters)).ringLat('lat').ringLng('lng')
+      .ringAltitude(0.0025).ringColor(clusterRingColor).ringMaxRadius(clusterRingRadius)
+      .ringPropagationSpeed(0.22).ringRepeatPeriod(1800)
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);
     globeInstance.controls().autoRotate = false; globeInstance.controls().autoRotateSpeed = 0.4;
@@ -2970,6 +2980,11 @@ async function loadGlobe() {
     if (!gw._globeClickBound) { gw._globeClickBound = true; gw.addEventListener('click', (e) => { if (e.target.closest('.globe-sheet') || e.target.closest('.globe-tooltip')) return; if (window._lastGlobePoint?.icao) handleGlobeClick(window._lastGlobePoint); }); }
     setupGlobeSheet();
   } else {
-    globeInstance.pointsData(allClusters).pointColor(clusterColor).pointRadius(clusterRadius).pointAltitude(clusterAltitude);
+    globeInstance
+      .pointsData(allClusters)
+      .ringsData(attentionClusters(allClusters))
+      .pointColor(clusterColor)
+      .pointRadius(clusterRadius)
+      .pointAltitude(clusterAltitude);
   }
 }

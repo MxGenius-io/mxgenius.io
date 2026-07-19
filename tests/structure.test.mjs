@@ -127,7 +127,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=5"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=6"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -194,9 +194,13 @@ test('3D viewer uses Quest passthrough XR without an HDRI during presentation', 
 
 test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
   assert.match(dashboard, /id="globeVrButton"/);
+  assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
+  assert.match(application, /function attentionClusters/);
+  assert.match(application, /\.ringsData\(attentionClusters\(allClusters\)\)/);
+  assert.match(application, /\.ringColor\(clusterRingColor\)/);
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
-  assert.match(application, /globe-vr\.html\?v=1/);
+  assert.match(application, /globe-vr\.html\?v=2/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -208,12 +212,15 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(globeVr, /index-finger-tip/);
   assert.match(globeVr, /mxgenius:xr-action/);
   assert.match(globeVr, /open-fleet-location/);
+  assert.match(globeVr, /new THREE\.CircleGeometry/);
+  assert.match(globeVr, /setFromUnitVectors/);
+  assert.doesNotMatch(globeVr, /markerGeometry = new THREE\.SphereGeometry/);
   assert.doesNotMatch(globeVr, /HDRI|RGBELoader|EXRLoader/);
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=1"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=5"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=6"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);
