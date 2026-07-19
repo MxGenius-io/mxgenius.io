@@ -731,15 +731,21 @@
         }
 
         #enter-vr-button {
-            padding: 6px 14px;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 6px;
-            color: #ffffff;
-            font-family: var(--font-sans);
-            font-weight: 500;
-            font-size: 0.75rem;
-            cursor: pointer;
+            position: static !important;
+            inset: auto !important;
+            width: auto !important;
+            padding: 6px 14px !important;
+            background: rgba(255,255,255,0.07) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            border-radius: 6px !important;
+            color: #ffffff !important;
+            font-family: var(--font-sans) !important;
+            font-weight: 500 !important;
+            font-size: 0.75rem !important;
+            text-align: center !important;
+            opacity: 1 !important;
+            outline: none !important;
+            z-index: auto !important;
             transition: background 0.2s ease, border-color 0.2s ease;
         }
 
@@ -950,7 +956,6 @@
         let scene, camera, renderer, controls, composer;
         let bloomPass, saoPass;
         let currentModel = null;
-        let xrSupported = false;
         let xrPresentationState = null;
         let mixer = null;
         let animations = [];
@@ -1389,7 +1394,6 @@
             scene.add(currentModel);
 
             fitCameraToModel();
-            updateXRButtonState();
             if (window.parent !== window) {
                 const entry = currentCatalogEntry() || {};
                 window.parent.postMessage({
@@ -1406,55 +1410,19 @@
         }
 
         function setupXRButton() {
-            const button = document.getElementById('enter-vr-button');
-            if (!button) return;
+            const container = document.getElementById('xr-button-container');
+            if (!container) return;
 
-            renderer.xr.setReferenceSpaceType('local');
-            VRButton.createButton(renderer, {}, button);
-
-            button.addEventListener('webxr-support', (event) => {
-                xrSupported = event.detail.supported;
-                updateXRButtonState();
-            });
-            button.addEventListener('click', () => {
-                if (!renderer.xr.getSession()) {
-                    button.disabled = true;
-                    button.textContent = 'Connecting…';
-                }
-            });
-            button.addEventListener('webxr-error', (event) => {
-                const error = event.detail.error;
-                restoreSceneFromXR();
-                updateXRButtonState();
-                button.title = error?.name === 'NotAllowedError'
-                    ? 'Headset access was not granted'
-                    : (error?.message || 'Unable to start the immersive session');
-            });
+            const button = VRButton.createButton(renderer);
+            button.id = 'enter-vr-button';
+            container.replaceChildren(button);
 
             renderer.xr.addEventListener('sessionstart', () => {
-                stageSceneForXR('local');
-                updateXRButtonState();
+                stageSceneForXR('local-floor');
             });
             renderer.xr.addEventListener('sessionend', () => {
                 restoreSceneFromXR();
-                updateXRButtonState();
             });
-        }
-
-        function updateXRButtonState() {
-            const button = document.getElementById('enter-vr-button');
-            if (!button || !xrSupported) return;
-            if (renderer?.xr?.isPresenting) {
-                button.disabled = false;
-                button.textContent = 'Exit VR';
-                button.title = 'End the active immersive session';
-                return;
-            }
-            button.disabled = !currentModel;
-            button.textContent = currentModel ? 'Enter VR' : 'Loading sceneâ€¦';
-            button.title = currentModel
-                ? 'Connect to a browser-compatible OpenXR headset'
-                : 'Wait for the current 3D model to finish loading';
         }
 
         function stageSceneForXR(referenceSpaceType = 'local') {
