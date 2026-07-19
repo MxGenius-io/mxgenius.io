@@ -34,12 +34,13 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let use_stdio = args.iter().any(|a| a == "--stdio");
     let insecure_local = args.iter().any(|a| a == "--insecure-local");
+    let pilot = args.iter().any(|a| a == "--pilot");
 
     if use_stdio && !insecure_local {
         anyhow::bail!("production OIDC mode requires HTTP request metadata; stdio is local-only");
     }
 
-    let production_pool = if insecure_local {
+    let production_pool = if insecure_local && !pilot {
         None
     } else {
         let pool = sqlx::postgres::PgPoolOptions::new()
@@ -59,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
             Some(pool) => Arc::new(PostgresCaseService::new(pool.clone())),
             None => Arc::new(InMemoryCaseService::new((*in_memory_evidence).clone())),
         };
-    let registry = if insecure_local {
+    let registry = if insecure_local && !pilot {
         default_registry(case_service, evidence_service)
     } else {
         let manual: Arc<dyn ManualCorpusAdapter> =
@@ -109,7 +110,10 @@ async fn main() -> anyhow::Result<()> {
         )
     };
     let info = mxgenius_mcp::registry::server_info(&registry);
-    let auth: ContextProvider = if insecure_local {
+    let auth: ContextProvider = if insecure_local || pilot {
+        if pilot {
+            tracing::warn!(target: "mxgenius.mcp", "authentication mode: pilot; persistent services enabled");
+        }
         tracing::warn!(target: "mxgenius.mcp", "authentication mode: insecure-local");
         Arc::new(InsecureLocalProvider::new(Role::Administrator))
     } else {
