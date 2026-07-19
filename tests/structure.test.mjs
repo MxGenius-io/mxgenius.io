@@ -205,7 +205,7 @@ test('fleet access uses the server-side proxy marker without browser credentials
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {
-  assert.match(dashboard, /src="runtime-config\.js\?v=1"/);
+  assert.match(dashboard, /src="runtime-config\.js\?v=2"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /allowInsecurePilot: true/);
   assert.doesNotMatch(runtimeConfig, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
