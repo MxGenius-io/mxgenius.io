@@ -28,7 +28,7 @@ function providerRequest(method, path, body, bearer) {
         ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {})
       },
-      timeout: 30000
+      timeout: 120000
     }, (response) => {
       let raw = '';
       response.setEncoding('utf8');
