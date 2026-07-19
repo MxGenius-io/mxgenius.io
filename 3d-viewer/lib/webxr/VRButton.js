@@ -7,12 +7,14 @@ class VRButton {
 		function showEnterVR() {
 
 			let currentSession = null;
+			let sessionRequestPending = false;
 
 			async function onSessionStarted( session ) {
 
 				session.addEventListener( 'end', onSessionEnded );
 				await renderer.xr.setSession( session );
 				button.textContent = 'EXIT VR';
+				button.disabled = false;
 				currentSession = session;
 
 			}
@@ -21,7 +23,17 @@ class VRButton {
 
 				currentSession.removeEventListener( 'end', onSessionEnded );
 				button.textContent = 'ENTER VR';
+				button.disabled = false;
 				currentSession = null;
+
+			}
+
+			function onSessionFailed( error ) {
+
+				console.warn( 'Unable to start immersive VR session', error );
+				button.disabled = false;
+				button.textContent = error?.name === 'InvalidStateError' ? 'END ACTIVE VR SESSION' : 'ENTER VR';
+				button.title = error?.message || 'Unable to start immersive VR';
 
 			}
 
@@ -45,31 +57,40 @@ class VRButton {
 
 			};
 
-			button.onclick = function () {
+			button.onclick = async function () {
 
-				if ( currentSession === null ) {
+				const rendererSession = renderer.xr.getSession();
+				if ( rendererSession ) currentSession = rendererSession;
 
-					navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted );
+				if ( currentSession !== null ) {
 
-				} else {
+					await currentSession.end();
+					return;
 
-					currentSession.end();
+				}
 
-					if ( navigator.xr.offerSession !== undefined ) {
+				if ( sessionRequestPending ) return;
 
-						navigator.xr.offerSession( 'immersive-vr', sessionInit ).then( onSessionStarted );
+				sessionRequestPending = true;
+				button.disabled = true;
+				button.textContent = 'CONNECTING…';
 
-					}
+				try {
+
+					const session = await navigator.xr.requestSession( 'immersive-vr', sessionInit );
+					await onSessionStarted( session );
+
+				} catch ( error ) {
+
+					onSessionFailed( error );
+
+				} finally {
+
+					sessionRequestPending = false;
 
 				}
 
 			};
-
-			if ( navigator.xr.offerSession !== undefined ) {
-
-				navigator.xr.offerSession( 'immersive-vr', sessionInit ).then( onSessionStarted );
-
-			}
 
 		}
 
@@ -120,14 +141,13 @@ class VRButton {
 		if ( 'xr' in navigator ) {
 
 			button.id = 'VRButton';
-			button.style.display = 'none';
 			stylizeElement( button );
+			button.style.display = '';
+			button.textContent = 'CHECKING VR…';
 
 			navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) {
 
 				supported ? showEnterVR() : showWebXRNotFound();
-
-				if ( supported && VRButton.xrSessionIsGranted ) button.click();
 
 			} ).catch( showVRNotAllowed );
 

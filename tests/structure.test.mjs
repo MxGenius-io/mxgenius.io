@@ -169,6 +169,11 @@ test('3D viewer uses capability-gated browser WebXR without Apple-specific produ
   assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
   assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionInit \)/);
   assert.match(viewerVrButton, /renderer\.xr\.setSession\( session \)/);
+  assert.match(viewerVrButton, /sessionRequestPending/);
+  assert.match(viewerVrButton, /renderer\.xr\.getSession\(\)/);
+  assert.match(viewerVrButton, /CHECKING VR…/);
+  assert.doesNotMatch(viewerVrButton, /offerSession\(/);
+  assert.doesNotMatch(viewerVrButton, /xrSessionIsGranted \) button\.click/);
   assert.match(viewerVrButton, /optionalFeatures: \[ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' \]/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
@@ -178,6 +183,57 @@ test('3D viewer uses capability-gated browser WebXR without Apple-specific produ
   assert.doesNotMatch(viewer, /navigator\.xr\.requestSession|setReferenceSpaceType/);
   assert.match(viewer, /restoreSceneFromXR\(\)/);
   assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision|ARButton/);
+});
+
+test('VR entry permits only one in-flight immersive session request', async () => {
+  const originalDocument = globalThis.document;
+  const originalNavigator = globalThis.navigator;
+  const originalWindow = globalThis.window;
+  let requestCount = 0;
+  let resolveSession;
+  const pendingSession = new Promise((resolve) => { resolveSession = resolve; });
+  const button = { style: {}, dataset: {} };
+
+  globalThis.document = { createElement: () => button };
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      xr: {
+        addEventListener() {},
+        isSessionSupported: async () => true,
+        requestSession: () => {
+          requestCount += 1;
+          return pendingSession;
+        }
+      },
+      userAgent: 'test'
+    }
+  });
+  globalThis.window = { isSecureContext: true };
+
+  try {
+    const moduleUrl = `data:text/javascript;base64,${Buffer.from(viewerVrButton).toString('base64')}`;
+    const { VRButton } = await import(moduleUrl);
+    const renderer = {
+      xr: {
+        getSession: () => null,
+        setSession: async () => {}
+      }
+    };
+    VRButton.createButton(renderer);
+    await Promise.resolve();
+
+    const firstClick = button.onclick();
+    const secondClick = button.onclick();
+    assert.equal(requestCount, 1);
+
+    resolveSession({ addEventListener() {} });
+    await Promise.all([firstClick, secondClick]);
+  } finally {
+    globalThis.document = originalDocument;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
+    globalThis.window = originalWindow;
+  }
 });
 
 test('compatibility-source cards escape text and avoid external identifiers in inline handlers', () => {
