@@ -66,6 +66,7 @@ test('all mounted typed capabilities are surfaced through the operations workben
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.list/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.call/);
   assert.match(capabilityWorkbench, /mxg:case-selected/);
+  assert.match(capabilityWorkbench, /50 typed capabilities ready/);
 });
 
 test('known POC-only data and loaders are absent', () => {
