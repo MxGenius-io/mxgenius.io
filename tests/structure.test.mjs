@@ -12,13 +12,14 @@ const capabilityWorkbench = await readFile(new URL('../capability-workbench.js',
 const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
-const viewerArButton = await readFile(new URL('../3d-viewer/lib/webxr/ARButton.js', import.meta.url), 'utf8');
+const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
 const xrMediaPanel = await readFile(new URL('../3d-viewer/xr-media-panel.js', import.meta.url), 'utf8');
 const xrAnimationScrubber = await readFile(new URL('../3d-viewer/xr-animation-scrubber.js', import.meta.url), 'utf8');
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
+const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -127,9 +128,9 @@ test('maintenance case workspace is mounted through the canonical client boundar
 
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
-  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
+  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=4"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=9"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=10"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -166,21 +167,20 @@ test('3D viewer exposes raycast selection through the application boundary', () 
   assert.match(application, /mxgenius:part-selected/);
 });
 
-test('3D viewer uses Quest passthrough XR without an HDRI during presentation', () => {
+test('3D viewer uses an immersive HDRI workspace during XR presentation', () => {
   assert.match(dashboard, /allow="xr-spatial-tracking; fullscreen"/);
   assert.match(viewer, /id="enter-vr-button"/);
-  assert.match(viewer, /import \{ ARButton \} from 'three\/addons\/webxr\/ARButton\.js'/);
-  assert.match(viewer, /ARButton\.createButton\(renderer,/);
-  assert.match(viewerArButton, /isSessionSupported\( 'immersive-ar' \)/);
-  assert.match(viewerArButton, /requestSession\( 'immersive-ar', sessionInit \)/);
+  assert.match(viewer, /import \{ VRButton \} from 'three\/addons\/webxr\/VRButton\.js'/);
+  assert.match(viewer, /VRButton\.createButton\(renderer\)/);
+  assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
+  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionInit \)/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionend'/);
-  assert.match(viewer, /stageSceneForXR\('local'\)/);
+  assert.match(viewer, /stageSceneForXR\('local-floor'\)/);
   assert.match(viewer, /alpha: true/);
-  assert.match(viewer, /scene\.background = null/);
-  assert.match(viewer, /scene\.environment = null/);
+  assert.match(viewer, /if \(hdriTexture\) \{[\s\S]*scene\.background = hdriTexture;[\s\S]*scene\.environment = hdriTexture;/);
   assert.match(viewer, /sceneBackground: scene\.background/);
   assert.match(viewer, /sceneEnvironment: scene\.environment/);
   assert.doesNotMatch(viewer, /navigator\.xr\.requestSession|setReferenceSpaceType/);
@@ -191,11 +191,11 @@ test('3D viewer uses Quest passthrough XR without an HDRI during presentation', 
   assert.match(viewer, /mxgenius:xr-action/);
   assert.match(viewer, /mxgenius\.viewer\.xr-action/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.xr-action'/);
-  assert.doesNotMatch(`${viewer}\n${viewerArButton}`, /Apple Vision/);
+  assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision/);
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=9/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=10/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -253,7 +253,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=4/);
+  assert.match(application, /globe-vr\.html\?v=5/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -268,6 +268,11 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(globeVr, /function openLocationDetails/);
   assert.match(globeVr, /FLEET LOCATION/);
   assert.match(globeVr, /MXApplicationClient\.aircraftBundle/);
+  assert.match(client, /function aircraftImageUrl/);
+  assert.match(globeVr, /JetNetImageGrid/);
+  assert.match(globeVr, /MXApplicationClient\.aircraftImageUrl/);
+  assert.match(fleetProxy, /evo-assets-3wl\.s3\.us-west-2\.amazonaws\.com/);
+  assert.match(fleetProxy, /Cross-Origin-Resource-Policy/);
   assert.match(globeVr, /JETNET AIRCRAFT/);
   assert.match(globeVr, /panelMode = 'wrist'/);
   assert.match(globeVr, /FOLLOW WRIST/);
@@ -289,7 +294,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=9"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=10"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);

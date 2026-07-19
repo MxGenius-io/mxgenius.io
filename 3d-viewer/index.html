@@ -973,7 +973,7 @@
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
-        import { ARButton } from 'three/addons/webxr/ARButton.js';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRMediaPanel } from './xr-media-panel.js';
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
 
@@ -1594,13 +1594,13 @@
             const container = document.getElementById('xr-button-container');
             if (!container) return;
 
-            const button = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] });
+            const button = VRButton.createButton(renderer);
             button.id = 'enter-vr-button';
-            button.title = 'View the aircraft in Quest passthrough';
+            button.title = 'View the aircraft in the HDRI maintenance workspace';
             container.replaceChildren(button);
 
             renderer.xr.addEventListener('sessionstart', () => {
-                stageSceneForXR('local');
+                stageSceneForXR('local-floor');
                 xrMediaPanel?.setPresenting(true);
                 xrAnimationScrubber?.setPresenting(true);
             });
@@ -1808,8 +1808,10 @@
             currentModel.updateMatrixWorld(true);
 
             controls.enabled = false;
-            scene.background = null;
-            scene.environment = null;
+            if (hdriTexture) {
+                scene.background = hdriTexture;
+                scene.environment = hdriTexture;
+            }
             camera.position.set(0, 0, 0);
             camera.quaternion.identity();
             camera.updateMatrixWorld(true);

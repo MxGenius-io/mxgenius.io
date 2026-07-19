@@ -73,6 +73,13 @@ const MXApplicationClient = (() => {
     return { aircraft, pictures, engines };
   }
 
+  function aircraftImageUrl(sourceUrl) {
+    let parsed;
+    try { parsed = new URL(String(sourceUrl || '')); } catch { return ''; }
+    if (parsed.protocol !== 'https:') return '';
+    return `${FLEET_API_BASE}/api/image?url=${encodeURIComponent(parsed.href)}`;
+  }
+
   function companyList({ token, bearer, filters }) {
     return jetNetJson(`Company/getCompanyList/${token}`, {
       bearer,
@@ -334,6 +341,7 @@ const MXApplicationClient = (() => {
     MCP_BASE,
     MCP_PROTOCOL_VERSION,
     aircraftBundle,
+    aircraftImageUrl,
     aircraftList,
     bulkAircraft,
     chat,

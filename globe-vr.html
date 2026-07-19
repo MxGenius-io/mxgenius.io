@@ -23,7 +23,7 @@
   </script>
   <script src="runtime-config.js?v=3"></script>
   <script src="cache.js"></script>
-  <script src="application-client.js?v=3"></script>
+  <script src="application-client.js?v=4"></script>
 </head>
 <body>
   <div class="hud">
@@ -140,6 +140,10 @@
       new THREE.MeshBasicMaterial({ map: detailsTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
     detailsPanel.add(detailsSurface);
+    const detailImageGrid = new THREE.Group();
+    detailImageGrid.name = 'JetNetImageGrid';
+    detailImageGrid.visible = false;
+    detailsPanel.add(detailImageGrid);
     scene.add(detailsPanel);
 
     let detailsTarget = 0;
@@ -151,7 +155,7 @@
     let detailPage = 0;
     let detailModel = null;
     let panelHitRegions = [];
-    let panelImageRequest = 0;
+    let imageGridGeneration = 0;
     let leftHand = null;
     let leftController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
@@ -313,9 +317,51 @@
         model: ident.model || summary.model,
         registration: ident.regnbr || summary.regnbr,
         pictures: (bundle?.pictures?.pictures || []).map((picture) => picture.pictureurl).filter((url) => /^https?:\/\//i.test(String(url))),
-        lines,
-        images: []
+        lines
       };
+    }
+
+    function clearDetailImageGrid() {
+      imageGridGeneration += 1;
+      detailImageGrid.visible = false;
+      while (detailImageGrid.children.length) {
+        const child = detailImageGrid.children[0];
+        detailImageGrid.remove(child);
+        child.geometry?.dispose();
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+          material?.map?.dispose();
+          material?.dispose();
+        });
+      }
+    }
+
+    function populateDetailImageGrid(urls) {
+      clearDetailImageGrid();
+      const generation = imageGridGeneration;
+      const sources = urls.slice(0, 6).map((url) => MXApplicationClient.aircraftImageUrl(url)).filter(Boolean);
+      if (!sources.length) return;
+      detailImageGrid.visible = true;
+      sources.forEach((url, index) => {
+        const column = index % 3;
+        const row = Math.floor(index / 3);
+        const material = new THREE.MeshBasicMaterial({ color: 0x13283a, toneMapped: false, side: THREE.DoubleSide });
+        const image = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.135), material);
+        image.position.set(-0.24 + column * 0.24, 0.66 - row * 0.16, 0.018);
+        detailImageGrid.add(image);
+        new THREE.TextureLoader().load(url, (texture) => {
+          if (generation !== imageGridGeneration || !image.parent) {
+            texture.dispose();
+            return;
+          }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          material.map = texture;
+          material.color.setHex(0xffffff);
+          material.needsUpdate = true;
+        }, undefined, () => {
+          material.color.setHex(0x3a1720);
+        });
+      });
     }
 
     function drawAircraftDetails() {
@@ -330,25 +376,7 @@
       detailsContext.font = '700 52px ui-monospace, monospace';
       detailsContext.fillText(cleanText(detailModel.registration), 220, 167);
 
-      let contentTop = 214;
-      if (detailPage === 0) {
-        detailsContext.fillStyle = '#0b1928';
-        detailsContext.fillRect(36, 196, 952, 260);
-        const images = detailModel.images.filter((image) => image?.complete && image.naturalWidth);
-        if (images.length) {
-          const width = 928 / Math.min(3, images.length);
-          images.slice(0, 3).forEach((image, index) => {
-            const ratio = image.naturalWidth / image.naturalHeight;
-            const drawWidth = Math.min(width - 12, 245 * ratio);
-            detailsContext.drawImage(image, 48 + index * width, 206, drawWidth, 240);
-          });
-        } else {
-          detailsContext.fillStyle = '#718da3';
-          detailsContext.font = '26px system-ui, sans-serif';
-          detailsContext.fillText(detailModel.pictures.length ? 'Loading JetNet gallery…' : 'No JetNet gallery images available', 60, 336);
-        }
-        contentTop = 486;
-      }
+      const contentTop = 214;
 
       const visibleLines = detailModel.lines.slice(detailPage * pageSize, (detailPage + 1) * pageSize);
       visibleLines.forEach((line, index) => {
@@ -384,18 +412,7 @@
         const bundle = await MXApplicationClient.aircraftBundle({ id: summary.aircraftid, token: TOKEN });
         detailModel = buildDetailModel(bundle, summary);
         detailPage = 0;
-        const request = ++panelImageRequest;
-        detailModel.pictures.slice(0, 3).forEach((url) => {
-          const image = new Image();
-          image.crossOrigin = 'anonymous';
-          image.onload = () => {
-            if (request !== panelImageRequest) return;
-            detailModel.images.push(image);
-            drawAircraftDetails();
-          };
-          image.onerror = () => {};
-          image.src = url;
-        });
+        populateDetailImageGrid(detailModel.pictures);
         drawAircraftDetails();
       } catch (error) {
         drawPanelFrame('JETNET AIRCRAFT', 'Aircraft details are temporarily unavailable.');
@@ -421,7 +438,7 @@
       if (action.type === 'toggle-panel-mode') return setPanelMode(panelMode === 'wrist' ? 'world' : 'wrist');
       if (action.type === 'open-aircraft') return openAircraftDetails(action.aircraft);
       if (action.type === 'back-to-location') {
-        panelImageRequest += 1;
+        clearDetailImageGrid();
         detailModel = null;
         return drawLocationDetails(selectedCluster);
       }
@@ -451,7 +468,7 @@
       selectedCluster = cluster;
       listPage = 0;
       detailModel = null;
-      panelImageRequest += 1;
+      clearDetailImageGrid();
       markers.setColorAt(index, color.setHex(0xffffff));
       if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
       drawLocationDetails(cluster);
