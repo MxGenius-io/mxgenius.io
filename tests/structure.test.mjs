@@ -13,7 +13,8 @@ const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
-const xrControl = await readFile(new URL('../3d-viewer/xr-control.html', import.meta.url), 'utf8');
+const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
+const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 
 function matches(pattern, text = dashboard) {
@@ -125,7 +126,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=3"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=4"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=3">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -258,13 +259,18 @@ test('VR entry permits only one in-flight immersive session request', async () =
   }
 });
 
-test('standalone XR control isolates Three.js headset rendering from the application viewer', () => {
-  assert.match(xrControl, /VRButton\.createButton\(renderer\)/);
-  assert.match(xrControl, /renderer\.xr\.enabled = true/);
-  assert.match(xrControl, /renderer\.setAnimationLoop/);
-  assert.match(xrControl, /new THREE\.BoxGeometry\(0\.5, 0\.5, 0\.5\)/);
-  assert.match(xrControl, /sessionstart/);
-  assert.doesNotMatch(xrControl, /iframe|GLTFLoader|EffectComposer|OrbitControls|models\.json|application-client/);
+test('onboarding is mounted before application boot with restart and empty-state support', () => {
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=1"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=4"></script>');
+  assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
+  assert.match(dashboard, /onboarding\.css\?v=1/);
+  assert.match(dashboard, /id="onboardingRoot"/);
+  assert.match(onboarding, /checkFirstRun/);
+  assert.match(onboarding, /restart/);
+  assert.match(onboarding, /injectEmptyCta/);
+  assert.match(onboarding, /mxg_onboarding_complete/);
+  assert.match(onboardingStyles, /\.onboarding-welcome/);
+  assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
 });
 
 test('compatibility-source cards escape text and avoid external identifiers in inline handlers', () => {

@@ -1,0 +1,391 @@
+/* ── MXGenius Onboarding ─────────────────────────────────────────────── */
+/* Welcome modal, guided tour, hotspot pulses, and empty-state CTAs.   */
+
+/* ── Welcome Modal ────────────────────────────────────────────────── */
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90000;
+  background: rgba(4, 8, 20, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: onb-fade-in 0.4s ease;
+}
+
+@keyframes onb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.onboarding-welcome {
+  width: min(560px, 92vw);
+  background: linear-gradient(145deg, rgba(22, 28, 48, 0.95), rgba(14, 18, 36, 0.98));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 20px;
+  padding: 40px 36px 32px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(59, 130, 246, 0.08);
+  animation: onb-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes onb-card-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.onboarding-welcome__logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  color: var(--accent-cyan, #22d3ee);
+}
+
+.onboarding-welcome h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f0f4ff;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.onboarding-welcome p {
+  font-size: 0.88rem;
+  color: rgba(200, 210, 230, 0.72);
+  margin: 0 0 28px;
+  line-height: 1.5;
+}
+
+/* ── Role Selector ────────────────────────────────────────────────── */
+.onboarding-roles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.onboarding-role {
+  background: rgba(30, 38, 62, 0.7);
+  border: 2px solid rgba(100, 116, 160, 0.18);
+  border-radius: 14px;
+  padding: 20px 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  text-align: center;
+}
+
+.onboarding-role:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(36, 46, 74, 0.8);
+  transform: translateY(-2px);
+}
+
+.onboarding-role[aria-checked="true"] {
+  border-color: var(--accent-cyan, #22d3ee);
+  background: rgba(34, 211, 238, 0.08);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.1);
+}
+
+.onboarding-role__icon {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 10px;
+  color: var(--accent-cyan, #22d3ee);
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.onboarding-role[aria-checked="true"] .onboarding-role__icon {
+  opacity: 1;
+}
+
+.onboarding-role__title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e0e6f0;
+  margin: 0 0 4px;
+}
+
+.onboarding-role__desc {
+  font-size: 0.7rem;
+  color: rgba(180, 192, 216, 0.65);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────── */
+.onboarding-start-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.onboarding-start-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.onboarding-start-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.onboarding-skip {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 0.76rem;
+  color: rgba(160, 175, 210, 0.6);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+
+.onboarding-skip:hover {
+  color: rgba(200, 210, 230, 0.85);
+}
+
+/* ── Tour Spotlight ───────────────────────────────────────────────── */
+.onboarding-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 91000;
+  pointer-events: none;
+}
+
+.onboarding-spotlight__mask {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.onboarding-spotlight__hole {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(4, 8, 20, 0.78);
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.onboarding-spotlight__hole::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  border: 2px solid rgba(34, 211, 238, 0.5);
+  animation: onb-ring-pulse 2s ease-in-out infinite;
+}
+
+@keyframes onb-ring-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.015); }
+}
+
+/* ── Tour Tooltip ─────────────────────────────────────────────────── */
+.onboarding-tooltip {
+  position: fixed;
+  z-index: 92000;
+  width: min(340px, 88vw);
+  background: linear-gradient(145deg, rgba(22, 28, 52, 0.97), rgba(12, 16, 32, 0.98));
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 14px;
+  padding: 20px 20px 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(34, 211, 238, 0.06);
+  animation: onb-tooltip-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
+}
+
+@keyframes onb-tooltip-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.onboarding-tooltip__step {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--accent-cyan, #22d3ee);
+  background: rgba(34, 211, 238, 0.1);
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.onboarding-tooltip h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f0f4ff;
+  margin: 0 0 6px;
+}
+
+.onboarding-tooltip p {
+  font-size: 0.8rem;
+  color: rgba(190, 204, 230, 0.8);
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+
+.onboarding-tooltip__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.onboarding-tooltip__back,
+.onboarding-tooltip__skip {
+  background: none;
+  border: 1px solid rgba(100, 116, 160, 0.25);
+  color: rgba(180, 192, 220, 0.7);
+  font-size: 0.76rem;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.onboarding-tooltip__back:hover,
+.onboarding-tooltip__skip:hover {
+  border-color: rgba(140, 155, 190, 0.4);
+  color: #e0e6f0;
+}
+
+.onboarding-tooltip__next {
+  background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  border: none;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.onboarding-tooltip__next:hover {
+  opacity: 0.9;
+}
+
+/* ── Hotspot Pulses ───────────────────────────────────────────────── */
+.onboarding-hotspot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-cyan, #22d3ee);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  pointer-events: none;
+  z-index: 8000;
+  animation: onb-hotspot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes onb-hotspot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%      { transform: scale(1.6); opacity: 0.3; }
+}
+
+.onboarding-hotspot--fade {
+  animation: onb-hotspot-fade 0.5s ease forwards;
+}
+
+@keyframes onb-hotspot-fade {
+  to { opacity: 0; transform: scale(0.5); }
+}
+
+/* ── Empty State CTAs ─────────────────────────────────────────────── */
+.onboarding-empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  min-height: 100px;
+}
+
+.onboarding-empty-cta__icon {
+  width: 28px;
+  height: 28px;
+  color: rgba(34, 211, 238, 0.4);
+}
+
+.onboarding-empty-cta__text {
+  font-size: 0.78rem;
+  color: rgba(160, 175, 210, 0.55);
+  line-height: 1.45;
+  max-width: 200px;
+}
+
+.onboarding-empty-cta__link {
+  font-size: 0.76rem;
+  color: var(--accent-cyan, #22d3ee);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+  padding: 0;
+}
+
+.onboarding-empty-cta__link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .onboarding-roles {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .onboarding-role {
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 0 12px;
+    text-align: left;
+  }
+
+  .onboarding-role__icon {
+    margin: 0;
+    grid-row: span 2;
+    align-self: center;
+  }
+
+  .onboarding-welcome {
+    padding: 28px 20px 24px;
+  }
+
+  .onboarding-welcome h1 {
+    font-size: 1.3rem;
+  }
+
+  .onboarding-tooltip {
+    width: calc(100vw - 24px);
+    left: 12px !important;
+    right: 12px !important;
+  }
+}

@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget — app works without it)
-  login().then(() => { loadDashboard(); loadGlobe(); }).catch(() => { loadDashboard(); loadGlobe(); });
+  login().then(() => { loadDashboard(); loadGlobe(); MXOnboarding.checkFirstRun(); }).catch(() => { loadDashboard(); loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
 
 async function login() {
@@ -1722,7 +1722,7 @@ function renderBarChart(containerId, data, colors) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
-  if (entries.length === 0) { container.innerHTML = '<div class="empty-state">No data</div>'; return; }
+  if (entries.length === 0) { container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId); return; }
   const max = Math.max(...entries.map(e => e[1]));
 
   container.innerHTML = entries.map(([label, value], i) => {
@@ -1755,7 +1755,7 @@ function renderDonutChart(containerId, yesCount, noCount, label) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const total = yesCount + noCount;
-  if (total === 0) { container.innerHTML = '<div class="empty-state">No data</div>'; return; }
+  if (total === 0) { container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId); return; }
   const pct = Math.round((yesCount / total) * 100);
   const deg = Math.round((yesCount / total) * 360);
 
@@ -1820,7 +1820,7 @@ function renderEngineHealth(containerId, acList) {
   });
 
   if (totalEngines === 0) {
-    container.innerHTML = '<div class="empty-state">No engine TBO data available</div>';
+    container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId);
     return;
   }
 
@@ -1864,7 +1864,7 @@ function renderMaintPrograms(containerId, acList) {
   });
 
   if (Object.keys(programs).length === 0) {
-    container.innerHTML = '<div class="empty-state">No maintenance program data</div>';
+    container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId);
     return;
   }
 

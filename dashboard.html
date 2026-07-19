@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=3">
+  <link rel="stylesheet" href="onboarding.css?v=1">
 </head>
 
 <body style="position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;">
@@ -543,6 +544,21 @@
             <span class="badge badge-jet" style="font-size:0.7rem;">Aerodex</span>
           </div>
         </div>
+
+        <!-- Onboarding -->
+        <div class="settings-card">
+          <h3 class="settings-card-title">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            Getting Started
+          </h3>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>Onboarding Walkthrough</span>
+              <span class="settings-hint">Replay the guided tour to learn the interface</span>
+            </div>
+            <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXOnboarding.restart()">Restart Tour</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -606,7 +622,9 @@
   <script src="realtime-client.js"></script>
   <script src="case-workspace.js?v=2"></script>
   <script src="capability-workbench.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="onboarding.js?v=1"></script>
+  <script src="app.js?v=4"></script>
+  <div id="onboardingRoot"></div>
 </body>
 
 </html>
