@@ -100,6 +100,52 @@ const MXApplicationClient = (() => {
     });
   }
 
+  const CHAT_FLEET_SIGNAL_LIMIT = 50;
+
+  function compactFleetSignal(record) {
+    const value = record && typeof record === 'object' ? record : {};
+    const mro = value.mro && typeof value.mro === 'object' ? value.mro : {};
+    return {
+      aircraft_id: value.aircraftid ?? value.aircraft_id ?? null,
+      registration: value.regnbr ?? value.registration ?? null,
+      serial_number: value.sernbr ?? value.serial_number ?? null,
+      make: value.make ?? null,
+      model: value.model ?? null,
+      aircraft_type: value.maketype ?? value.aircraft_type ?? null,
+      year: value.yearmfg ?? value.yearmfr ?? value.year ?? null,
+      base_icao: value.baseicao ?? value.baseicaocode ?? null,
+      base_city: value.basecity ?? value.acbasecity ?? null,
+      base_country: value.basecountry ?? null,
+      lifecycle: value.lifecycle ?? null,
+      reported_aftt: mro.aftt ?? value.aftt ?? value.estaftt ?? value.airfrmtt ?? null,
+      for_sale: mro.isForSale ?? value.forsale ?? null,
+      reported_aog: mro.isAOG ?? null
+    };
+  }
+
+  function chatFleetSignals(message, fleetSignals) {
+    if (!Array.isArray(fleetSignals) || !fleetSignals.length) return [];
+    const text = String(message || '');
+    const asksForFleetContext = /\b(fleet|aircraft|airplane|tail|registration|serial|aftt|cycles?|aog|for[ -]?sale|base|operator|owner)\b/i.test(text)
+      || /\bN[0-9A-Z]{2,6}\b/i.test(text)
+      || /\b(?:GL|G|CL|CRJ|ERJ|B|A|FALCON)[ -]?\d{2,4}[A-Z-]*\b/i.test(text);
+    if (!asksForFleetContext) return [];
+
+    const terms = (text.toUpperCase().match(/[A-Z0-9-]{3,}/g) || [])
+      .filter((term) => !['THE', 'AND', 'AIRCRAFT', 'AIRPLANE', 'FLEET'].includes(term));
+    return fleetSignals
+      .map((record, index) => {
+        const compact = compactFleetSignal(record);
+        const searchable = Object.values(compact).filter((value) => value != null).join(' ').toUpperCase();
+        const termScore = terms.reduce((score, term) => score + (searchable.includes(term) ? 10 : 0), 0);
+        const attentionScore = compact.reported_aog ? 2 : compact.for_sale ? 1 : 0;
+        return { compact, index, score: termScore + attentionScore };
+      })
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .slice(0, CHAT_FLEET_SIGNAL_LIMIT)
+      .map(({ compact }) => compact);
+  }
+
   function chat({ message, fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
@@ -112,7 +158,11 @@ const MXApplicationClient = (() => {
       method: 'POST',
       headers,
       credentials: 'include',
-      body: JSON.stringify({ message, fleet_signals: fleetSignals, case_context: caseContext || null })
+      body: JSON.stringify({
+        message,
+        fleet_signals: chatFleetSignals(message, fleetSignals),
+        case_context: caseContext || null
+      })
     });
   }
 

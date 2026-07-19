@@ -128,7 +128,7 @@ test('maintenance case workspace is mounted through the canonical client boundar
 
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
-  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=4"></script>');
+  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=5"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
   const appIndex = dashboard.indexOf('<script src="app.js?v=11"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');

@@ -149,6 +149,43 @@ test('chat uses application identity and carries canonical case context without 
   assert.equal(requests[0].request.case_context.version, 3);
 });
 
+test('chat sends only bounded relevant fleet context instead of the full compatibility dataset', async () => {
+  const { client, requests } = harness({});
+  const fleetSignals = Array.from({ length: 4437 }, (_, index) => ({
+    aircraftid: index + 1,
+    regnbr: index === 4100 ? 'N750MX' : `N${10000 + index}`,
+    make: index === 4100 ? 'Bombardier' : 'Example',
+    model: index === 4100 ? 'Global 7500' : 'Aircraft',
+    nested_provider_payload: { ignored: 'x'.repeat(4000) },
+    mro: { aftt: index, isAOG: index === 20, isForSale: false }
+  }));
+
+  await client.chat({
+    message: 'Brief the GL7500 aircraft N750MX',
+    fleetSignals,
+    accessToken: 'oidc-token',
+    organizationId: 'org-1'
+  });
+
+  const sent = requests[0].request.fleet_signals;
+  assert.equal(sent.length, 50);
+  assert.equal(sent[0].registration, 'N750MX');
+  assert.equal(sent[0].model, 'Global 7500');
+  assert.equal('nested_provider_payload' in sent[0], false);
+  assert.ok(requests[0].options.body.length < 100_000);
+});
+
+test('chat omits fleet compatibility records for a general conversation', async () => {
+  const { client, requests } = harness({});
+  await client.chat({
+    message: 'hello',
+    fleetSignals: [{ aircraftid: 1, regnbr: 'N100MX', provider_blob: 'x'.repeat(10_000) }],
+    accessToken: 'oidc-token',
+    organizationId: 'org-1'
+  });
+  assert.deepEqual(requests[0].request.fleet_signals, []);
+});
+
 test('Realtime SDP exchange uses application identity and never sends an OpenAI key', async () => {
   const { client, requests } = harness({});
   await assert.rejects(
