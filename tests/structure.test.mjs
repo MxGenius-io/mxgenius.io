@@ -165,9 +165,10 @@ test('3D viewer uses capability-gated browser WebXR without Apple-specific produ
   assert.match(viewer, /id="enter-vr-button"/);
   assert.match(viewer, /isSessionSupported\('immersive-vr'\)/);
   assert.match(viewer, /requestSession\('immersive-vr'/);
-  assert.match(viewer, /optionalFeatures: \['local-floor', 'bounded-floor'\]/);
-  assert.match(viewer, /setReferenceSpaceType\(referenceSpaceType\)/);
-  assert.match(viewer, /stageSceneForXR\(referenceSpaceType\)/);
+  assert.match(viewer, /requestSession\('immersive-vr'\);/);
+  assert.match(viewer, /setReferenceSpaceType\('local'\)/);
+  assert.match(viewer, /stageSceneForXR\('local'\)/);
+  assert.doesNotMatch(viewer, /requiredFeatures|optionalFeatures/);
   assert.match(viewer, /restoreSceneFromXR\(\)/);
   assert.doesNotMatch(viewer, /Apple Vision|ARButton/);
 });

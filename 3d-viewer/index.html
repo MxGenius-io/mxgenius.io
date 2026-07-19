@@ -1448,20 +1448,14 @@
                     if (!currentModel) throw new Error('Wait for the 3D scene to finish loading');
                     // Keep the user-activation path immediate. Model traversal and scene
                     // staging happen only after the headset grants the session.
-                    session = await navigator.xr.requestSession('immersive-vr', {
-                        optionalFeatures: ['local-floor', 'bounded-floor']
-                    });
-                    const enabledFeatures = Array.from(session.enabledFeatures || []);
-                    const referenceSpaceType = enabledFeatures.includes('local-floor')
-                        ? 'local-floor'
-                        : 'local';
-                    renderer.xr.setReferenceSpaceType(referenceSpaceType);
+                    session = await navigator.xr.requestSession('immersive-vr');
+                    renderer.xr.setReferenceSpaceType('local');
                     session.addEventListener('end', () => {
                         restoreSceneFromXR();
                         updateXRButtonState();
                     }, { once: true });
                     await renderer.xr.setSession(session);
-                    stageSceneForXR(referenceSpaceType);
+                    stageSceneForXR('local');
                     updateXRButtonState();
                 } catch (error) {
                     if (session && renderer.xr.getSession() !== session) {
