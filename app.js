@@ -1,9 +1,93 @@
 // MXGenius - Frontend Application
 // Auto-login, tab routing, API calls, dynamic rendering
 
-const API = 'https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io'; // Live Azure Rust Backend Proxy
+const API = MXApplicationClient.API_BASE;
 let TOKEN = '';
 let BEARER = '';
+
+// Stable application boundary for the embedded 3D viewer. Canonical case and
+// component identifiers can be mounted here without coupling them to Three.js.
+const MX3DViewer = {
+  context: {},
+  pendingSelector: null,
+
+  frame() {
+    return document.getElementById('viewer-iframe');
+  },
+
+  ensureLoaded() {
+    const frame = this.frame();
+    if (frame?.dataset.src && (!frame.getAttribute('src') || frame.getAttribute('src') === 'about:blank')) {
+      frame.src = frame.dataset.src;
+    }
+    return frame;
+  },
+
+  post(message) {
+    const frame = this.ensureLoaded();
+    frame?.contentWindow?.postMessage(message, window.location.origin);
+  },
+
+  setContext(context = {}) {
+    this.context = { ...context };
+    this.post({ type: 'mxgenius.viewer.set-context', context: this.context });
+  },
+
+  highlightPart(selector, context) {
+    if (context) this.setContext(context);
+    this.pendingSelector = selector ? { ...selector } : null;
+    if (this.pendingSelector) {
+      this.post({ type: 'mxgenius.viewer.highlight-part', selector: this.pendingSelector });
+    }
+  },
+
+  clearSelection() {
+    this.pendingSelector = null;
+    this.post({ type: 'mxgenius.viewer.clear-selection' });
+  }
+};
+
+window.MX3DViewer = MX3DViewer;
+
+window.addEventListener('message', (event) => {
+  const frame = MX3DViewer.frame();
+  if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+  const message = event.data || {};
+  if (message.type === 'mxgenius.viewer.ready') {
+    MX3DViewer.post({ type: 'mxgenius.viewer.set-context', context: MX3DViewer.context });
+    if (MX3DViewer.pendingSelector) {
+      MX3DViewer.post({ type: 'mxgenius.viewer.highlight-part', selector: MX3DViewer.pendingSelector });
+    }
+  }
+  if (message.type === 'mxgenius.viewer.part-selected') {
+    window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
+  }
+});
+
+// Transparent POC heuristic retained for current fleet views. These are
+// triage signals, not maintenance findings or regulatory determinations.
+function buildMROSignals(aircraft) {
+  const aftt = Number(aircraft.aftt || aircraft.estaftt || 0) || 0;
+  const isHighTime = aftt > 8000;
+  const isForSale = aircraft.forsale === true || aircraft.forsale === 'true';
+  const lifecycle = aircraft.lifecycle || '';
+  const isAOG = lifecycle.toUpperCase().includes('AOG');
+
+  let urgency = 'current';
+  if (isAOG) urgency = 'critical';
+  else if (aftt > 12000) urgency = 'overdue';
+  else if (isHighTime) urgency = 'due-soon';
+
+  return {
+    aftt,
+    isHighTime,
+    isForSale,
+    isAOG,
+    lifecycle,
+    urgency,
+    maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || '—'
+  };
+}
 
 // ═══════════════════════════════════════════════════
 //  FAA Airworthiness Directives — Predictive Maintenance
@@ -26,9 +110,7 @@ const FAA_ADS = {
   async load() {
     if (this.loaded) return;
     try {
-      const resp = await fetch('faa_data/faa_ads_slim.json');
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      this.data = await resp.json();
+      this.data = await MXApplicationClient.staticJson('faa_data/faa_ads_slim.json');
       this.loaded = true;
       console.log(`[FAA] Loaded ${this.data.length} Airworthiness Directives`);
     } catch (e) {
@@ -131,18 +213,16 @@ const RAG = {
   async load() {
     if (this.loaded || this.loading) return;
     this.loading = true;
-    try {
-      const [catResp, imgResp] = await Promise.all([
-        fetch('display_index/catalog.json'),
-        fetch('rag_image_map.json'),
-      ]);
-      if (catResp.ok) this.catalog = await catResp.json();
-      if (imgResp.ok) this.imageMap = await imgResp.json();
-      this.loaded = true;
-      console.log(`[RAG] Catalog loaded: ${this.catalog?.length || 0} aircraft, ${Object.keys(this.imageMap || {}).length} image mappings`);
-    } catch (e) {
-      console.warn('[RAG] Catalog not available:', e.message);
-    }
+    const [catalogResult, imageMapResult] = await Promise.allSettled([
+        MXApplicationClient.staticJson('display_index/catalog.json'),
+        MXApplicationClient.staticJson('rag_image_map.json'),
+    ]);
+    if (catalogResult.status === 'fulfilled') this.catalog = catalogResult.value;
+    else console.warn('[RAG] Catalog not available:', catalogResult.reason?.message || catalogResult.reason);
+    if (imageMapResult.status === 'fulfilled') this.imageMap = imageMapResult.value;
+    else console.warn('[RAG] Image map not available:', imageMapResult.reason?.message || imageMapResult.reason);
+    this.loaded = true;
+    console.log(`[RAG] Sources loaded: ${this.catalog?.length || 0} aircraft, ${Object.keys(this.imageMap || {}).length} image mappings`);
     this.loading = false;
   },
 
@@ -203,9 +283,7 @@ const RAG = {
     if (this.aircraftCache[entry.id]) return this.aircraftCache[entry.id];
     try {
       console.log(`[RAG] Loading ${entry.manufacturer} ${entry.aircraft} (${entry.size_mb}MB)...`);
-      const resp = await fetch('display_index/' + entry.file);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const data = await MXApplicationClient.staticJson('display_index/' + entry.file);
       // Keep only the last loaded aircraft in cache to limit memory
       this.aircraftCache = { [entry.id]: data };
       console.log(`[RAG] Loaded ${entry.aircraft}: ${Object.keys(data.manuals).length} manuals`);
@@ -659,14 +737,12 @@ async function login() {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`${API}/api/Admin/APILogin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ EmailAddress: '__MXG_API_EMAIL__', Password: '__MXG_API_PASSWORD__' }),
+    const data = await MXApplicationClient.adminLogin({
+      email: '__MXG_API_EMAIL__',
+      password: '__MXG_API_PASSWORD__',
       signal: controller.signal
     });
     clearTimeout(timeout);
-    const data = await res.json();
     
     if (data.bearerToken && data.apiToken) {
       BEARER = data.bearerToken;
@@ -726,13 +802,6 @@ function setupNavigation() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => { tabLoaded['aircraft'] = true; loadAircraft(); });
   });
-
-  // MRO Intelligence tab
-  document.getElementById('mroSearchBtn')?.addEventListener('click', () => { tabLoaded['activity'] = true; loadActivity(); });
-  ['mroUrgencyFilter', 'mroTypeFilter', 'mroRegionFilter'].forEach(id => {
-    document.getElementById(id)?.addEventListener('change', () => { tabLoaded['activity'] = true; loadActivity(); });
-  });
-
 
   document.getElementById('compSearchBtn')?.addEventListener('click', loadCompanies);
   compFields.forEach(id => document.getElementById(id)?.addEventListener('input', debouncedCompanies));
@@ -794,73 +863,6 @@ function setupChatPanel() {
       badge.style.color = '#6ee7b7';
       setTimeout(() => { badge.style.transform = 'scale(1)'; badge.style.color = '#34d399'; }, 400);
     }
-  }
-
-  // ── Token Marketplace ──
-  function buildTokenMarketplace() {
-    const overlay = document.createElement('div');
-    overlay.id = 'token-marketplace';
-    overlay.style.cssText = `
-      position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;
-      background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-      display:none;justify-content:center;align-items:center;padding:20px;
-    `;
-    overlay.innerHTML = `
-      <div style="max-width:440px;width:100%;background:rgba(13,17,23,0.95);border:1px solid rgba(99,102,241,0.3);border-radius:16px;padding:28px;position:relative;">
-        <button id="marketplace-close" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;">✕</button>
-        <h3 style="margin:0 0 4px;color:#e6edf3;font-size:16px;font-weight:600;">Token Marketplace</h3>
-        <p style="margin:0 0 20px;color:#8b949e;font-size:12px;">Purchase token packs for on-device AI inference</p>
-        
-        <div style="display:grid;gap:12px;">
-          <div style="background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.05));border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="color:#e6edf3;font-weight:600;font-size:14px;">Starter Pack</div>
-              <div style="color:#8b949e;font-size:12px;margin-top:2px;">500K tokens • ~250 queries</div>
-            </div>
-            <button style="background:rgba(99,102,241,0.8);color:white;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">$4.99</button>
-          </div>
-          
-          <div style="background:linear-gradient(135deg,rgba(52,211,153,0.15),rgba(52,211,153,0.05));border:1px solid rgba(52,211,153,0.25);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;position:relative;">
-            <div style="position:absolute;top:-8px;right:12px;background:#34d399;color:#0d1117;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;">POPULAR</div>
-            <div>
-              <div style="color:#e6edf3;font-weight:600;font-size:14px;">Pro Pack</div>
-              <div style="color:#8b949e;font-size:12px;margin-top:2px;">2M tokens • ~1,000 queries</div>
-            </div>
-            <button style="background:rgba(52,211,153,0.8);color:#0d1117;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">$14.99</button>
-          </div>
-          
-          <div style="background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(251,191,36,0.05));border:1px solid rgba(251,191,36,0.25);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="color:#e6edf3;font-weight:600;font-size:14px;">Enterprise Pack</div>
-              <div style="color:#8b949e;font-size:12px;margin-top:2px;">10M tokens • ~5,000 queries</div>
-            </div>
-            <button style="background:rgba(251,191,36,0.8);color:#0d1117;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">$49.99</button>
-          </div>
-
-          <div style="background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(168,85,247,0.05));border:1px solid rgba(168,85,247,0.25);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="color:#e6edf3;font-weight:600;font-size:14px;">Unlimited Monthly</div>
-              <div style="color:#8b949e;font-size:12px;margin-top:2px;">Unlimited tokens • auto-renew</div>
-            </div>
-            <button style="background:rgba(168,85,247,0.8);color:white;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">$99/mo</button>
-          </div>
-        </div>
-
-        <p style="margin:16px 0 0;color:#484f58;font-size:10px;text-align:center;">Session: ${totalTokensUsed.toLocaleString()} tokens used • $${totalSaved.toFixed(2)} saved vs cloud</p>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    document.getElementById('marketplace-close').addEventListener('click', () => toggleTokenMarketplace());
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) toggleTokenMarketplace(); });
-  }
-
-  function toggleTokenMarketplace() {
-    let mp = document.getElementById('token-marketplace');
-    if (!mp) { buildTokenMarketplace(); mp = document.getElementById('token-marketplace'); }
-    // Update stats each open
-    const stats = mp.querySelector('p:last-child');
-    if (stats) stats.textContent = `${totalTokensUsed.toLocaleString()} tokens used • $${totalSaved.toFixed(2)} saved vs cloud`;
-    mp.style.display = mp.style.display === 'flex' ? 'none' : 'flex';
   }
 
   function setLLMStatus(ready, detail) {
@@ -1282,13 +1284,10 @@ Rules:
 
     // ── Cloud Inference (Azure Rust Backend) ──
     try {
-      const response = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer __MXG_CHAT_API_KEY__' },
-        body: JSON.stringify({
-          message: text,
-          fleet_signals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : []
-        })
+      const response = await MXApplicationClient.chat({
+        message: text,
+        fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
+        apiKey: '__MXG_CHAT_API_KEY__'
       });
       
       const rawText = await response.text();
@@ -1455,18 +1454,9 @@ function switchTab(tabId) {
   const tabEl = document.getElementById(`tab-${tabId}`);
   if (tabEl) tabEl.classList.add('active');
 
-  // Reload 3D Viewer iframe to act as a "Home" reset button and break out of WebXR
+  // Load the viewer once. Its context and selected component must survive tab changes.
   if (tabId === '3d-viewer') {
-    const frame = document.getElementById('viewer-iframe');
-    if (frame) {
-      if (frame.dataset.src && (!frame.src || frame.src === 'about:blank' || frame.src === window.location.href)) {
-        // First load — set src from data-src
-        frame.src = frame.dataset.src;
-      } else if (frame.src && frame.src !== 'about:blank') {
-        // Already loaded — reload to reset WebXR state
-        frame.contentWindow.location.reload();
-      }
-    }
+    MX3DViewer.ensureLoaded();
   }
 
   // Lazy-load tab data
@@ -1628,8 +1618,6 @@ async function loadDashboard() {
     let bulkCount = 0;
 
     if (TOKEN) {
-      const dashHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` };
-
       // One-time cache bust to clear stale Gulfstream-only data
       const cacheVersion = '2';
       if (localStorage.getItem('mx_cacheVer') !== cacheVersion) {
@@ -1639,11 +1627,11 @@ async function loadDashboard() {
       }
 
       try {
-        const bulkData = await MXCache.cachedFetch(
-          `${API}/api/Aircraft/getBulkAircraftExportPaged/${TOKEN}/5000/1`,
-          { method: 'PUT', headers: dashHeaders, body: JSON.stringify({}) },
-          MXCache.TTL.BULK
-        );
+        const bulkData = await MXApplicationClient.bulkAircraft({
+          token: TOKEN,
+          bearer: BEARER,
+          cacheTtl: MXCache.TTL.BULK
+        });
         acList = bulkData.aircraft || [];
         bulkCount = bulkData.count || acList.length;
       } catch (e) { console.warn('[Dashboard] Bulk export failed:', e.message); }
@@ -2042,12 +2030,7 @@ async function loadAircraft() {
   isAircraftInitialized = true;
 
   try {
-    const res = await fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
+    const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
 
     if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') {
       grid.innerHTML = `<div class="empty-state">API Error: ${data.responsestatus}</div>`;
@@ -2201,20 +2184,10 @@ async function showAircraftDetail(id) {
   body.innerHTML = '<div class="loading">Loading aircraft details...</div>';
 
   try {
-    const [acRes, picRes, engRes] = await Promise.all([
-      fetch(`${API}/api/Aircraft/getAircraft/${id}/${TOKEN}`),
-      fetch(`${API}/api/Aircraft/getPictures/${id}/${TOKEN}`).catch(() => ({ json: () => ({}) })),
-      fetch(`${API}/api/Engines/getEnginesByAircraft/${id}/${TOKEN}`).catch(() => ({ json: () => ({}) }))
-    ]);
-    
-    let data = {};
-    try { data = await acRes.json(); } catch (e) { console.warn('acRes JSON parse failed'); }
-    
-    let picData = {};
-    if (picRes.ok) { try { picData = await picRes.json(); } catch(e) {} }
-    
-    let engData = {};
-    if (engRes.ok) { try { engData = await engRes.json(); } catch(e) {} }
+    const bundle = await MXApplicationClient.aircraftBundle({ id, token: TOKEN });
+    const data = bundle.aircraft || {};
+    const picData = bundle.pictures || {};
+    const engData = bundle.engines || {};
     
     const ac = data.aircraft;
     if (!ac) { body.innerHTML = '<div class="empty-state">Aircraft not found (404/401)</div>'; return; }
@@ -2498,12 +2471,7 @@ async function loadCompanies() {
   isCompaniesInitialized = true;
 
   try {
-    const res = await fetch(`${API}/api/Company/getCompanyList/${TOKEN}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
+    const data = await MXApplicationClient.companyList({ token: TOKEN, bearer: BEARER, filters: body });
 
     if (!data.companies || data.companies.length === 0) {
       grid.innerHTML = '<div class="empty-state">No companies found</div>';
@@ -2534,8 +2502,7 @@ async function showCompanyDetail(id) {
   body.innerHTML = '<div class="loading">Loading company details...</div>';
 
   try {
-    const res = await fetch(`${API}/api/Company/getCompany/${id}/${TOKEN}`);
-    const data = await res.json();
+    const data = await MXApplicationClient.companyDetail({ id, token: TOKEN });
     const comp = data.company;
     if (!comp) { body.innerHTML = '<div class="empty-state">Company not found</div>'; return; }
 
@@ -2646,12 +2613,7 @@ async function loadContacts() {
   isContactsInitialized = true;
 
   try {
-    const res = await fetch(`${API}/api/Contact/getContactList/${TOKEN}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
+    const data = await MXApplicationClient.contactList({ token: TOKEN, bearer: BEARER, filters: body });
 
     if (!data.contacts || data.contacts.length === 0) {
       container.innerHTML = '<div class="empty-state">No contacts found</div>';
@@ -2927,8 +2889,7 @@ async function loadGlobe() {
 
   const body = {};
   try {
-    const res = await fetch(`${API}/api/Aircraft/getAircraftList/${TOKEN}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BEARER}` }, body: JSON.stringify(body) });
-    const data = await res.json();
+    const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
     if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') { container.innerHTML = `<div class="empty-state">API Error: ${data.responsestatus}</div>`; return; }
     const aircraft = data.aircraft || [];
     const { clusters, counts } = clusterByAirport(aircraft);
@@ -2981,8 +2942,7 @@ let _docsCurrentManual = null;
 async function loadDocs() {
   if (_docsCatalog) { renderDocsGrid(_docsCatalog); return; }
   try {
-    const res = await fetch('display_index/catalog.json');
-    _docsCatalog = await res.json();
+    _docsCatalog = await MXApplicationClient.staticJson('display_index/catalog.json');
     const sidebar = document.getElementById('docs-manufacturer-list');
     const mfrs = {};
     _docsCatalog.forEach(a => { const m = a.manufacturer || 'Unknown'; if (!mfrs[m]) mfrs[m] = 0; mfrs[m]++; });
@@ -3008,8 +2968,7 @@ function renderDocsGrid(list) {
 async function loadAircraftManuals(id) {
   document.getElementById('docs-content').innerHTML = '<div class="loading">Loading manuals...</div>';
   try {
-    const res = await fetch('display_index/' + id + '.json');
-    const data = await res.json();
+    const data = await MXApplicationClient.staticJson('display_index/' + id + '.json');
     _docsCurrentAircraft = { id, data };
     _docsCurrentView = 'aircraft';
     document.getElementById('docs-breadcrumb').innerHTML =
@@ -3089,356 +3048,6 @@ function docsSearch(q) {
   if (!q) { renderDocsGrid(_docsCatalog); return; }
   q = q.toLowerCase();
   renderDocsGrid(_docsCatalog.filter(a => (a.manufacturer + ' ' + a.aircraft).toLowerCase().includes(q)));
-}
-
-// ═══════════════════════════════════════════════════
-//  ACTIVITY
-// ═══════════════════════════════════════════════════
-
-// ── Shared MRO Signal Builder ──
-function buildMROSignals(ac) {
-  const aftt = ac.aftt || ac.estaftt || 0;
-  const isHighTime = aftt > 8000;
-  const isForSale = ac.forsale === true || ac.forsale === 'true';
-  const lifecycle = ac.lifecycle || '';
-  const isAOG = lifecycle.toUpperCase().includes('AOG');
-  
-  let urgency = 'current';
-  if (isAOG) urgency = 'critical';
-  else if (isHighTime && aftt > 12000) urgency = 'overdue';
-  else if (isHighTime) urgency = 'due-soon';
-  
-  return {
-    aftt, isHighTime, isForSale, isAOG, lifecycle, urgency,
-    maintProgram: ac.maintenance?.airframemaintenanceprogram || ac.maintenanceprogram || '—'
-  };
-}
-
-async function loadActivity() {
-  const feed = document.getElementById('activityFeed');
-  feed.innerHTML = '<div class="loading">Scanning fleet for MRO leads...</div>';
-
-  try {
-    // Use JetNet aircraft search with MRO filters
-    const body = {};
-    const urgencyFilter = document.getElementById('mroUrgencyFilter')?.value || '';
-    const typeFilter = document.getElementById('mroTypeFilter')?.value || '';
-    const regionFilter = document.getElementById('mroRegionFilter')?.value || '';
-
-    if (typeFilter) body.makeType = typeFilter;
-    if (regionFilter) body.country = regionFilter;
-    if (urgencyFilter === 'for-sale') body.isForSale = true;
-
-    const res = await fetch(API + '/api/aircraft/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': BEARER },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    const acList = data.aircraft || [];
-
-    // Compute MRO signals for each aircraft
-    const signals = acList.map(ac => ({ ...ac, mro: buildMROSignals(ac) }));
-    // Cache for LLM context injection (dual-role: maintenance + outreach)
-    cachedFleetSignals = signals;
-
-    // Apply urgency filter client-side
-    let filtered = signals;
-    if (urgencyFilter === 'high-time') {
-      filtered = signals.filter(ac => ac.mro.isHighTime);
-    } else if (urgencyFilter === 'for-sale') {
-      filtered = signals.filter(ac => ac.mro.isForSale);
-    }
-
-    // Sort by AFTT descending (highest-time aircraft first = most likely to need service)
-    filtered.sort((a, b) => b.mro.aftt - a.mro.aftt);
-
-    // Update MRO stats
-    const highTimeCount = signals.filter(ac => ac.mro.isHighTime).length;
-    const forSaleCount = signals.filter(ac => ac.mro.isForSale).length;
-    const totalAFTT = signals.reduce((sum, ac) => sum + ac.mro.aftt, 0);
-    const avgAFTT = signals.length > 0 ? Math.round(totalAFTT / signals.length) : 0;
-
-    const statEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = typeof val === 'number' ? val.toLocaleString() : val; };
-    statEl('statHighTime', highTimeCount);
-    statEl('statMROForSale', forSaleCount);
-    statEl('statAvgAFTT', avgAFTT);
-    statEl('statMROFleet', signals.length);
-
-    if (filtered.length === 0) {
-      feed.innerHTML = '<div class="empty-state">No aircraft matching MRO criteria</div>';
-      return;
-    }
-
-    // Render MRO lead cards
-    feed.innerHTML = filtered.slice(0, 50).map(ac => renderMROCard(ac)).join('');
-  } catch (e) {
-    feed.innerHTML = '<div class="empty-state">Error scanning fleet: ' + e.message + '</div>';
-    console.error(e);
-  }
-}
-
-function renderMROCard(ac) {
-  const m = ac.mro;
-  const reg = ac.regnbr || '—';
-  const base = ac.baseicao || ac.basecity || '—';
-  const year = ac.yearmfg || ac.yearmfr || '—';
-  
-  const urgencyBadge = m.urgency === 'critical' ? '<span class="badge badge-aog">AOG</span>'
-    : m.urgency === 'overdue' ? '<span class="badge badge-overdue">HIGH-TIME 12K+</span>'
-    : m.isHighTime ? '<span class="badge badge-due-soon">HIGH-TIME</span>'
-    : '<span class="badge badge-current">CURRENT</span>';
-
-  const forSaleBadge = m.isForSale ? '<span class="badge badge-forsale">FOR SALE</span>' : '';
-
-  return `
-    <div class="mro-card" onclick="showAircraftDetail(${ac.aircraftid})">
-      <div class="mro-card-header">
-        <div class="mro-card-aircraft">
-          <div class="mro-card-make">${ac.make || '—'}</div>
-          <div class="mro-card-model">${ac.model || '—'}</div>
-        </div>
-        <div class="mro-card-reg">${reg}</div>
-      </div>
-      <div class="mro-card-metrics">
-        <div class="mro-metric">
-          <span class="mro-metric-label">AFTT</span>
-          <span class="mro-metric-value ${m.isHighTime ? 'mro-metric-warn' : ''}">${m.aftt.toLocaleString()}</span>
-        </div>
-        <div class="mro-metric">
-          <span class="mro-metric-label">Year</span>
-          <span class="mro-metric-value">${year}</span>
-        </div>
-        <div class="mro-metric">
-          <span class="mro-metric-label">Base</span>
-          <span class="mro-metric-value">${base}</span>
-        </div>
-        <div class="mro-metric">
-          <span class="mro-metric-label">Program</span>
-          <span class="mro-metric-value">${m.maintProgram}</span>
-        </div>
-      </div>
-      <div class="mro-card-badges">
-        ${urgencyBadge}
-        ${forSaleBadge}
-        <span class="badge badge-lifecycle">${ac.lifecycle || ac.maketype || '—'}</span>
-      </div>
-    </div>`;
-}
-
-// ═══════════════════════════════════════════════════
-//  PROSPECTING
-// ═══════════════════════════════════════════════════
-
-async function loadProspecting() {
-  var grid = document.getElementById('prospectGrid');
-  grid.innerHTML = '<div class="loading">Loading prospects...</div>';
-
-  var tier = document.getElementById('prospectTier') ? document.getElementById('prospectTier').value : '';
-  var status = document.getElementById('prospectStatus') ? document.getElementById('prospectStatus').value : '';
-
-  try {
-    var data = { 
-       stats: { new: 4, contacted: 12, quoted: 3, won: 1 },
-       prospects: [
-         { company: 'Acme Aviation', contact: 'John Smith', tier: 'A', status: 'Hot', interest: 'Fleet Expansion' },
-         { company: 'SkyHigh Charter', contact: 'Jane Doe', tier: 'B', status: 'Warm', interest: 'Heavy Maintenance' }
-       ]
-    };
-
-    // Update stats
-    document.getElementById('statNewProspects').textContent = (data.stats && data.stats.new) || 0;
-    document.getElementById('statContacted').textContent = (data.stats && data.stats.contacted) || 0;
-    document.getElementById('statQuoted').textContent = (data.stats && data.stats.quoted) || 0;
-    document.getElementById('statWon').textContent = (data.stats && data.stats.won) || 0;
-
-    if (!data.prospects || data.prospects.length === 0) {
-      grid.innerHTML = '<div class="empty-state">No prospects found</div>';
-      return;
-    }
-
-    var html = data.prospects.map(function(p) {
-      var tierClass = p.tier === 'A' ? 'badge-forsale' : p.tier === 'B' ? 'badge-jet' : 'badge-heli';
-      return '<div class="ac-card">' +
-        '<div class="ac-card-header">' +
-          '<div>' +
-            '<div class="ac-card-make">' + (p.company || 'Unknown') + '</div>' +
-            '<div class="ac-card-model">' + (p.contact || '') + '</div>' +
-          '</div>' +
-          '<span class="badge ' + tierClass + '">Tier ' + (p.tier || 'C') + '</span>' +
-        '</div>' +
-        '<div class="ac-card-details">' +
-          '<div class="ac-card-detail">' +
-            '<span class="ac-card-detail-label">Status</span>' +
-            '<span class="ac-card-detail-value">' + (p.status || 'New') + '</span>' +
-          '</div>' +
-          '<div class="ac-card-detail">' +
-            '<span class="ac-card-detail-label">Interest</span>' +
-            '<span class="ac-card-detail-value">' + (p.interest || '—') + '</span>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-    grid.innerHTML = html;
-  } catch (e) {
-    grid.innerHTML = '<div class="empty-state">Error loading prospects</div>';
-    console.error(e);
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  BASES
-// ═══════════════════════════════════════════════════
-
-async function loadBases() {
-  var grid = document.getElementById('basesGrid');
-  grid.innerHTML = '<div class="loading">Loading service bases...</div>';
-
-  try {
-    var data = {
-       bases: [
-         { name: 'Advanced AOG Primary', city: 'Atlanta', state: 'GA', country: 'USA', type: 'MRO', capability: 'Heavy Maintenance' },
-         { name: 'Teterboro Line Station', city: 'Teterboro', state: 'NJ', country: 'USA', type: 'Line Station', capability: 'AOG Rescue' }
-       ]
-    };
-
-    if (!data.bases || data.bases.length === 0) {
-      grid.innerHTML = '<div class="empty-state">No service bases configured</div>';
-      return;
-    }
-
-    var html = data.bases.map(function(b) {
-      var location = [b.city, b.state, b.country].filter(Boolean).join(', ');
-      return '<div class="comp-card">' +
-        '<div class="comp-card-name">' + (b.name || 'Service Base') + '</div>' +
-        '<div class="comp-card-type">' + (b.type || 'MRO') + '</div>' +
-        '<div class="comp-card-info">' +
-          '<span>📍 ' + location + '</span>' +
-          (b.capability ? '<span>🔧 ' + b.capability + '</span>' : '') +
-        '</div>' +
-      '</div>';
-    }).join('');
-    grid.innerHTML = html;
-  } catch (e) {
-    grid.innerHTML = '<div class="empty-state">Error loading bases</div>';
-    console.error(e);
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  COMPLIANCE
-// ═══════════════════════════════════════════════════
-
-async function loadCompliance() {
-  var grid = document.getElementById('complianceGrid');
-  grid.innerHTML = '<div class="loading">Loading compliance data...</div>';
-
-  var status = document.getElementById('complianceStatus') ? document.getElementById('complianceStatus').value : '';
-  var type = document.getElementById('complianceType') ? document.getElementById('complianceType').value : '';
-
-  try {
-    var data = {
-       stats: { overdue: 1, dueSoon: 2, compliant: 45, activeADs: 12 },
-       items: [
-         { aircraft: 'N100GS', type: 'FAR 91.411', status: 'due-soon', description: 'Altimeter and Pitot Static System Inspection', dueDate: '2026-04-15' },
-         { aircraft: 'N750GL', type: 'AD 2024-11-05', status: 'overdue', description: 'Engine Fan Blade Inspection', dueDate: '2026-03-01' }
-       ]
-    };
-
-    // Update stats
-    document.getElementById('statOverdue').textContent = (data.stats && data.stats.overdue) || 0;
-    document.getElementById('statDueSoon').textContent = (data.stats && data.stats.dueSoon) || 0;
-    document.getElementById('statCompliant').textContent = (data.stats && data.stats.compliant) || 0;
-    document.getElementById('statADs').textContent = (data.stats && data.stats.activeADs) || 0;
-
-    if (!data.items || data.items.length === 0) {
-      grid.innerHTML = '<div class="empty-state">No compliance items found</div>';
-      return;
-    }
-
-    var html = data.items.map(function(item) {
-      var statusClass = item.status === 'overdue' ? 'badge-forsale' 
-        : item.status === 'due-soon' ? 'badge-turbo' 
-        : 'badge-heli';
-      return '<div class="ac-card">' +
-        '<div class="ac-card-header">' +
-          '<div>' +
-            '<div class="ac-card-make">' + (item.aircraft || 'N/A') + '</div>' +
-            '<div class="ac-card-model">' + (item.type || 'AD') + '</div>' +
-          '</div>' +
-          '<span class="badge ' + statusClass + '">' + (item.status || 'Unknown') + '</span>' +
-        '</div>' +
-        '<div class="ac-card-details">' +
-          '<div class="ac-card-detail">' +
-            '<span class="ac-card-detail-label">Due Date</span>' +
-            '<span class="ac-card-detail-value">' + (item.dueDate || '—') + '</span>' +
-          '</div>' +
-          '<div class="ac-card-detail">' +
-            '<span class="ac-card-detail-label">Description</span>' +
-            '<span class="ac-card-detail-value">' + (item.description || '—') + '</span>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-    grid.innerHTML = html;
-  } catch (e) {
-    grid.innerHTML = '<div class="empty-state">Error loading compliance</div>';
-    console.error(e);
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  MARKETPLACE
-// ═══════════════════════════════════════════════════
-
-async function loadMarketplace() {
-  var grid = document.getElementById('vendorGrid');
-
-  // Static mock vendors — always available, no API needed
-  var mockVendors = [
-    { name: 'AeroParts Global', capability: 'OEM Parts', city: 'Miami', country: 'USA', rating: 4.9, capabilities: ['CFM56', 'APU', 'Landing Gear'] },
-    { name: 'SkyTech MRO', capability: 'Heavy Maintenance', city: 'Singapore', country: 'SG', rating: 4.7, capabilities: ['A320', 'B737', 'Avionics'] },
-    { name: 'JetSpares Ltd', capability: 'Rotable Exchange', city: 'London', country: 'UK', rating: 4.8, capabilities: ['Hydraulics', 'Pneumatics', 'Fuel Systems'] },
-    { name: 'Atlas Composites', capability: 'Structural Repair', city: 'Hamburg', country: 'DE', rating: 4.6, capabilities: ['Composite Repair', 'NDT', 'Sheet Metal'] },
-    { name: 'Pacific Avionics', capability: 'Avionics', city: 'Sydney', country: 'AU', rating: 4.5, capabilities: ['FMS', 'TCAS', 'Weather Radar'] },
-    { name: 'TurboPower Solutions', capability: 'Engine Services', city: 'Dallas', country: 'USA', rating: 4.8, capabilities: ['PW4000', 'GE90', 'LEAP-1B'] },
-  ];
-
-  var search = document.getElementById('vendorSearch') ? document.getElementById('vendorSearch').value.toLowerCase() : '';
-  var capability = document.getElementById('vendorCapability') ? document.getElementById('vendorCapability').value : '';
-
-  var filtered = mockVendors.filter(function(v) {
-    if (search && v.name.toLowerCase().indexOf(search) === -1) return false;
-    if (capability && v.capability !== capability) return false;
-    return true;
-  });
-
-  // Update stats
-  if (document.getElementById('statTotalVendors')) document.getElementById('statTotalVendors').textContent = filtered.length;
-  if (document.getElementById('statReferrals')) document.getElementById('statReferrals').textContent = 12;
-  if (document.getElementById('statCommission')) document.getElementById('statCommission').textContent = '$2,450';
-
-  if (filtered.length === 0) {
-    grid.innerHTML = '<div class="empty-state">No vendors match your search</div>';
-    return;
-  }
-
-  var html = filtered.map(function(v) {
-    var location = [v.city, v.country].filter(Boolean).join(', ');
-    var caps = (v.capabilities || []).map(function(c) { 
-      return '<span class="badge badge-jet" style="margin:2px">' + c + '</span>'; 
-    }).join('');
-    return '<div class="comp-card">' +
-      '<div class="comp-card-name">' + v.name + '</div>' +
-      '<div class="comp-card-type">' + v.capability + '</div>' +
-      '<div class="comp-card-info">' +
-        '<span>📍 ' + location + '</span>' +
-        '<span>★ ' + v.rating + '</span>' +
-      '</div>' +
-      '<div style="margin-top:8px">' + caps + '</div>' +
-    '</div>';
-  }).join('');
-  grid.innerHTML = html;
 }
 
 // ============================================

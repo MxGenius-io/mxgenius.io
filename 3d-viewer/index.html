@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0d1117">
-    <title>A.S.S.I.R.T — 3D Viewer</title>
+    <title>MXGenius — 3D Viewer</title>
     <!-- Fonts: system fallback (airgap — no external CDN) -->
     <style>
         /* ============================================
@@ -641,6 +641,56 @@
             pointer-events: none;
         }
 
+        #part-inspector {
+            position: absolute;
+            left: 16px;
+            bottom: 16px;
+            width: min(360px, calc(100% - 32px));
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: rgba(13, 17, 23, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 60;
+        }
+
+        .part-inspector-label {
+            font-family: var(--font-mono);
+            font-size: 0.58rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        #part-selection-name {
+            margin-top: 6px;
+            color: var(--text-primary);
+            font-size: 0.78rem;
+            overflow-wrap: anywhere;
+        }
+
+        #part-selection-path {
+            margin-top: 4px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.58rem;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        #part-selection-status {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 2px 6px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.55rem;
+            text-transform: uppercase;
+        }
+
         /* Model nav bar — moved into header, old floating styles removed */
 
         /* ============================================
@@ -822,8 +872,15 @@
         <!-- Canvas -->
         <div id="canvas-container"></div>
 
+        <div id="part-inspector" aria-live="polite">
+            <div class="part-inspector-label">Part selection</div>
+            <div id="part-selection-name">Select a visible mesh</div>
+            <div id="part-selection-path">Click a component to inspect its model hierarchy and mapping state.</div>
+            <div id="part-selection-status">No selection</div>
+        </div>
+
         <!-- Watermark -->
-        <div class="watermark" id="watermark">A.S.S.I.R.T 3D VIEWER</div>
+        <div class="watermark" id="watermark">MXGENIUS 3D VIEWER</div>
 
         <!-- Description Panel -->
         <div id="desc-panel">
@@ -872,19 +929,7 @@
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
         // =============================================
         const PROJECT = {
-            projectName: "A.S.S.I.R.T 3D Viewer",
-            companyName: "JETNET / Advanced AOG",
-            date: "2026-03-20",
-            logoPath: "./assets/logo.png"
-        };
-
-        // MXGenius standard polygon budgets
-        const POLY_BUDGETS = {
-            mailbox: 50,
-            tree: 200,
-            building: 2000,
-            civilian_vehicle: 25000,
-            military_vehicle: 50000
+            projectName: "3D Viewer"
         };
 
         // =============================================
@@ -919,6 +964,13 @@
         let mixer = null;
         let animations = [];
         let currentAction = null;
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let selectedMesh = null;
+        let selectedOriginalMaterial = null;
+        let selectedHighlightMaterial = null;
+        let pointerDownPosition = null;
+        let viewerContext = {};
 
         const state = {
             bloomEnabled: true,
@@ -938,6 +990,9 @@
         const loaderEl = document.getElementById('loader');
         const progressFill = document.getElementById('progress-fill');
         const progressLabel = document.getElementById('progress-label');
+        const partSelectionName = document.getElementById('part-selection-name');
+        const partSelectionPath = document.getElementById('part-selection-path');
+        const partSelectionStatus = document.getElementById('part-selection-status');
 
         // =============================================
         //  Populate Header / Metadata from Config
@@ -1268,6 +1323,7 @@
         //  Add Model to Scene
         // =============================================
         function addModelToScene(model) {
+            clearPartSelection(false);
             if (currentModel) {
                 scene.remove(currentModel);
                 disposeModel(currentModel);
@@ -1342,30 +1398,20 @@
 
             scene.add(currentModel);
 
-            updateModelStats(currentModel);
-        }
-
-        function updateModelStats(sceneNode) {
-            let polyBudget = null;
-            if (catalogIndex >= 0 && catalogIndex < catalog.length) {
-                polyBudget = catalog[catalogIndex].polyBudget;
-            }
-
-            let triCount = 0;
-            let meshCount = 0;
-            sceneNode.traverse((child) => {
-                if (child.isMesh) {
-                    meshCount++;
-                    if (child.geometry && child.geometry.index) {
-                        triCount += child.geometry.index.count / 3;
-                    } else if (child.geometry && child.geometry.attributes.position) {
-                        triCount += child.geometry.attributes.position.count / 3;
-                    }
-                }
-            });
-
-            // Reset camera to fit
             fitCameraToModel();
+            if (window.parent !== window) {
+                const entry = currentCatalogEntry() || {};
+                window.parent.postMessage({
+                    type: 'mxgenius.viewer.ready',
+                    version: 1,
+                    model: {
+                        name: entry.name || entry.file || 'Unknown model',
+                        file: entry.file || null,
+                        revision: entry.revision || null,
+                        operationalStatus: entry.operationalStatus || 'unclassified'
+                    }
+                }, window.location.origin);
+            }
         }
 
         function fitCameraToModel() {
@@ -1388,6 +1434,141 @@
             controls.target.copy(center);
             state.initialCameraPosition.copy(camera.position);
             controls.update();
+        }
+
+        // =============================================
+        //  Operational Part Selection
+        // =============================================
+        function getObjectPath(object) {
+            const names = [];
+            let node = object;
+            while (node && node !== currentModel) {
+                names.unshift(node.name || '(unnamed)');
+                node = node.parent;
+            }
+            return names.join(' › ');
+        }
+
+        function currentCatalogEntry() {
+            return catalogIndex >= 0 && catalogIndex < catalog.length ? catalog[catalogIndex] : null;
+        }
+
+        function findPartMapping(mesh, path) {
+            const mappings = currentCatalogEntry()?.partMappings;
+            if (!Array.isArray(mappings)) return null;
+            return mappings.find((mapping) =>
+                (mapping.path && mapping.path === path) ||
+                (mapping.meshName && mapping.meshName === mesh.name)
+            ) || null;
+        }
+
+        function cloneHighlightMaterial(material) {
+            const highlighted = material.clone();
+            if (highlighted.emissive?.setHex) {
+                highlighted.emissive.setHex(0x00ffff);
+                highlighted.emissiveIntensity = Math.max(highlighted.emissiveIntensity || 0, 0.45);
+            } else if (highlighted.color?.lerp) {
+                highlighted.color.lerp(new THREE.Color(0x00ffff), 0.55);
+            }
+            highlighted.needsUpdate = true;
+            return highlighted;
+        }
+
+        function clearPartSelection(updatePanel = true) {
+            if (selectedMesh && selectedOriginalMaterial) {
+                selectedMesh.material = selectedOriginalMaterial;
+            }
+            if (selectedHighlightMaterial) {
+                const materials = Array.isArray(selectedHighlightMaterial)
+                    ? selectedHighlightMaterial
+                    : [selectedHighlightMaterial];
+                materials.forEach((material) => material.dispose());
+            }
+            selectedMesh = null;
+            selectedOriginalMaterial = null;
+            selectedHighlightMaterial = null;
+
+            if (updatePanel) {
+                partSelectionName.textContent = 'Select a visible mesh';
+                partSelectionPath.textContent = 'Click a component to inspect its model hierarchy and mapping state.';
+                partSelectionStatus.textContent = 'No selection';
+            }
+        }
+
+        function emitPartSelection(detail) {
+            if (window.parent === window) return;
+            window.parent.postMessage({
+                type: 'mxgenius.viewer.part-selected',
+                version: 1,
+                detail
+            }, window.location.origin);
+        }
+
+        function selectPart(mesh, emit = true) {
+            if (!mesh?.isMesh || !mesh.material) return;
+            clearPartSelection(false);
+
+            const path = getObjectPath(mesh);
+            const mapping = findPartMapping(mesh, path);
+            const entry = currentCatalogEntry() || {};
+            const sourceStatus = entry.operationalStatus || 'unclassified';
+            const mappingStatus = mapping?.status || (sourceStatus === 'demo_asset' ? 'demo' : 'unmapped');
+            const materialList = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const highlightedList = materialList.map(cloneHighlightMaterial);
+
+            selectedMesh = mesh;
+            selectedOriginalMaterial = mesh.material;
+            selectedHighlightMaterial = Array.isArray(mesh.material) ? highlightedList : highlightedList[0];
+            mesh.material = selectedHighlightMaterial;
+
+            const detail = {
+                context: viewerContext,
+                model: {
+                    name: entry.name || entry.file || 'Unknown model',
+                    file: entry.file || null,
+                    revision: entry.revision || null,
+                    operationalStatus: sourceStatus
+                },
+                selection: {
+                    meshName: mesh.name || '(unnamed)',
+                    path,
+                    vertexCount: mesh.geometry?.attributes?.position?.count || 0,
+                    mappingStatus,
+                    componentId: mapping?.componentId || null,
+                    partNumber: mapping?.partNumber || null
+                }
+            };
+
+            partSelectionName.textContent = detail.selection.meshName;
+            partSelectionPath.textContent = path || '(model root)';
+            partSelectionStatus.textContent = mappingStatus;
+            if (emit) emitPartSelection(detail);
+        }
+
+        function selectPartBySelector(selector = {}) {
+            if (!currentModel) return false;
+            let match = null;
+            currentModel.traverse((node) => {
+                if (match || !node.isMesh) return;
+                const path = getObjectPath(node);
+                if ((selector.path && selector.path === path) ||
+                    (selector.meshName && selector.meshName === node.name)) {
+                    match = node;
+                }
+            });
+            if (match) selectPart(match, false);
+            return Boolean(match);
+        }
+
+        function handlePartPick(event) {
+            if (!currentModel || renderer.xr.isPresenting) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const hit = raycaster.intersectObject(currentModel, true).find((item) => item.object?.isMesh);
+            if (hit) selectPart(hit.object);
+            else clearPartSelection();
         }
 
         // =============================================
@@ -1459,6 +1640,33 @@
         //  Event Listeners
         // =============================================
         function setupEventListeners() {
+            renderer.domElement.addEventListener('pointerdown', (event) => {
+                if (event.button === 0) pointerDownPosition = { x: event.clientX, y: event.clientY };
+            });
+            renderer.domElement.addEventListener('pointerup', (event) => {
+                if (!pointerDownPosition || event.button !== 0) return;
+                const distance = Math.hypot(
+                    event.clientX - pointerDownPosition.x,
+                    event.clientY - pointerDownPosition.y
+                );
+                pointerDownPosition = null;
+                if (distance <= 5) handlePartPick(event);
+            });
+
+            window.addEventListener('message', (event) => {
+                if (event.source !== window.parent || event.origin !== window.location.origin) return;
+                const message = event.data || {};
+                if (message.type === 'mxgenius.viewer.set-context') {
+                    viewerContext = message.context && typeof message.context === 'object'
+                        ? { ...message.context }
+                        : {};
+                } else if (message.type === 'mxgenius.viewer.highlight-part') {
+                    selectPartBySelector(message.selector);
+                } else if (message.type === 'mxgenius.viewer.clear-selection') {
+                    clearPartSelection();
+                }
+            });
+
             // Resize
             window.addEventListener('resize', () => {
                 camera.aspect = container.clientWidth / container.clientHeight;
@@ -1640,21 +1848,6 @@
         function updateProgress(pct, text) {
             progressFill.style.width = `${pct}%`;
             progressLabel.textContent = text;
-        }
-
-        function countTriangles(obj) {
-            let count = 0;
-            obj.traverse((child) => {
-                if (child.isMesh && child.geometry) {
-                    const geo = child.geometry;
-                    if (geo.index) {
-                        count += geo.index.count / 3;
-                    } else if (geo.attributes.position) {
-                        count += geo.attributes.position.count / 3;
-                    }
-                }
-            });
-            return Math.floor(count);
         }
 
         function disposeModel(model) {

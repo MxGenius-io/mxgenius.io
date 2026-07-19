@@ -4,48 +4,55 @@
     "name": "AntiqueCamera Optics v1",
     "type": "aircraft_component",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/SM_DamagedHelmet_Base_v1.glb",
     "name": "DamagedHelmet Base v1",
     "type": "aircraft_component",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/SM_MilkTruck_Transport_v1.glb",
     "name": "MilkTruck Transport v1",
     "type": "aircraft_component",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/GearboxAssy.glb",
     "name": "Industrial Gearbox Assembly",
     "type": "aircraft_component",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/2CylinderEngine.glb",
     "name": "2-Cylinder Engine Block",
     "type": "aircraft_component",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/CesiumAir.glb",
     "name": "Boeing Commercial Jet (Animated)",
     "type": "aircraft",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   },
   {
     "file": "models/CesiumDrone.glb",
     "name": "Quadcopter Drone (Animated)",
     "type": "aircraft",
     "lod": "LOD0",
-    "revision": "v1"
+    "revision": "v1",
+    "operationalStatus": "demo_asset"
   }
 ]

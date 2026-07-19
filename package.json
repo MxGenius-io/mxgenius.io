@@ -1,0 +1,16 @@
+{
+  "name": "mxgenius-application-plane",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Contract-independent characterization checks for the MXGenius web application.",
+  "scripts": {
+    "test": "node --test tests/structure.test.mjs",
+    "test:structure": "node --test tests/structure.test.mjs",
+    "test:live": "node --test tests/live-smoke.test.mjs",
+    "test:all": "npm run test:structure && npm run test:live"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
