@@ -21,6 +21,9 @@
     }
   }
   </script>
+  <script src="runtime-config.js?v=3"></script>
+  <script src="cache.js"></script>
+  <script src="application-client.js?v=3"></script>
 </head>
 <body>
   <div class="hud">
@@ -55,6 +58,7 @@
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
+    const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();
     globeGroup.position.set(0, 1.55, -1.75);
@@ -121,69 +125,322 @@
 
     const detailsCanvas = document.createElement('canvas');
     detailsCanvas.width = 1024;
-    detailsCanvas.height = 640;
+    detailsCanvas.height = 1280;
+    const detailsContext = detailsCanvas.getContext('2d');
     const detailsTexture = new THREE.CanvasTexture(detailsCanvas);
     detailsTexture.colorSpace = THREE.SRGBColorSpace;
     const detailsPanel = new THREE.Group();
-    detailsPanel.name = 'FleetLocationDetails';
+    detailsPanel.name = 'FleetAircraftDetails';
     detailsPanel.position.set(0.95, 1.48, -1.5);
     detailsPanel.rotation.y = -0.22;
     detailsPanel.scale.setScalar(0.001);
     detailsPanel.visible = false;
     const detailsSurface = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.82, 0.512),
+      new THREE.PlaneGeometry(0.72, 0.9),
       new THREE.MeshBasicMaterial({ map: detailsTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
     detailsPanel.add(detailsSurface);
     scene.add(detailsPanel);
+
     let detailsTarget = 0;
     let selectedClusterIndex = -1;
+    let selectedCluster = null;
+    let panelMode = 'wrist';
+    let panelView = 'location';
+    let listPage = 0;
+    let detailPage = 0;
+    let detailModel = null;
+    let panelHitRegions = [];
+    let panelImageRequest = 0;
+    let leftHand = null;
+    let leftController = null;
+    const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
+    const panelWorldQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.22, 0));
+    const panelCameraPosition = new THREE.Vector3();
 
-    function clusterStatus(cluster) {
-      if (cluster.hasActiveCase) return { label: 'ACTIVE MAINTENANCE CASE', color: '#67e8f9' };
-      if (cluster.hasAog) return { label: 'AOG REPORTED', color: '#fb7185' };
-      if (cluster.hasVeryHighTime) return { label: '12K+ REPORTED AFTT', color: '#f87171' };
-      if (cluster.hasHighTime) return { label: '8K+ REPORTED AFTT', color: '#fbbf24' };
-      return { label: 'NO SELECTED TRIAGE FLAG', color: '#34d399' };
+    function cleanText(value, fallback = '—') {
+      const text = String(value ?? '').trim();
+      return text || fallback;
+    }
+
+    function fitText(text, max = 44) {
+      const value = cleanText(text);
+      return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+    }
+
+    function addHitRegion(x, y, width, height, action) {
+      panelHitRegions.push({ x, y, width, height, action });
+    }
+
+    function drawPanelFrame(title, subtitle = '') {
+      panelHitRegions = [];
+      detailsContext.clearRect(0, 0, detailsCanvas.width, detailsCanvas.height);
+      detailsContext.fillStyle = 'rgba(7, 17, 31, 0.98)';
+      detailsContext.fillRect(0, 0, detailsCanvas.width, detailsCanvas.height);
+      detailsContext.strokeStyle = '#22d3ee';
+      detailsContext.lineWidth = 6;
+      detailsContext.strokeRect(3, 3, detailsCanvas.width - 6, detailsCanvas.height - 6);
+      detailsContext.fillStyle = '#67e8f9';
+      detailsContext.font = '600 28px ui-monospace, monospace';
+      detailsContext.fillText(title, 44, 62);
+      if (subtitle) {
+        detailsContext.fillStyle = '#8fa8bc';
+        detailsContext.font = '25px system-ui, sans-serif';
+        detailsContext.fillText(fitText(subtitle, 58), 44, 102);
+      }
+      detailsContext.fillStyle = '#123047';
+      detailsContext.fillRect(754, 24, 226, 64);
+      detailsContext.strokeStyle = '#2d6077';
+      detailsContext.strokeRect(754, 24, 226, 64);
+      detailsContext.fillStyle = '#dff7ff';
+      detailsContext.font = '600 25px system-ui, sans-serif';
+      detailsContext.textAlign = 'center';
+      detailsContext.fillText(panelMode === 'wrist' ? 'PIN IN WORLD' : 'FOLLOW WRIST', 867, 65);
+      detailsContext.textAlign = 'left';
+      addHitRegion(754, 24, 226, 64, { type: 'toggle-panel-mode' });
+    }
+
+    function drawButton(x, y, width, label, action) {
+      detailsContext.fillStyle = '#10283a';
+      detailsContext.fillRect(x, y, width, 64);
+      detailsContext.strokeStyle = '#2d6077';
+      detailsContext.strokeRect(x, y, width, 64);
+      detailsContext.fillStyle = '#dff7ff';
+      detailsContext.font = '600 24px system-ui, sans-serif';
+      detailsContext.textAlign = 'center';
+      detailsContext.fillText(label, x + width / 2, y + 41);
+      detailsContext.textAlign = 'left';
+      addHitRegion(x, y, width, 64, action);
     }
 
     function drawLocationDetails(cluster) {
-      const context = detailsCanvas.getContext('2d');
-      const operational = clusterStatus(cluster);
-      context.clearRect(0, 0, detailsCanvas.width, detailsCanvas.height);
-      context.fillStyle = 'rgba(7, 17, 31, 0.97)';
-      context.fillRect(0, 0, detailsCanvas.width, detailsCanvas.height);
-      context.strokeStyle = '#22d3ee';
-      context.lineWidth = 5;
-      context.strokeRect(3, 3, detailsCanvas.width - 6, detailsCanvas.height - 6);
+      panelView = 'location';
+      const aircraft = Array.isArray(cluster.aircraft) ? cluster.aircraft : [];
+      const pageSize = 8;
+      const pageCount = Math.max(1, Math.ceil(aircraft.length / pageSize));
+      listPage = THREE.MathUtils.clamp(listPage, 0, pageCount - 1);
+      const rows = aircraft.slice(listPage * pageSize, (listPage + 1) * pageSize);
+      const place = [cluster.city, cluster.country].filter(Boolean).join(', ');
+      drawPanelFrame('FLEET LOCATION', place);
+      detailsContext.fillStyle = '#f4fbff';
+      detailsContext.font = '700 72px system-ui, sans-serif';
+      detailsContext.fillText(cleanText(cluster.icao, 'UNKNOWN'), 42, 188);
+      detailsContext.fillStyle = '#8fa8bc';
+      detailsContext.font = '27px system-ui, sans-serif';
+      detailsContext.fillText(`${aircraft.length.toLocaleString()} aircraft · select a record for JetNet details`, 44, 232);
 
-      context.fillStyle = '#67e8f9';
-      context.font = '600 34px ui-monospace, monospace';
-      context.fillText('FLEET LOCATION', 54, 72);
-      context.fillStyle = '#f4fbff';
-      context.font = '700 92px system-ui, sans-serif';
-      context.fillText(String(cluster.icao || 'UNKNOWN'), 52, 176);
+      rows.forEach((aircraftRecord, rowIndex) => {
+        const y = 270 + rowIndex * 104;
+        detailsContext.fillStyle = rowIndex % 2 ? '#0b1928' : '#0e2031';
+        detailsContext.fillRect(36, y, 952, 90);
+        detailsContext.fillStyle = '#eaf7ff';
+        detailsContext.font = '700 32px ui-monospace, monospace';
+        detailsContext.fillText(fitText(aircraftRecord.regnbr, 12), 56, y + 38);
+        detailsContext.fillStyle = '#b8cddd';
+        detailsContext.font = '25px system-ui, sans-serif';
+        detailsContext.fillText(fitText([aircraftRecord.make, aircraftRecord.model].filter(Boolean).join(' '), 40), 250, y + 36);
+        detailsContext.fillStyle = '#718da3';
+        detailsContext.font = '22px system-ui, sans-serif';
+        detailsContext.fillText(fitText(aircraftRecord.owner, 46), 250, y + 69);
+        detailsContext.fillStyle = aircraftRecord.urgency === 'AOG' ? '#fb7185' : aircraftRecord.urgency === 'Other' ? '#34d399' : '#fbbf24';
+        detailsContext.font = '600 21px ui-monospace, monospace';
+        detailsContext.textAlign = 'right';
+        detailsContext.fillText(cleanText(aircraftRecord.urgency), 956, y + 53);
+        detailsContext.textAlign = 'left';
+        addHitRegion(36, y, 952, 90, { type: 'open-aircraft', aircraft: aircraftRecord });
+      });
 
-      const place = [cluster.city, cluster.country].filter(Boolean).join(', ') || 'Location metadata unavailable';
-      context.fillStyle = '#a9bfd2';
-      context.font = '38px system-ui, sans-serif';
-      context.fillText(place.slice(0, 46), 56, 238);
-
-      context.fillStyle = '#e8f4ff';
-      context.font = '700 68px system-ui, sans-serif';
-      context.fillText(Number(cluster.count || 0).toLocaleString(), 56, 360);
-      context.fillStyle = '#8fa8bc';
-      context.font = '34px system-ui, sans-serif';
-      context.fillText('AIRCRAFT AT THIS LOCATION', 230, 350);
-
-      context.fillStyle = operational.color;
-      context.fillRect(56, 425, 14, 80);
-      context.font = '600 36px ui-monospace, monospace';
-      context.fillText(operational.label, 96, 478);
-      context.fillStyle = '#6f899d';
-      context.font = '28px system-ui, sans-serif';
-      context.fillText('Select another fleet marker to update this card.', 56, 574);
+      if (!rows.length) {
+        detailsContext.fillStyle = '#8fa8bc';
+        detailsContext.font = '28px system-ui, sans-serif';
+        detailsContext.fillText('No aircraft records were cached for this location.', 44, 340);
+      }
+      drawButton(36, 1190, 170, 'PREVIOUS', { type: 'list-page', delta: -1 });
+      detailsContext.fillStyle = '#718da3';
+      detailsContext.font = '23px ui-monospace, monospace';
+      detailsContext.textAlign = 'center';
+      detailsContext.fillText(`${listPage + 1} / ${pageCount}`, 512, 1231);
+      detailsContext.textAlign = 'left';
+      drawButton(818, 1190, 170, 'NEXT', { type: 'list-page', delta: 1 });
       detailsTexture.needsUpdate = true;
+    }
+
+    function buildDetailModel(bundle, summary) {
+      const aircraft = bundle?.aircraft?.aircraft || {};
+      const ident = aircraft.identification || {};
+      const airframe = aircraft.airframe || {};
+      const maintenance = aircraft.maintenance || {};
+      const apu = aircraft.apu || {};
+      const engines = bundle?.engines?.engines || [];
+      const sections = [
+        ['Identification', [
+          ['Aircraft ID', ident.aircraftid], ['Serial Number', ident.sernbr], ['Year Manufactured', ident.yearmfg],
+          ['Year Delivered', ident.yeardlv], ['Category/Size', ident.categorysize], ['Purchase Date', ident.purchasedate],
+          ['Reg Expires', ident.regnbrexpires]
+        ]],
+        ['Base Location', [
+          ['Airport', ident.baseairport], ['ICAO', ident.baseicao], ['IATA', ident.baseiata], ['City', ident.basecity],
+          ['State', ident.basestate], ['Country', ident.basecountry]
+        ]],
+        ['Airframe', [
+          ['AFTT', airframe.aftt], ['Landings', airframe.landings], ['Est AFTT', airframe.estaftt], ['As of Date', airframe.timesasofdate]
+        ]],
+        ['Engines', engines.flatMap((engine, index) => [
+          [`Engine ${engine.position || index + 1}`, [engine.engine_make, engine.engine_model].filter(Boolean).join(' ')],
+          ['Serial', engine.serial_number], ['Total Time', engine.tsn], ['Cycles', engine.csn], ['Overhaul (TSO)', engine.tso], ['Program', engine.program]
+        ])],
+        ['APU', [['Model', apu.model], ['Serial', apu.sernbr], ['TTSNEW', apu.ttsnew], ['SOH', apu.soh], ['Program', apu.maintenanceprogram]]],
+        ['Maintenance', [
+          ['Maintained', maintenance.maintained], ['AF Program', maintenance.airframemaintenanceprogram],
+          ['Tracking', maintenance.airframetrackingprogram], ['MTOW', maintenance.weightscapacity],
+          ['Certifications', (maintenance.certifications || []).join(', ')]
+        ]],
+        ['Avionics', (aircraft.avionics || []).map((item) => ['System', item.name])],
+        ['Company Relationships', (aircraft.companyrelationships || []).map((item) => [item.relationtype || 'Company', item.name])],
+        ['Flight Activity', (aircraft.flights || []).map((item) => [`${item.flightyear || ''} ${item.flightmonth || ''}`.trim(), `${item.flights || '—'} flights · ${item.flighthours || '—'} hours`])],
+        ['Interior', (aircraft.interior || []).map((item) => [item.name, item.description])],
+        ['Exterior', (aircraft.exterior || []).map((item) => [item.name, item.description])]
+      ];
+      const lines = [];
+      sections.forEach(([title, rows]) => {
+        const availableRows = rows.filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+        if (!availableRows.length) return;
+        lines.push({ type: 'section', text: title });
+        availableRows.forEach(([label, value]) => lines.push({ type: 'row', label, value }));
+      });
+      return {
+        make: ident.make || summary.make,
+        model: ident.model || summary.model,
+        registration: ident.regnbr || summary.regnbr,
+        pictures: (bundle?.pictures?.pictures || []).map((picture) => picture.pictureurl).filter((url) => /^https?:\/\//i.test(String(url))),
+        lines,
+        images: []
+      };
+    }
+
+    function drawAircraftDetails() {
+      if (!detailModel) return;
+      panelView = 'aircraft';
+      const pageSize = 13;
+      const pageCount = Math.max(1, Math.ceil(detailModel.lines.length / pageSize));
+      detailPage = THREE.MathUtils.clamp(detailPage, 0, pageCount - 1);
+      drawPanelFrame('JETNET AIRCRAFT', `${cleanText(detailModel.make)} ${cleanText(detailModel.model)}`);
+      drawButton(36, 122, 150, 'BACK', { type: 'back-to-location' });
+      detailsContext.fillStyle = '#f4fbff';
+      detailsContext.font = '700 52px ui-monospace, monospace';
+      detailsContext.fillText(cleanText(detailModel.registration), 220, 167);
+
+      let contentTop = 214;
+      if (detailPage === 0) {
+        detailsContext.fillStyle = '#0b1928';
+        detailsContext.fillRect(36, 196, 952, 260);
+        const images = detailModel.images.filter((image) => image?.complete && image.naturalWidth);
+        if (images.length) {
+          const width = 928 / Math.min(3, images.length);
+          images.slice(0, 3).forEach((image, index) => {
+            const ratio = image.naturalWidth / image.naturalHeight;
+            const drawWidth = Math.min(width - 12, 245 * ratio);
+            detailsContext.drawImage(image, 48 + index * width, 206, drawWidth, 240);
+          });
+        } else {
+          detailsContext.fillStyle = '#718da3';
+          detailsContext.font = '26px system-ui, sans-serif';
+          detailsContext.fillText(detailModel.pictures.length ? 'Loading JetNet gallery…' : 'No JetNet gallery images available', 60, 336);
+        }
+        contentTop = 486;
+      }
+
+      const visibleLines = detailModel.lines.slice(detailPage * pageSize, (detailPage + 1) * pageSize);
+      visibleLines.forEach((line, index) => {
+        const y = contentTop + index * 50;
+        if (line.type === 'section') {
+          detailsContext.fillStyle = '#67e8f9';
+          detailsContext.font = '600 25px ui-monospace, monospace';
+          detailsContext.fillText(line.text.toUpperCase(), 44, y + 32);
+          return;
+        }
+        detailsContext.fillStyle = '#8fa8bc';
+        detailsContext.font = '23px system-ui, sans-serif';
+        detailsContext.fillText(fitText(line.label, 24), 58, y + 31);
+        detailsContext.fillStyle = '#eaf7ff';
+        detailsContext.textAlign = 'right';
+        detailsContext.fillText(fitText(line.value, 45), 970, y + 31);
+        detailsContext.textAlign = 'left';
+      });
+      drawButton(36, 1190, 170, 'PREVIOUS', { type: 'detail-page', delta: -1 });
+      detailsContext.fillStyle = '#718da3';
+      detailsContext.font = '23px ui-monospace, monospace';
+      detailsContext.textAlign = 'center';
+      detailsContext.fillText(`${detailPage + 1} / ${pageCount}`, 512, 1231);
+      detailsContext.textAlign = 'left';
+      drawButton(818, 1190, 170, 'NEXT', { type: 'detail-page', delta: 1 });
+      detailsTexture.needsUpdate = true;
+    }
+
+    async function openAircraftDetails(summary) {
+      drawPanelFrame('JETNET AIRCRAFT', 'Retrieving aircraft, gallery, and engine records…');
+      detailsTexture.needsUpdate = true;
+      try {
+        const bundle = await MXApplicationClient.aircraftBundle({ id: summary.aircraftid, token: TOKEN });
+        detailModel = buildDetailModel(bundle, summary);
+        detailPage = 0;
+        const request = ++panelImageRequest;
+        detailModel.pictures.slice(0, 3).forEach((url) => {
+          const image = new Image();
+          image.crossOrigin = 'anonymous';
+          image.onload = () => {
+            if (request !== panelImageRequest) return;
+            detailModel.images.push(image);
+            drawAircraftDetails();
+          };
+          image.onerror = () => {};
+          image.src = url;
+        });
+        drawAircraftDetails();
+      } catch (error) {
+        drawPanelFrame('JETNET AIRCRAFT', 'Aircraft details are temporarily unavailable.');
+        drawButton(36, 122, 150, 'BACK', { type: 'back-to-location' });
+        detailsContext.fillStyle = '#fb7185';
+        detailsContext.font = '26px system-ui, sans-serif';
+        detailsContext.fillText(fitText(error?.message || 'Fleet source request failed', 64), 44, 250);
+        detailsTexture.needsUpdate = true;
+      }
+    }
+
+    function setPanelMode(mode) {
+      panelMode = mode === 'world' ? 'world' : 'wrist';
+      if (panelMode === 'world') {
+        scene.attach(detailsPanel);
+      }
+      if (panelView === 'aircraft') drawAircraftDetails();
+      else if (selectedCluster) drawLocationDetails(selectedCluster);
+    }
+
+    function handlePanelAction(action) {
+      if (!action) return;
+      if (action.type === 'toggle-panel-mode') return setPanelMode(panelMode === 'wrist' ? 'world' : 'wrist');
+      if (action.type === 'open-aircraft') return openAircraftDetails(action.aircraft);
+      if (action.type === 'back-to-location') {
+        panelImageRequest += 1;
+        detailModel = null;
+        return drawLocationDetails(selectedCluster);
+      }
+      if (action.type === 'list-page') {
+        listPage += action.delta;
+        return drawLocationDetails(selectedCluster);
+      }
+      if (action.type === 'detail-page') {
+        detailPage += action.delta;
+        return drawAircraftDetails();
+      }
+    }
+
+    function handlePanelUv(uv) {
+      const x = uv.x * detailsCanvas.width;
+      const y = (1 - uv.y) * detailsCanvas.height;
+      const region = panelHitRegions.find((item) => x >= item.x && x <= item.x + item.width && y >= item.y && y <= item.y + item.height);
+      if (region) handlePanelAction(region.action);
+      return Boolean(region);
     }
 
     function openLocationDetails(cluster, index) {
@@ -191,6 +448,10 @@
         markers.setColorAt(selectedClusterIndex, color.setHex(markerColor(fleet.clusters[selectedClusterIndex])));
       }
       selectedClusterIndex = index;
+      selectedCluster = cluster;
+      listPage = 0;
+      detailModel = null;
+      panelImageRequest += 1;
       markers.setColorAt(index, color.setHex(0xffffff));
       if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
       drawLocationDetails(cluster);
@@ -198,19 +459,78 @@
       detailsTarget = 1;
     }
 
+    function updatePanelAnchor() {
+      if (panelMode !== 'wrist' || !renderer.xr.isPresenting) return;
+      const wrist = leftHand?.joints?.wrist;
+      const anchor = wrist?.visible ? wrist : leftController;
+      if (!anchor) return;
+      if (detailsPanel.parent !== anchor) anchor.attach(detailsPanel);
+      detailsPanel.position.set(0.12, 0.11, -0.08);
+      camera.getWorldPosition(panelCameraPosition);
+      detailsPanel.lookAt(panelCameraPosition);
+    }
+
     function updateDetailsPresentation(delta) {
+      updatePanelAnchor();
       const blend = 1 - Math.exp(-12 * Math.max(0, delta));
       const nextScale = THREE.MathUtils.lerp(detailsPanel.scale.x, detailsTarget, blend);
       detailsPanel.scale.setScalar(Math.max(0.001, nextScale));
       if (detailsTarget === 0 && nextScale < 0.012) detailsPanel.visible = false;
     }
 
+    const rotateCanvas = document.createElement('canvas');
+    rotateCanvas.width = 384;
+    rotateCanvas.height = 160;
+    const rotateContext = rotateCanvas.getContext('2d');
+    const rotateTexture = new THREE.CanvasTexture(rotateCanvas);
+    rotateTexture.colorSpace = THREE.SRGBColorSpace;
+    const rotateButton = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.27, 0.1125),
+      new THREE.MeshBasicMaterial({ map: rotateTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    rotateButton.name = 'FleetRotationToggle';
+    scene.add(rotateButton);
+    let rotationEnabled = true;
+
+    function drawRotationButton() {
+      rotateContext.clearRect(0, 0, rotateCanvas.width, rotateCanvas.height);
+      rotateContext.fillStyle = 'rgba(8, 24, 38, 0.96)';
+      rotateContext.fillRect(4, 4, 376, 152);
+      rotateContext.strokeStyle = rotationEnabled ? '#22d3ee' : '#526a7c';
+      rotateContext.lineWidth = 6;
+      rotateContext.strokeRect(4, 4, 376, 152);
+      rotateContext.fillStyle = '#eaf7ff';
+      rotateContext.font = '600 38px system-ui, sans-serif';
+      rotateContext.textAlign = 'center';
+      rotateContext.fillText(rotationEnabled ? 'PAUSE ROTATION' : 'START ROTATION', 192, 96);
+      rotateTexture.needsUpdate = true;
+    }
+
+    function toggleGlobeRotation(input) {
+      rotationEnabled = !rotationEnabled;
+      drawRotationButton();
+      status.textContent = `${rotationEnabled ? 'Globe rotation started' : 'Globe rotation paused'} · ${input}`;
+    }
+
+    drawRotationButton();
+
     const xrRaycaster = new THREE.Raycaster();
     const xrHands = [];
+    const xrControllers = [];
+    const xrActiveGrips = new Map();
+    let xrGlobeGesture = null;
     const fingerTargets = new Map();
     const fingerPoint = new THREE.Vector3();
     const markerWorldPoint = new THREE.Vector3();
+    const panelLocalPoint = new THREE.Vector3();
+    const rotateLocalPoint = new THREE.Vector3();
+    const gesturePointA = new THREE.Vector3();
+    const gesturePointB = new THREE.Vector3();
+    const gestureMidpoint = new THREE.Vector3();
+    const rotateButtonOffset = new THREE.Vector3();
     let lastFingerCheck = 0;
+    const panelFingerTargets = new Map();
+    const rotateFingerTargets = new Map();
 
     function activateCluster(index, input) {
       const cluster = fleet.clusters[index];
@@ -238,23 +558,102 @@
 
     function setupController(index) {
       const controller = renderer.xr.getController(index);
+      const grip = renderer.xr.getControllerGrip(index);
       const rayGeometry = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, 0, -1)
       ]);
       controller.add(new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({ color: 0x67e8f9 })));
+      controller.addEventListener('connected', (event) => {
+        controller.userData.handedness = event.data?.handedness || '';
+        grip.userData.handedness = controller.userData.handedness;
+        if (controller.userData.handedness === 'left') leftController = grip;
+      });
       controller.addEventListener('select', () => {
         xrRaycaster.setFromXRController(controller);
+        const uiHit = xrRaycaster.intersectObjects([detailsSurface, rotateButton], false)[0];
+        if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
+        if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
         const hit = xrRaycaster.intersectObject(markers, false)[0];
         if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
       });
+      controller.addEventListener('squeezestart', () => {
+        xrActiveGrips.set(index, controller);
+        captureGlobeGesture();
+      });
+      controller.addEventListener('squeezeend', () => {
+        xrActiveGrips.delete(index);
+        captureGlobeGesture();
+      });
       scene.add(controller);
+      scene.add(grip);
+      xrControllers.push(controller);
     }
 
     function setupHand(index) {
       const hand = renderer.xr.getHand(index);
+      hand.addEventListener('connected', (event) => {
+        hand.userData.handedness = event.data?.handedness || '';
+        if (hand.userData.handedness === 'left') leftHand = hand;
+      });
       xrHands.push(hand);
       scene.add(hand);
+    }
+
+    function captureGlobeGesture() {
+      const controllers = [...xrActiveGrips.values()];
+      if (!renderer.xr.isPresenting || !controllers.length) {
+        xrGlobeGesture = null;
+        return;
+      }
+      if (controllers.length === 1) {
+        controllers[0].getWorldPosition(gesturePointA);
+        xrGlobeGesture = {
+          mode: 'move',
+          controller: controllers[0],
+          controllerPosition: gesturePointA.clone(),
+          globePosition: globeGroup.position.clone()
+        };
+        return;
+      }
+      controllers[0].getWorldPosition(gesturePointA);
+      controllers[1].getWorldPosition(gesturePointB);
+      xrGlobeGesture = {
+        mode: 'scale',
+        controllers: controllers.slice(0, 2),
+        midpoint: gesturePointA.clone().add(gesturePointB).multiplyScalar(0.5),
+        distance: Math.max(0.001, gesturePointA.distanceTo(gesturePointB)),
+        globePosition: globeGroup.position.clone(),
+        globeScale: globeGroup.scale.clone()
+      };
+    }
+
+    function updateGlobeGesture() {
+      if (!xrGlobeGesture || !renderer.xr.isPresenting) return;
+      if (xrGlobeGesture.mode === 'move') {
+        xrGlobeGesture.controller.getWorldPosition(gesturePointA);
+        globeGroup.position.copy(xrGlobeGesture.globePosition).add(gesturePointA.sub(xrGlobeGesture.controllerPosition));
+        return;
+      }
+      const [first, second] = xrGlobeGesture.controllers;
+      first.getWorldPosition(gesturePointA);
+      second.getWorldPosition(gesturePointB);
+      gestureMidpoint.copy(gesturePointA).add(gesturePointB).multiplyScalar(0.5);
+      const scaleFactor = THREE.MathUtils.clamp(gesturePointA.distanceTo(gesturePointB) / xrGlobeGesture.distance, 0.35, 3);
+      const targetScale = THREE.MathUtils.clamp(xrGlobeGesture.globeScale.x * scaleFactor, 0.45, 2.5);
+      const appliedFactor = targetScale / xrGlobeGesture.globeScale.x;
+      const offset = xrGlobeGesture.globePosition.clone().sub(xrGlobeGesture.midpoint).multiplyScalar(appliedFactor);
+      globeGroup.position.copy(gestureMidpoint).add(offset);
+      globeGroup.scale.setScalar(targetScale);
+    }
+
+    function updateRotationButtonPosition() {
+      const scale = globeGroup.scale.x;
+      rotateButtonOffset.set(0.82 * scale, -0.48 * scale, 0.08);
+      rotateButton.position.copy(globeGroup.position).add(rotateButtonOffset);
+      camera.getWorldPosition(panelCameraPosition);
+      rotateButton.lookAt(panelCameraPosition);
+      rotateButton.scale.setScalar(THREE.MathUtils.clamp(0.8 + scale * 0.2, 0.8, 1.3));
     }
 
     function updateFingerCollisions(time) {
@@ -265,6 +664,29 @@
         const tip = hand.joints?.['index-finger-tip'];
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
+
+        let panelRegion = -1;
+        if (detailsPanel.visible) {
+          detailsSurface.updateMatrixWorld(true);
+          detailsSurface.worldToLocal(panelLocalPoint.copy(fingerPoint));
+          if (Math.abs(panelLocalPoint.z) < 0.035 && Math.abs(panelLocalPoint.x) <= 0.36 && Math.abs(panelLocalPoint.y) <= 0.45) {
+            const canvasX = (panelLocalPoint.x / 0.72 + 0.5) * detailsCanvas.width;
+            const canvasY = (0.5 - panelLocalPoint.y / 0.9) * detailsCanvas.height;
+            panelRegion = panelHitRegions.findIndex((item) => canvasX >= item.x && canvasX <= item.x + item.width && canvasY >= item.y && canvasY <= item.y + item.height);
+          }
+        }
+        const previousPanelRegion = panelFingerTargets.get(handIndex) ?? -1;
+        if (panelRegion >= 0 && panelRegion !== previousPanelRegion) handlePanelAction(panelHitRegions[panelRegion].action);
+        panelFingerTargets.set(handIndex, panelRegion);
+
+        rotateButton.updateMatrixWorld(true);
+        rotateButton.worldToLocal(rotateLocalPoint.copy(fingerPoint));
+        const overRotate = Math.abs(rotateLocalPoint.z) < 0.035 && Math.abs(rotateLocalPoint.x) <= 0.135 && Math.abs(rotateLocalPoint.y) <= 0.05625;
+        const wasOverRotate = rotateFingerTargets.get(handIndex) || false;
+        if (overRotate && !wasOverRotate) toggleGlobeRotation(`finger-${handIndex}`);
+        rotateFingerTargets.set(handIndex, overRotate);
+
+        if (panelRegion >= 0 || overRotate) return;
         let nearest = -1;
         let nearestDistance = 0.035;
         markerPositions.forEach((position, markerIndex) => {
@@ -301,13 +723,20 @@
     });
     renderer.xr.addEventListener('sessionend', () => {
       detailsTarget = 0;
+      xrActiveGrips.clear();
+      xrGlobeGesture = null;
+      scene.attach(detailsPanel);
+      detailsPanel.position.copy(panelWorldPosition);
+      detailsPanel.quaternion.copy(panelWorldQuaternion);
       status.textContent = 'VR session ended';
     });
 
     const clock = new THREE.Clock();
     renderer.setAnimationLoop((time) => {
       const delta = clock.getDelta();
-      globeGroup.rotation.y += delta * 0.035;
+      if (rotationEnabled) globeGroup.rotation.y += delta * 0.035;
+      updateGlobeGesture();
+      updateRotationButtonPosition();
       updateDetailsPresentation(delta);
       updateFingerCollisions(time);
       renderer.render(scene, camera);

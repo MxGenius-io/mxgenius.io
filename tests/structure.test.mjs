@@ -129,7 +129,7 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=8"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=9"></script>');
   const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
@@ -252,7 +252,8 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /\.ringColor\(clusterRingColor\)/);
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
-  assert.match(application, /globe-vr\.html\?v=3/);
+  assert.match(application, /aircraft: cluster\.aircraft\.map/);
+  assert.match(application, /globe-vr\.html\?v=4/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -266,6 +267,18 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(globeVr, /open-fleet-location/);
   assert.match(globeVr, /function openLocationDetails/);
   assert.match(globeVr, /FLEET LOCATION/);
+  assert.match(globeVr, /MXApplicationClient\.aircraftBundle/);
+  assert.match(globeVr, /JETNET AIRCRAFT/);
+  assert.match(globeVr, /panelMode = 'wrist'/);
+  assert.match(globeVr, /FOLLOW WRIST/);
+  assert.match(globeVr, /leftHand\?\.joints\?\.wrist/);
+  assert.match(globeVr, /renderer\.xr\.getControllerGrip/);
+  assert.match(globeVr, /function captureGlobeGesture/);
+  assert.match(globeVr, /mode: 'scale'/);
+  assert.match(globeVr, /globeGroup\.scale\.setScalar/);
+  assert.match(globeVr, /FleetRotationToggle/);
+  assert.match(globeVr, /toggleGlobeRotation/);
+  assert.doesNotMatch(globeVr, /globeGroup\.quaternion\.copy/);
   assert.match(globeVr, /updateDetailsPresentation/);
   assert.match(globeVr, /detailsPanel\.scale\.setScalar\(0\.001\)/);
   assert.match(globeVr, /new THREE\.CircleGeometry/);
@@ -276,7 +289,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=8"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=9"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);

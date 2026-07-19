@@ -2906,7 +2906,7 @@ function handleGlobeResize() {
 function openGlobeInVR() {
   if (!allClusters.length) return;
   const payload = {
-    version: 1,
+    version: 2,
     createdAt: new Date().toISOString(),
     totalAircraft: globeData?.totalAircraft || 0,
     mappedAircraft: globeData?.mappedAircraft || 0,
@@ -2917,6 +2917,17 @@ function openGlobeInVR() {
       city: cluster.city || '',
       country: cluster.country || '',
       count: cluster.aircraft.length,
+      aircraft: cluster.aircraft.map((aircraft) => {
+        const signals = buildMROSignals(aircraft);
+        return {
+          aircraftid: safeRecordId(aircraft.aircraftid),
+          regnbr: aircraft.regnbr || '',
+          make: aircraft.make || '',
+          model: aircraft.model || '',
+          owner: aircraft.owner || aircraft.operator || '',
+          urgency: signals.isAOG ? 'AOG' : signals.isVeryHighTime ? '12K+ AFTT' : signals.isHighTime ? '8K+ AFTT' : 'Other'
+        };
+      }).filter((aircraft) => aircraft.aircraftid !== null),
       hasActiveCase: Boolean(cluster.hasActiveCase),
       hasAog: Boolean(cluster.hasAog),
       hasVeryHighTime: Boolean(cluster.hasVeryHighTime),
@@ -2928,7 +2939,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=3');
+  window.location.assign('globe-vr.html?v=4');
 }
 
 async function loadGlobe() {
