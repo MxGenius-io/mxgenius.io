@@ -117,6 +117,17 @@ summary:focus-visible {
   display: none;
 }
 
+.case-workspace select {
+  color-scheme: dark;
+  color: #f8fafc;
+  background-color: #111827;
+}
+
+.case-workspace select option {
+  color: #f8fafc;
+  background-color: #111827;
+}
+
 .case-workspace__trace {
   opacity: 0.72;
 }
