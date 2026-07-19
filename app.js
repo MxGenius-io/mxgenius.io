@@ -142,6 +142,9 @@ window.addEventListener('message', (event) => {
   if (message.type === 'mxgenius.viewer.part-selected') {
     window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
   }
+  if (message.type === 'mxgenius.viewer.xr-action') {
+    window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
+  }
 });
 
 window.addEventListener('mxg:case-selected', (event) => {
@@ -2884,6 +2887,34 @@ function handleGlobeResize() {
   if (c) globeInstance.width(c.clientWidth).height(c.clientHeight);
 }
 
+function openGlobeInVR() {
+  if (!allClusters.length) return;
+  const payload = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    totalAircraft: globeData?.totalAircraft || 0,
+    mappedAircraft: globeData?.mappedAircraft || 0,
+    clusters: allClusters.map((cluster) => ({
+      icao: cluster.icao,
+      lat: cluster.lat,
+      lng: cluster.lng,
+      city: cluster.city || '',
+      country: cluster.country || '',
+      count: cluster.aircraft.length,
+      hasActiveCase: Boolean(cluster.hasActiveCase),
+      hasAog: Boolean(cluster.hasAog),
+      hasVeryHighTime: Boolean(cluster.hasVeryHighTime),
+      hasHighTime: Boolean(cluster.hasHighTime)
+    }))
+  };
+  try {
+    localStorage.setItem('mxg_globe_vr_data', JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Unable to cache fleet globe data for VR', error);
+  }
+  window.location.assign('globe-vr.html?v=1');
+}
+
 async function loadGlobe() {
   const container = document.getElementById('globeViz');
   if (!globeInstance) container.innerHTML = '<div class="loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;">Loading globe...</div>';
@@ -2909,6 +2940,14 @@ async function loadGlobe() {
   const pe = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   pe('pillAog', cn.aog); pe('pillAftt12000', cn.aftt12000); pe('pillAftt8000', cn.aftt8000); pe('pillOther', cn.other);
   pe('pillActiveCase', allClusters.some((cluster) => cluster.hasActiveCase) ? 1 : 0);
+  const vrButton = document.getElementById('globeVrButton');
+  if (vrButton) {
+    vrButton.disabled = !allClusters.length;
+    if (!vrButton.dataset.bound) {
+      vrButton.dataset.bound = 'true';
+      vrButton.addEventListener('click', openGlobeInVR);
+    }
+  }
 
   if (!globeInstance) {
     container.innerHTML = '';

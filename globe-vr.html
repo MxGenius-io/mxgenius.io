@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MXGenius Fleet Globe VR</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050914; color: #eaf7ff; font-family: system-ui, sans-serif; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .hud { position: fixed; top: 14px; left: 14px; z-index: 4; padding: 11px 13px; border: 1px solid rgba(34,211,238,.38); border-radius: 9px; background: rgba(5,9,20,.86); }
+    .hud strong { display: block; color: #67e8f9; font-size: 14px; }
+    .hud span { display: block; margin-top: 3px; color: #9db1c6; font: 12px/1.4 ui-monospace, monospace; }
+    .back { position: fixed; top: 14px; right: 14px; z-index: 4; padding: 9px 13px; border: 1px solid #31465d; border-radius: 7px; background: #0b1524; color: #d9edff; text-decoration: none; font-size: 13px; }
+    #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="hud">
+    <strong>MXGenius Fleet Globe</strong>
+    <span id="fleetStatus">Preparing mapped fleet…</span>
+  </div>
+  <a class="back" href="dashboard.html">Back to dashboard</a>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { XRButton } from 'three/addons/webxr/XRButton.js';
+
+    const status = document.getElementById('fleetStatus');
+    let fleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
+    try {
+      fleet = JSON.parse(localStorage.getItem('mxg_globe_vr_data') || 'null') || fleet;
+    } catch (error) {
+      console.warn('Unable to read cached fleet globe data', error);
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = null;
+
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.05, 50);
+    camera.position.set(0, 1.6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setClearColor(0x000000, 0);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
+
+    const globeGroup = new THREE.Group();
+    globeGroup.position.set(0, 1.55, -1.75);
+    scene.add(globeGroup);
+
+    const texture = new THREE.TextureLoader().load('earth-blue-marble.jpg');
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const globe = new THREE.Mesh(
+      new THREE.SphereGeometry(0.68, 64, 40),
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.82, metalness: 0.02 })
+    );
+    globeGroup.add(globe);
+
+    const atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.705, 48, 32),
+      new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.08, side: THREE.BackSide })
+    );
+    globeGroup.add(atmosphere);
+
+    const markerGeometry = new THREE.SphereGeometry(0.012, 8, 6);
+    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const markers = new THREE.InstancedMesh(markerGeometry, markerMaterial, fleet.clusters.length);
+    const marker = new THREE.Object3D();
+    const color = new THREE.Color();
+    const markerPositions = [];
+
+    function pointOnGlobe(lat, lng, radius = 0.698) {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const theta = THREE.MathUtils.degToRad(lng + 180);
+      return new THREE.Vector3(
+        -radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    function markerColor(cluster) {
+      if (cluster.hasActiveCase) return 0x00d4ff;
+      if (cluster.hasAog || cluster.hasVeryHighTime) return 0xff4444;
+      if (cluster.hasHighTime) return 0xf59e0b;
+      return 0x10b981;
+    }
+
+    fleet.clusters.forEach((cluster, index) => {
+      const position = pointOnGlobe(Number(cluster.lat), Number(cluster.lng));
+      markerPositions.push(position.clone());
+      marker.position.copy(position);
+      const scale = Math.min(2.5, 0.8 + Math.log2(Math.max(1, Number(cluster.count))) * 0.22);
+      marker.scale.setScalar(scale);
+      marker.updateMatrix();
+      markers.setMatrixAt(index, marker.matrix);
+      markers.setColorAt(index, color.setHex(markerColor(cluster)));
+    });
+    markers.instanceMatrix.needsUpdate = true;
+    if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
+    globeGroup.add(markers);
+
+    const xrRaycaster = new THREE.Raycaster();
+    const xrHands = [];
+    const fingerTargets = new Map();
+    const fingerPoint = new THREE.Vector3();
+    const markerWorldPoint = new THREE.Vector3();
+    let lastFingerCheck = 0;
+
+    function activateCluster(index, input) {
+      const cluster = fleet.clusters[index];
+      if (!cluster) return;
+      const detail = {
+        action: 'open-fleet-location',
+        input,
+        target: {
+          index,
+          icao: cluster.icao,
+          city: cluster.city || '',
+          country: cluster.country || '',
+          count: Number(cluster.count) || 0
+        }
+      };
+      window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail }));
+      localStorage.setItem('mxg_globe_xr_selection', JSON.stringify(detail.target));
+      status.textContent = `${detail.target.icao} · ${detail.target.count.toLocaleString()} aircraft · ${input}`;
+    }
+
+    function setupController(index) {
+      const controller = renderer.xr.getController(index);
+      const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -1)
+      ]);
+      controller.add(new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({ color: 0x67e8f9 })));
+      controller.addEventListener('select', () => {
+        xrRaycaster.setFromXRController(controller);
+        const hit = xrRaycaster.intersectObject(markers, false)[0];
+        if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
+      });
+      scene.add(controller);
+    }
+
+    function setupHand(index) {
+      const hand = renderer.xr.getHand(index);
+      xrHands.push(hand);
+      scene.add(hand);
+    }
+
+    function updateFingerCollisions(time) {
+      if (!renderer.xr.isPresenting || time - lastFingerCheck < 100) return;
+      lastFingerCheck = time;
+      globeGroup.updateMatrixWorld(true);
+      xrHands.forEach((hand, handIndex) => {
+        const tip = hand.joints?.['index-finger-tip'];
+        if (!tip?.visible) return;
+        tip.getWorldPosition(fingerPoint);
+        let nearest = -1;
+        let nearestDistance = 0.035;
+        markerPositions.forEach((position, markerIndex) => {
+          markerWorldPoint.copy(position).applyMatrix4(globeGroup.matrixWorld);
+          const distance = markerWorldPoint.distanceTo(fingerPoint);
+          if (distance < nearestDistance) {
+            nearest = markerIndex;
+            nearestDistance = distance;
+          }
+        });
+        const previous = fingerTargets.get(handIndex) ?? -1;
+        if (nearest >= 0 && nearest !== previous) activateCluster(nearest, `finger-${handIndex}`);
+        fingerTargets.set(handIndex, nearest);
+      });
+    }
+
+    setupController(0);
+    setupController(1);
+    setupHand(0);
+    setupHand(1);
+
+    scene.add(new THREE.HemisphereLight(0xc6f1ff, 0x101827, 2.4));
+    const key = new THREE.DirectionalLight(0xffffff, 2.8);
+    key.position.set(2, 3, 2);
+    scene.add(key);
+
+    status.textContent = fleet.clusters.length
+      ? `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft · ${fleet.clusters.length} locations`
+      : 'No cached fleet data. Return to the dashboard and load Fleet Context first.';
+
+    renderer.xr.addEventListener('sessionstart', () => {
+      status.textContent = `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
+    });
+    renderer.xr.addEventListener('sessionend', () => {
+      status.textContent = 'VR session ended';
+    });
+
+    const clock = new THREE.Clock();
+    renderer.setAnimationLoop((time) => {
+      globeGroup.rotation.y += clock.getDelta() * 0.035;
+      updateFingerCollisions(time);
+      renderer.render(scene, camera);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

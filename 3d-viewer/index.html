@@ -918,7 +918,7 @@
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
-        import { VRButton } from 'three/addons/webxr/VRButton.js';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -967,6 +967,13 @@
         let selectedHighlightMaterial = null;
         let pointerDownPosition = null;
         let viewerContext = {};
+        const xrControllers = [];
+        const xrHands = [];
+        const xrFingerTargets = new Map();
+        const xrControllerMatrix = new THREE.Matrix4();
+        const xrFingerPoint = new THREE.Vector3();
+        const xrFingerBounds = new THREE.Box3();
+        let xrLastFingerCheck = 0;
 
         const state = {
             bloomEnabled: true,
@@ -1021,6 +1028,7 @@
             // Renderer
             renderer = new THREE.WebGLRenderer({
                 antialias: true,
+                alpha: true,
                 powerPreference: 'high-performance'
             });
             renderer.setSize(container.clientWidth, container.clientHeight);
@@ -1030,6 +1038,7 @@
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.setClearColor(0x000000, 0);
             renderer.xr.enabled = true;
             
             container.appendChild(renderer.domElement);
@@ -1043,6 +1052,7 @@
             controls.minDistance = 0.01;
             controls.maxDistance = 200;
             controls.target.set(0, 0, 0);
+            setupXRInteractions();
 
             // Post-processing
             setupPostProcessing();
@@ -1413,15 +1423,71 @@
             const container = document.getElementById('xr-button-container');
             if (!container) return;
 
-            const button = VRButton.createButton(renderer);
+            const button = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] });
             button.id = 'enter-vr-button';
+            button.title = 'View the aircraft in Quest passthrough';
             container.replaceChildren(button);
 
             renderer.xr.addEventListener('sessionstart', () => {
-                stageSceneForXR('local-floor');
+                stageSceneForXR('local');
             });
             renderer.xr.addEventListener('sessionend', () => {
                 restoreSceneFromXR();
+            });
+        }
+
+        function emitXRAction(action, input, target = {}) {
+            const detail = { action, input, target, context: viewerContext };
+            window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail }));
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'mxgenius.viewer.xr-action', version: 1, detail }, window.location.origin);
+            }
+        }
+
+        function activateXRPart(mesh, input) {
+            if (!mesh?.isMesh) return;
+            selectPart(mesh);
+            emitXRAction('select-part', input, { meshName: mesh.name || '(unnamed)', path: getObjectPath(mesh) });
+        }
+
+        function selectFromXRController(controller, index) {
+            if (!currentModel) return;
+            xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
+            const hit = raycaster.intersectObject(currentModel, true).find((item) => item.object?.isMesh);
+            if (hit) activateXRPart(hit.object, `controller-${index}`);
+        }
+
+        function setupXRInteractions() {
+            for (let index = 0; index < 2; index += 1) {
+                const controller = renderer.xr.getController(index);
+                controller.addEventListener('select', () => selectFromXRController(controller, index));
+                scene.add(controller);
+                xrControllers.push(controller);
+
+                const hand = renderer.xr.getHand(index);
+                scene.add(hand);
+                xrHands.push(hand);
+            }
+        }
+
+        function updateXRFingerInteractions(time) {
+            if (!renderer.xr.isPresenting || !currentModel || time - xrLastFingerCheck < 100) return;
+            xrLastFingerCheck = time;
+            xrHands.forEach((hand, index) => {
+                const tip = hand.joints?.['index-finger-tip'];
+                if (!tip?.visible) return;
+                tip.getWorldPosition(xrFingerPoint);
+                let hitMesh = null;
+                currentModel.traverse((node) => {
+                    if (hitMesh || !node.isMesh || !node.visible) return;
+                    xrFingerBounds.setFromObject(node).expandByScalar(0.015);
+                    if (xrFingerBounds.containsPoint(xrFingerPoint)) hitMesh = node;
+                });
+                const previous = xrFingerTargets.get(index) || null;
+                if (hitMesh && hitMesh !== previous) activateXRPart(hitMesh, `finger-${index}`);
+                xrFingerTargets.set(index, hitMesh);
             });
         }
 
@@ -1433,7 +1499,9 @@
                 modelScale: currentModel.scale.clone(),
                 cameraPosition: camera.position.clone(),
                 cameraQuaternion: camera.quaternion.clone(),
-                controlsEnabled: controls.enabled
+                controlsEnabled: controls.enabled,
+                sceneBackground: scene.background,
+                sceneEnvironment: scene.environment
             };
 
             const box = new THREE.Box3().setFromObject(currentModel);
@@ -1445,6 +1513,8 @@
             currentModel.updateMatrixWorld(true);
 
             controls.enabled = false;
+            scene.background = null;
+            scene.environment = null;
             camera.position.set(0, 0, 0);
             camera.quaternion.identity();
             camera.updateMatrixWorld(true);
@@ -1459,6 +1529,8 @@
             camera.position.copy(xrPresentationState.cameraPosition);
             camera.quaternion.copy(xrPresentationState.cameraQuaternion);
             controls.enabled = xrPresentationState.controlsEnabled;
+            scene.background = xrPresentationState.sceneBackground;
+            scene.environment = xrPresentationState.sceneEnvironment;
             controls.update();
             xrPresentationState = null;
         }
@@ -1923,10 +1995,11 @@
         // =============================================
         const clock = new THREE.Clock();
 
-        function animate() {
+        function animate(time = 0) {
             const delta = clock.getDelta();
             controls.update();
             if (mixer) mixer.update(delta);
+            updateXRFingerInteractions(time);
             
             if (renderer.xr.isPresenting) {
                 renderer.render(scene, camera);

@@ -12,7 +12,8 @@ const capabilityWorkbench = await readFile(new URL('../capability-workbench.js',
 const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
-const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
+const viewerArButton = await readFile(new URL('../3d-viewer/lib/webxr/ARButton.js', import.meta.url), 'utf8');
+const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
@@ -126,8 +127,8 @@ test('application script order preserves cache and client prerequisites', () => 
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.indexOf('<script src="application-client.js?v=3"></script>');
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=4"></script>');
-  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=3">');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=5"></script>');
+  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
   assert.ok(clientIndex > cacheIndex, 'application-client.js should load after cache.js');
@@ -163,105 +164,56 @@ test('3D viewer exposes raycast selection through the application boundary', () 
   assert.match(application, /mxgenius:part-selected/);
 });
 
-test('3D viewer uses capability-gated browser WebXR without Apple-specific product coupling', () => {
+test('3D viewer uses Quest passthrough XR without an HDRI during presentation', () => {
   assert.match(dashboard, /allow="xr-spatial-tracking; fullscreen"/);
   assert.match(viewer, /id="enter-vr-button"/);
-  assert.match(viewer, /import \{ VRButton \} from 'three\/addons\/webxr\/VRButton\.js'/);
-  assert.match(viewer, /VRButton\.createButton\(renderer\)/);
-  assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
-  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionOptions \)/);
-  assert.match(viewerVrButton, /renderer\.xr\.setSession\( session \)/);
-  assert.match(viewerVrButton, /sessionRequestPending/);
-  assert.match(viewerVrButton, /supportPollMs = 7500/);
-  assert.match(viewerVrButton, /visibilitychange/);
-  assert.match(viewerVrButton, /renderer\.xr\.getSession\(\)/);
-  assert.match(viewerVrButton, /CHECKING VR…/);
-  assert.doesNotMatch(viewerVrButton, /offerSession\(/);
-  assert.doesNotMatch(viewerVrButton, /xrSessionIsGranted \) button\.click/);
-  assert.match(viewerVrButton, /optionalFeatures: \[/);
-  assert.match(viewerVrButton, /'local-floor'/);
-  assert.match(viewerVrButton, /'bounded-floor'/);
-  assert.match(viewerVrButton, /'layers'/);
+  assert.match(viewer, /import \{ ARButton \} from 'three\/addons\/webxr\/ARButton\.js'/);
+  assert.match(viewer, /ARButton\.createButton\(renderer,/);
+  assert.match(viewerArButton, /isSessionSupported\( 'immersive-ar' \)/);
+  assert.match(viewerArButton, /requestSession\( 'immersive-ar', sessionInit \)/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionend'/);
-  assert.match(viewer, /stageSceneForXR\('local-floor'\)/);
+  assert.match(viewer, /stageSceneForXR\('local'\)/);
+  assert.match(viewer, /alpha: true/);
+  assert.match(viewer, /scene\.background = null/);
+  assert.match(viewer, /scene\.environment = null/);
+  assert.match(viewer, /sceneBackground: scene\.background/);
+  assert.match(viewer, /sceneEnvironment: scene\.environment/);
   assert.doesNotMatch(viewer, /navigator\.xr\.requestSession|setReferenceSpaceType/);
   assert.match(viewer, /restoreSceneFromXR\(\)/);
-  assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision|ARButton/);
+  assert.match(viewer, /renderer\.xr\.getController/);
+  assert.match(viewer, /renderer\.xr\.getHand/);
+  assert.match(viewer, /index-finger-tip/);
+  assert.match(viewer, /mxgenius:xr-action/);
+  assert.match(viewer, /mxgenius\.viewer\.xr-action/);
+  assert.match(application, /message\.type === 'mxgenius\.viewer\.xr-action'/);
+  assert.doesNotMatch(`${viewer}\n${viewerArButton}`, /Apple Vision/);
 });
 
-test('VR entry permits only one in-flight immersive session request', async () => {
-  const originalDocument = globalThis.document;
-  const originalNavigator = globalThis.navigator;
-  const originalWindow = globalThis.window;
-  let requestCount = 0;
-  let resolveSession;
-  let clickHandler;
-  const pendingSession = new Promise((resolve) => { resolveSession = resolve; });
-  const button = {
-    style: {},
-    dataset: {},
-    addEventListener(type, handler) {
-      if (type === 'click') clickHandler = handler;
-    }
-  };
-
-  globalThis.document = {
-    visibilityState: 'visible',
-    createElement: () => button,
-    addEventListener() {}
-  };
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: {
-      xr: {
-        addEventListener() {},
-        isSessionSupported: async () => true,
-        requestSession: () => {
-          requestCount += 1;
-          return pendingSession;
-        }
-      },
-      userAgent: 'test'
-    }
-  });
-  globalThis.window = {
-    isSecureContext: true,
-    setInterval: () => 1,
-    clearInterval() {},
-    addEventListener() {}
-  };
-
-  try {
-    const moduleUrl = `data:text/javascript;base64,${Buffer.from(viewerVrButton).toString('base64')}`;
-    const { VRButton } = await import(moduleUrl);
-    const renderer = {
-      xr: {
-        getSession: () => null,
-        setSession: async () => {}
-      }
-    };
-    VRButton.createButton(renderer);
-    await Promise.resolve();
-
-    const firstClick = clickHandler();
-    const secondClick = clickHandler();
-    assert.equal(requestCount, 1);
-
-    resolveSession({ addEventListener() {} });
-    await Promise.all([firstClick, secondClick]);
-  } finally {
-    globalThis.document = originalDocument;
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
-    globalThis.window = originalWindow;
-  }
+test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
+  assert.match(dashboard, /id="globeVrButton"/);
+  assert.match(application, /function openGlobeInVR\(\)/);
+  assert.match(application, /mxg_globe_vr_data/);
+  assert.match(application, /globe-vr\.html\?v=1/);
+  assert.match(globeVr, /three@0\.184\.0/);
+  assert.match(globeVr, /XRButton\.createButton\(renderer,/);
+  assert.match(globeVr, /alpha: true/);
+  assert.match(globeVr, /scene\.background = null/);
+  assert.match(globeVr, /renderer\.setAnimationLoop/);
+  assert.match(globeVr, /mxg_globe_vr_data/);
+  assert.match(globeVr, /setFromXRController/);
+  assert.match(globeVr, /renderer\.xr\.getHand/);
+  assert.match(globeVr, /index-finger-tip/);
+  assert.match(globeVr, /mxgenius:xr-action/);
+  assert.match(globeVr, /open-fleet-location/);
+  assert.doesNotMatch(globeVr, /HDRI|RGBELoader|EXRLoader/);
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=1"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=4"></script>');
+  const applicationIndex = dashboard.indexOf('<script src="app.js?v=5"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);

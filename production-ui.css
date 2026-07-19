@@ -262,3 +262,26 @@ summary:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+.btn-globe-vr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 6px;
+  background: rgba(34, 211, 238, 0.1);
+  color: #8beaff;
+  font: 600 0.72rem/1 var(--font-sans, system-ui, sans-serif);
+  cursor: pointer;
+}
+
+.btn-globe-vr:hover:not(:disabled) {
+  border-color: #22d3ee;
+  background: rgba(34, 211, 238, 0.18);
+  color: #e7fbff;
+}
+
+.btn-globe-vr:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
