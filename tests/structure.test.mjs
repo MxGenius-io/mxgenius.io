@@ -12,6 +12,7 @@ const capabilityWorkbench = await readFile(new URL('../capability-workbench.js',
 const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
+const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 
 function matches(pattern, text = dashboard) {
@@ -163,14 +164,18 @@ test('3D viewer exposes raycast selection through the application boundary', () 
 test('3D viewer uses capability-gated browser WebXR without Apple-specific product coupling', () => {
   assert.match(dashboard, /allow="xr-spatial-tracking; fullscreen"/);
   assert.match(viewer, /id="enter-vr-button"/);
-  assert.match(viewer, /isSessionSupported\('immersive-vr'\)/);
-  assert.match(viewer, /requestSession\('immersive-vr'/);
-  assert.match(viewer, /requestSession\('immersive-vr'\);/);
+  assert.match(viewer, /import \{ VRButton \} from 'three\/addons\/webxr\/VRButton\.js'/);
+  assert.match(viewer, /VRButton\.createButton\(renderer, \{\}, button\)/);
+  assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
+  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionInit \)/);
+  assert.match(viewerVrButton, /renderer\.xr\.setSession\( session \)/);
   assert.match(viewer, /setReferenceSpaceType\('local'\)/);
+  assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
+  assert.match(viewer, /renderer\.xr\.addEventListener\('sessionend'/);
   assert.match(viewer, /stageSceneForXR\('local'\)/);
-  assert.doesNotMatch(viewer, /requiredFeatures|optionalFeatures/);
+  assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /requiredFeatures|optionalFeatures/);
   assert.match(viewer, /restoreSceneFromXR\(\)/);
-  assert.doesNotMatch(viewer, /Apple Vision|ARButton/);
+  assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision|ARButton/);
 });
 
 test('compatibility-source cards escape text and avoid external identifiers in inline handlers', () => {

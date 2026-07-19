@@ -912,6 +912,7 @@
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -1404,69 +1405,39 @@
             }
         }
 
-        async function setupXRButton() {
+        function setupXRButton() {
             const button = document.getElementById('enter-vr-button');
             if (!button) return;
 
-            if (!window.isSecureContext) {
-                button.textContent = 'VR requires HTTPS';
-                button.title = 'WebXR device access is available only in a secure context';
-                return;
-            }
-            if (!navigator.xr) {
-                button.textContent = 'VR unavailable';
-                button.title = 'This browser does not expose the WebXR Device API';
-                return;
-            }
+            renderer.xr.setReferenceSpaceType('local');
+            VRButton.createButton(renderer, {}, button);
 
-            try {
-                const supported = await navigator.xr.isSessionSupported('immersive-vr');
-                if (!supported) {
-                    button.textContent = 'VR unavailable';
-                    button.title = 'No compatible immersive VR runtime or headset was detected';
-                    return;
-                }
-                xrSupported = true;
+            button.addEventListener('webxr-support', (event) => {
+                xrSupported = event.detail.supported;
                 updateXRButtonState();
-            } catch (error) {
-                button.textContent = 'VR unavailable';
-                button.title = error?.message || 'Unable to check WebXR device support';
-                return;
-            }
-
-            button.addEventListener('click', async () => {
-                const activeSession = renderer.xr.getSession();
-                if (activeSession) {
-                    await activeSession.end();
-                    return;
+            });
+            button.addEventListener('click', () => {
+                if (!renderer.xr.getSession()) {
+                    button.disabled = true;
+                    button.textContent = 'Connecting…';
                 }
+            });
+            button.addEventListener('webxr-error', (event) => {
+                const error = event.detail.error;
+                restoreSceneFromXR();
+                updateXRButtonState();
+                button.title = error?.name === 'NotAllowedError'
+                    ? 'Headset access was not granted'
+                    : (error?.message || 'Unable to start the immersive session');
+            });
 
-                button.disabled = true;
-                button.textContent = 'Connecting…';
-                let session = null;
-                try {
-                    if (!currentModel) throw new Error('Wait for the 3D scene to finish loading');
-                    // Keep the user-activation path immediate. Model traversal and scene
-                    // staging happen only after the headset grants the session.
-                    session = await navigator.xr.requestSession('immersive-vr');
-                    renderer.xr.setReferenceSpaceType('local');
-                    session.addEventListener('end', () => {
-                        restoreSceneFromXR();
-                        updateXRButtonState();
-                    }, { once: true });
-                    await renderer.xr.setSession(session);
-                    stageSceneForXR('local');
-                    updateXRButtonState();
-                } catch (error) {
-                    if (session && renderer.xr.getSession() !== session) {
-                        try { await session.end(); } catch { /* Session never became active. */ }
-                    }
-                    restoreSceneFromXR();
-                    updateXRButtonState();
-                    button.title = error?.name === 'NotAllowedError'
-                        ? 'Headset access was not granted'
-                        : (error?.message || 'Unable to start the immersive session');
-                }
+            renderer.xr.addEventListener('sessionstart', () => {
+                stageSceneForXR('local');
+                updateXRButtonState();
+            });
+            renderer.xr.addEventListener('sessionend', () => {
+                restoreSceneFromXR();
+                updateXRButtonState();
             });
         }
 
