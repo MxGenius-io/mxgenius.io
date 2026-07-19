@@ -57,6 +57,13 @@ const MXOnboarding = (() => {
       title: 'Connection Status',
       body: 'This indicator shows whether MXGenius is connected to fleet data and the capability service. Green means all systems ready.',
       position: 'bottom-left'
+    },
+    {
+      target: '#globeVrButton',
+      title: 'Fleet View in XR',
+      body: 'On Meta Quest, open MXGenius in the native Quest Browser, load Fleet Context, then choose View in XR. The passthrough globe supports controller selection and fingertip contact with its fleet markers.',
+      position: 'bottom-left',
+      onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
     }
   ];
 

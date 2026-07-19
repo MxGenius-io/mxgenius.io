@@ -219,7 +219,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=1"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
   const applicationIndex = dashboard.indexOf('<script src="app.js?v=6"></script>');
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
@@ -228,6 +228,9 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /restart/);
   assert.match(onboarding, /injectEmptyCta/);
   assert.match(onboarding, /mxg_onboarding_complete/);
+  assert.match(onboarding, /target: '#globeVrButton'/);
+  assert.match(onboarding, /native Quest Browser/);
+  assert.match(onboarding, /controller selection and fingertip contact/);
   assert.match(onboardingStyles, /\.onboarding-welcome/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
 });
