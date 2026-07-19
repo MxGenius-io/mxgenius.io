@@ -119,6 +119,92 @@
     if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
     globeGroup.add(markers);
 
+    const detailsCanvas = document.createElement('canvas');
+    detailsCanvas.width = 1024;
+    detailsCanvas.height = 640;
+    const detailsTexture = new THREE.CanvasTexture(detailsCanvas);
+    detailsTexture.colorSpace = THREE.SRGBColorSpace;
+    const detailsPanel = new THREE.Group();
+    detailsPanel.name = 'FleetLocationDetails';
+    detailsPanel.position.set(0.95, 1.48, -1.5);
+    detailsPanel.rotation.y = -0.22;
+    detailsPanel.scale.setScalar(0.001);
+    detailsPanel.visible = false;
+    const detailsSurface = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.82, 0.512),
+      new THREE.MeshBasicMaterial({ map: detailsTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    detailsPanel.add(detailsSurface);
+    scene.add(detailsPanel);
+    let detailsTarget = 0;
+    let selectedClusterIndex = -1;
+
+    function clusterStatus(cluster) {
+      if (cluster.hasActiveCase) return { label: 'ACTIVE MAINTENANCE CASE', color: '#67e8f9' };
+      if (cluster.hasAog) return { label: 'AOG REPORTED', color: '#fb7185' };
+      if (cluster.hasVeryHighTime) return { label: '12K+ REPORTED AFTT', color: '#f87171' };
+      if (cluster.hasHighTime) return { label: '8K+ REPORTED AFTT', color: '#fbbf24' };
+      return { label: 'NO SELECTED TRIAGE FLAG', color: '#34d399' };
+    }
+
+    function drawLocationDetails(cluster) {
+      const context = detailsCanvas.getContext('2d');
+      const operational = clusterStatus(cluster);
+      context.clearRect(0, 0, detailsCanvas.width, detailsCanvas.height);
+      context.fillStyle = 'rgba(7, 17, 31, 0.97)';
+      context.fillRect(0, 0, detailsCanvas.width, detailsCanvas.height);
+      context.strokeStyle = '#22d3ee';
+      context.lineWidth = 5;
+      context.strokeRect(3, 3, detailsCanvas.width - 6, detailsCanvas.height - 6);
+
+      context.fillStyle = '#67e8f9';
+      context.font = '600 34px ui-monospace, monospace';
+      context.fillText('FLEET LOCATION', 54, 72);
+      context.fillStyle = '#f4fbff';
+      context.font = '700 92px system-ui, sans-serif';
+      context.fillText(String(cluster.icao || 'UNKNOWN'), 52, 176);
+
+      const place = [cluster.city, cluster.country].filter(Boolean).join(', ') || 'Location metadata unavailable';
+      context.fillStyle = '#a9bfd2';
+      context.font = '38px system-ui, sans-serif';
+      context.fillText(place.slice(0, 46), 56, 238);
+
+      context.fillStyle = '#e8f4ff';
+      context.font = '700 68px system-ui, sans-serif';
+      context.fillText(Number(cluster.count || 0).toLocaleString(), 56, 360);
+      context.fillStyle = '#8fa8bc';
+      context.font = '34px system-ui, sans-serif';
+      context.fillText('AIRCRAFT AT THIS LOCATION', 230, 350);
+
+      context.fillStyle = operational.color;
+      context.fillRect(56, 425, 14, 80);
+      context.font = '600 36px ui-monospace, monospace';
+      context.fillText(operational.label, 96, 478);
+      context.fillStyle = '#6f899d';
+      context.font = '28px system-ui, sans-serif';
+      context.fillText('Select another fleet marker to update this card.', 56, 574);
+      detailsTexture.needsUpdate = true;
+    }
+
+    function openLocationDetails(cluster, index) {
+      if (selectedClusterIndex >= 0) {
+        markers.setColorAt(selectedClusterIndex, color.setHex(markerColor(fleet.clusters[selectedClusterIndex])));
+      }
+      selectedClusterIndex = index;
+      markers.setColorAt(index, color.setHex(0xffffff));
+      if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
+      drawLocationDetails(cluster);
+      detailsPanel.visible = true;
+      detailsTarget = 1;
+    }
+
+    function updateDetailsPresentation(delta) {
+      const blend = 1 - Math.exp(-12 * Math.max(0, delta));
+      const nextScale = THREE.MathUtils.lerp(detailsPanel.scale.x, detailsTarget, blend);
+      detailsPanel.scale.setScalar(Math.max(0.001, nextScale));
+      if (detailsTarget === 0 && nextScale < 0.012) detailsPanel.visible = false;
+    }
+
     const xrRaycaster = new THREE.Raycaster();
     const xrHands = [];
     const fingerTargets = new Map();
@@ -137,9 +223,14 @@
           icao: cluster.icao,
           city: cluster.city || '',
           country: cluster.country || '',
-          count: Number(cluster.count) || 0
+          count: Number(cluster.count) || 0,
+          hasActiveCase: Boolean(cluster.hasActiveCase),
+          hasAog: Boolean(cluster.hasAog),
+          hasVeryHighTime: Boolean(cluster.hasVeryHighTime),
+          hasHighTime: Boolean(cluster.hasHighTime)
         }
       };
+      openLocationDetails(cluster, index);
       window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail }));
       localStorage.setItem('mxg_globe_xr_selection', JSON.stringify(detail.target));
       status.textContent = `${detail.target.icao} · ${detail.target.count.toLocaleString()} aircraft · ${input}`;
@@ -205,15 +296,19 @@
       : 'No cached fleet data. Return to the dashboard and load Fleet Context first.';
 
     renderer.xr.addEventListener('sessionstart', () => {
+      detailsTarget = 0;
       status.textContent = `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
     });
     renderer.xr.addEventListener('sessionend', () => {
+      detailsTarget = 0;
       status.textContent = 'VR session ended';
     });
 
     const clock = new THREE.Clock();
     renderer.setAnimationLoop((time) => {
-      globeGroup.rotation.y += clock.getDelta() * 0.035;
+      const delta = clock.getDelta();
+      globeGroup.rotation.y += delta * 0.035;
+      updateDetailsPresentation(delta);
       updateFingerCollisions(time);
       renderer.render(scene, camera);
     });
