@@ -28,13 +28,13 @@ WIP limit: **one implementation item**. A new item does not start until the acti
 
 ### NOW
 
-- [~] **REL-104 / REL-106** Validate, publish the source, deploy the static application shell, and run the live smoke gate.
+- [~] **REL-106 / UI-103** Deploy the authenticated Rust application/MCP backend, configure its sources, and complete the missing case-scoped acceptance surfaces.
 
 ### NEXT
 
-1. **REL-104 / REL-106** Finish the source/deployment gate without exposing server credentials.
-2. **UI-108 through UI-109** Perform final accessibility, visual, device, and interaction testing on the deployed shell.
-3. **REL-101 through REL-108** Complete observability, evaluations, backend deployment, rollback, and pilot freeze.
+1. **REL-106 / UI-103** Mount the authenticated backend and expose every pilot capability through a case-scoped frontend flow or an honest unavailable state.
+2. **UI-108 through UI-109** Perform final accessibility, visual, device, and interaction testing on the deployed full stack.
+3. **REL-101 through REL-108** Complete observability, evaluations, rollback, and pilot freeze.
 
 ### EXTERNAL VERIFICATION QUEUE
 
@@ -190,11 +190,10 @@ Exit gate: the pilot is observable, reversible, evidence-backed, and operational
 
 ## Current work order
 
-1. Complete the GitHub Pages source/deploy smoke gate for the static application shell (`REL-104` / `REL-106`).
-2. Deploy the authenticated Rust application/MCP service with Postgres and secret-backed adapters; until then new operational controls must fail closed.
-3. Complete automated degraded-source/response fixtures and `UI-103`, `UI-104`, and `UI-108` against deployed adapter states.
-4. Run final browser/headset interaction verification (`UI-109`).
-5. Resolve the 46 quarantined diagram lineage keys and run the 162-manual backfill as a separate, reversible data migration.
+1. Deploy the authenticated Rust application/MCP service with Postgres and secret-backed adapters; until then new operational controls must fail closed.
+2. Add case-scoped acceptance surfaces for parts, typed MRO, weather, scheduling, manual diagrams/currency, supersession, approval, closure, and derived work artifacts.
+3. Complete automated degraded-source/response fixtures and `UI-104`, `UI-108`, and `UI-109` against the deployed full stack.
+4. Resolve the 46 quarantined diagram lineage keys and run the 162-manual backfill as a separate, reversible data migration.
 
 ## Implementation rail
 
