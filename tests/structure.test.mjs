@@ -13,6 +13,7 @@ const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
+const xrControl = await readFile(new URL('../3d-viewer/xr-control.html', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 
 function matches(pattern, text = dashboard) {
@@ -255,6 +256,15 @@ test('VR entry permits only one in-flight immersive session request', async () =
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
     globalThis.window = originalWindow;
   }
+});
+
+test('standalone XR control isolates Three.js headset rendering from the application viewer', () => {
+  assert.match(xrControl, /VRButton\.createButton\(renderer\)/);
+  assert.match(xrControl, /renderer\.xr\.enabled = true/);
+  assert.match(xrControl, /renderer\.setAnimationLoop/);
+  assert.match(xrControl, /new THREE\.BoxGeometry\(0\.5, 0\.5, 0\.5\)/);
+  assert.match(xrControl, /sessionstart/);
+  assert.doesNotMatch(xrControl, /iframe|GLTFLoader|EffectComposer|OrbitControls|models\.json|application-client/);
 });
 
 test('compatibility-source cards escape text and avoid external identifiers in inline handlers', () => {
