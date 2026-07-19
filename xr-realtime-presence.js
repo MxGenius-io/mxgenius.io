@@ -54,10 +54,9 @@ export class XRRealtimePresence {
     this.audioContext = null;
     this.analysers = [];
     this.audioSamples = new Uint8Array(128);
-    this.anchorPosition = new THREE.Vector3();
-    this.anchorQuaternion = new THREE.Quaternion();
     this.cameraPosition = new THREE.Vector3();
-    this.offset = new THREE.Vector3(0.12, 0.08, -0.12);
+    this.cameraQuaternion = new THREE.Quaternion();
+    this.dockOffset = new THREE.Vector3(-0.32, -0.12, -0.65);
     this.localPoint = new THREE.Vector3();
 
     this.group = new THREE.Group();
@@ -136,7 +135,7 @@ export class XRRealtimePresence {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const material = new THREE.PointsMaterial({
-      size: 0.012,
+      size: 0.0012,
       transparent: true,
       opacity: 0.9,
       vertexColors: true,
@@ -177,7 +176,7 @@ export class XRRealtimePresence {
   setPinned(pinned, input = 'xr') {
     this.pinned = Boolean(pinned);
     this.pinTarget.material.color.setHex(this.pinned ? 0xfbbf24 : 0x94a3b8);
-    this.toolText = this.pinned ? 'Voice workspace pinned in place' : 'Voice workspace attached to right wrist';
+    this.toolText = this.pinned ? 'Voice workspace pinned in place' : 'Voice workspace returned to floating dock';
     this.onAction('realtime-pin', input, { pinned: this.pinned });
     this.drawPanel();
   }
@@ -399,7 +398,7 @@ export class XRRealtimePresence {
     ctx.fillText(cleanText(this.state, 'disconnected').toUpperCase(), 46, 108);
     ctx.fillStyle = this.pinned ? '#fbbf24' : '#94a3b8';
     ctx.font = '700 21px ui-monospace, monospace';
-    ctx.fillText(this.pinned ? 'PINNED' : 'RIGHT WRIST', 790, 106);
+    ctx.fillText(this.pinned ? 'PINNED' : 'FLOATING', 790, 106);
     if (this.toolText) {
       ctx.fillStyle = '#9cb5c9';
       ctx.font = '24px system-ui, sans-serif';
@@ -426,12 +425,12 @@ export class XRRealtimePresence {
     this.texture.needsUpdate = true;
   }
 
-  update(delta, time, { anchor = null, camera = null } = {}) {
+  update(delta, time, { camera = null } = {}) {
     if (!this.presenting) return;
-    if (!this.pinned && anchor?.visible) {
-      anchor.getWorldPosition(this.anchorPosition);
-      anchor.getWorldQuaternion(this.anchorQuaternion);
-      const desired = this.offset.clone().applyQuaternion(this.anchorQuaternion).add(this.anchorPosition);
+    if (!this.pinned && camera) {
+      camera.getWorldPosition(this.cameraPosition);
+      camera.getWorldQuaternion(this.cameraQuaternion);
+      const desired = this.dockOffset.clone().applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
       this.group.position.lerp(desired, 1 - Math.exp(-delta * 14));
     }
     if (camera) {
@@ -450,7 +449,7 @@ export class XRRealtimePresence {
     position.needsUpdate = true;
     this.orb.rotation.y += delta * (0.28 + level * 1.8);
     this.orb.rotation.x = Math.sin(time * 0.0007) * 0.16;
-    this.orb.material.size = 0.011 + level * 0.009;
+    this.orb.material.size = 0.0011 + level * 0.0009;
     this.ring.rotation.z -= delta * (0.35 + level * 2);
     this.ring.material.opacity = 0.35 + level * 0.55;
     const panelScale = THREE.MathUtils.lerp(this.panel.scale.x, this.panelTarget, 1 - Math.exp(-delta * 11));

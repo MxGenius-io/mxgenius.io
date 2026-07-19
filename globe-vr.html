@@ -36,7 +36,7 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=1';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=2';
 
     const status = document.getElementById('fleetStatus');
     let fleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
@@ -167,8 +167,6 @@
     let imageGridGeneration = 0;
     let leftHand = null;
     let leftController = null;
-    let rightHand = null;
-    let rightController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
     const panelWorldQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.22, 0));
     const panelCameraPosition = new THREE.Vector3();
@@ -619,7 +617,6 @@
         controller.userData.handedness = event.data?.handedness || '';
         grip.userData.handedness = controller.userData.handedness;
         if (controller.userData.handedness === 'left') leftController = grip;
-        if (controller.userData.handedness === 'right') rightController = grip;
       });
       controller.addEventListener('select', () => {
         xrRaycaster.setFromXRController(controller);
@@ -652,7 +649,6 @@
       hand.addEventListener('connected', (event) => {
         hand.userData.handedness = event.data?.handedness || '';
         if (hand.userData.handedness === 'left') leftHand = hand;
-        if (hand.userData.handedness === 'right') rightHand = hand;
       });
       xrHands.push(hand);
       scene.add(hand);
@@ -807,9 +803,7 @@
       updateRotationButtonPosition();
       updateDetailsPresentation(delta);
       updateFingerCollisions(time);
-      const rightWrist = rightHand?.joints?.wrist;
       xrVoice.update(delta, time, {
-        anchor: rightWrist?.visible ? rightWrist : rightController,
         camera
       });
       renderer.render(scene, camera);

@@ -979,7 +979,7 @@
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRMediaPanel } from './xr-media-panel.js';
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=1';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=2';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -2395,11 +2395,7 @@
                 });
             }
             updateXRFingerInteractions(time);
-            const rightHand = xrHands.find((hand) => hand.userData.handedness === 'right');
-            const rightWrist = rightHand?.joints?.wrist;
-            const rightController = xrControllers.find((controller) => controller.userData.handedness === 'right');
             xrVoice?.update(delta, time, {
-                anchor: rightWrist?.visible ? rightWrist : rightController,
                 camera
             });
             

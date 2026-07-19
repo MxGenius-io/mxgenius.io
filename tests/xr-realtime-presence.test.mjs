@@ -10,13 +10,14 @@ test('XR voice presence is a shared point cloud with transcript and pin controls
   assert.match(presence, /new THREE\.Points\(/);
   assert.match(presence, /new THREE\.CanvasTexture\(/);
   assert.match(presence, /toggle-pin/);
-  assert.match(presence, /RIGHT WRIST/);
+  assert.match(presence, /FLOATING/);
+  assert.match(presence, /size: 0\.0012/);
   assert.match(presence, /requires_human_approval/);
 });
 
-test('fleet globe mounts the shared voice presence on the right XR input', () => {
+test('fleet globe mounts the shared voice presence as an accessible floating control', () => {
   assert.match(globe, /XRRealtimePresence/);
-  assert.match(globe, /rightHand\?\.joints\?\.wrist/);
+  assert.doesNotMatch(globe, /anchor: rightWrist/);
   assert.match(globe, /xrVoice\.handleObject/);
   assert.match(globe, /xrVoice\.setPresenting\(true\)/);
 });
@@ -24,6 +25,6 @@ test('fleet globe mounts the shared voice presence on the right XR input', () =>
 test('3D viewer mounts the same voice presence and forwards active case context', () => {
   assert.match(viewer, /XRRealtimePresence/);
   assert.match(viewer, /viewerContext\?\.caseId/);
-  assert.match(viewer, /hand\.userData\.handedness === 'right'/);
+  assert.doesNotMatch(viewer, /anchor: rightWrist/);
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
 });
