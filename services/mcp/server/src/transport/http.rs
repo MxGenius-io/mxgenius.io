@@ -66,7 +66,7 @@ pub fn router_with_health_and_manual(
 ) -> Router {
     let realtime_client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(90))
         .build()
         .expect("valid Realtime HTTP client configuration");
     let confirmation_issuer = match &health {
