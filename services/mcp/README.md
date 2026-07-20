@@ -74,7 +74,7 @@ MXGENIUS_EMBEDDINGS_API_KEY        # or OPENAI_API_KEY
 MXGENIUS_EMBEDDINGS_MODEL          # optional; default text-embedding-3-small
 MXGENIUS_EMBEDDINGS_AUTH           # optional; bearer or api-key
 MXGENIUS_MANUAL_ASSET_ORIGIN       # private blob origin used by the image proxy
-MXGENIUS_MANUAL_ASSET_SAS          # server-side, read-only SAS; never sent to browsers
+MXGENIUS_MANUAL_ASSET_SAS          # server-side read-only SAS; `%26` separators are accepted
 MXGENIUS_JETNET_API_TOKEN          # server-side JetNet API token
 MXGENIUS_JETNET_BEARER_TOKEN       # server-side JetNet bearer token
 MXGENIUS_JETNET_BASE_URL           # optional; JetNet customer API default

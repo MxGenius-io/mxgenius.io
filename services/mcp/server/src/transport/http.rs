@@ -192,7 +192,7 @@ async fn manual_asset(
         );
     }
     let sas = match std::env::var("MXGENIUS_MANUAL_ASSET_SAS") {
-        Ok(value) if !value.trim().is_empty() => value,
+        Ok(value) if !value.trim().is_empty() => value.replace("%26", "&"),
         _ => {
             return realtime_error(
                 StatusCode::SERVICE_UNAVAILABLE,
