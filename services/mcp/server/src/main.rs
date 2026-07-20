@@ -60,17 +60,20 @@ async fn main() -> anyhow::Result<()> {
             Some(pool) => Arc::new(PostgresCaseService::new(pool.clone())),
             None => Arc::new(InMemoryCaseService::new((*in_memory_evidence).clone())),
         };
+    let manual: Arc<dyn ManualCorpusAdapter> = if insecure_local && !pilot {
+        Arc::new(NotConfiguredManualAdapter)
+    } else {
+        match mxgenius_mcp::adapters::manual::AzureManualCorpusAdapter::from_env() {
+            Ok(adapter) => Arc::new(adapter),
+            Err(error) => {
+                tracing::warn!(target: "mxgenius.mcp", %error, "manual corpus adapter is not configured");
+                Arc::new(NotConfiguredManualAdapter)
+            }
+        }
+    };
     let registry = if insecure_local && !pilot {
         default_registry(case_service, evidence_service)
     } else {
-        let manual: Arc<dyn ManualCorpusAdapter> =
-            match mxgenius_mcp::adapters::manual::AzureManualCorpusAdapter::from_env() {
-                Ok(adapter) => Arc::new(adapter),
-                Err(error) => {
-                    tracing::warn!(target: "mxgenius.mcp", %error, "manual corpus adapter is not configured");
-                    Arc::new(NotConfiguredManualAdapter)
-                }
-            };
         let jetnet: Arc<dyn JetNetAdapter> =
             match mxgenius_mcp::adapters::aircraft::JetNetHttpAdapter::from_env() {
                 Ok(adapter) => Arc::new(adapter),
@@ -100,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
             case_service,
             evidence_service,
             RegistryAdapters {
-                manual,
+                manual: manual.clone(),
                 jetnet,
                 aircraft_catalog,
                 faa_ad,
@@ -137,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
         let health = production_pool
             .map(mxgenius_mcp::transport::http::HealthState::Postgres)
             .unwrap_or(mxgenius_mcp::transport::http::HealthState::Local);
-        mxgenius_mcp::transport::http::serve(addr, dispatcher, health).await
+        mxgenius_mcp::transport::http::serve(addr, dispatcher, health, manual).await
     }
 }
 

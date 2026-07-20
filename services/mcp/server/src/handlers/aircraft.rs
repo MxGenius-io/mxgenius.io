@@ -276,6 +276,7 @@ fn aircraft_profile_evidence(profile: &CanonicalAircraft, source_name: &str) -> 
             "configured_customer_account".into()
         }),
         content_hash,
+        retrieval_score: None,
         assets: vec![],
         content,
     }

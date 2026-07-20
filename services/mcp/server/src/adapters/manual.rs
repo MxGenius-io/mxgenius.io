@@ -136,8 +136,8 @@ impl ManualCorpusAdapter for AzureManualCorpusAdapter {
             ));
         }
         let vector = self.embed(text).await?;
-        let limit = query.limit.unwrap_or(8).clamp(1, 25);
-        let candidate_limit = (limit * 3).min(75);
+        let limit = query.limit.unwrap_or(8).clamp(1, 33);
+        let candidate_limit = (limit * 3).min(99);
         let url = format!(
             "{}/indexes/{}/docs/search?api-version=2023-11-01",
             self.search_endpoint, self.index_name
@@ -198,6 +198,8 @@ struct SearchResponse {
 
 #[derive(Debug, Deserialize)]
 struct SearchHit {
+    #[serde(rename = "@search.score")]
+    score: Option<f32>,
     id: String,
     document_id: String,
     content: String,
@@ -255,6 +257,7 @@ fn evidence_from_hit(index_name: &str, hit: SearchHit) -> Evidence {
         content_hash: hit
             .content_hash
             .unwrap_or_else(|| format!("sha256:{}", hex::encode(hash))),
+        retrieval_score: hit.score,
         assets,
         content: hit.content,
     }
@@ -300,6 +303,7 @@ impl ManualCorpusAdapter for FixtureManualCorpusAdapter {
                 let mut evidence = evidence_from_hit(
                     "fixture",
                     SearchHit {
+                        score: Some(0.72),
                         id: item.section,
                         document_id: item.document_id,
                         content: item.text,

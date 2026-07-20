@@ -128,10 +128,10 @@ test('maintenance case workspace is mounted through the canonical client boundar
 
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
-  const clientIndex = dashboard.indexOf('<script src="application-client.js?v=5"></script>');
+  const clientIndex = dashboard.search(/<script src="application-client\.js\?v=\d+"><\/script>/);
   const realtimeIndex = dashboard.indexOf('<script src="realtime-client.js"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=11"></script>');
-  const productionUiIndex = dashboard.indexOf('<link rel="stylesheet" href="production-ui.css?v=4">');
+  const appIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
+  const productionUiIndex = dashboard.search(/<link rel="stylesheet" href="production-ui\.css\?v=\d+">/);
 
   assert.ok(cacheIndex >= 0, 'cache.js should be loaded');
   assert.ok(clientIndex > cacheIndex, 'application-client.js should load after cache.js');
@@ -298,7 +298,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
-  const applicationIndex = dashboard.indexOf('<script src="app.js?v=11"></script>');
+  const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=1/);
   assert.match(dashboard, /id="onboardingRoot"/);

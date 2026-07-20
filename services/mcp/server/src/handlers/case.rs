@@ -366,6 +366,7 @@ impl Tool for MaintenanceCaseBuildContextTool {
                 revision: None,
                 license_scope: Some("sanitized_fixture".into()),
                 content_hash: format!("sha256:{}", hex::encode(hash)),
+                retrieval_score: None,
                 assets: vec![],
                 content: include_str!("../../../fixtures/faa/ads.json").into(),
             });

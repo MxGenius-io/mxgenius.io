@@ -326,6 +326,7 @@ fn regulatory_evidence(
         revision: None,
         license_scope: Some("faa_drs_api_key".into()),
         content_hash,
+        retrieval_score: None,
         assets: vec![],
         content,
     }

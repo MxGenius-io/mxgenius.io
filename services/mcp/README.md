@@ -73,6 +73,8 @@ MXGENIUS_EMBEDDINGS_ENDPOINT       # optional; default OpenAI /v1/embeddings
 MXGENIUS_EMBEDDINGS_API_KEY        # or OPENAI_API_KEY
 MXGENIUS_EMBEDDINGS_MODEL          # optional; default text-embedding-3-small
 MXGENIUS_EMBEDDINGS_AUTH           # optional; bearer or api-key
+MXGENIUS_MANUAL_ASSET_ORIGIN       # private blob origin used by the image proxy
+MXGENIUS_MANUAL_ASSET_SAS          # server-side, read-only SAS; never sent to browsers
 MXGENIUS_JETNET_API_TOKEN          # server-side JetNet API token
 MXGENIUS_JETNET_BEARER_TOKEN       # server-side JetNet bearer token
 MXGENIUS_JETNET_BASE_URL           # optional; JetNet customer API default
@@ -91,7 +93,7 @@ Production startup:
 4. resolves organization membership and role from Postgres;
 5. validates and atomically consumes signed confirmation grants;
 6. mounts Postgres case and evidence adapters;
-7. mounts the authoritative manual corpus only when its Search filter and embedding provider are configured;
+7. mounts the authoritative manual corpus only when its Search filter and embedding provider are configured, and exposes verified linked images through the authenticated `/manual-assets` proxy when private asset access is configured;
 8. mounts JetNet through a tenant-scoped canonical aircraft catalog when its credentials are present;
 9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable.
 

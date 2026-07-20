@@ -91,6 +91,10 @@ pub struct Evidence {
     pub revision: Option<String>,
     pub license_scope: Option<String>,
     pub content_hash: String,
+    /// Provider-native semantic retrieval score. This ranks retrieved source
+    /// material; it is not the probability that a maintenance conclusion is correct.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieval_score: Option<f32>,
     #[serde(default)]
     pub assets: Vec<EvidenceAsset>,
     /// Hash input. Computed by the source adapter before storage.

@@ -240,6 +240,13 @@ const MXApplicationClient = (() => {
     return response.json();
   }
 
+  function manualAssetUrl(reference) {
+    if (typeof reference !== 'string' || !reference.startsWith('azure-blob://documents/manual-assets/legacy-rag/')) {
+      return '';
+    }
+    return `${MCP_BASE}/manual-assets?reference=${encodeURIComponent(reference)}`;
+  }
+
   async function mcpRequest(method, params = {}, options = {}) {
     const id = options.id ?? `mxg-web-${Date.now()}-${++rpcSequence}`;
     const headers = {
@@ -409,6 +416,9 @@ const MXApplicationClient = (() => {
     }),
     compliance: Object.freeze({
       applicableAds
+    }),
+    evidence: Object.freeze({
+      manualAssetUrl
     }),
     realtime: Object.freeze({
       exchangeSdp: exchangeRealtimeSdp

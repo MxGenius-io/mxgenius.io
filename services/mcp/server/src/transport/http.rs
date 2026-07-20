@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::body::Bytes;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -20,6 +20,10 @@ use tower_http::trace::TraceLayer;
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
+use mxgenius_shared::adapters::manual::{
+    ManualCorpusAdapter, ManualQuery, NotConfiguredManualAdapter,
+};
+use mxgenius_shared::domain::evidence::{Evidence, EvidenceAssetAvailability};
 use mxgenius_shared::domain::ids::{CorrelationId, OrganizationId};
 
 const PROTOCOL_VERSION: &str = "2025-11-25";
@@ -34,6 +38,7 @@ struct AppState {
     health: HealthState,
     realtime_client: reqwest::Client,
     confirmation_issuer: Option<Arc<PostgresConfirmationGrantIssuer>>,
+    manual: Arc<dyn ManualCorpusAdapter>,
 }
 
 #[derive(Clone)]
@@ -43,10 +48,22 @@ pub enum HealthState {
 }
 
 pub fn router(dispatcher: Dispatcher) -> Router {
-    router_with_health(dispatcher, HealthState::Local)
+    router_with_health_and_manual(
+        dispatcher,
+        HealthState::Local,
+        Arc::new(NotConfiguredManualAdapter),
+    )
 }
 
 pub fn router_with_health(dispatcher: Dispatcher, health: HealthState) -> Router {
+    router_with_health_and_manual(dispatcher, health, Arc::new(NotConfiguredManualAdapter))
+}
+
+pub fn router_with_health_and_manual(
+    dispatcher: Dispatcher,
+    health: HealthState,
+    manual: Arc<dyn ManualCorpusAdapter>,
+) -> Router {
     let realtime_client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(20))
@@ -74,11 +91,13 @@ pub fn router_with_health(dispatcher: Dispatcher, health: HealthState) -> Router
         health,
         realtime_client,
         confirmation_issuer,
+        manual,
     };
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/adapterz", get(adapterz))
+        .route("/manual-assets", get(manual_asset))
         .route("/chat", post(chat))
         .route("/confirmations", post(issue_confirmation))
         .route("/orchestration/cases/first-slice", post(first_case_slice))
@@ -120,15 +139,120 @@ pub async fn serve(
     addr: SocketAddr,
     dispatcher: Dispatcher,
     health: HealthState,
+    manual: Arc<dyn ManualCorpusAdapter>,
 ) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(target: "mxgenius.mcp.http", "listening on http://{addr}/mcp");
-    axum::serve(listener, router_with_health(dispatcher, health)).await?;
+    axum::serve(
+        listener,
+        router_with_health_and_manual(dispatcher, health, manual),
+    )
+    .await?;
     Ok(())
 }
 
 async fn healthz() -> &'static str {
     "ok"
+}
+
+#[derive(Debug, Deserialize)]
+struct ManualAssetQuery {
+    reference: String,
+}
+
+async fn manual_asset(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(input): Query<ManualAssetQuery>,
+) -> Response {
+    if !origin_allowed(&headers) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        );
+    }
+    let Some(path) = input.reference.strip_prefix("azure-blob://") else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_ASSET_REFERENCE",
+            "manual asset reference is invalid",
+        );
+    };
+    if !path.starts_with("documents/manual-assets/legacy-rag/")
+        || path.contains("..")
+        || path.contains('\\')
+        || path.contains('?')
+        || path.contains('#')
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_ASSET_REFERENCE",
+            "manual asset is outside the controlled evidence collection",
+        );
+    }
+    let sas = match std::env::var("MXGENIUS_MANUAL_ASSET_SAS") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "MANUAL_ASSETS_NOT_CONFIGURED",
+                "manual image delivery is not configured",
+            )
+        }
+    };
+    let origin = std::env::var("MXGENIUS_MANUAL_ASSET_ORIGIN")
+        .unwrap_or_else(|_| "https://mxgstorage50106.blob.core.windows.net".into());
+    let url = format!(
+        "{}/{}?{}",
+        origin.trim_end_matches('/'),
+        path,
+        sas.trim_start_matches('?')
+    );
+    let upstream = match state.realtime_client.get(url).send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.manual_asset", %error, "manual asset fetch failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "MANUAL_ASSET_UNAVAILABLE",
+                "manual image could not be retrieved",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "MANUAL_ASSET_UNAVAILABLE",
+            "manual image could not be retrieved",
+        );
+    }
+    let content_type = upstream
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.starts_with("image/"))
+        .unwrap_or("application/octet-stream")
+        .to_owned();
+    let body = match upstream.bytes().await {
+        Ok(value) if value.len() <= 20 * 1024 * 1024 => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "MANUAL_ASSET_INVALID",
+                "manual image exceeded the delivery limit",
+            )
+        }
+    };
+    let mut response_headers = HeaderMap::new();
+    if let Ok(value) = HeaderValue::from_str(&content_type) {
+        response_headers.insert(header::CONTENT_TYPE, value);
+    }
+    response_headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=3600"),
+    );
+    (StatusCode::OK, response_headers, body).into_response()
 }
 
 async fn readyz(State(state): State<AppState>) -> Response {
@@ -329,6 +453,126 @@ struct ChatRequest {
     case_context: Option<Value>,
 }
 
+fn maintenance_advisory_schema() -> Value {
+    let cited_text = || {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "text": {"type": "string"},
+                "citations": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["text", "citations"]
+        })
+    };
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "response_kind": {"type": "string", "enum": ["maintenance_advisory", "conversation"]},
+            "conversation_answer": {"type": "string"},
+            "advisory_title": {"type": "string"},
+            "synthesis": {"type": "string"},
+            "verify_first": {"type": "array", "items": cited_text()},
+            "leading_historical_patterns": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "pattern": {"type": "string"},
+                        "evidence_strength_percent": {"type": "integer", "minimum": 0, "maximum": 100},
+                        "citations": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["pattern", "evidence_strength_percent", "citations"]
+                }
+            },
+            "what_worked": {"type": "array", "items": cited_text()},
+            "labor_by_action": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "action": {"type": "string"},
+                        "estimated_hours": {"type": "string"},
+                        "basis": {"type": "string"},
+                        "citations": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["action", "estimated_hours", "basis", "citations"]
+                }
+            },
+            "parts_used_in_records": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "part_number": {"type": "string"},
+                        "description": {"type": "string"},
+                        "citations": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["part_number", "description", "citations"]
+                }
+            },
+            "limitations": {"type": "array", "items": {"type": "string"}},
+            "follow_up_question": {"type": "string"}
+        },
+        "required": [
+            "response_kind", "conversation_answer", "advisory_title", "synthesis",
+            "verify_first", "leading_historical_patterns", "what_worked",
+            "labor_by_action", "parts_used_in_records", "limitations", "follow_up_question"
+        ]
+    })
+}
+
+fn truncate_chars(value: &str, limit: usize) -> String {
+    let mut chars = value.chars();
+    let truncated = chars.by_ref().take(limit).collect::<String>();
+    if chars.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+fn retrieval_percent(score: Option<f32>) -> Option<u8> {
+    score.map(|value| (value.clamp(0.0, 1.0) * 100.0).round() as u8)
+}
+
+fn manual_reference(evidence: &Evidence, index: usize, excerpt_limit: usize) -> Value {
+    let images = evidence
+        .assets
+        .iter()
+        .filter(|asset| asset.availability == EvidenceAssetAvailability::Available)
+        .map(|asset| {
+            json!({
+                "asset_id": asset.asset_id,
+                "kind": asset.kind,
+                "source_reference": asset.source_reference,
+                "media_type": asset.media_type,
+                "page": asset.page,
+                "caption": asset.caption,
+                "content_hash": asset.content_hash
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "citation": format!("M-{:02}", index + 1),
+        "rank": index + 1,
+        "match_percent": retrieval_percent(evidence.retrieval_score),
+        "title": evidence.title,
+        "excerpt": truncate_chars(evidence.excerpt.as_deref().unwrap_or_default(), excerpt_limit),
+        "revision": evidence.revision,
+        "effective_at": evidence.effective_at,
+        "source_reference": evidence.source_reference,
+        "content_hash": evidence.content_hash,
+        "retrieved_at": evidence.retrieved_at,
+        "license_scope": evidence.license_scope,
+        "images": images
+    })
+}
+
 async fn chat(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -437,19 +681,43 @@ async fn chat(
     } else {
         Value::Null
     };
+    let aircraft_id = authoritative_case_context
+        .pointer("/case/aircraft_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let (manual_evidence, manual_warning) = match state
+        .manual
+        .search(&ManualQuery {
+            aircraft_id,
+            ata: None,
+            text: message.to_owned(),
+            limit: Some(33),
+        })
+        .await
+    {
+        Ok(evidence) => (evidence, None),
+        Err(error) => (vec![], Some(error.to_string())),
+    };
+    let manual_model_context = manual_evidence
+        .iter()
+        .enumerate()
+        .map(|(index, evidence)| manual_reference(evidence, index, 1_200))
+        .collect::<Vec<_>>();
     let compatibility_signals = match &input.fleet_signals {
         Value::Array(items) => Value::Array(items.iter().take(50).cloned().collect()),
         _ => Value::Null,
     };
     let grounded_context = json!({
         "authoritative_case_context": authoritative_case_context,
-        "compatibility_fleet_signals": compatibility_signals
+        "compatibility_fleet_signals": compatibility_signals,
+        "authoritative_manual_records": manual_model_context,
+        "manual_retrieval_warning": manual_warning.clone()
     });
     let model =
         std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-sol".into());
     let request_body = json!({
         "model": model,
-        "instructions": "You are the MXGenius aviation maintenance copilot. Base aircraft- and case-specific claims only on the supplied authoritative context. Clearly distinguish compatibility fleet signals from authoritative case evidence. Cite available document titles or evidence identifiers inline. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred. Be concise and operationally useful.",
+        "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
         "input": [{
             "role": "user",
             "content": [{
@@ -457,8 +725,16 @@ async fn chat(
                 "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
             }]
         }],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "mxgenius_maintenance_advisory",
+                "strict": true,
+                "schema": maintenance_advisory_schema()
+            }
+        },
         "reasoning": {"effort": "low"},
-        "max_output_tokens": 1600,
+        "max_output_tokens": 2600,
         "store": false
     });
     let upstream = match state
@@ -516,11 +792,40 @@ async fn chat(
             "OpenAI service returned no answer",
         );
     }
+    let advisory: Value = match serde_json::from_str(&answer) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.openai", %error, correlation_id = %context.correlation_id, "Structured OpenAI response did not match JSON encoding");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "INVALID_STRUCTURED_RESPONSE",
+                "OpenAI service returned an invalid structured response",
+            );
+        }
+    };
+    let include_references =
+        advisory.get("response_kind").and_then(Value::as_str) == Some("maintenance_advisory");
+    let manual_records = if include_references {
+        manual_evidence
+            .iter()
+            .enumerate()
+            .map(|(index, evidence)| manual_reference(evidence, index, 1_600))
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
+    let manual_record_count = manual_records.len();
     (
         StatusCode::OK,
         Json(json!({
             "response": {
-                "answer": answer,
+                "advisory": advisory,
+                "manual_records": manual_records,
+                "retrieval": {
+                    "requested": 33,
+                    "returned": manual_record_count,
+                    "warning": manual_warning
+                },
                 "model": payload.get("model"),
                 "response_id": payload.get("id"),
                 "usage": payload.get("usage"),
@@ -1036,4 +1341,37 @@ fn origin_allowed(headers: &HeaderMap) -> bool {
         .split(',')
         .map(str::trim)
         .any(|allowed| allowed == origin)
+}
+
+#[cfg(test)]
+mod structured_advisory_tests {
+    use super::*;
+
+    #[test]
+    fn advisory_schema_is_strict_and_preserves_conversation() {
+        let schema = maintenance_advisory_schema();
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(
+            schema["properties"]["response_kind"]["enum"],
+            json!(["maintenance_advisory", "conversation"])
+        );
+        let required = schema["required"].as_array().expect("required fields");
+        assert!(required.contains(&json!("verify_first")));
+        assert!(required.contains(&json!("leading_historical_patterns")));
+        assert!(required.contains(&json!("parts_used_in_records")));
+    }
+
+    #[test]
+    fn semantic_scores_are_bounded_percentages() {
+        assert_eq!(retrieval_percent(Some(0.684)), Some(68));
+        assert_eq!(retrieval_percent(Some(1.4)), Some(100));
+        assert_eq!(retrieval_percent(Some(-0.2)), Some(0));
+        assert_eq!(retrieval_percent(None), None);
+    }
+
+    #[test]
+    fn model_context_excerpt_is_bounded_on_unicode_boundaries() {
+        let value = truncate_chars("bleed loop — verify connector", 12);
+        assert_eq!(value, "bleed loop —...");
+    }
 }

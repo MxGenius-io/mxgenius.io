@@ -914,6 +914,194 @@ Rules:
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function renderMaintenanceAdvisory(target, advisory, records = []) {
+    target.replaceChildren();
+    if (advisory?.response_kind !== 'maintenance_advisory') {
+      target.textContent = advisory?.conversation_answer || 'How can I help with the maintenance operation?';
+      return false;
+    }
+
+    const article = document.createElement('article');
+    article.className = 'mx-advisory';
+    const header = document.createElement('header');
+    header.className = 'mx-advisory__header';
+    const label = document.createElement('span');
+    label.className = 'mx-advisory__label';
+    label.textContent = 'MXGENIUS ADVISORY';
+    const title = document.createElement('h3');
+    title.textContent = advisory.advisory_title || 'Maintenance advisory';
+    const synthesis = document.createElement('p');
+    synthesis.textContent = advisory.synthesis || 'No evidence-backed synthesis was returned.';
+    header.append(label, title, synthesis);
+    article.appendChild(header);
+
+    const citationRow = (citations = []) => {
+      const row = document.createElement('span');
+      row.className = 'mx-citations';
+      citations.forEach((citation) => {
+        const pill = document.createElement('span');
+        pill.textContent = `[${citation}]`;
+        row.appendChild(pill);
+      });
+      return row;
+    };
+    const citedList = (heading, items = []) => {
+      if (!items.length) return;
+      const section = document.createElement('section');
+      const h = document.createElement('h4');
+      h.textContent = heading;
+      const list = document.createElement('ul');
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        const text = document.createElement('span');
+        text.textContent = item.text || '';
+        li.append(text, citationRow(item.citations));
+        list.appendChild(li);
+      });
+      section.append(h, list);
+      article.appendChild(section);
+    };
+
+    citedList('Verify First', advisory.verify_first);
+
+    if (advisory.leading_historical_patterns?.length) {
+      const section = document.createElement('section');
+      const h = document.createElement('h4');
+      h.textContent = 'Leading Historical Patterns';
+      section.appendChild(h);
+      advisory.leading_historical_patterns.forEach((pattern) => {
+        const card = document.createElement('div');
+        card.className = 'mx-pattern';
+        const score = Math.max(0, Math.min(100, Number(pattern.evidence_strength_percent) || 0));
+        const meter = document.createElement('span');
+        meter.className = 'mx-pattern__score';
+        meter.textContent = `${score}% evidence strength`;
+        meter.style.setProperty('--score', `${score}%`);
+        const text = document.createElement('p');
+        text.textContent = pattern.pattern || '';
+        card.append(meter, text, citationRow(pattern.citations));
+        section.appendChild(card);
+      });
+      article.appendChild(section);
+    }
+
+    citedList('What Worked in Retrieved Records', advisory.what_worked);
+
+    if (advisory.labor_by_action?.length) {
+      const section = document.createElement('section');
+      const h = document.createElement('h4');
+      h.textContent = 'Labor by Action';
+      const table = document.createElement('div');
+      table.className = 'mx-advisory-table';
+      advisory.labor_by_action.forEach((item) => {
+        const row = document.createElement('div');
+        const action = document.createElement('strong');
+        action.textContent = item.action || '';
+        const hours = document.createElement('span');
+        hours.textContent = item.estimated_hours || 'Not established';
+        const basis = document.createElement('small');
+        basis.textContent = item.basis || '';
+        row.append(action, hours, basis, citationRow(item.citations));
+        table.appendChild(row);
+      });
+      section.append(h, table);
+      article.appendChild(section);
+    }
+
+    if (advisory.parts_used_in_records?.length) {
+      const section = document.createElement('section');
+      const h = document.createElement('h4');
+      h.textContent = 'Parts Used in Retrieved Records';
+      const list = document.createElement('ul');
+      list.className = 'mx-parts-list';
+      advisory.parts_used_in_records.forEach((part) => {
+        const li = document.createElement('li');
+        const number = document.createElement('code');
+        number.textContent = part.part_number || 'Unspecified';
+        const description = document.createElement('span');
+        description.textContent = part.description || '';
+        li.append(number, description, citationRow(part.citations));
+        list.appendChild(li);
+      });
+      section.append(h, list);
+      article.appendChild(section);
+    }
+
+    if (advisory.limitations?.length) {
+      const section = document.createElement('section');
+      section.className = 'mx-advisory__limitations';
+      const h = document.createElement('h4');
+      h.textContent = 'Limitations';
+      const list = document.createElement('ul');
+      advisory.limitations.forEach((value) => {
+        const li = document.createElement('li');
+        li.textContent = value;
+        list.appendChild(li);
+      });
+      section.append(h, list);
+      article.appendChild(section);
+    }
+
+    if (advisory.follow_up_question) {
+      const followUp = document.createElement('p');
+      followUp.className = 'mx-advisory__follow-up';
+      followUp.textContent = advisory.follow_up_question;
+      article.appendChild(followUp);
+    }
+
+    const appendix = document.createElement('details');
+    appendix.className = 'mx-manual-appendix';
+    appendix.open = records.length > 0;
+    const summary = document.createElement('summary');
+    summary.textContent = `${records.length} RETRIEVED MANUAL RECORDS`;
+    appendix.appendChild(summary);
+    records.forEach((record) => {
+      const card = document.createElement('article');
+      card.className = 'mx-manual-record';
+      const recordHeader = document.createElement('header');
+      const rank = document.createElement('span');
+      rank.textContent = record.citation ? `[${record.citation}]` : `#${record.rank}`;
+      const recordTitle = document.createElement('strong');
+      recordTitle.textContent = record.title || 'Manual excerpt';
+      const score = document.createElement('span');
+      score.className = 'mx-manual-record__score';
+      score.textContent = Number.isFinite(record.match_percent)
+        ? `${record.match_percent}% semantic match`
+        : 'ranked semantic match';
+      recordHeader.append(rank, recordTitle, score);
+      const meta = document.createElement('small');
+      meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
+        .filter(Boolean).join(' · ');
+      const excerpt = document.createElement('p');
+      excerpt.textContent = record.excerpt || 'No excerpt supplied.';
+      card.append(recordHeader, meta, excerpt);
+
+      if (record.images?.length) {
+        const grid = document.createElement('div');
+        grid.className = 'mx-manual-record__images';
+        record.images.forEach((asset) => {
+          const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
+          if (!src) return;
+          const figure = document.createElement('figure');
+          const image = document.createElement('img');
+          image.loading = 'lazy';
+          image.alt = asset.caption || `${record.title} reference image`;
+          image.src = src;
+          image.addEventListener('error', () => figure.remove());
+          const caption = document.createElement('figcaption');
+          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' · ');
+          figure.append(image, caption);
+          grid.appendChild(figure);
+        });
+        if (grid.childElementCount) card.appendChild(grid);
+      }
+      appendix.appendChild(card);
+    });
+    article.appendChild(appendix);
+    target.appendChild(article);
+    return true;
+  }
+
   // ── Fleet Data Serializer (source attributes → compatibility context) ──
   function serializeFleetContext() {
     if (!cachedFleetSignals || cachedFleetSignals.length === 0) return '';
@@ -1106,12 +1294,17 @@ Rules:
       });
       
       const rawText = await response.text();
-      let data, answerText = '';
+      let data, answerText = '', renderedStructured = false;
       try {
         const rawData = JSON.parse(rawText);
         data = rawData.response || rawData;
         // Try multiple response fields from the structured backend response
-        if (data && data.advisory) answerText = data.advisory;
+        if (data && data.advisory && typeof data.advisory === 'object') {
+          renderedStructured = renderMaintenanceAdvisory(streamTarget, data.advisory, data.manual_records || []);
+          panel.classList.toggle('advisory-open', renderedStructured);
+          if (!renderedStructured) answerText = data.advisory.conversation_answer || '';
+        }
+        else if (data && data.advisory) answerText = data.advisory;
         else if (data && data.answer) answerText = data.answer;
         else if (data && data.synthesis) {
           // Structured MXGenius response — build formatted answer
@@ -1130,7 +1323,9 @@ Rules:
         answerText = rawText;
       }
       
-      if (answerText) {
+      if (renderedStructured) {
+        // Structured advisory is already mounted as safe DOM nodes.
+      } else if (answerText) {
         streamTarget.innerHTML = formatMxResponse(answerText);
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">No response generated</span>';
