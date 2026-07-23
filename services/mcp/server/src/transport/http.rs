@@ -277,21 +277,25 @@ async fn readyz(State(state): State<AppState>) -> Response {
 
 async fn adapterz(State(state): State<AppState>) -> Response {
     match database_ready(&state.health).await {
-        Ok(mode) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "mode": mode,
-                "core": {"persistence": if mode == "local" { "in_memory" } else { "postgres" }},
-                "adapters": {
-                    "aircraft": if mode == "local" { "fixture" } else { "not_configured" },
-                    "manuals": if mode == "local" { "fixture" } else { "not_configured" },
-                    "faa": "not_configured", "weather": "not_configured",
-                    "parts": "not_configured", "mro": "not_configured",
-                    "scheduling": "not_configured", "digital_twin": "not_configured"
-                }
-            })),
-        )
-            .into_response(),
+        Ok(mode) => {
+            let manual = state.manual.source_info().await;
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "mode": mode,
+                    "core": {"persistence": if mode == "local" { "in_memory" } else { "postgres" }},
+                    "adapters": {
+                        "aircraft": if mode == "local" { "fixture" } else { "not_configured" },
+                        "manuals": manual.health,
+                        "manual_source": manual.name,
+                        "faa": "not_configured", "weather": "not_configured",
+                        "parts": "not_configured", "mro": "not_configured",
+                        "scheduling": "not_configured", "digital_twin": "not_configured"
+                    }
+                })),
+            )
+                .into_response()
+        }
         Err(message) => (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
