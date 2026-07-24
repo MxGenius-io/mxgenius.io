@@ -16,6 +16,8 @@
     const chip = document.getElementById('signedInAs');
     const name = document.getElementById('signedInAsName');
     const label = identity?.name || identity?.username || identity?.homeAccountId;
+    const gate = document.getElementById('auth-gate');
+    if (gate) gate.remove();
     if (!chip || !name || !label) return;
     name.textContent = label;
     chip.hidden = false;
