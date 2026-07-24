@@ -30,7 +30,6 @@
       auth: { clientId, authority, redirectUri, postLogoutRedirectUri: `${location.origin}/index.html` },
       cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
     });
-    await instance.initialize();
     const response = await instance.handleRedirectPromise();
     account = response?.account || instance.getActiveAccount() || instance.getAllAccounts()[0] || null;
     if (account) instance.setActiveAccount(account);
