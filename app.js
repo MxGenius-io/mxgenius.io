@@ -1190,29 +1190,6 @@ Rules:
 
   initOnDeviceLLM();
 
-  // ── Starter Prompt Suggestions ──
-  const suggestions = [
-    '🔧 GL7500 fuel system leak check',
-    '✈️ Falcon 8X APU overhaul steps'
-  ];
-  const suggestionsBar = document.createElement('div');
-  suggestionsBar.id = 'chat-suggestions';
-  suggestionsBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;';
-  suggestions.forEach(s => {
-    const pill = document.createElement('button');
-    pill.style.cssText = 'background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;border-radius:16px;padding:6px 12px;font-size:12px;cursor:pointer;transition:all 0.2s;white-space:nowrap;';
-    pill.textContent = s;
-    pill.onmouseenter = () => { pill.style.background = 'rgba(99,102,241,0.25)'; };
-    pill.onmouseleave = () => { pill.style.background = 'rgba(99,102,241,0.12)'; };
-    pill.onclick = (e) => {
-      e.stopPropagation();
-      input.value = s.replace(/^[^\s]+\s/, ''); // strip emoji
-      sendMessage();
-      suggestionsBar.remove();
-    };
-    suggestionsBar.appendChild(pill);
-  });
-  history.parentElement.insertBefore(suggestionsBar, history.nextSibling);
 
   window.openChatWith = (text) => {
     if (!panel.classList.contains('open')) {
@@ -1282,7 +1259,14 @@ Rules:
 
     // ── Cloud Inference (Azure Rust Backend) ──
     try {
+      // Refresh Entra token before every chat call
+      if (window.MXGENIUS_AUTH?.getToken) {
+        try { await window.MXGENIUS_AUTH.getToken(); } catch (_) {}
+      }
       const applicationSession = window.MXGENIUS_CONFIG?.getSession?.() || {};
+      if (!applicationSession.accessToken) {
+        throw new Error('Sign in required — please refresh the page and sign in with your Entra account.');
+      }
       const response = await MXApplicationClient.chat({
         message: text,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
@@ -1295,6 +1279,11 @@ Rules:
         organizationId: applicationSession.organizationId,
         correlationId: window.crypto?.randomUUID?.()
       });
+      
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        throw new Error(`Server returned ${response.status}: ${errBody.substring(0, 200) || response.statusText}`);
+      }
       
       const rawText = await response.text();
       let data, answerText = '', renderedStructured = false;
@@ -1331,47 +1320,12 @@ Rules:
       } else if (answerText) {
         streamTarget.innerHTML = formatMxResponse(answerText);
       } else {
-        streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">No response generated</span>';
+        streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
       }
       
     } catch (e) {
-      console.error('[MXGenius] Cloud inference:', e.message);
-      if (llamaContext && modelReady) {
-        try {
-          const { text: ragText, hits: ragHits } = await RAG.buildContextAsync(text);
-          const fleetText = /fleet|aircraft|tail|registration|aftt|aog|for.sale/i.test(text)
-            ? serializeFleetContext()
-            : '';
-          const prompt = '<|im_start|>system\n' + AOG_SYSTEM_PROMPT + fleetText + (ragText || '') +
-            '\n<|im_end|>\n<|im_start|>user\n' + text +
-            '\n<|im_end|>\n<|im_start|>assistant\n<think>\n</think>\nAnswer:\n';
-          const result = await llamaContext.completion({
-            id: 1,
-            params: {
-              prompt,
-              n_predict: 300,
-              stop: ['<|im_end|>', '</s>', '<|im_start|>', '<|end_of_sentence|>', '<|endoftext|>'],
-              temperature: 0.2,
-              repeat_penalty: 1.6,
-              top_p: 0.7
-            }
-          });
-          const answer = cleanModelOutput(result?.text || result?.content || '');
-          if (!answer) throw new Error('On-device model returned no usable response');
-          streamTarget.innerHTML = formatMxResponse(answer);
-          if (ragHits?.length) {
-            const references = document.createElement('div');
-            references.innerHTML = formatProcedureBlock(ragHits);
-            aiMsg.querySelector('.msg-bubble')?.appendChild(references);
-          }
-          updateCostCounter(Math.ceil(prompt.length / 4), result?.tokens_predicted || Math.ceil(answer.length / 4));
-        } catch (fallbackError) {
-          console.error('[MXGenius] On-device fallback:', fallbackError.message);
-          streamTarget.textContent = 'Cloud and on-device assistance are unavailable. Case and fleet tools remain usable.';
-        }
-      } else {
-        streamTarget.textContent = 'Assistance is temporarily unavailable. Case and fleet tools remain usable.';
-      }
+      console.error('[MXGenius] Cloud chat error:', e.message);
+      streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(e.message) + '</span>';
     }
     history.scrollTop = history.scrollHeight;
   }
@@ -1399,45 +1353,154 @@ Rules:
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
 
-  function setupVoiceInput() {
-    if (!micBtn) return;
-    if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia || !window.MXRealtime) {
-      micBtn.style.opacity = '0.3';
-      micBtn.disabled = true;
-      micBtn.title = 'Realtime voice is unavailable in this browser; text chat remains available';
-      setRealtimeUiState('degraded', 'Voice unavailable · use text');
+  // ── Native Speech-to-Text transcription (tap) + Realtime voice (long-press) ──
+  let speechRecognition = null;
+  let micLongPressTimer = null;
+  const MIC_LONG_PRESS_MS = 500;
+
+  function setupSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    let finalTranscript = '';
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      input.value = (finalTranscript + interim).trim();
+    };
+    recognition.onend = () => {
+      micBtn.classList.remove('pulse-mic');
+      micBtn.title = 'Tap to dictate · hold for voice';
+      input.focus();
+    };
+    recognition.onerror = (e) => {
+      if (e.error !== 'aborted') console.warn('[Speech] Recognition error:', e.error);
+      micBtn.classList.remove('pulse-mic');
+    };
+    recognition.onstart_reset = () => { finalTranscript = ''; };
+    return recognition;
+  }
+
+  function startTranscription() {
+    if (!speechRecognition) speechRecognition = setupSpeechRecognition();
+    if (!speechRecognition) {
+      // No browser support — fall through to realtime voice
+      startRealtimeVoice();
       return;
     }
+    speechRecognition.onstart_reset();
+    try {
+      speechRecognition.start();
+      micBtn.classList.add('pulse-mic');
+      micBtn.title = 'Tap to stop dictation';
+      setRealtimeUiState('listening', 'Dictating — tap mic to stop');
+    } catch (e) {
+      console.warn('[Speech] Already started or unavailable:', e.message);
+    }
+  }
 
-    realtimeSession = new MXRealtime.RealtimeSession({
-      exchangeSdp: ({ sdp, session }) => MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
-      onEvent: handleRealtimeEvent
+  function stopTranscription() {
+    if (speechRecognition) {
+      try { speechRecognition.stop(); } catch (_) {}
+    }
+    micBtn.classList.remove('pulse-mic');
+    setRealtimeUiState('disconnected', 'Voice disconnected');
+  }
+
+  async function startRealtimeVoice() {
+    const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+    if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      setRealtimeUiState('failed', 'Sign in to use Realtime voice');
+      return;
+    }
+    try {
+      realtimeApplicationSession = {
+        accessToken: session.accessToken,
+        organizationId: session.organizationId,
+        correlationId: window.crypto?.randomUUID?.()
+      };
+      await realtimeSession.connect({
+        session: realtimeApplicationSession
+      });
+    } catch (error) {
+      console.warn('[Realtime] Connection failed:', error.code || error.message);
+    }
+  }
+
+  function setupVoiceInput() {
+    if (!micBtn) return;
+
+    // Initialize realtime session if WebRTC is available
+    if (window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia && window.MXRealtime) {
+      realtimeSession = new MXRealtime.RealtimeSession({
+        exchangeSdp: ({ sdp, session }) => MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
+        onEvent: handleRealtimeEvent
+      });
+    }
+
+    // Tap = transcribe, long-press = realtime voice
+    let isLongPress = false;
+
+    micBtn.addEventListener('mousedown', () => {
+      isLongPress = false;
+      micLongPressTimer = setTimeout(() => {
+        isLongPress = true;
+        stopTranscription(); // stop any active transcription
+        if (realtimeSession) startRealtimeVoice();
+      }, MIC_LONG_PRESS_MS);
     });
 
-    micBtn.addEventListener('click', async () => {
-      if (realtimeSession.state !== 'disconnected' && realtimeSession.state !== 'failed') {
+    micBtn.addEventListener('mouseup', () => {
+      clearTimeout(micLongPressTimer);
+      if (isLongPress) return; // long-press already handled
+      // Tap: toggle transcription
+      if (micBtn.classList.contains('pulse-mic')) {
+        stopTranscription();
+      } else if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+        // Realtime is active — disconnect it
         realtimeSession.disconnect();
-        return;
-      }
-      const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
-      if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
-        setRealtimeUiState('failed', 'Sign in to use Realtime voice');
-        return;
-      }
-      try {
-        realtimeApplicationSession = {
-          accessToken: session.accessToken,
-          organizationId: session.organizationId,
-          correlationId: window.crypto?.randomUUID?.()
-        };
-        await realtimeSession.connect({
-          session: realtimeApplicationSession
-        });
-      } catch (error) {
-        console.warn('[Realtime] Connection failed:', error.code || error.message);
+      } else {
+        startTranscription();
       }
     });
-    realtimeInterruptBtn?.addEventListener('click', () => realtimeSession.interrupt());
+
+    micBtn.addEventListener('mouseleave', () => { clearTimeout(micLongPressTimer); });
+
+    // Touch support for mobile
+    micBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      isLongPress = false;
+      micLongPressTimer = setTimeout(() => {
+        isLongPress = true;
+        stopTranscription();
+        if (realtimeSession) startRealtimeVoice();
+      }, MIC_LONG_PRESS_MS);
+    }, { passive: false });
+
+    micBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      clearTimeout(micLongPressTimer);
+      if (isLongPress) return;
+      if (micBtn.classList.contains('pulse-mic')) {
+        stopTranscription();
+      } else if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+        realtimeSession.disconnect();
+      } else {
+        startTranscription();
+      }
+    });
+
+    micBtn.title = 'Tap to dictate · hold for voice';
+    realtimeInterruptBtn?.addEventListener('click', () => realtimeSession?.interrupt());
     realtimeConfirmationCancel?.addEventListener('click', declineRealtimeMutation);
     realtimeConfirmationApprove?.addEventListener('click', confirmRealtimeMutation);
   }
@@ -1657,6 +1720,46 @@ function switchTab(tabId) {
 // ═══════════════════════════════════════════════════
 
 function initSettings() {
+  // ── Account card ──
+  const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+  const acct = session.account || window.MXGENIUS_AUTH?.account?.() || null;
+  const nameEl = document.getElementById('settingsAccountName');
+  const emailEl = document.getElementById('settingsAccountEmail');
+  const orgEl = document.getElementById('settingsAccountOrg');
+  const orgIdEl = document.getElementById('settingsOrgId');
+  const avatarEl = document.getElementById('settingsAvatar');
+  const statusEl = document.getElementById('settingsSessionStatus');
+  const signOutBtn = document.getElementById('settingsSignOutBtn');
+
+  if (acct) {
+    const displayName = acct.name || acct.username || 'User';
+    if (nameEl) nameEl.textContent = displayName;
+    if (emailEl) emailEl.textContent = acct.username || '';
+    if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}…` : '';
+    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || '—';
+    if (avatarEl) {
+      const initials = displayName.split(' ').map(w => w[0]).join('').substring(0, 2);
+      avatarEl.textContent = initials;
+    }
+    if (statusEl) statusEl.textContent = session.accessToken ? 'Active · token valid' : 'Token expired';
+  } else {
+    if (nameEl) nameEl.textContent = 'Not signed in';
+    if (statusEl) statusEl.textContent = 'No session';
+  }
+
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', () => {
+      if (window.MXGENIUS_AUTH?.signOut) {
+        window.MXGENIUS_AUTH.signOut();
+      } else {
+        // Fallback: clear storage and redirect to login
+        localStorage.clear();
+        sessionStorage.clear();
+        location.replace('login.html');
+      }
+    });
+  }
+
   // Accent color picker
   const colorPicker = document.getElementById('settingsAccentColor');
   if (colorPicker) {
@@ -1791,7 +1894,7 @@ async function loadDashboard() {
 
     if (TOKEN) {
       // One-time cache bust to clear stale Gulfstream-only data
-      const cacheVersion = '2';
+      const cacheVersion = '3'; // bumped: fleet proxy redeployed 2026-07-24
       if (localStorage.getItem('mx_cacheVer') !== cacheVersion) {
         await MXCache.clearAll();
         localStorage.setItem('mx_cacheVer', cacheVersion);
@@ -2727,6 +2830,10 @@ async function showAircraftDetail(id) {
     (async () => {
       const adContainer = document.getElementById('acDetailADList');
       if (!adContainer) return;
+      // Refresh token before compliance call
+      if (window.MXGENIUS_AUTH?.getToken) {
+        try { await window.MXGENIUS_AUTH.getToken(); } catch (_) {}
+      }
       const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
       if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecureLocal && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
         adContainer.textContent = 'Sign in to retrieve regulatory evidence.';
@@ -2757,7 +2864,10 @@ async function showAircraftDetail(id) {
           return row;
         }));
       } catch (error) {
-        adContainer.textContent = `${error.code || 'COMPLIANCE_UNAVAILABLE'}: ${error.message}`;
+        const friendly = error.code === 'TENANT_MISMATCH'
+          ? 'Organization configuration pending — AD retrieval will be available once tenant enrollment completes.'
+          : error.message || 'Compliance service unavailable';
+        adContainer.textContent = friendly;
       }
     })();
   } catch (e) {
