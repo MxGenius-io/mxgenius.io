@@ -3373,7 +3373,16 @@ function setupGlobeSheet() {
       document.querySelectorAll('.texture-btn').forEach(b => b.classList.remove('active'));
       const targetBtn = e.currentTarget;
       targetBtn.classList.add('active');
-      if (globeInstance) globeInstance.globeImageUrl(targetBtn.dataset.texture);
+      const texture = targetBtn.dataset.texture;
+      if (globeInstance) {
+        if (texture === 'osm') {
+          globeInstance.globeImageUrl(null);
+          globeInstance.globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`);
+        } else {
+          globeInstance.globeTileEngineUrl(null);
+          globeInstance.globeImageUrl(texture);
+        }
+      }
     });
   });
 
