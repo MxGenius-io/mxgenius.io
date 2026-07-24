@@ -633,7 +633,6 @@ function setupNavigation() {
   document.getElementById('acSearchBtn')?.addEventListener('click', loadAircraft);
   acFields.forEach(id => document.getElementById(id)?.addEventListener('input', debouncedAircraft));
   document.getElementById('acTypeFilter')?.addEventListener('change', () => { tabLoaded['aircraft'] = true; loadAircraft(); });
-  document.getElementById('acForSale')?.addEventListener('change', () => { tabLoaded['aircraft'] = true; loadAircraft(); });
 
   // Aircraft fleet-triage filters
   document.getElementById('acDirectSearchBtn')?.addEventListener('click', loadAircraft);
@@ -1918,7 +1917,7 @@ async function loadDashboard() {
   try {
     // Show loading throbbers in chart containers
     const spinner = '<div class="loading-spinner"></div>';
-    ['chartMakes','chartTypes','chartADSB','chartAge','chartEngines','chartMaint','recentListings'].forEach(id => {
+    ['chartMakes','chartTypes','chartADSB','chartAge','chartEngines','chartMaint'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:120px;">${spinner}<span style="margin-left:10px;color:var(--text-muted);font-size:0.8rem;">Loading data...</span></div>`;
     });
@@ -2056,9 +2055,6 @@ function renderDashboard(acList, bulkCount) {
 
     // ═══ Maintenance Program Breakdown ═══
     renderMaintPrograms('chartMaint', acList);
-
-    // ═══ Recently Listed For Sale ═══
-    renderRecentListings(acList);
 
     // ── Update cache stats in settings ──
     MXCache.stats().then(s => {
@@ -2240,52 +2236,6 @@ function renderMaintPrograms(containerId, acList) {
   renderBarChart(containerId, topProgs, ['#f472b6', '#ec4899', '#db2777', '#be185d', '#9d174d', '#831843', '#fb7185', '#fda4af']);
 }
 
-function renderRecentListings(acList) {
-  const container = document.getElementById('recentListings');
-  if (!container) return;
-
-  // Show currently for-sale aircraft (sorted by hours, highest first)
-  const listings = acList
-    .filter(a => (a.forsale === true || a.forsale === 'true' || a.forsale === 'Y'))
-    .sort((a, b) => (b.airfrmtt || 0) - (a.airfrmtt || 0))
-    .slice(0, 20);
-
-  if (listings.length === 0) {
-    container.innerHTML = '<div class="empty-state">No aircraft currently for sale</div>';
-    return;
-  }
-
-  container.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Listed</th><th>Make</th><th>Model</th><th>Reg</th><th>Year</th><th>AFTT</th><th>Asking</th><th>Base</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${listings.map(a => {
-          const asking = a.asking ? '$' + Number(a.asking).toLocaleString() : '—';
-          return `
-          <tr data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}" style="cursor:pointer;">
-            <td class="td-dim">${escapeMarkup(a.datelisted || '—')}</td>
-            <td class="td-accent">${escapeMarkup(a.make || '—')}</td>
-            <td>${escapeMarkup(a.model || '—')}</td>
-            <td class="td-mono">${escapeMarkup(a.regnbr || '—')}</td>
-            <td>${escapeMarkup(a.yearmfr || '—')}</td>
-            <td>${a.airfrmtt ? a.airfrmtt.toLocaleString() : a.estaftt ? a.estaftt.toLocaleString() : '—'}</td>
-            <td class="td-accent">${asking}</td>
-            <td class="td-dim">${escapeMarkup(a.acbasecity || a.acbaseicao || '—')}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>`;
-  container.querySelectorAll('tr[data-aircraft-id]').forEach((row) => {
-    row.addEventListener('click', () => {
-      const id = safeRecordId(row.dataset.aircraftId);
-      if (id !== null) showAircraftDetail(id);
-    });
-  });
-}
 
 // ═══════════════════════════════════════════════════
 //  MARKET INTELLIGENCE
@@ -2469,13 +2419,10 @@ async function loadAircraft() {
   // Shared filters
   const typeFilter = document.getElementById('acTypeFilter').value;
   if (typeFilter) body.maketype = typeFilter;
-  if (document.getElementById('acForSale').checked) { body.isForSale = true; forSale = true; }
 
   // Default first load
   if (Object.keys(body).length === 0 && !isAircraftInitialized) {
-    body.isForSale = true;
-    forSale = true;
-    document.getElementById('acForSale').checked = true;
+    // previously set to for sale by default
   }
 
   isAircraftInitialized = true;
@@ -2521,12 +2468,10 @@ async function loadAircraft() {
     // Populate fleet screening stats in Aircraft tab.
     if (acSearchMode === 'scan') {
       const htCount = cachedFleetSignals.filter(a => a.mro.isHighTime).length;
-      const fsCount = cachedFleetSignals.filter(a => a.mro.isForSale).length;
       const totalAFTT = cachedFleetSignals.reduce((s, a) => s + a.mro.aftt, 0);
       const avgAFTT = cachedFleetSignals.length > 0 ? Math.round(totalAFTT / cachedFleetSignals.length) : 0;
       const statEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = typeof v === 'number' ? v.toLocaleString() : v; };
       statEl('acStatHighTime', htCount);
-      statEl('acStatForSale', fsCount);
       statEl('acStatAvgAFTT', avgAFTT);
       statEl('acStatFleet', cachedFleetSignals.length);
     }

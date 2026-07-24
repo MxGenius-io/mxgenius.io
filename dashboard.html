@@ -183,11 +183,6 @@
                 <option value="Europe">EMEA</option>
                 <option value="Asia">APAC</option>
               </select>
-              <div class="search-field search-field-check">
-                <label class="search-check">
-                  <input type="checkbox" id="acForSale"> For Sale Only
-                </label>
-              </div>
               <button id="acSearchBtn" class="btn-primary">View fleet</button>
             </div>
             <div id="acDirectBar" class="search-bar search-bar-multi" style="display:none;">
@@ -214,11 +209,6 @@
             <div class="stat-card stat-contacts">
               <div class="stat-value" id="acStatHighTime">0</div>
               <div class="stat-label">8K+ reported AFTT</div>
-            </div>
-            <div class="stat-card stat-forsale">
-              <div class="stat-value" id="acStatForSale">0</div>
-              <div class="stat-label">For sale</div>
-            </div>
             <div class="stat-card stat-companies">
               <div class="stat-value" id="acStatAvgAFTT">0</div>
               <div class="stat-label">Average reported AFTT</div>
@@ -355,7 +345,6 @@
           <label>Status</label>
           <select id="filterStatus" class="search-input" onchange="applyDashboardFilters()">
             <option value="">All</option>
-            <option value="forsale">For Sale</option>
             <option value="maintained">Maintained</option>
             <option value="adsb">ADS-B Equipped</option>
           </select>
@@ -388,9 +377,6 @@
           <h3 class="card-title">Maintenance Programs</h3>
           <div id="chartMaint" class="chart-container"></div>
         </div>
-        <div class="card wide">
-          <h3 class="card-title">Currently For Sale</h3>
-          <div id="recentListings" class="table-container"></div>
         </div>
       </div>
     </section>
