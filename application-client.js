@@ -46,7 +46,7 @@ const MXApplicationClient = (() => {
     const path = `/api/Aircraft/getBulkAircraftExportPaged/${token}/${pageSize}/${page}`;
     return MXCache.cachedFetch(
       `${FLEET_API_BASE}${path}`,
-      { method: 'PUT', headers: jetNetHeaders(bearer), body: JSON.stringify({}) },
+      { method: 'PUT', headers: jetNetHeaders(bearer), body: JSON.stringify({ pageSize }) },
       cacheTtl
     );
   }
