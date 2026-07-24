@@ -597,6 +597,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function login() {
+  await window.MXGENIUS_CONFIG?.ready;
+  if (!window.MXGENIUS_AUTH?.account?.()) throw new Error('Entra sign-in required');
   // The Azure proxy owns JetNet authentication and replaces this marker
   // server-side. No JetNet credential or token is exposed to the browser.
   TOKEN = 'LIVE_TOKEN';

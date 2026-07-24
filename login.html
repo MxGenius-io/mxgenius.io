@@ -145,10 +145,10 @@
 
             <h1>Platform Access</h1>
             <p class="message">
-                MXGenius is currently in closed beta. Enterprise access is provided by the organization’s Azure sign-in boundary.
+                Sign in with your organization’s Microsoft account to open the operations dashboard.
             </p>
             
-            <a href="index.html" class="cta-button">Return to Homepage</a>
+            <button type="button" class="cta-button" data-entra-signin disabled>Sign in with Microsoft</button>
             <a href="index.html" class="contact-link">Return to Homepage</a>
             <a href="waitlist.html" class="contact-link">Request early access →</a>
             
@@ -157,5 +157,8 @@
             </div>
         </div>
     </div>
+    <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" crossorigin="anonymous"></script>
+    <script src="runtime-config.js?v=5"></script>
+    <script src="auth.js?v=3"></script>
 </body>
 </html>

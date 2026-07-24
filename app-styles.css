@@ -3154,3 +3154,21 @@ body.live-mode .api-status.connected .status-dot {
   26%  { opacity: 0; transform: translateY(-3px); }
   100% { opacity: 0; }
 }
+
+.identity-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-left: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 999px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.identity-chip strong {
+  color: var(--text-primary, #e2e8f0);
+  font-weight: 600;
+}
