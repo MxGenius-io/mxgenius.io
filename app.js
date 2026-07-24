@@ -1439,6 +1439,8 @@ Rules:
   function setupVoiceInput() {
     if (!micBtn) return;
 
+    const realtimeToggleBtn = document.getElementById('realtimeToggleBtn');
+
     // Initialize realtime session if WebRTC is available
     if (window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia && window.MXRealtime) {
       realtimeSession = new MXRealtime.RealtimeSession({
@@ -1447,80 +1449,56 @@ Rules:
       });
     }
 
-    // Tap = transcribe, long-press = realtime voice
-    let isLongPress = false;
+    if (realtimeToggleBtn) {
+      realtimeToggleBtn.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          stopTranscription();
+          if (realtimeSession) startRealtimeVoice();
+        } else {
+          if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+            realtimeSession.disconnect();
+          }
+        }
+      });
+    }
 
-    micBtn.addEventListener('mousedown', () => {
-      isLongPress = false;
-      micLongPressTimer = setTimeout(() => {
-        isLongPress = true;
-        stopTranscription(); // stop any active transcription
-        if (realtimeSession) startRealtimeVoice();
-      }, MIC_LONG_PRESS_MS);
-    });
-
-    micBtn.addEventListener('mouseup', () => {
-      clearTimeout(micLongPressTimer);
-      if (isLongPress) return; // long-press already handled
-      // Tap: toggle transcription
+    // Mic button is purely for dictation now
+    const handleMicTap = (e) => {
+      e?.preventDefault();
+      // If realtime is active, dictation is disabled
+      if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+        console.warn('Cannot dictate while Realtime socket is active.');
+        return;
+      }
       if (micBtn.classList.contains('pulse-mic')) {
         stopTranscription();
-      } else if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
-        // Realtime is active — disconnect it
-        realtimeSession.disconnect();
       } else {
         startTranscription();
       }
-    });
+    };
 
-    micBtn.addEventListener('mouseleave', () => { clearTimeout(micLongPressTimer); });
-
-    // Touch support for mobile
-    micBtn.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      isLongPress = false;
-      micLongPressTimer = setTimeout(() => {
-        isLongPress = true;
-        stopTranscription();
-        if (realtimeSession) startRealtimeVoice();
-      }, MIC_LONG_PRESS_MS);
-    }, { passive: false });
-
-    micBtn.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      clearTimeout(micLongPressTimer);
-      if (isLongPress) return;
-      if (micBtn.classList.contains('pulse-mic')) {
-        stopTranscription();
-      } else if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
-        realtimeSession.disconnect();
-      } else {
-        startTranscription();
-      }
-    });
-
-    micBtn.title = 'Tap to dictate · hold for voice';
+    micBtn.addEventListener('click', handleMicTap);
+    micBtn.title = 'Tap to dictate';
+    
     realtimeInterruptBtn?.addEventListener('click', () => realtimeSession?.interrupt());
     realtimeConfirmationCancel?.addEventListener('click', declineRealtimeMutation);
     realtimeConfirmationApprove?.addEventListener('click', confirmRealtimeMutation);
   }
 
   function setRealtimeUiState(state, label) {
-    const labels = {
-      disconnected: 'Voice disconnected',
-      connecting: 'Connecting voice…',
-      listening: 'Listening',
-      thinking: 'Thinking / tool use',
-      speaking: 'MXGenius speaking',
-      degraded: 'Voice connection degraded',
-      failed: 'Voice connection failed'
-    };
     realtimeState.dataset.state = state;
-    realtimeStateLabel.textContent = label || labels[state] || state;
     const active = !['disconnected', 'failed'].includes(state);
-    micBtn.setAttribute('aria-pressed', String(active));
-    micBtn.title = active ? 'Disconnect Realtime voice' : 'Start Realtime voice';
-    micBtn.classList.toggle('pulse-mic', state === 'listening');
+    
+    const realtimeToggleBtn = document.getElementById('realtimeToggleBtn');
+    if (realtimeToggleBtn) {
+      // Don't trigger change event when setting programmatically
+      realtimeToggleBtn.checked = active;
+    }
+    
+    micBtn.disabled = active;
+    micBtn.style.opacity = active ? '0.5' : '1';
+    micBtn.title = active ? 'Dictation disabled (Realtime active)' : 'Tap to dictate';
+    
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
     input.placeholder = state === 'failed' ? 'Voice unavailable · use text chat' : 'Ask MXGenius…';
   }
@@ -1782,6 +1760,72 @@ function initSettings() {
     compactToggle.addEventListener('change', function() {
       localStorage.setItem('mx_compactMode', this.checked);
       document.body.classList.toggle('compact-mode', this.checked);
+    });
+  }
+
+  // Beta Access Management
+  const betaInput = document.getElementById('betaWhitelistInput');
+  const betaAddBtn = document.getElementById('betaWhitelistAddBtn');
+  const betaTags = document.getElementById('betaWhitelistTags');
+  if (betaInput && betaAddBtn && betaTags) {
+    const defaultSeeds = ['@advancedaog', 'hagy2392@gmail.com', 'dwaynetillman@7hermeticlabs.dev'];
+    let customWhitelist = [];
+    try { customWhitelist = JSON.parse(localStorage.getItem('mx_beta_whitelist') || '[]'); } catch(e){}
+
+    const renderTags = () => {
+      betaTags.innerHTML = '';
+      const allTags = [...new Set([...defaultSeeds, ...customWhitelist])];
+      allTags.forEach(tag => {
+        const isDefault = defaultSeeds.includes(tag.toLowerCase());
+        const el = document.createElement('span');
+        el.className = 'badge';
+        el.style.fontSize = '0.75rem';
+        el.style.display = 'inline-flex';
+        el.style.alignItems = 'center';
+        el.style.gap = '4px';
+        el.style.background = isDefault ? 'var(--bg-hover)' : 'rgba(34,211,238,0.1)';
+        el.style.color = isDefault ? 'var(--text-secondary)' : 'var(--accent-cyan)';
+        el.style.border = '1px solid rgba(255,255,255,0.05)';
+        
+        el.textContent = tag;
+        
+        if (!isDefault) {
+          const rmBtn = document.createElement('button');
+          rmBtn.innerHTML = '&times;';
+          rmBtn.style.background = 'none';
+          rmBtn.style.border = 'none';
+          rmBtn.style.color = 'inherit';
+          rmBtn.style.cursor = 'pointer';
+          rmBtn.style.fontSize = '1.1rem';
+          rmBtn.style.lineHeight = '1';
+          rmBtn.style.padding = '0 2px';
+          rmBtn.onclick = () => {
+            customWhitelist = customWhitelist.filter(t => t !== tag);
+            localStorage.setItem('mx_beta_whitelist', JSON.stringify(customWhitelist));
+            renderTags();
+          };
+          el.appendChild(rmBtn);
+        }
+        betaTags.appendChild(el);
+      });
+    };
+    
+    renderTags();
+
+    const addTag = () => {
+      const val = betaInput.value.trim().toLowerCase();
+      if (!val) return;
+      if (!defaultSeeds.includes(val) && !customWhitelist.includes(val)) {
+        customWhitelist.push(val);
+        localStorage.setItem('mx_beta_whitelist', JSON.stringify(customWhitelist));
+        renderTags();
+      }
+      betaInput.value = '';
+    };
+
+    betaAddBtn.addEventListener('click', addTag);
+    betaInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addTag();
     });
   }
 

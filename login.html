@@ -142,37 +142,7 @@
     <div class="login-container">
         <div class="login-card">
             <a href="index.html" class="logo">
-                <svg viewBox="0 0 128 64" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-                        </linearGradient>
-                        <linearGradient id="accentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" style="stop-color:#93c5fd;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <g id="airplane">
-                        <path d="M 25 32 L 60 28 L 75 32 L 60 36 Z" fill="url(#blueGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-                        <circle cx="27" cy="32" r="3.5" fill="#93c5fd" stroke="#1e40af" stroke-width="0.5"/>
-                        <path d="M 50 32 L 38 26 L 38 38 Z" fill="url(#accentGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-                        <path d="M 50 32 L 62 26 L 62 38 Z" fill="url(#accentGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-                        <path d="M 72 32 L 68 29 L 68 35 Z" fill="url(#blueGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-                    </g>
-                    <g id="wrench" transform="translate(75, 32)">
-                        <line x1="0" y1="0" x2="22" y2="-15" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <circle cx="22" cy="-15" r="4.5" fill="none" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round"/>
-                        <path d="M 18 -13 L 26 -17" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round"/>
-                        <circle cx="0" cy="0" r="2.5" fill="url(#blueGradient)"/>
-                    </g>
-                    <g id="sparks" opacity="0.8">
-                        <line x1="102" y1="18" x2="105" y2="15" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
-                        <line x1="104" y1="16" x2="107" y2="13" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
-                        <line x1="110" y1="25" x2="113" y2="22" stroke="#60a5fa" stroke-width="1.2" stroke-linecap="round"/>
-                        <line x1="112" y1="23" x2="115" y2="20" stroke="#60a5fa" stroke-width="1.2" stroke-linecap="round"/>
-                    </g>
-                </svg>
+                <img src="assets/mxgenius_logo.png" alt="MXGenius Logo" style="height: 32px; width: auto; object-fit: contain;">
                 <span>MXGenius</span>
             </a>
             <div class="logo-sub">Aviation Maintenance Platform</div>
@@ -199,6 +169,20 @@
     </div>
     <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
     <script src="runtime-config.js?v=5"></script>
-    <script src="auth.js?v=3"></script>
+    <script src="auth.js?v=4"></script>
+    <script>
+      (function() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('rejected') === 'beta') {
+          const email = localStorage.getItem('mx_beta_rejected') || 'your account';
+          const msgEl = document.querySelector('.message');
+          msgEl.innerHTML = `<span style="color:#ef4444; font-weight:bold;">Beta Access Denied</span><br>The account <strong>${email}</strong> is not authorized for the closed beta. Please request access or try a different account.`;
+          document.querySelector('h1').textContent = 'Access Restricted';
+        } else if (params.get('error')) {
+          const msgEl = document.querySelector('.message');
+          msgEl.innerHTML = `<span style="color:#ef4444;">Sign in failed: ${params.get('message') || 'Unknown error'}</span>`;
+        }
+      })();
+    </script>
 </body>
 </html>

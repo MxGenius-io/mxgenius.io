@@ -30,37 +30,7 @@
         </svg>
       </button>
       <a href="index.html" class="logo" style="text-decoration: none; color: inherit;">
-        <svg viewBox="0 0 128 64" width="64" height="32" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-              <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-              </linearGradient>
-              <linearGradient id="accentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style="stop-color:#93c5fd;stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-              </linearGradient>
-          </defs>
-          <g id="airplane">
-              <path d="M 25 32 L 60 28 L 75 32 L 60 36 Z" fill="url(#blueGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-              <circle cx="27" cy="32" r="3.5" fill="#93c5fd" stroke="#1e40af" stroke-width="0.5"/>
-              <path d="M 50 32 L 38 26 L 38 38 Z" fill="url(#accentGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-              <path d="M 50 32 L 62 26 L 62 38 Z" fill="url(#accentGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-              <path d="M 72 32 L 68 29 L 68 35 Z" fill="url(#blueGradient)" stroke="#1e40af" stroke-width="0.5" stroke-linejoin="round"/>
-          </g>
-          <g id="wrench" transform="translate(75, 32)">
-              <line x1="0" y1="0" x2="22" y2="-15" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="22" cy="-15" r="4.5" fill="none" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round"/>
-              <path d="M 18 -13 L 26 -17" stroke="url(#blueGradient)" stroke-width="2.5" stroke-linecap="round"/>
-              <circle cx="0" cy="0" r="2.5" fill="url(#blueGradient)"/>
-          </g>
-          <g id="sparks" opacity="0.8">
-              <line x1="102" y1="18" x2="105" y2="15" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
-              <line x1="104" y1="16" x2="107" y2="13" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
-              <line x1="110" y1="25" x2="113" y2="22" stroke="#60a5fa" stroke-width="1.2" stroke-linecap="round"/>
-              <line x1="112" y1="23" x2="115" y2="20" stroke="#60a5fa" stroke-width="1.2" stroke-linecap="round"/>
-          </g>
-        </svg>
+        <img src="assets/mxgenius_logo.png" alt="MXGenius Logo" style="height: 32px; width: auto; object-fit: contain;">
         <span class="logo-text">MXGenius</span>
       </a>
       <div id="signedInAs" class="identity-chip" hidden aria-live="polite">
@@ -561,6 +531,26 @@
           <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>Getting Started</h3>
           <div class="settings-row"><div class="settings-label"><span>Onboarding Walkthrough</span><span class="settings-hint">Replay the guided tour to learn the interface</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXOnboarding.restart()">Restart Tour</button></div>
         </div>
+        <!-- Beta Management -->
+        <div class="settings-card">
+          <h3 class="settings-card-title">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Beta Access
+          </h3>
+          <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:12px;">
+            <div class="settings-label">
+              <span>Allowed Domains &amp; Emails</span>
+              <span class="settings-hint">Users matching this list can sign in during the closed beta.</span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="betaWhitelistInput" class="search-input" style="flex:1;" placeholder="e.g. user@domain.com or @domain.com">
+              <button type="button" class="btn-primary" style="padding:6px 16px;font-size:0.8rem;" id="betaWhitelistAddBtn">Add</button>
+            </div>
+            <div id="betaWhitelistTags" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+              <!-- Tags injected via JS -->
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -577,9 +567,13 @@
   <!-- AI Chat Panel -->
   <div id="ai-chat-panel" class="chat-panel hidden">
     <div class="chat-header realtime-header">
-      <div class="realtime-state" id="realtimeState" data-state="disconnected" role="status" aria-live="polite">
-        <span class="realtime-state__dot" aria-hidden="true"></span>
-        <span id="realtimeStateLabel">Voice disconnected</span>
+      <div class="realtime-state" id="realtimeState" data-state="disconnected" role="status" aria-live="polite" style="display: flex; align-items: center; gap: 8px;">
+        <span class="realtime-state__dot" aria-hidden="true" style="margin-right: 0;"></span>
+        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Realtime Socket</span>
+        <label class="settings-toggle" style="margin-left:4px; transform: scale(0.85); transform-origin: left center;">
+          <input type="checkbox" id="realtimeToggleBtn">
+          <span class="settings-toggle-slider"></span>
+        </label>
       </div>
       <button id="realtimeInterruptBtn" class="realtime-interrupt" type="button" hidden>Interrupt</button>
       <button id="closeChatBtn" class="chat-close-btn" aria-label="Close copilot">&times;</button>
