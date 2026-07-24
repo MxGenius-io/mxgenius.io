@@ -718,7 +718,7 @@ async fn chat(
         "manual_retrieval_warning": manual_warning.clone()
     });
     let model =
-        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-sol".into());
+        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "o3-mini".into());
     let request_body = json!({
         "model": model,
         "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
@@ -941,7 +941,7 @@ async fn create_realtime_call(
         }
     };
     let model =
-        std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-realtime-2.1".into());
+        std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-4o-mini-realtime-preview".into());
     let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "marin".into());
     let session = json!({
         "type": "realtime",

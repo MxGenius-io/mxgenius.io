@@ -428,9 +428,11 @@ main {
 
 /* Settings Styles */
 .settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .settings-card {
@@ -1757,9 +1759,12 @@ body.live-mode .api-status.connected .status-dot {
   pointer-events: auto; /* when expanded, capture everything */
 }
 .globe-sheet-close {
-  position: absolute;
+  position: sticky;
+  float: right;
+  margin-right: 12px;
+  margin-top: 8px;
   top: 8px;
-  right: 12px;
+  z-index: 100;
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.2);
   color: var(--text-primary);
@@ -3216,4 +3221,28 @@ body.live-mode .api-status.connected .status-dot {
 .identity-chip strong {
   color: var(--text-primary, #e2e8f0);
   font-weight: 600;
+}
+.texture-btn {
+  background: rgba(10, 15, 28, 0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+}
+.texture-btn:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.3);
+}
+.texture-btn.active {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
 }

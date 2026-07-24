@@ -1239,12 +1239,7 @@ Rules:
     aiMsg.className = 'chat-msg ai-msg';
     aiMsg.innerHTML = `<div class="msg-bubble"><span class="stream-target">
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;">
-        <div style="position:relative;width:80px;height:80px;border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#E8F4F8 0%,#C8E0EC 55%,#A8CCE0 100%);box-shadow:0 6px 16px rgba(10,37,64,0.12);">
-          <svg style="position:absolute;width:36px;top:30%;animation:mxFloat 10s linear infinite;" viewBox="0 0 60 24"><ellipse cx="30" cy="16" rx="28" ry="6" fill="white"/><circle cx="20" cy="12" r="8" fill="white"/><circle cx="35" cy="10" r="10" fill="white"/><circle cx="45" cy="13" r="7" fill="white"/></svg>
-          <svg style="position:absolute;width:26px;top:58%;opacity:0.85;animation:mxFloat 14s linear infinite;animation-delay:-5s;" viewBox="0 0 50 20"><ellipse cx="25" cy="14" rx="22" ry="5" fill="white"/><circle cx="15" cy="10" r="6" fill="white"/><circle cx="28" cy="8" r="8" fill="white"/><circle cx="38" cy="11" r="6" fill="white"/></svg>
-          <svg style="position:absolute;width:30px;top:42%;opacity:0.9;animation:mxFloat 12s linear infinite;animation-delay:-8s;" viewBox="0 0 55 22"><ellipse cx="27" cy="15" rx="25" ry="5" fill="white"/><circle cx="17" cy="11" r="7" fill="white"/><circle cx="32" cy="9" r="9" fill="white"/><circle cx="42" cy="12" r="6" fill="white"/></svg>
-          <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#F5A623;box-shadow:0 0 6px rgba(245,166,35,0.5);animation:mxDot 1.6s ease-in-out infinite;z-index:4;"></div>
-        </div>
+        <img src="assets/mx_thinking.gif" alt="Thinking..." style="width:80px;height:80px;border-radius:16px;object-fit:cover;box-shadow:0 6px 16px rgba(10,37,64,0.12);">
         <div style="position:relative;height:14px;overflow:hidden;">
           <span style="position:absolute;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#8b949e;opacity:0;animation:mxWord 8s ease-in-out infinite;">Servicing</span>
           <span style="position:absolute;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#8b949e;opacity:0;animation:mxWord 8s ease-in-out infinite;animation-delay:2s;">Thinking</span>
@@ -1975,16 +1970,20 @@ function populateDashboardFilters(acList) {
   const typeSelect = document.getElementById('filterType');
   if (!makeSelect || !typeSelect) return;
 
-  // Makes — sorted alphabetically
-  const makes = [...new Set(acList.map(a => a.make).filter(Boolean))].sort();
+  // Clear existing options (keep the default "All" option)
+  makeSelect.innerHTML = '<option value="">All Makes</option>';
+  typeSelect.innerHTML = '<option value="">All Types</option>';
+
+  // Makes — sorted alphabetically (handling both camelCase and PascalCase)
+  const makes = [...new Set(acList.map(a => a.make || a.Make).filter(Boolean))].sort();
   makes.forEach(m => {
     const opt = document.createElement('option');
     opt.value = m; opt.textContent = m;
     makeSelect.appendChild(opt);
   });
 
-  // Types
-  const types = [...new Set(acList.map(a => a.maketype).filter(Boolean))].sort();
+  // Types (handling both camelCase and PascalCase)
+  const types = [...new Set(acList.map(a => a.maketype || a.MakeType || a.makeType).filter(Boolean))].sort();
   types.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t; opt.textContent = t;
@@ -2001,11 +2000,11 @@ function applyDashboardFilters() {
   const status = document.getElementById('filterStatus')?.value || '';
 
   let filtered = d.acList;
-  if (make) filtered = filtered.filter(a => a.make === make);
-  if (type) filtered = filtered.filter(a => a.maketype === type);
-  if (status === 'forsale') filtered = filtered.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y');
-  if (status === 'maintained') filtered = filtered.filter(a => a.maintained === 'Y' || a.maintained === true);
-  if (status === 'adsb') filtered = filtered.filter(a => a.hasadsb === 'Y' || a.hasadsb === true);
+  if (make) filtered = filtered.filter(a => (a.make || a.Make) === make);
+  if (type) filtered = filtered.filter(a => (a.maketype || a.MakeType || a.makeType) === type);
+  if (status === 'forsale') filtered = filtered.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y' || a.ForSale === true || a.ForSale === 'Y');
+  if (status === 'maintained') filtered = filtered.filter(a => a.maintained === 'Y' || a.maintained === true || a.Maintained === 'Y' || a.Maintained === true);
+  if (status === 'adsb') filtered = filtered.filter(a => a.hasadsb === 'Y' || a.hasadsb === true || a.HasAdsb === 'Y' || a.HasAdsb === true);
 
   renderDashboard(filtered, filtered.length);
 }
@@ -2024,15 +2023,15 @@ function clearDashboardFilters() {
 function renderDashboard(acList, bulkCount) {
 
     const totalAircraft = bulkCount || acList.length || 0;
-    const adsbReady = acList.filter(a => a.hasadsb === 'Y' || a.hasadsb === true).length;
+    const adsbReady = acList.filter(a => a.hasadsb === 'Y' || a.hasadsb === true || a.HasAdsb === 'Y' || a.HasAdsb === true).length;
 
     // ═══ Fleet by Make/Type (existing) ═══
     const byMake = {};
     const byType = {};
     acList.forEach(a => {
-      const make = a.make || 'Unknown';
+      const make = a.make || a.Make || 'Unknown';
       byMake[make] = (byMake[make] || 0) + 1;
-      const type = a.maketype || 'Unknown';
+      const type = a.maketype || a.MakeType || a.makeType || 'Unknown';
       byType[type] = (byType[type] || 0) + 1;
     });
     const topMakes = Object.fromEntries(
@@ -3347,8 +3346,13 @@ function setupGlobeSheet() {
   const si = document.getElementById('globeSearch');
   if (si) { let db; si.addEventListener('input', () => { clearTimeout(db); db = setTimeout(applyGlobeFilters, 250); }); }
   document.getElementById('globeTypeFilter')?.addEventListener('change', applyGlobeFilters);
-  document.getElementById('globeTextureSelect')?.addEventListener('change', (e) => {
-    if (globeInstance) globeInstance.globeImageUrl(e.target.value);
+  document.querySelectorAll('.texture-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.texture-btn').forEach(b => b.classList.remove('active'));
+      const targetBtn = e.currentTarget;
+      targetBtn.classList.add('active');
+      if (globeInstance) globeInstance.globeImageUrl('assets/' + targetBtn.dataset.texture);
+    });
   });
 
   // Click outside sheet to close it

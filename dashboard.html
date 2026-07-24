@@ -33,7 +33,7 @@
         <img src="assets/mxgenius_logo.png" alt="MXGenius Logo" style="height: 32px; width: auto; object-fit: contain;">
         <span class="logo-text">MXGenius</span>
       </a>
-      <div id="signedInAs" class="identity-chip" hidden aria-live="polite">
+      <div id="signedInAs" class="identity-chip" hidden aria-live="polite" onclick="document.querySelector('.nav-tab[data-tab=\'settings\']')?.click()" style="cursor: pointer;">
         <span>Signed in as</span>
         <strong id="signedInAsName"></strong>
       </div>
@@ -107,6 +107,12 @@
         <div class="fleet-collapsible-body">
           <!-- Globe -->
           <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:20px;">
+            <div class="globe-texture-buttons" style="position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 5;">
+              <button class="texture-btn" data-texture="earth-night.jpg" title="Night Mode">🌙</button>
+              <button class="texture-btn" data-texture="earth-blue-marble.jpg" title="Blue Marble">🌍</button>
+              <button class="texture-btn" data-texture="earth-dark.jpg" title="Dark Mode">🌑</button>
+              <button class="texture-btn" data-texture="earth-water.png" title="Ocean Mode">💧</button>
+            </div>
             <div id="globeViz"></div>
             <div class="globe-tooltip hidden" id="globeTooltip"></div>
             <div class="globe-sheet" id="globeSheet">
@@ -142,12 +148,6 @@
                     <option value="Turboprop">Turboprops</option>
                     <option value="JetAirliner">Jet Airliners</option>
                     <option value="Piston">Piston</option>
-                  </select>
-                  <select id="globeTextureSelect" class="search-select" style="max-width:130px;">
-                    <option value="earth-night.jpg">Night</option>
-                    <option value="earth-blue-marble.jpg">Blue Marble</option>
-                    <option value="earth-dark.jpg">Dark</option>
-                    <option value="earth-water.png">Ocean</option>
                   </select>
                 </div>
               </div>
