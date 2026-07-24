@@ -27,7 +27,7 @@
       return null;
     }
     const instance = new msal.PublicClientApplication({
-      auth: { clientId, authority, redirectUri, postLogoutRedirectUri: `${location.origin}/index.html` },
+      auth: { clientId, authority, redirectUri, postLogoutRedirectUri: `${location.origin}/index.html`, navigateToLoginRequestUrl: false },
       cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
     });
     const response = await instance.handleRedirectPromise();
@@ -68,6 +68,11 @@
   });
 
   if (isLogin) ready.then(() => {
+    if (account) {
+      const params = new URLSearchParams(location.search);
+      location.replace(params.get('returnUrl') || 'dashboard.html');
+      return;
+    }
     const button = document.querySelector('[data-entra-signin]');
     if (button && globalThis.MXGENIUS_AUTH && !account) {
       button.disabled = false;
