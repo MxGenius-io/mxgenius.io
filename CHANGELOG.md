@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [3.2.0] — 2026-07-24
+
+### Added — Aircraft Detail Modal
+- **Features Section** — Badge grid rendering all aircraft features with item count and status indicators (e.g. Standard, Optional)
+- **Additional Equipment Section** — Responsive card grid with glassmorphic cards showing equipment name and description
+- **Lease Information Section** — Table view with lease type, lessor, start/end dates, and status
+- **Operational Status Badge** — Green (Active) or amber badge rendered in the detail header alongside aircraft type
+
+### Added — Market Intelligence
+- **Market Intelligence Collapsible** on Dashboard — new `<details>` section with make/model search
+- **Operating Costs Card** — Fuel/hr, crew/yr, maintenance/hr, hangar, insurance, total hourly, fuel burn rate, annual budget
+- **Performance Specs Card** — Range, max/cruise speed, ceiling, takeoff/landing distance, passengers, cabin length, wingspan, MTOW
+- **Market Trends Card** — Average ask/sold price, fleet size, for-sale count, absorption rate, days on market
+
+### Changed — API Layer (`application-client.js`)
+- `aircraftBundle()` now fetches **7 endpoints in parallel** (was 3): added `getFeatures`, `getAdditionalEquipment`, `getLeases`, `getStatus`
+- Added `modelOperationCosts()`, `modelPerformanceSpecs()`, `modelMarketTrends()` — all via `Model/` API group
+- All new calls wrapped in `safeJson()` — failed sub-calls never break the parent view
+
+### Changed — Data Flow
+- Detail modal destructures 4 new bundle fields (`features`, `equipment`, `leases`, `status`)
+- `setupMarketIntel()` wired into `setupEventListeners()` for keyboard (Enter) and button handlers
+- Zero hardcoded/mock data — all endpoints production-piped through `mxg-fleet` proxy
+
+---
+
 ## [3.1.0] — 2026-07-07
 
 ### Added — Data Layer

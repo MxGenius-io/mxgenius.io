@@ -1050,13 +1050,12 @@
     <!-- Hero Video Carousel -->
     <section class="hero-carousel">
         <div class="carousel-container" id="carouselContainer">
-            <!-- Slide 1: Video Hero -->
+            <!-- Slide 1: Hero Overview -->
             <div class="carousel-slide">
-                <div class="video-card">
-                        <img src="./media/hero-banner.png" alt="MXGenius Platform Overview" class="video-placeholder" style="object-fit: cover;">
+                <div class="video-card" style="background: linear-gradient(135deg, #0a1628 0%, #1a2744 50%, #0d1f3c 100%);">
                         <div class="video-overlay">
-                            <h1>Transform Your Operations</h1>
-                            <p class="subtitle">AI-powered diagnostics, instant answers, 24/7 availability</p>
+                            <h1>The Genius Arsenal for Aviation Maintenance</h1>
+                            <p class="subtitle">AI troubleshooting, remote expertise, and intelligent parts—everything your hangar needs, in one platform.</p>
                         </div>
                 </div>
             </div>
@@ -1072,33 +1071,27 @@
                         </svg>
                     </div>
                     <h2>AI Troubleshooting</h2>
-                    <p>Instant root cause analysis powered by advanced AI. Get expert-level diagnostics in seconds, not hours.</p>
-                    <div class="carousel-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 0.5rem; max-width: 800px; width: 100%;">
-                        <img src="./media/ai-troubleshooting.png" alt="AI Troubleshooting Interface" style="width: 100%; height: auto; display: block;">
-                    </div>
+                    <p>Instant root-cause analysis powered by advanced AI. Expert-level diagnostics in seconds, not hours.</p>
                 </div>
             </div>
 
-            <!-- Slide 3: Manual Library -->
+            <!-- Slide 3: Remote Viewing -->
             <div class="carousel-slide">
                 <div class="feature-carousel-card">
                     <div class="feature-carousel-icon">
                         <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="18" y="12" width="28" height="40" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <line x1="24" y1="20" x2="40" y2="20" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-                            <line x1="24" y1="26" x2="40" y2="26" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-                            <line x1="24" y1="32" x2="36" y2="32" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+                            <rect x="12" y="16" width="40" height="28" rx="3" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <circle cx="32" cy="30" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <circle cx="32" cy="30" r="3" fill="#3b82f6"/>
+                            <line x1="24" y1="48" x2="40" y2="48" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
                         </svg>
                     </div>
-                    <h2>Complete Technical Library</h2>
-                    <p>Every manual. One subscription. Unlimited access to your complete maintenance documentation.</p>
-                    <div class="carousel-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 0.5rem; max-width: 800px; width: 100%;">
-                        <img src="./media/manual-library.png" alt="Manual Library Interface" style="width: 100%; height: auto; display: block;">
-                    </div>
+                    <h2>Eyes on the Aircraft, Anywhere</h2>
+                    <p>Live remote viewing brings your team—and outside experts—right to the wrench in real time.</p>
                 </div>
             </div>
 
-            <!-- Slide 4: Parts & Support -->
+            <!-- Slide 4: AR Parts Inventory -->
             <div class="carousel-slide">
                 <div class="feature-carousel-card">
                     <div class="feature-carousel-icon">
@@ -1111,11 +1104,25 @@
                             <line x1="42" y1="32" x2="48" y2="32" stroke="#3b82f6" stroke-width="2"/>
                         </svg>
                     </div>
-                    <h2>Parts & Expert Support</h2>
-                    <p>Source parts. Get help anytime. Complete support ecosystem for your maintenance operations.</p>
-                    <div class="carousel-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 0.5rem; max-width: 800px; width: 100%;">
-                        <img src="./media/support-interface.png" alt="Remote Support Interface" style="width: 100%; height: auto; display: block;">
+                    <h2>Inventory, Reimagined</h2>
+                    <p>Point, capture, and converse. AR-powered part logging with an AI that remembers cost, location, and history.</p>
+                </div>
+            </div>
+
+            <!-- Slide 5: The Growing Arsenal -->
+            <div class="carousel-slide">
+                <div class="feature-carousel-card">
+                    <div class="feature-carousel-icon">
+                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="14" y="28" width="12" height="20" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <rect x="26" y="20" width="12" height="28" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <rect x="38" y="12" width="12" height="36" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <line x1="10" y1="52" x2="54" y2="52" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
                     </div>
+                    <h2>The Arsenal Keeps Growing</h2>
+                    <p>Explore tools already in development. Have a use case we haven't covered yet? Let's build it together.</p>
+                    <a href="#roadmap" style="color: var(--primary-blue); font-weight: 600; text-decoration: none; margin-top: 0.5rem; display: inline-block;">Explore the Full Toolkit →</a>
                 </div>
             </div>
         </div>
@@ -1129,27 +1136,28 @@
             <button class="carousel-dot" onclick="goToSlide(1)"></button>
             <button class="carousel-dot" onclick="goToSlide(2)"></button>
             <button class="carousel-dot" onclick="goToSlide(3)"></button>
+            <button class="carousel-dot" onclick="goToSlide(4)"></button>
         </div>
     </section>
 
-    <!-- Stats Section -->
+    <!-- Value Proposition Tiles -->
     <section class="stats">
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-number">200K+</div>
-                <div class="stat-label">Active Aircraft Supported</div>
+                <div class="stat-number" style="font-size: 1.4rem;">📋</div>
+                <div class="stat-label">References ADs — the mandatory compliance angle</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">64%</div>
-                <div class="stat-label">Faster Troubleshooting</div>
+                <div class="stat-number" style="font-size: 1.4rem;">📖</div>
+                <div class="stat-label">Cites the manual — guides to the source-of-truth</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">90%</div>
-                <div class="stat-label">First-Time Fix Rate</div>
+                <div class="stat-number" style="font-size: 1.4rem;">🔍</div>
+                <div class="stat-label">One search, whole library — no more flipping between AMM, IPC, wiring diagrams</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">24/7</div>
-                <div class="stat-label">Expert Availability</div>
+                <div class="stat-number" style="font-size: 1.4rem;">🛡️</div>
+                <div class="stat-label">Mechanic stays in command — it doesn't sign your logbook</div>
             </div>
         </div>
     </section>
@@ -1158,296 +1166,222 @@
     <section id="ai-troubleshooting">
         <div class="section-container">
             <div class="section-header">
-                <h2>AI Troubleshooting & Diagnostics</h2>
-                <p>Get instant access to expert-level diagnostics that reference your entire maintenance library—manuals, service bulletins, airworthiness directives, and more.</p>
+                <h2>Troubleshooting &amp; Maintenance Guidance</h2>
+                <p>Work any job with your entire maintenance library at hand — manuals, service bulletins, and airworthiness directives, cross-referenced in seconds.</p>
             </div>
 
-            <div class="media-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 1rem;">
-                <img src="./media/ai-troubleshooting.png" alt="AI Troubleshooting Interface" style="width: 100%; height: auto; display: block; border-radius: 1rem; border: 1px solid rgba(59, 130, 246, 0.2);">
-            </div>
-
-            <div class="process-grid">
+            <div class="process-grid" style="grid-template-columns: repeat(3, 1fr);">
                 <div class="process-step">
                     <div class="step-number">1</div>
-                    <h3>Report</h3>
-                    <p>Submit discrepancies your way:</p>
+                    <h3>Ask</h3>
+                    <p>Describe what you're working on.</p>
                     <ul>
-                        <li>Web portal or mobile app</li>
-                        <li>Photo and video uploads</li>
-                        <li>Voice-to-text capability</li>
-                        <li>Plain language descriptions</li>
+                        <li>Plain language or voice — say it like you'd tell a coworker</li>
+                        <li>Snap a photo or short video of the discrepancy</li>
+                        <li>Web or mobile, right from the hangar floor</li>
+                        <li>A squawk or a routine task — both start here</li>
                     </ul>
                 </div>
 
                 <div class="process-step">
                     <div class="step-number">2</div>
-                    <h3>Analyze</h3>
-                    <p>AI-powered root cause investigation:</p>
+                    <h3>Consult</h3>
+                    <p>Work it through with the Genius.</p>
                     <ul>
-                        <li>Targeted follow-up questions</li>
-                        <li>Cross-reference all manuals & ADs</li>
-                        <li>Pattern recognition across fleet</li>
-                        <li>Real-time compliance validation</li>
+                        <li>Asks the follow-up questions a seasoned tech would</li>
+                        <li>Pulls the relevant AMM, IPC, wiring diagrams, and SRM</li>
+                        <li>Flags the applicable ADs and service bulletins</li>
+                        <li>Narrows to a clear plan of attack — you stay in command</li>
                     </ul>
                 </div>
 
                 <div class="process-step">
                     <div class="step-number">3</div>
-                    <h3>Resolve</h3>
-                    <p>Clear, actionable guidance:</p>
+                    <h3>Get It Done</h3>
+                    <p>Clear steps, right the first time.</p>
                     <ul>
-                        <li>Step-by-step procedures</li>
-                        <li>Visual aids and diagrams</li>
-                        <li>Exact part numbers</li>
-                        <li>Automatic compliance flagging</li>
-                    </ul>
-                </div>
-
-                <div class="process-step">
-                    <div class="step-number">4</div>
-                    <h3>Learn</h3>
-                    <p>Continuous improvement:</p>
-                    <ul>
-                        <li>Adaptive intelligence</li>
-                        <li>Fleet-specific insights</li>
-                        <li>Predictive alerts</li>
-                        <li>Searchable knowledge base</li>
+                        <li>Step-by-step procedures straight from the manual</li>
+                        <li>Exact part numbers and IPC callouts</li>
+                        <li>Every answer cited to its source and revision</li>
+                        <li>Back in service — or the task signed off — faster</li>
                     </ul>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Manual Library Section -->
+    <!-- Documentation Library Section -->
     <section id="manual-library" style="background: var(--card-bg);">
         <div class="section-container">
             <div class="section-header">
-                <h2>Centralized Manual Library</h2>
-                <p>Every manual you need. One simple subscription. Stop paying hundreds per manual and get unlimited access to your complete technical library.</p>
+                <h2>Your Documentation, Actually Usable</h2>
+                <p>A growing technical library, built in — with room to add your own. Ask a question, get the procedure, cited to its source.</p>
             </div>
 
-            <div class="media-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 1rem;">
-                <img src="./media/manual-library.png" alt="Manual Library Interface" style="width: 100%; height: auto; display: block; border-radius: 1rem; border: 1px solid rgba(59, 130, 246, 0.2);">
-            </div>
 
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">
                         <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <g id="document-stack">
-                                <rect x="10" y="16" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
-                                <rect x="14" y="13" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
-                                <rect x="18" y="10" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
-                                <line x1="24" y1="18" x2="40" y2="18" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
-                                <line x1="24" y1="23" x2="40" y2="23" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
-                                <line x1="24" y1="28" x2="40" y2="28" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
-                            </g>
-                            <g id="magnifying-glass" transform="translate(38, 32)">
-                                <circle cx="0" cy="0" r="10" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
-                                <line x1="7" y1="7" x2="14" y2="14" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-                            </g>
+                            <circle cx="28" cy="28" r="14" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <line x1="38" y1="38" x2="50" y2="50" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="20" y1="24" x2="36" y2="24" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="20" y1="28" x2="32" y2="28" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="20" y1="32" x2="28" y2="32" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
                         </svg>
                     </div>
-                    <h3>Complete Documentation</h3>
-                    <p>AMMs, IPCs, Wiring Diagrams, SRMs, CMMs, AFMs, Service Bulletins, Airworthiness Directives, and more—all in one place.</p>
+                    <h3>Ask, don't dig</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Answers, not page numbers.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Query the library in plain language instead of scrolling a 400-page AMM</li>
+                        <li>Get the exact procedure, table, or wiring detail — not a document to hunt through</li>
+                        <li>Every answer cites the manual and revision it came from</li>
+                    </ul>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">
                         <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="32" cy="32" r="20" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 32 12 L 32 32 L 42 42" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                            <rect x="16" y="12" width="32" height="40" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                            <line x1="24" y1="22" x2="40" y2="22" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="24" y1="28" x2="40" y2="28" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M 32 36 L 28 44 L 32 42 L 36 44 Z" fill="#3b82f6" stroke="none"/>
                         </svg>
                     </div>
-                    <h3>Always Current</h3>
-                    <p>Automatic updates, real-time revisions, and compliance alerts. Never work from outdated information again.</p>
+                    <h3>Add your own</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Bring what we don't carry.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Upload your company procedures, ops specs, or manuals we don't stock</li>
+                        <li>Your documents become searchable right alongside the built-in library</li>
+                        <li>Private to your operation</li>
+                    </ul>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">
                         <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="12" y="16" width="40" height="32" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <circle cx="32" cy="32" r="6" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <line x1="20" y1="32" x2="26" y2="32" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-                            <line x1="38" y1="32" x2="44" y2="32" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                            <rect x="10" y="16" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+                            <rect x="14" y="13" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+                            <rect x="18" y="10" width="28" height="36" rx="1.5" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+                            <line x1="24" y1="18" x2="40" y2="18" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
+                            <line x1="24" y1="23" x2="40" y2="23" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
+                            <line x1="24" y1="28" x2="40" y2="28" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
                         </svg>
                     </div>
-                    <h3>Instant Search</h3>
-                    <p>Find any procedure, part number, or wiring diagram in seconds. Searchable across your entire library.</p>
+                    <h3>One library, one search</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Everything in one place.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Built-in documentation and your own uploads — searched together</li>
+                        <li>AMMs, IPCs, wiring diagrams, SRMs, CMMs, all in one place</li>
+                        <li>Find any procedure or part number in seconds</li>
+                    </ul>
                 </div>
-            </div>
-
-            <div class="comparison-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Feature</th>
-                            <th>Traditional Approach</th>
-                            <th>MXGenius</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Cost per Manual</td>
-                            <td><span class="cross">✗</span> $500 - $3,000 each</td>
-                            <td><span class="check">✓</span> $0 – All included</td>
-                        </tr>
-                        <tr>
-                            <td>Fleet Coverage</td>
-                            <td><span class="cross">✗</span> Pay per aircraft type</td>
-                            <td><span class="check">✓</span> Unlimited coverage</td>
-                        </tr>
-                        <tr>
-                            <td>Access Speed</td>
-                            <td><span class="cross">✗</span> Wait for shipping</td>
-                            <td><span class="check">✓</span> Instant access</td>
-                        </tr>
-                        <tr>
-                            <td>Updates</td>
-                            <td><span class="cross">✗</span> $500-$2,000+/year</td>
-                            <td><span class="check">✓</span> Free automatic updates</td>
-                        </tr>
-                        <tr>
-                            <td>Search Capability</td>
-                            <td><span class="cross">✗</span> Manual page-flipping</td>
-                            <td><span class="check">✓</span> Instant search</td>
-                        </tr>
-                        <tr>
-                            <td>Multi-User Access</td>
-                            <td><span class="cross">✗</span> One at a time</td>
-                            <td><span class="check">✓</span> Unlimited users</td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
         </div>
     </section>
 
-    <!-- Parts Brokerage Section -->
+    <!-- AI-Assisted Parts Management Section -->
     <section id="parts">
         <div class="section-container">
             <div class="section-header">
-                <h2>Parts Research & Brokerage</h2>
-                <p>Find the right parts faster. Access all major listing platforms, OEM sources, and verified suppliers. Pay only when you buy.</p>
-            </div>
-
-            <div class="media-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 1rem;">
-                <img src="./media/parts-search.png" alt="Parts Search Interface" style="width: 100%; height: auto; display: block; border-radius: 1rem; border: 1px solid rgba(59, 130, 246, 0.2);">
-            </div>
-
-            <div class="process-grid">
-                <div class="process-step">
-                    <div class="step-number">1</div>
-                    <h3>Search Across All Sources</h3>
-                    <p>One unified search returns results from all major aviation parts platforms, OEM direct inventories, and verified suppliers.</p>
-                </div>
-
-                <div class="process-step">
-                    <div class="step-number">2</div>
-                    <h3>Compare in Real-Time</h3>
-                    <p>View pricing, lead times, certifications, seller ratings, and total landed costs side-by-side.</p>
-                </div>
-
-                <div class="process-step">
-                    <div class="step-number">3</div>
-                    <h3>Source with Confidence</h3>
-                    <p>All suppliers are pre-vetted with verified certifications, traceability, and transaction history.</p>
-                </div>
-
-                <div class="process-step">
-                    <div class="step-number">4</div>
-                    <h3>Purchase Seamlessly</h3>
-                    <p>RFQ management, quote comparison, order tracking, and automatic document collection—all in one place.</p>
-                </div>
-            </div>
-
-            <div class="final-cta" style="margin-top: 4rem;">
-                <h2>Pay Only When You Buy</h2>
-                <p>Zero monthly subscriptions for parts research. Small transaction fee (2-4%) only on completed purchases. Search and compare completely free.</p>
-            </div>
-        </div>
-    </section>
-
-    <!-- Remote Support Section -->
-    <section id="support" style="background: var(--card-bg);">
-        <div class="section-container">
-            <div class="section-header">
-                <h2>Remote Support & Escalation</h2>
-                <p>Never stranded. Always supported. Expert help when you need it most. Minimize downtime and prevent costly AOG events.</p>
-            </div>
-
-            <div class="media-placeholder" style="padding: 0; border: none; overflow: hidden; border-radius: 1rem;">
-                <img src="./media/support-interface.png" alt="Support Interface" style="width: 100%; height: auto; display: block; border-radius: 1rem; border: 1px solid rgba(59, 130, 246, 0.2);">
+                <h2>AI-Assisted Parts Management</h2>
+                <p>Receive, log, and find every part by talking to the Genius and snapping a photo — then check your stock from anywhere.</p>
             </div>
 
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-                            <defs>
-                                <style>
-                                    .icon-stroke {
-                                        fill: none;
-                                        stroke: #3b82f6;
-                                        stroke-width: 2;
-                                        stroke-linecap: round;
-                                        stroke-linejoin: round;
-                                    }
-                                </style>
-                            </defs>
-                            <circle cx="16" cy="28" r="5" class="icon-stroke"/>
-                            <circle cx="48" cy="28" r="5" class="icon-stroke"/>
-                            <path d="M 21 23 Q 32 16 43 23" class="icon-stroke"/>
-                            <path d="M 16 33 Q 14 38 16 42" class="icon-stroke"/>
-                            <circle cx="16" cy="44" r="1.5" class="icon-stroke"/>
-                            <path d="M 52 24 Q 56 24 58 26" class="icon-stroke"/>
-                            <path d="M 52 28 Q 58 28 61 28" class="icon-stroke"/>
-                            <path d="M 52 32 Q 56 32 58 34" class="icon-stroke"/>
-                            <circle cx="52" cy="28" r="1.5" fill="#3b82f6"/>
-                        </svg>
-                    </div>
-                    <h3>Instant Guidance</h3>
-                    <p>Step-by-step troubleshooting procedures, clear reset instructions, and real-time decision support—right at your fingertips.</p>
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="16" y="12" width="32" height="40" rx="3" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="32" cy="48" r="2" fill="#3b82f6"/><rect x="22" y="20" width="20" height="16" rx="1" fill="none" stroke="#3b82f6" stroke-width="1.5"/><circle cx="32" cy="28" r="4" fill="none" stroke="#3b82f6" stroke-width="1.5"/></svg></div>
+                    <h3>Receive in seconds</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Snap it, say it, done.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Photograph the data plate and 8130-3 — the Genius reads the part number, serial, and trace</li>
+                        <li>Tell it out loud where it's going, what it cost, and the condition</li>
+                        <li>The full receiving record builds itself while your hands stay on the part</li>
+                    </ul>
                 </div>
-
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M 12 32 L 32 12 L 52 32" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M 32 12 L 32 52" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <circle cx="32" cy="12" r="3" fill="#3b82f6"/>
-                        </svg>
-                    </div>
-                    <h3>Smart Escalation</h3>
-                    <p>Automatic routing to maintenance providers with full diagnostic data when issues require expert intervention.</p>
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="28" r="16" fill="none" stroke="#3b82f6" stroke-width="2"/><line x1="32" y1="20" x2="32" y2="36" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/><line x1="24" y1="28" x2="40" y2="28" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/><path d="M 22 48 L 42 48" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg></div>
+                    <h3>Point and identify</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Aim your camera, get the answer.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Point at a part on the shelf and pull up its record, condition, and paperwork</li>
+                        <li>Verify you're holding the right serial before it goes on the airplane</li>
+                        <li>No digging through bins to figure out what you've got</li>
+                    </ul>
                 </div>
-
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="32" cy="32" r="20" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 32 16 L 32 32 L 42 32" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-                            <text x="32" y="10" text-anchor="middle" fill="#3b82f6" font-size="8" font-weight="bold">24/7</text>
-                        </svg>
-                    </div>
-                    <h3>24/7 Availability</h3>
-                    <p>Support is always there whenever you need it. No waiting for business hours or specialist callbacks.</p>
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="16" width="40" height="32" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/><line x1="12" y1="24" x2="52" y2="24" stroke="#3b82f6" stroke-width="1.5"/><line x1="12" y1="32" x2="52" y2="32" stroke="#3b82f6" stroke-width="1.5"/><line x1="32" y1="16" x2="32" y2="48" stroke="#3b82f6" stroke-width="1.5"/></svg></div>
+                    <h3>One living parts database</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Every part, every detail, in one place.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Part number, serial, condition, cost, and bin location — all captured on intake</li>
+                        <li>8130-3 and traceability stored with the part it belongs to</li>
+                        <li>Nothing lives on a sticky note or in someone's head</li>
+                    </ul>
                 </div>
-
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="32" cy="32" r="20" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 32 18 L 32 46 M 18 32 L 46 32" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 4" />
-                            <circle cx="32" cy="18" r="3" fill="#3b82f6"/>
-                            <circle cx="32" cy="46" r="3" fill="#3b82f6"/>
-                            <circle cx="18" cy="32" r="3" fill="#3b82f6"/>
-                            <circle cx="46" cy="32" r="3" fill="#3b82f6"/>
-                            <circle cx="32" cy="32" r="4" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                        </svg>
-                    </div>
-                    <h3>Community Intelligence</h3>
-                    <p>Contribute solutions and learn from the global network. Our models continuously improve based on verified feedback from expert AMTs.</p>
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="20" y="8" width="24" height="40" rx="3" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="32" cy="44" r="2" fill="#3b82f6"/><rect x="24" y="20" width="16" height="16" rx="1" fill="none" stroke="#3b82f6" stroke-width="1.5"/><path d="M 28 28 L 30 30 L 36 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <h3>Check stock from anywhere</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Your stockroom, in your pocket.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Look up what's on the shelf from the road, the ramp, or another base</li>
+                        <li>Know whether you've already got the part before you buy or drive back</li>
+                        <li>Real-time — what you see is what's actually on hand</li>
+                    </ul>
+                </div>
+            </div>
+            <p style="text-align: center; color: var(--text-gray); font-size: 0.8rem; margin-top: 2rem;">* AI-Assisted Parts Management is available as an add-on module and may require additional configuration to maintain.</p>
+        </div>
+    </section>
+
+    <!-- Remote Viewing Section -->
+    <section id="support" style="background: var(--card-bg);">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Remote Viewing</h2>
+                <p>Put a qualified set of eyes on the live feed — from the tech on the floor or the pilot on the ramp — wherever the airplane is stuck.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="24" r="10" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="32" cy="24" r="4" fill="#3b82f6"/><path d="M 12 24 Q 22 8 32 14 Q 42 8 52 24 Q 42 40 32 34 Q 22 40 12 24 Z" fill="none" stroke="#3b82f6" stroke-width="1.5"/></svg></div>
+                    <h3>Eyes on, in real time</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">They see what you see.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Stream live from the tech's or pilot's camera, hands-free</li>
+                        <li>The specialist sees the exact fault, panel, or part you're looking at</li>
+                        <li>Talk it through together instead of describing it over a bad phone line</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="6" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="44" cy="20" r="6" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="32" cy="42" r="6" fill="none" stroke="#3b82f6" stroke-width="2"/><line x1="25" y1="23" x2="28" y2="38" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><line x1="39" y1="23" x2="36" y2="38" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><line x1="26" y1="20" x2="38" y2="20" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+                    <h3>Whoever you need on the glass</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">The right person, not just anyone available.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Loop in another tech, your DOM, the base shop, or an OEM specialist</li>
+                        <li>Pull in the person who's actually seen this failure before</li>
+                        <li>One tap from the field, no scheduling a callback</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="16" width="40" height="28" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/><line x1="20" y1="24" x2="36" y2="24" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><line x1="20" y1="28" x2="28" y2="28" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><rect x="38" y="22" width="10" height="12" rx="1" fill="none" stroke="#3b82f6" stroke-width="1.5"/></svg></div>
+                    <h3>Full context, not starting cold</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">They walk in already knowing the story.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>The viewer sees the squawk, the history, and the manual reference alongside the video</li>
+                        <li>Parts already on hand show up in the same view</li>
+                        <li>No re-explaining what you've tried for the last two hours</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M 12 36 L 24 20 L 40 20 L 52 36" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="16" y1="40" x2="48" y2="40" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="48" r="4" fill="none" stroke="#3b82f6" stroke-width="2"/></svg></div>
+                    <h3>Keep the airplane moving</h3>
+                    <h4 style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-weight: 500;">Fix it in place, or make the call with confidence.</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-light-gray); font-size: 0.95rem; line-height: 1.8;">
+                        <li>Resolve minor squawks on the spot and avoid an unnecessary AOG</li>
+                        <li>Get a clear go / no-go before you commit to a ferry or a truck roll</li>
+                        <li>Decisions made with a real set of eyes, not a guess over the phone</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -1458,96 +1392,60 @@
         <div class="section-container">
             <div class="section-header">
                 <h2>Built for Every Scale of Operation</h2>
-                <p>From single-plane owner-operators to massive global maintenance networks, MXGenius adapts to your operational complexity.</p>
+                <p>From a solo A&amp;P to a multi-base fleet, MXGenius fits how you actually operate.</p>
             </div>
-
-            <div class="features-grid">
+            <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
                 <div class="feature-card" style="text-align: center; border-top: 4px solid var(--accent-orange);">
                     <h3 style="color: var(--accent-orange); margin-bottom: 0.5rem; font-size: 1.25rem;">Independent AMTs</h3>
-                    <h4 style="color: var(--text-white); font-size: 1.75rem; margin-bottom: 1.5rem;">Democratized Access</h4>
-                    <p>Level the playing field. Get the exact same OEM technical data, parts sourcing power, and AI diagnostic capabilities previously reserved only for massive airlines—without the crushing subscription overlaps.</p>
+                    <h4 style="color: var(--text-white); font-size: 1.5rem; margin-bottom: 1.5rem;">Democratized Access</h4>
+                    <p>The same technical data, parts control, and expert backup the big shops have — without the stacked subscriptions. Query a growing library alongside your own manuals, receive and track parts just by talking to the Genius, and pull a specialist onto your camera when you're solo on a job.</p>
                 </div>
-
                 <div class="feature-card" style="text-align: center; border-top: 4px solid var(--primary-blue);">
-                    <h3 style="color: var(--primary-blue); margin-bottom: 0.5rem; font-size: 1.25rem;">Fleet Operators</h3>
-                    <h4 style="color: var(--text-white); font-size: 1.75rem; margin-bottom: 1.5rem;">Maximum Uptime</h4>
-                    <p>Slash AOG events through standardized troubleshooting, predictive compliance warnings, and lightning-fast parts procurement. Keep your charter, fractional, or commercial fleet in the air where it belongs.</p>
+                    <h3 style="color: var(--primary-blue); margin-bottom: 0.5rem; font-size: 1.25rem;">Part 91 Operators</h3>
+                    <h4 style="color: var(--text-white); font-size: 1.5rem; margin-bottom: 1.5rem;">Ready to Fly</h4>
+                    <p>For corporate flight departments and owner-flown jets that need the airplane available. Fast troubleshooting and maintenance guidance, real-time visibility into what's on your shelf, and a specialist on the glass at an outstation — so a minor squawk doesn't turn into an AOG.</p>
                 </div>
-
+                <div class="feature-card" style="text-align: center; border-top: 4px solid #8b5cf6;">
+                    <h3 style="color: #8b5cf6; margin-bottom: 0.5rem; font-size: 1.25rem;">Part 135 Fleet Operators</h3>
+                    <h4 style="color: var(--text-white); font-size: 1.5rem; margin-bottom: 1.5rem;">Maximum Uptime</h4>
+                    <p>Standardize troubleshooting across the fleet, manage parts across every base with live stock visibility, and cut downtime with remote viewing and expedited receiving. Keep your charter and on-demand aircraft in the air, where they earn.</p>
+                </div>
                 <div class="feature-card" style="text-align: center; border-top: 4px solid #10b981;">
                     <h3 style="color: #10b981; margin-bottom: 0.5rem; font-size: 1.25rem;">MRO Facilities</h3>
-                    <h4 style="color: var(--text-white); font-size: 1.75rem; margin-bottom: 1.5rem;">Optimized Throughput</h4>
-                    <p>Triage incoming discrepancies instantly. Pre-order verified parts before the aircraft even arrives. Optimize technician dispatch logic and automatically generate flawless audit trails and logbook groundwork.</p>
+                    <h4 style="color: var(--text-white); font-size: 1.5rem; margin-bottom: 1.5rem;">Optimized Throughput</h4>
+                    <p>Triage incoming squawks the moment they land, receive and verify parts in seconds with photo-and-voice intake, and keep every manual and revision at the bench. Put remote eyes on satellite work and generate cleaner audit trails with less effort.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Integrations Section -->
+    <!-- Roadmap Section -->
     <section id="integrations">
         <div class="section-container">
             <div class="section-header">
-                <h2>Integrations & Connectivity</h2>
-                <p>Seamlessly connect your entire aviation ecosystem. Direct integrations with leading platforms and robust APIs for custom workflows.</p>
+                <h2>On the Roadmap</h2>
+                <p>What's coming next — and an open door to build around how you operate.</p>
             </div>
-
             <div class="integration-grid">
                 <div class="integration-card">
-                    <div class="integration-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-                            <g stroke="#3b82f6" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="16" y1="32" x2="32" y2="20"/>
-                                <line x1="32" y1="20" x2="48" y2="32"/>
-                                <line x1="48" y1="32" x2="32" y2="44"/>
-                                <line x1="32" y1="44" x2="16" y2="32"/>
-                                <line x1="32" y1="20" x2="32" y2="44"/>
-                            </g>
-                            <g fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="32" cy="20" r="3.5"/>
-                                <circle cx="16" cy="32" r="3.5"/>
-                                <circle cx="48" cy="32" r="3.5"/>
-                                <circle cx="32" cy="44" r="3.5"/>
-                                <circle cx="32" cy="32" r="2.5"/>
-                            </g>
-                        </svg>
-                    </div>
-                    <h3>MxCard.io</h3>
-                    <p>Direct, real-time connectivity with digital maintenance card platform. Instant synchronization and unified audit trail.</p>
+                    <div class="integration-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" width="64" height="64"><g stroke="#3b82f6" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="32" x2="32" y2="20"/><line x1="32" y1="20" x2="48" y2="32"/><line x1="48" y1="32" x2="32" y2="44"/><line x1="32" y1="44" x2="16" y2="32"/></g><g fill="none" stroke="#3b82f6" stroke-width="1.5"><circle cx="32" cy="20" r="3.5"/><circle cx="16" cy="32" r="3.5"/><circle cx="48" cy="32" r="3.5"/><circle cx="32" cy="44" r="3.5"/><circle cx="32" cy="32" r="2.5"/></g></svg></div>
+                    <h3>MxCard — <span style="color: var(--accent-orange); font-size: 0.85rem;">Coming soon</span></h3>
+                    <p>Prepaid maintenance, jet-card style. Buy credits up front at a discount and draw them down against covered maintenance, with member perks like waived parts-handling fees.</p>
                 </div>
-
                 <div class="integration-card">
-                    <div class="integration-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="16" y="20" width="32" height="24" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 24 28 L 40 28 M 24 32 L 40 32 M 24 36 L 32 36" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                    </div>
-                    <h3>Advanced AOG CRM</h3>
-                    <p>AI-assisted logbook entry generation and customer relationship management integrated seamlessly.</p>
+                    <div class="integration-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="16" y="20" width="32" height="24" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/><path d="M 24 28 L 40 28 M 24 32 L 40 32 M 24 36 L 32 36" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+                    <h3>AI-Assisted Logbook Entries — <span style="color: var(--accent-orange); font-size: 0.85rem;">Coming soon</span></h3>
+                    <p>Talk the Genius through what you did and let it organize and write the entry — clean and consistent, ready for you to review and sign.</p>
                 </div>
-
                 <div class="integration-card">
-                    <div class="integration-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="12" y="16" width="40" height="32" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <circle cx="32" cy="32" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 20 24 L 20 28 M 44 24 L 44 28 M 20 36 L 20 40 M 44 36 L 44 40" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                    </div>
-                    <h3>Scheduling Systems</h3>
-                    <p>Bi-directional sync with flight scheduling platforms for end-to-end workflow orchestration.</p>
+                    <div class="integration-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="16" width="40" height="32" rx="2" fill="none" stroke="#3b82f6" stroke-width="2"/><circle cx="32" cy="32" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/><path d="M 20 24 L 20 28 M 44 24 L 44 28 M 20 36 L 20 40 M 44 36 L 44 40" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg></div>
+                    <h3>AI Maintenance Planning — <span style="color: var(--accent-orange); font-size: 0.85rem;">Coming soon</span></h3>
+                    <p>Look past the next squawk. AI-driven long-term planning forecasts upcoming inspections and tasks, so you schedule downtime on your terms, not the airplane's.</p>
                 </div>
-
                 <div class="integration-card">
-                    <div class="integration-icon">
-                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="16" y="16" width="32" height="32" rx="3" fill="none" stroke="#3b82f6" stroke-width="2"/>
-                            <path d="M 24 28 L 32 28 M 24 32 L 40 32 M 24 36 L 36 36" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-                            <text x="32" y="24" text-anchor="middle" fill="#3b82f6" font-size="6" font-weight="bold">API</text>
-                        </svg>
-                    </div>
-                    <h3>Robust API</h3>
-                    <p>RESTful APIs for OEMs, operators, and technology partners. Build custom integrations and extend capabilities.</p>
+                    <div class="integration-icon"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect x="16" y="16" width="32" height="32" rx="3" fill="none" stroke="#3b82f6" stroke-width="2"/><path d="M 24 28 L 32 28 M 24 32 L 40 32 M 24 36 L 36 36" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><text x="32" y="24" text-anchor="middle" fill="#3b82f6" font-size="6" font-weight="bold">API</text></svg></div>
+                    <h3>Robust APIs — <span style="color: var(--primary-blue); font-size: 0.85rem;">In development</span></h3>
+                    <p>You want it, we'll build it. RESTful APIs and custom integrations shaped around your workflow — for operators, OEMs, and technology partners.</p>
                 </div>
             </div>
         </div>
@@ -1558,14 +1456,16 @@
         <div class="section-container">
             <div class="final-cta">
                 <h2>Transform Your Maintenance Operations Today</h2>
-                <p>Join forward-thinking aviation operations using AI to reduce troubleshooting time by 64% and increase first-time fix rates to over 90%.</p>
+                <p>Join the forward-thinking aviation professionals embracing the future of maintenance — AI troubleshooting and guidance, your full documentation, hands-free parts management, and a specialist on the glass, all in one place.</p>
                 <div class="hero-ctas">
-                    <a href="dashboard.html" class="cta-button">Launch Dashboard</a>
-                    <a href="login.html" class="cta-button secondary">Login to Account</a>
+                    <a href="#" class="cta-button" onclick="return false;">Request Access</a>
+                    <a href="#" class="cta-button secondary" onclick="return false;">Book a Demo</a>
                 </div>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-gray);">Already have an account? <a href="login.html" style="color: var(--primary-blue); text-decoration: underline;">Log in</a></p>
             </div>
         </div>
     </section>
+
 
     <!-- Footer -->
     <footer>
@@ -1582,7 +1482,7 @@
     <script>
         // Carousel functionality
         let currentSlide = 0;
-        const totalSlides = 4;
+        const totalSlides = 5;
         let autoAdvanceInterval;
 
         function updateCarousel() {

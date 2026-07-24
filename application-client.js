@@ -64,13 +64,17 @@ const MXApplicationClient = (() => {
       try { return await promise; } catch { return {}; }
     };
 
-    const [aircraft, pictures, engines] = await Promise.all([
+    const [aircraft, pictures, engines, features, equipment, leases, status] = await Promise.all([
       jetNetJson(`Aircraft/getAircraft/${id}/${token}`),
       safeJson(jetNetJson(`Aircraft/getPictures/${id}/${token}`)),
-      safeJson(jetNetJson(`Engines/getEnginesByAircraft/${id}/${token}`))
+      safeJson(jetNetJson(`Engines/getEnginesByAircraft/${id}/${token}`)),
+      safeJson(jetNetJson(`Aircraft/getFeatures/${id}/${token}`)),
+      safeJson(jetNetJson(`Aircraft/getAdditionalEquipment/${id}/${token}`)),
+      safeJson(jetNetJson(`Aircraft/getLeases/${id}/${token}`)),
+      safeJson(jetNetJson(`Aircraft/getStatus/${id}/${token}`)),
     ]);
 
-    return { aircraft, pictures, engines };
+    return { aircraft, pictures, engines, features, equipment, leases, status };
   }
 
   function aircraftImageUrl(sourceUrl) {
@@ -393,6 +397,24 @@ const MXApplicationClient = (() => {
     }, { ...session, confirmationGrant: undefined });
   }
 
+  function modelOperationCosts({ token, bearer, make, model }) {
+    return jetNetJson(`Model/getModelOperationCosts/${token}`, {
+      bearer, method: 'PUT', body: { make, model }
+    });
+  }
+
+  function modelPerformanceSpecs({ token, bearer, make, model }) {
+    return jetNetJson(`Model/getModelPerformanceSpecs/${token}`, {
+      bearer, method: 'PUT', body: { make, model }
+    });
+  }
+
+  function modelMarketTrends({ token, bearer, make, model }) {
+    return jetNetJson(`Model/getModelMarketTrends/${token}`, {
+      bearer, method: 'PUT', body: { make, model }
+    });
+  }
+
   return Object.freeze({
     API_BASE,
     MCP_BASE,
@@ -405,6 +427,9 @@ const MXApplicationClient = (() => {
     companyDetail,
     companyList,
     contactList,
+    modelMarketTrends,
+    modelOperationCosts,
+    modelPerformanceSpecs,
     staticJson,
     caseWorkspace: Object.freeze({
       runFirstSlice: runFirstCaseSlice,

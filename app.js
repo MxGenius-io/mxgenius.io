@@ -665,6 +665,7 @@ function setupNavigation() {
     bd.addEventListener('click', () => bd.closest('.modal').classList.add('hidden'));
   });
 
+  setupMarketIntel();
   setupChatPanel();
 }
 
@@ -2137,6 +2138,117 @@ function renderRecentListings(acList) {
 }
 
 // ═══════════════════════════════════════════════════
+//  MARKET INTELLIGENCE
+// ═══════════════════════════════════════════════════
+
+function setupMarketIntel() {
+  const btn = document.getElementById('mktSearchBtn');
+  if (!btn) return;
+  btn.addEventListener('click', loadMarketIntel);
+  // Also enter key
+  ['mktMake', 'mktModel'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keyup', (e) => { if (e.key === 'Enter') loadMarketIntel(); });
+  });
+}
+
+async function loadMarketIntel() {
+  const make = document.getElementById('mktMake')?.value.trim();
+  const model = document.getElementById('mktModel')?.value.trim();
+  const results = document.getElementById('mktResults');
+  if (!results) return;
+  if (!make || !model) { results.innerHTML = '<div class="empty-state">Enter both Make and Model to get market intelligence</div>'; return; }
+
+  results.innerHTML = '<div class="loading" style="grid-column:1/-1;">Loading market intelligence\u2026</div>';
+
+  const safeCall = async (fn) => { try { return await fn(); } catch { return null; } };
+
+  const [costs, specs, trends] = await Promise.all([
+    safeCall(() => MXApplicationClient.modelOperationCosts({ token: TOKEN, bearer: BEARER, make, model })),
+    safeCall(() => MXApplicationClient.modelPerformanceSpecs({ token: TOKEN, bearer: BEARER, make, model })),
+    safeCall(() => MXApplicationClient.modelMarketTrends({ token: TOKEN, bearer: BEARER, make, model }))
+  ]);
+
+  results.innerHTML = '';
+
+  // Operating Costs Card
+  if (costs && costs.responsestatus !== 'ERROR') {
+    const c = costs.operationcosts || costs;
+    results.innerHTML += `
+      <div class="card" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(30,41,59,0.6));border:1px solid rgba(16,185,129,0.2);">
+        <h3 class="card-title" style="color:#10b981;">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
+          Operating Costs
+        </h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+          ${mktRow('Fuel/hr', c.fuelcostperhour, '$')}
+          ${mktRow('Crew/yr', c.crewcostperyear, '$')}
+          ${mktRow('Maint/hr', c.maintenancecostperhour, '$')}
+          ${mktRow('Hangar/yr', c.hangarcostperyear, '$')}
+          ${mktRow('Insurance/yr', c.insurancecostperyear, '$')}
+          ${mktRow('Total/hr', c.totalcostperhour, '$')}
+          ${mktRow('Fuel Burn', c.fuelburnrate, '', ' gal/hr')}
+          ${mktRow('Annual Budget', c.annualbudget, '$')}
+        </div>
+      </div>`;
+  }
+
+  // Performance Specs Card
+  if (specs && specs.responsestatus !== 'ERROR') {
+    const s = specs.performancespecs || specs;
+    results.innerHTML += `
+      <div class="card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(30,41,59,0.6));border:1px solid rgba(99,102,241,0.2);">
+        <h3 class="card-title" style="color:#818cf8;">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path fill-rule="evenodd" d="M12 1.586l-4 4v12.828l4-4V1.586zM3.707 3.293A1 1 0 002 4v10a1 1 0 00.293.707L6 18.414V5.586L3.707 3.293zM17.707 5.293L14 1.586v12.828l2.293 2.293A1 1 0 0018 16V6a1 1 0 00-.293-.707z" clip-rule="evenodd"/></svg>
+          Performance Specs
+        </h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+          ${mktRow('Range', s.range, '', ' nm')}
+          ${mktRow('Max Speed', s.maxspeed || s.highspeed, '', ' ktas')}
+          ${mktRow('Cruise Speed', s.normalcruisespeed, '', ' ktas')}
+          ${mktRow('Ceiling', s.ceiling, '', ' ft')}
+          ${mktRow('Takeoff Dist', s.takeoffdistance, '', ' ft')}
+          ${mktRow('Landing Dist', s.landingdistance, '', ' ft')}
+          ${mktRow('Passengers', s.passengers || s.maxpassengers)}
+          ${mktRow('Cabin Length', s.cabinlength, '', ' ft')}
+          ${mktRow('Wingspan', s.wingspan, '', ' ft')}
+          ${mktRow('MTOW', s.mtow, '', ' lbs')}
+        </div>
+      </div>`;
+  }
+
+  // Market Trends Card
+  if (trends && trends.responsestatus !== 'ERROR') {
+    const t = trends.markettrends || trends;
+    results.innerHTML += `
+      <div class="card" style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(30,41,59,0.6));border:1px solid rgba(245,158,11,0.2);grid-column:1/-1;">
+        <h3 class="card-title" style="color:#f59e0b;">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/></svg>
+          Market Trends
+        </h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.82rem;">
+          ${mktRow('Avg Ask Price', t.averageaskingprice || t.avgaskprice, '$')}
+          ${mktRow('Avg Sold Price', t.averagesoldprice || t.avgsoldprice, '$')}
+          ${mktRow('Fleet Size', t.fleetsize || t.totalfleet)}
+          ${mktRow('For Sale', t.forsale || t.forsalecount)}
+          ${mktRow('Absorption Rate', t.absorptionrate, '', '%')}
+          ${mktRow('Days on Market', t.daysonmarket)}
+        </div>
+      </div>`;
+  }
+
+  if (!results.innerHTML) {
+    results.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No market data available for this make/model combination</div>';
+  }
+}
+
+function mktRow(label, value, prefix, suffix) {
+  if (value === undefined || value === null || value === '') return '';
+  const formatted = typeof value === 'number' ? (prefix === '$' ? '$' + value.toLocaleString() : value.toLocaleString()) + (suffix || '') : (prefix || '') + value + (suffix || '');
+  return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted);font-size:0.72rem;">${label}</span><br><span style="color:var(--text-primary);font-weight:600;">${formatted}</span></div>`;
+}
+
+
+// ═══════════════════════════════════════════════════
 //  AIRCRAFT
 // ═══════════════════════════════════════════════════
 
@@ -2375,6 +2487,10 @@ async function showAircraftDetail(id) {
     const data = bundle.aircraft || {};
     const picData = bundle.pictures || {};
     const engData = bundle.engines || {};
+    const featData = bundle.features || {};
+    const equipData = bundle.equipment || {};
+    const leaseData = bundle.leases || {};
+    const statusData = bundle.status || {};
     
     const ac = data.aircraft;
     if (!ac) { body.innerHTML = '<div class="empty-state">Aircraft not found (404/401)</div>'; return; }
@@ -2383,6 +2499,10 @@ async function showAircraftDetail(id) {
     const af = ac.airframe || {};
     const maint = ac.maintenance || {};
     const apu = ac.apu || {};
+    const acStatus = statusData.status || {};
+    const acFeatures = featData.features || [];
+    const acEquipment = equipData.additionalequipment || equipData.equipment || [];
+    const acLeases = leaseData.leases || [];
     
     const metarHtml = '';
 
@@ -2540,6 +2660,41 @@ async function showAircraftDetail(id) {
           ${ac.exterior.map(e => detailRow(e.name, e.description)).join('')}
         </div>` : ''}
 
+
+        ${acFeatures.length > 0 ? `
+        <div class="detail-section full-width">
+          <div class="detail-section-title" style="display:flex;align-items:center;gap:8px;">Features <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">${acFeatures.length} items</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${acFeatures.map(f => '<span class="badge" style="background:rgba(99,102,241,0.12);color:#a5b4fc;font-size:0.72rem;">' + escapeMarkup(f.name) + (f.status && f.status !== 'Standard' ? ' \u00b7 ' + escapeMarkup(f.status) : '') + '</span>').join('')}
+          </div>
+        </div>` : ''}
+
+        ${acEquipment.length > 0 ? `
+        <div class="detail-section full-width">
+          <div class="detail-section-title" style="display:flex;align-items:center;gap:8px;">Additional Equipment <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">${acEquipment.length} items</span></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;">
+            ${acEquipment.map(eq => '<div style="background:rgba(30,41,59,0.5);border:1px solid var(--border);border-radius:8px;padding:10px 12px;"><div style="font-size:0.78rem;color:var(--accent-cyan);font-weight:600;">' + escapeMarkup(eq.name) + '</div>' + (eq.description ? '<div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">' + escapeMarkup(eq.description) + '</div>' : '') + '</div>').join('')}
+          </div>
+        </div>` : ''}
+
+        ${acLeases.length > 0 ? `
+        <div class="detail-section full-width">
+          <div class="detail-section-title">Lease Information</div>
+          <table>
+            <thead><tr><th>Type</th><th>Lessor</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+            <tbody>
+              ${acLeases.map(l => `
+                <tr>
+                  <td class="td-accent">${escapeMarkup(l.leasetype || l.type || '\u2014')}</td>
+                  <td>${escapeMarkup(l.lessor || l.company || '\u2014')}</td>
+                  <td class="td-dim">${escapeMarkup(l.startdate || l.start || '\u2014')}</td>
+                  <td class="td-dim">${escapeMarkup(l.enddate || l.end || '\u2014')}</td>
+                  <td>${escapeMarkup(l.status || '\u2014')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
         <div class="detail-section full-width">
           <div class="detail-section-title">MXGenius AI Chat</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
