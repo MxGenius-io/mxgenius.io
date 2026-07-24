@@ -68,7 +68,7 @@ async function authenticate() {
 }
 
 function invalidSession(result) {
-  return /INVALID SECURITY TOKEN/i.test(String(result?.body?.responsestatus || ''));
+  return /(?:INVALID|EXPIRED) SECURITY TOKEN/i.test(String(result?.body?.responsestatus || ''));
 }
 
 async function forward(method, path, body) {
