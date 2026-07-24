@@ -12,6 +12,16 @@
   let account = null;
   let idToken = '';
 
+  function publishIdentity(identity) {
+    if (!isDashboard || !identity) return;
+    const chip = document.getElementById('signedInAs');
+    const name = document.getElementById('signedInAsName');
+    const label = identity.name || identity.username || identity.homeAccountId;
+    if (!chip || !name || !label) return;
+    name.textContent = label;
+    chip.hidden = false;
+  }
+
   const ready = (async () => {
     if (!clientId || !authority || !globalThis.msal) {
       if (isDashboard) {
@@ -29,6 +39,7 @@
     account = response?.account || instance.getActiveAccount() || instance.getAllAccounts()[0] || null;
     if (response?.idToken) idToken = response.idToken;
     if (account) instance.setActiveAccount(account);
+    publishIdentity(account);
     if (account && !idToken) {
       try {
         const token = await instance.acquireTokenSilent({ account, scopes: ['openid', 'profile', 'email'] });
