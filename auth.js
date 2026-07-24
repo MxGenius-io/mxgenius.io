@@ -30,7 +30,7 @@
     }
     const instance = new msal.PublicClientApplication({
       auth: { clientId, authority, redirectUri, postLogoutRedirectUri: `${location.origin}/index.html`, navigateToLoginRequestUrl: false },
-      cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
+      cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
     });
     const response = await instance.handleRedirectPromise();
     account = response?.account || instance.getActiveAccount() || instance.getAllAccounts()[0] || null;
@@ -58,7 +58,7 @@
     return account;
   })().catch((error) => {
     console.error('Entra sign-in failed', error);
-    if (isDashboard) location.replace(`login.html?error=signin&returnUrl=${encodeURIComponent(location.href)}`);
+    if (isDashboard) location.replace(`login.html?error=signin&message=${encodeURIComponent(error?.message || String(error))}&returnUrl=${encodeURIComponent(location.href)}`);
     return null;
   });
 
