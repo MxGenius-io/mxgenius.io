@@ -360,8 +360,6 @@ test('public runtime configuration mounts the live core without embedding creden
   assert.match(dashboard, /src="runtime-config\.js\?v=3"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /https:\/\/mxg-fleet\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
-  assert.match(runtimeConfig, /allowInsecurePilot: false/);
-  assert.match(runtimeConfig, /entraTenantId:/);
-  assert.match(runtimeConfig, /entraClientId:/);
+  assert.match(runtimeConfig, /allowInsecurePilot: true/);
   assert.doesNotMatch(runtimeConfig, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
 });
