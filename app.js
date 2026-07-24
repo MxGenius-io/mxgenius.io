@@ -1989,6 +1989,28 @@ function populateDashboardFilters(acList) {
     opt.value = t; opt.textContent = t;
     typeSelect.appendChild(opt);
   });
+
+  // --- Populate Aircraft Explorer Dropdowns ---
+  const acTypeSelect = document.getElementById('acTypeFilter');
+  if (acTypeSelect) {
+    acTypeSelect.innerHTML = '<option value="">All Types</option>';
+    types.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      acTypeSelect.appendChild(opt);
+    });
+  }
+
+  const regionSelect = document.getElementById('acScanRegion');
+  if (regionSelect) {
+    const regions = [...new Set(acList.map(a => a.basecountry || a.BaseCountry).filter(Boolean))].sort();
+    regionSelect.innerHTML = '<option value="">All Regions</option>';
+    regions.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r; opt.textContent = r;
+      regionSelect.appendChild(opt);
+    });
+  }
 }
 
 function applyDashboardFilters() {
@@ -3351,7 +3373,7 @@ function setupGlobeSheet() {
       document.querySelectorAll('.texture-btn').forEach(b => b.classList.remove('active'));
       const targetBtn = e.currentTarget;
       targetBtn.classList.add('active');
-      if (globeInstance) globeInstance.globeImageUrl('assets/' + targetBtn.dataset.texture);
+      if (globeInstance) globeInstance.globeImageUrl(targetBtn.dataset.texture);
     });
   });
 
