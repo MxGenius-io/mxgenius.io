@@ -124,12 +124,7 @@ const MXCaseState = {
         cluster.hasActiveCase = cluster.aircraft.some((aircraft) => this.matchesAircraft(aircraft));
       });
       if (globeInstance) {
-        globeInstance
-          .pointsData(allClusters)
-          .ringsData(attentionClusters(allClusters))
-          .pointColor(clusterColor)
-          .pointRadius(clusterRadius)
-          .pointAltitude(clusterAltitude);
+        globeInstance.htmlElementsData(allClusters);
         const cluster = allClusters.find((item) => item.hasActiveCase);
         if (cluster) globeInstance.pointOfView({ lat: cluster.lat, lng: cluster.lng, altitude: 1.1 }, 700);
       }
@@ -3322,7 +3317,7 @@ function applyGlobeFilters() {
     );
     if (filtered.length === 1) globeInstance.pointOfView({ lat: filtered[0].lat, lng: filtered[0].lng, altitude: 1.2 }, 600);
   }
-  globeInstance.pointsData(filtered).ringsData(attentionClusters(filtered));
+  globeInstance.htmlElementsData(filtered);
 }
 
 function setupGlobeSheet() {
@@ -3519,16 +3514,40 @@ async function loadGlobe() {
   if (!globeInstance) {
     container.innerHTML = '';
     globeInstance = Globe()
-      .globeImageUrl('earth-night.jpg')
-      .bumpImageUrl('earth-topology.png')
-      .backgroundImageUrl('night-sky.png')
-      .pointsData(allClusters).pointLat('lat').pointLng('lng')
-      .pointAltitude(clusterAltitude).pointRadius(clusterRadius).pointColor(clusterColor)
-      .pointResolution(12).pointsMerge(false).pointsTransitionDuration(250)
-      .onPointHover(handleGlobeHover).onPointClick(handleGlobeClick)
-      .ringsData(attentionClusters(allClusters)).ringLat('lat').ringLng('lng')
-      .ringAltitude(0.0025).ringColor(clusterRingColor).ringMaxRadius(clusterRingRadius)
-      .ringPropagationSpeed(0.22).ringRepeatPeriod(1800)
+      .globeImageUrl(null)
+      .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
+      .htmlElementsData(allClusters)
+      .htmlElement(d => {
+        const el = document.createElement('div');
+        const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
+        const isPriority = d.hasActiveCase || d.hasAog;
+        
+        // Dynamic pixel size based on cluster count
+        const px = Math.min(40, 10 + Math.log2(count) * 4);
+        const color = clusterColor(d);
+        
+        el.style.width = `${px}px`;
+        el.style.height = `${px}px`;
+        el.style.background = color;
+        el.style.borderRadius = '50%';
+        el.style.border = `2px solid ${isPriority ? '#ff3366' : 'rgba(255,255,255,0.8)'}`;
+        el.style.boxShadow = `0 0 ${isPriority ? '15px' : '6px'} ${color}`;
+        el.style.cursor = 'pointer';
+        el.style.pointerEvents = 'auto';
+        el.style.transition = 'transform 0.2s';
+        
+        el.onmouseenter = (e) => {
+          el.style.transform = 'scale(1.3)';
+          handleGlobeHover(d, e);
+        };
+        el.onmouseleave = (e) => {
+          el.style.transform = 'scale(1)';
+          handleGlobeHover(null, e);
+        };
+        el.onclick = () => handleGlobeClick(d);
+        
+        return el;
+      })
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);
     globeInstance.controls().autoRotate = false; globeInstance.controls().autoRotateSpeed = 0.4;
@@ -3541,11 +3560,6 @@ async function loadGlobe() {
     if (!gw._globeClickBound) { gw._globeClickBound = true; gw.addEventListener('click', (e) => { if (e.target.closest('.globe-sheet') || e.target.closest('.globe-tooltip')) return; if (window._lastGlobePoint?.icao) handleGlobeClick(window._lastGlobePoint); }); }
     setupGlobeSheet();
   } else {
-    globeInstance
-      .pointsData(allClusters)
-      .ringsData(attentionClusters(allClusters))
-      .pointColor(clusterColor)
-      .pointRadius(clusterRadius)
-      .pointAltitude(clusterAltitude);
+    globeInstance.htmlElementsData(allClusters);
   }
 }
