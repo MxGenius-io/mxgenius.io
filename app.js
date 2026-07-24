@@ -1970,6 +1970,14 @@ function populateDashboardFilters(acList) {
   const typeSelect = document.getElementById('filterType');
   if (!makeSelect || !typeSelect) return;
 
+  const typeLabels = {
+    'BusinessJet': 'Business Jets',
+    'Turboprop': 'Turboprops',
+    'JetAirliner': 'Jet Airliners',
+    'Piston': 'Piston',
+    'Turbine': 'Turbine'
+  };
+
   // Clear existing options (keep the default "All" option)
   makeSelect.innerHTML = '<option value="">All Makes</option>';
   typeSelect.innerHTML = '<option value="">All Types</option>';
@@ -1986,31 +1994,10 @@ function populateDashboardFilters(acList) {
   const types = [...new Set(acList.map(a => a.maketype || a.MakeType || a.makeType).filter(Boolean))].sort();
   types.forEach(t => {
     const opt = document.createElement('option');
-    opt.value = t; opt.textContent = t;
+    opt.value = t; 
+    opt.textContent = typeLabels[t] || t;
     typeSelect.appendChild(opt);
   });
-
-  // --- Populate Aircraft Explorer Dropdowns ---
-  const acTypeSelect = document.getElementById('acTypeFilter');
-  if (acTypeSelect) {
-    acTypeSelect.innerHTML = '<option value="">All Types</option>';
-    types.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t; opt.textContent = t;
-      acTypeSelect.appendChild(opt);
-    });
-  }
-
-  const regionSelect = document.getElementById('acScanRegion');
-  if (regionSelect) {
-    const regions = [...new Set(acList.map(a => a.basecountry || a.BaseCountry).filter(Boolean))].sort();
-    regionSelect.innerHTML = '<option value="">All Regions</option>';
-    regions.forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = r; opt.textContent = r;
-      regionSelect.appendChild(opt);
-    });
-  }
 }
 
 function applyDashboardFilters() {
@@ -2468,7 +2455,19 @@ async function loadAircraft() {
     // Fleet triage mode — use source-attribute filters
     const regionFilter = document.getElementById('acScanRegion')?.value || '';
     urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
-    if (regionFilter) body.basecountry = regionFilter;
+    
+    if (regionFilter) {
+      if (regionFilter === 'USA') {
+        body.basecountrylist = ['United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Colombia'];
+      } else if (regionFilter === 'Europe') {
+        body.basecountrylist = ['United Kingdom', 'France', 'Germany', 'Italy', 'Spain', 'Switzerland', 'Austria'];
+      } else if (regionFilter === 'Asia') {
+        body.basecountrylist = ['China', 'Japan', 'India', 'Australia', 'Singapore', 'Hong Kong'];
+      } else {
+        body.basecountry = regionFilter;
+      }
+    }
+    
     if (urgencyFilter === 'for-sale') { body.isForSale = true; forSale = true; }
   }
 
