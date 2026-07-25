@@ -100,7 +100,7 @@ const MXCaseState = {
     const label = document.getElementById('activeCaseLabel');
     if (card) card.dataset.state = 'active';
     if (value) value.textContent = canonical.registration || 'Case';
-    if (label) label.textContent = `${detail.case?.status || 'open'} Â· v${detail.case?.version ?? 'â€”'}`;
+    if (label) label.textContent = `${detail.case?.status || 'open'} - v${detail.case?.version ?? '-'}`;
     const nav = document.getElementById('caseNav');
     if (nav) {
       nav.dataset.activeCaseId = detail.caseId || '';
@@ -186,19 +186,19 @@ function buildMROSignals(aircraft) {
     isForSale,
     isAOG,
     lifecycle,
-    maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || 'â€”'
+    maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || '-'
   };
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  RAG â€” On-demand search over display_index library
+//  RAG - On-demand search over display_index library
 //  92 aircraft, 111K+ chapters of maintenance manuals
 //  Loads aircraft files on-demand, caches in memory
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const RAG = {
-  catalog: null,         // catalog.json â€” aircraft manifest
-  aircraftCache: {},     // { aircraftId: parsedJSON } â€” loaded on demand
+  catalog: null,         // catalog.json - aircraft manifest
+  aircraftCache: {},     // { aircraftId: parsedJSON } - loaded on demand
   imageMap: null,        // { "CHAPTER 27  FLIGHT CONTROLS_p209": "rag_images/abc.jpeg" }
   loaded: false,
   loading: false,
@@ -311,7 +311,7 @@ const RAG = {
 
         let score = 0;
         for (const term of qTerms) {
-          if (chLower.includes(term)) score += 10;  // Chapter name match â€” very relevant
+          if (chLower.includes(term)) score += 10;  // Chapter name match - very relevant
           if (ataStr.includes(term)) score += 8;     // ATA code match
           // Count occurrences in text preview
           let pos = 0, count = 0;
@@ -338,7 +338,7 @@ const RAG = {
     return results.slice(0, topK);
   },
 
-  // Strip metadata headers from chapter text â€” extract actual procedural steps
+  // Strip metadata headers from chapter text - extract actual procedural steps
   cleanChapterText(rawText, maxLen = 1200) {
     if (!rawText) return '';
     let text = rawText;
@@ -366,7 +366,7 @@ const RAG = {
     // Collapse multiple blank lines
     text = text.replace(/\n{3,}/g, '\n\n').trim();
 
-    // Find numbered steps â€” the real procedures
+    // Find numbered steps - the real procedures
     const stepMatch = text.match(/\n(\d+)\n(Make sure|Do |In |Get |Check |Install|Remove|Open |Close|Connect|Disconnect|Apply|Set |Start |Stop |Verify)/);
     if (stepMatch) {
       const idx = text.indexOf(stepMatch[0]);
@@ -414,7 +414,7 @@ const RAG = {
             // Strip metadata headers and extract actual procedural content
             const excerpt = RAG.cleanChapterText(h.text, 600);
             ctx += `\n[${h.chapter}]\n${excerpt}\n`;
-            // Collect images â€” display_index stores images as raw path strings
+            // Collect images - display_index stores images as raw path strings
             if (h.images && Array.isArray(h.images)) {
               for (const img of h.images) {
                 if (typeof img === 'string') {
@@ -442,7 +442,7 @@ const RAG = {
         }
       }
     } else {
-      // No aircraft detected â€” try a broad search across any cached aircraft
+      // No aircraft detected - try a broad search across any cached aircraft
       for (const [id, data] of Object.entries(this.aircraftCache)) {
         const hits = this.searchChapters(data, query, 2);
         if (hits.length > 0) {
@@ -587,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   RAG.load();            // RAG index (non-blocking)
 
-  // Phase 2: Network-dependent (fire and forget â€” app works without it)
+  // Phase 2: Network-dependent (fire and forget - app works without it)
   login().then(() => { loadGlobe(); MXOnboarding.checkFirstRun(); }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
 
@@ -621,7 +621,7 @@ function setupNavigation() {
   });
   document.getElementById('activeCaseCard')?.addEventListener('click', () => switchTab('case'));
 
-  // Search handlers â€” live search as you type (debounced) + button fallback
+  // Search handlers - live search as you type (debounced) + button fallback
   const acFields = ['acMake', 'acReg', 'acSerial', 'acCountry'];
   const compFields = ['compName', 'compCity', 'compCountry'];
   const contFields = ['contFirst', 'contLast', 'contCompany', 'contTitle'];
@@ -692,13 +692,13 @@ function setupChatPanel() {
   const MODEL_FILENAME = 'DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf';
 
   // â”€â”€ On-Device Token Counter + Cost Savings â”€â”€
-  // GPT-4o equivalent pricing â€” what this would cost on cloud
+  // GPT-4o equivalent pricing - what this would cost on cloud
   const CLOUD_COST_PER_M_INPUT = 2.50;
   const CLOUD_COST_PER_M_OUTPUT = 10.00;
   let totalTokensUsed = parseInt(localStorage.getItem('mxgenius_total_tokens') || '0');
   let totalSaved = parseFloat(localStorage.getItem('mxgenius_total_saved') || '0');
 
-  // Header is now minimal â€” just the X close button
+  // Header is now minimal - just the X close button
 
   function updateCostCounter(inputTokens, outputTokens) {
     const cloudCost = (inputTokens / 1_000_000 * CLOUD_COST_PER_M_INPUT) +
@@ -709,7 +709,7 @@ function setupChatPanel() {
     localStorage.setItem('mxgenius_total_saved', totalSaved.toFixed(6));
     const badge = document.getElementById('cost-savings-badge');
     if (badge) {
-      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens â€¢ $${totalSaved.toFixed(2)} saved`;
+      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens • $${totalSaved.toFixed(2)} saved`;
       badge.style.transform = 'scale(1.2)';
       badge.style.color = '#6ee7b7';
       setTimeout(() => { badge.style.transform = 'scale(1)'; badge.style.color = '#34d399'; }, 400);
@@ -721,11 +721,11 @@ function setupChatPanel() {
     const dot = document.getElementById('backend-status-dot');
     if (dot) {
       dot.style.background = ready ? '#34d399' : '#f59e0b';
-      dot.title = ready ? `LLM: on-device â€” ${detail || 'ready'}` : `LLM: ${detail || 'loading'}`;
+      dot.title = ready ? `LLM: on-device - ${detail || 'ready'}` : `LLM: ${detail || 'loading'}`;
     }
   }
 
-  // â”€â”€ System Prompt â€” single unified prompt for all queries â”€â”€
+  // â”€â”€ System Prompt - single unified prompt for all queries â”€â”€
   const AOG_SYSTEM_PROMPT = `You are MXGenius, an aviation maintenance assistant.
 Rules:
 1. Answer using the MANUAL text below when available.
@@ -741,7 +741,7 @@ Rules:
     if (!raw) return '';
     let text = raw;
 
-    // 1. Strip completed think blocks (greedy â€” catches nested/repeated blocks)
+    // 1. Strip completed think blocks (greedy - catches nested/repeated blocks)
     text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
     // 2. If still inside an unclosed think block, signal "not ready"
@@ -814,7 +814,7 @@ Rules:
       return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">ðŸ“˜ ${manual} ${ref.trim()}</span>`;
     });
 
-    // Style standalone ATA references like "ATA 32" or "(ATA 28 â€” Fuel)"
+    // Style standalone ATA references like "ATA 32" or "(ATA 28 - Fuel)"
     html = html.replace(/\(?(ATA\s+\d+[^)]*)\)?/gi, (match, ata) => {
       return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">ðŸ“‹ ${ata.trim()}</span>`;
     });
@@ -835,7 +835,7 @@ Rules:
     });
 
     // Convert dash-lists to styled bullets
-    html = html.replace(/^\s*-\s+/gm, 'â€¢ ');
+    html = html.replace(/^\s*-\s+/gm, '• ');
 
     // Convert line breaks to proper spacing
     html = html.replace(/\n\n+/g, '</p><p style="margin:6px 0;">');
@@ -1068,7 +1068,7 @@ Rules:
       recordHeader.append(rank, recordTitle, score);
       const meta = document.createElement('small');
       meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
-        .filter(Boolean).join(' Â· ');
+        .filter(Boolean).join(' - ');
       const excerpt = document.createElement('p');
       excerpt.textContent = record.excerpt || 'No excerpt supplied.';
       card.append(recordHeader, meta, excerpt);
@@ -1086,7 +1086,7 @@ Rules:
           image.src = src;
           image.addEventListener('error', () => figure.remove());
           const caption = document.createElement('figcaption');
-          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' Â· ');
+          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' - ');
           figure.append(image, caption);
           grid.appendChild(figure);
         });
@@ -1128,9 +1128,9 @@ Rules:
 
   // â”€â”€ Model Initialization (daisy-chained: LLM first, then TTS) â”€â”€
   async function initOnDeviceLLM() {
-    // Gate: only run on Capacitor (native) â€” skip in browser
+    // Gate: only run on Capacitor (native) - skip in browser
     if (!window.Capacitor?.Plugins?.CapacitorLlama) {
-      console.log('[MXGenius] Not on Capacitor â€” LLM init skipped');
+      console.log('[MXGenius] Not on Capacitor - LLM init skipped');
       setLLMStatus(false, 'browser mode');
       return;
     }
@@ -1143,7 +1143,7 @@ Rules:
         <div style="width:20px;height:20px;border:2px solid rgba(99,102,241,0.3);border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
         <div>
           <div style="font-size:13px;font-weight:600;">Loading AI Engine</div>
-          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B â€¢ preparing on-device inference</div>
+          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B • preparing on-device inference</div>
         </div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
@@ -1254,7 +1254,7 @@ Rules:
       }
       const applicationSession = window.MXGENIUS_CONFIG?.getSession?.() || {};
       if (!applicationSession.accessToken) {
-        throw new Error('Sign in required â€” please refresh the page and sign in with your Entra account.');
+        throw new Error('Sign in required - please refresh the page and sign in with your Entra account.');
       }
       const response = await MXApplicationClient.chat({
         message: text,
@@ -1288,19 +1288,19 @@ Rules:
         else if (data && data.advisory) answerText = data.advisory;
         else if (data && data.answer) answerText = data.answer;
         else if (data && data.synthesis) {
-          // Structured MXGenius response â€” build formatted answer
+          // Structured MXGenius response - build formatted answer
           let parts = [];
           if (data.synthesis) parts.push(data.synthesis);
           if (data.mxgenius_recommends) parts.push('**MXGenius Recommends:** ' + data.mxgenius_recommends);
           if (data.verify_first) parts.push('**Verify First:** ' + data.verify_first);
           if (data.most_likely_cause) parts.push('**Most Likely Cause:** ' + data.most_likely_cause);
           if (data.labor_by_action && data.labor_by_action.length) parts.push('**Labor Steps:**\n' + data.labor_by_action.map((s,i) => (i+1) + '. ' + s).join('\n'));
-          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => 'â€¢ ' + p).join('\n'));
-          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => 'â€¢ ' + w).join('\n'));
+          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => '• ' + p).join('\n'));
+          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => '• ' + w).join('\n'));
           answerText = parts.join('\n\n');
         }
       } catch (_) {
-        // Backend returned non-JSON â€” treat raw text as the answer
+        // Backend returned non-JSON - treat raw text as the answer
         answerText = rawText;
       }
       
@@ -1368,7 +1368,7 @@ Rules:
     };
     recognition.onend = () => {
       micBtn.classList.remove('pulse-mic');
-      micBtn.title = 'Tap to dictate Â· hold for voice';
+      micBtn.title = 'Tap to dictate - hold for voice';
       input.focus();
     };
     recognition.onerror = (e) => {
@@ -1382,7 +1382,7 @@ Rules:
   function startTranscription() {
     if (!speechRecognition) speechRecognition = setupSpeechRecognition();
     if (!speechRecognition) {
-      // No browser support â€” fall through to realtime voice
+      // No browser support - fall through to realtime voice
       startRealtimeVoice();
       return;
     }
@@ -1391,7 +1391,7 @@ Rules:
       speechRecognition.start();
       micBtn.classList.add('pulse-mic');
       micBtn.title = 'Tap to stop dictation';
-      setRealtimeUiState('listening', 'Dictating â€” tap mic to stop');
+      setRealtimeUiState('listening', 'Dictating - tap mic to stop');
     } catch (e) {
       console.warn('[Speech] Already started or unavailable:', e.message);
     }
@@ -1489,7 +1489,7 @@ Rules:
     micBtn.title = active ? 'Dictation disabled (Realtime active)' : 'Tap to dictate';
     
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
-    input.placeholder = state === 'failed' ? 'Voice unavailable Â· use text chat' : 'Ask MXGeniusâ€¦';
+    input.placeholder = state === 'failed' ? 'Voice unavailable - use text chat' : 'Ask MXGenius...';
   }
 
   async function handleRealtimeEvent(event) {
@@ -1582,7 +1582,7 @@ Rules:
     if (!request || handledRealtimeCalls.has(request.callId)) return;
     realtimeConfirmationApprove.disabled = true;
     realtimeConfirmationCancel.disabled = true;
-    realtimeConfirmationSummary.textContent = `Issuing a single-use confirmation for ${request.name}â€¦`;
+    realtimeConfirmationSummary.textContent = `Issuing a single-use confirmation for ${request.name}...`;
     try {
       const qualifiedApproval = request.name === 'mxg.maintenance_case.update_status'
         && request.arguments.target_status === 'closed';
@@ -1623,7 +1623,7 @@ Rules:
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function setupModeToggle() {
-  // Mode toggle removed â€” always live
+  // Mode toggle removed - always live
 }
 
 async function fetchModeState() {
@@ -1701,13 +1701,13 @@ function initSettings() {
     const displayName = acct.name || acct.username || 'User';
     if (nameEl) nameEl.textContent = displayName;
     if (emailEl) emailEl.textContent = acct.username || '';
-    if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}â€¦` : '';
-    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || 'â€”';
+    if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}...` : '';
+    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || '-';
     if (avatarEl) {
       const initials = displayName.split(' ').map(w => w[0]).join('').substring(0, 2);
       avatarEl.textContent = initials;
     }
-    if (statusEl) statusEl.textContent = session.accessToken ? 'Active Â· token valid' : 'Token expired';
+    if (statusEl) statusEl.textContent = session.accessToken ? 'Active - token valid' : 'Token expired';
   } else {
     if (nameEl) nameEl.textContent = 'Not signed in';
     if (statusEl) statusEl.textContent = 'No session';
@@ -2060,7 +2060,7 @@ async function loadAircraft() {
   let urgencyFilter = '';
 
   if (acSearchMode === 'direct') {
-    // Direct Search mode â€” use text fields
+    // Direct Search mode - use text fields
     const make = document.getElementById('acMake').value.trim();
     const regnbr = document.getElementById('acReg').value.trim();
     const sernbr = document.getElementById('acSerial').value.trim();
@@ -2070,7 +2070,7 @@ async function loadAircraft() {
     if (sernbr) body.sernbr = sernbr;
     if (basecountry) body.basecountry = basecountry;
   } else {
-    // Fleet triage mode â€” use source-attribute filters
+    // Fleet triage mode - use source-attribute filters
     const regionFilter = document.getElementById('acScanRegion')?.value || '';
     urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
     
@@ -2162,10 +2162,10 @@ let aircraftScrollState = null;
 let aircraftScrollObserver = null;
 
 function renderAircraftCard(ac, forSale) {
-  const year = ac.yearmfg || ac.yearmfr || 'â€”';
-  const reg = ac.regnbr || 'â€”';
-  const base = ac.baseicao || ac.baseicaocode || ac.basecity || 'â€”';
-  const type = ac.maketype || 'â€”';
+  const year = ac.yearmfg || ac.yearmfr || '-';
+  const reg = ac.regnbr || '-';
+  const base = ac.baseicao || ac.baseicaocode || ac.basecity || '-';
+  const type = ac.maketype || '-';
   const typeClass = (type === 'BusinessJet' || type === 'JetAirliner') ? 'badge-jet' : type === 'Piston' ? 'badge-heli' : 'badge-turbo';
   const mro = buildMROSignals(ac);
   const mroBadge = mro.isAOG ? '<span class="badge badge-aog">AOG</span>'
@@ -2188,11 +2188,11 @@ function renderAircraftCard(ac, forSale) {
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Serial</span>
-          <span class="ac-card-detail-value">${escapeMarkup(ac.sernbr || 'â€”')}</span>
+          <span class="ac-card-detail-value">${escapeMarkup(ac.sernbr || '-')}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">AFTT</span>
-          <span class="ac-card-detail-value ${mro.isHighTime ? 'mro-metric-warn' : ''}">${ac.aftt?.toLocaleString() || ac.estaftt?.toLocaleString() || 'â€”'}</span>
+          <span class="ac-card-detail-value ${mro.isHighTime ? 'mro-metric-warn' : ''}">${ac.aftt?.toLocaleString() || ac.estaftt?.toLocaleString() || '-'}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Base</span>
@@ -2204,7 +2204,7 @@ function renderAircraftCard(ac, forSale) {
         ${forSale ? '<span class="badge badge-forsale">FOR SALE</span>' : ''}
         ${mroBadge}
         ${hasActiveCase ? '<span class="badge badge-jet case-card-badge">ACTIVE CASE</span>' : ''}
-        <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || 'â€”')}</span>
+        <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || '-')}</span>
       </div>
     </div>`;
 }
@@ -2289,7 +2289,7 @@ async function showAircraftDetail(id) {
     const pictures = picData.pictures || [];
     const detailedEngines = engData.engines || [];
     const activeCase = MXCaseState.matchesAircraft({ aircraftid: ident.aircraftid, regnbr: ident.regnbr }) ? MXCaseState.active : null;
-    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case Â· ${escapeMarkup(activeCase.case.status)} Â· version ${escapeMarkup(activeCase.case.version)}</div>` : '';
+    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case - ${escapeMarkup(activeCase.case.status)} - version ${escapeMarkup(activeCase.case.version)}</div>` : '';
     const faaRegistrationSuffix = String(ident.regnbr || '').replace(/^N/i, '').replace(/[^a-z0-9]/gi, '');
 
     const galleryHtml = pictures.length > 0 ? `
@@ -2405,7 +2405,7 @@ async function showAircraftDetail(id) {
                   <td class="td-accent">${escapeMarkup(r.name)}</td>
                   <td>${escapeMarkup(r.relationtype)}</td>
                   <td class="td-dim">${escapeMarkup(r.businesstype)}</td>
-                  <td>${r.isoperator === 'Y' ? 'âœ“' : ''}</td>
+                  <td>${r.isoperator === 'Y' ? '✓' : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2487,7 +2487,7 @@ async function showAircraftDetail(id) {
 
         <div class="detail-section full-width" id="acDetailADs">
           <div class="detail-section-title">FAA Airworthiness Directives</div>
-          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capabilityâ€¦</div>
+          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capability...</div>
         </div>
       </div>
     `;
@@ -2542,7 +2542,7 @@ async function showAircraftDetail(id) {
         }));
       } catch (error) {
         const friendly = error.code === 'TENANT_MISMATCH'
-          ? 'Organization configuration pending â€” AD retrieval will be available once tenant enrollment completes.'
+          ? 'Organization configuration pending - AD retrieval will be available once tenant enrollment completes.'
           : error.message || 'Compliance service unavailable';
         adContainer.textContent = friendly;
       }
@@ -2553,7 +2553,7 @@ async function showAircraftDetail(id) {
   }
 }
 function detailRow(label, value) {
-  return `<div class="detail-row"><span class="detail-row-label">${escapeMarkup(label)}</span><span class="detail-row-value">${escapeMarkup(value ?? 'â€”')}</span></div>`;
+  return `<div class="detail-row"><span class="detail-row-label">${escapeMarkup(label)}</span><span class="detail-row-value">${escapeMarkup(value ?? '-')}</span></div>`;
 }
 
 function openImageLightbox(src) {
@@ -2675,7 +2675,7 @@ async function showCompanyDetail(id) {
           <div style="margin-top:16px">
             <div class="detail-section-title">Business Types</div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${escapeMarkup(b)}</span>`).join('') || '<span class="td-dim">â€”</span>'}
+              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${escapeMarkup(b)}</span>`).join('') || '<span class="td-dim">-</span>'}
             </div>
           </div>
         </div>
@@ -2689,8 +2689,8 @@ async function showCompanyDetail(id) {
               ${comp.contacts.map(c => `
                 <tr>
                   <td class="td-accent">${escapeMarkup([c.firstname, c.lastname].filter(Boolean).join(' '))}</td>
-                  <td>${escapeMarkup(c.title || 'â€”')}</td>
-                  <td class="td-dim">${escapeMarkup(c.email || 'â€”')}</td>
+                  <td>${escapeMarkup(c.title || '-')}</td>
+                  <td class="td-dim">${escapeMarkup(c.email || '-')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2707,7 +2707,7 @@ async function showCompanyDetail(id) {
                 <tr>
                   <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
                   <td>${escapeMarkup(a.relationtype)}</td>
-                  <td>${a.isoperator === 'Y' ? 'âœ“ Yes' : 'No'}</td>
+                  <td>${a.isoperator === 'Y' ? '✓ Yes' : 'No'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2780,10 +2780,10 @@ async function loadContacts() {
            ${data.contacts.map(c => `
             <tr>
               <td class="td-accent">${escapeMarkup([c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' '))}</td>
-              <td>${escapeMarkup(c.title || 'â€”')}</td>
-              <td>${escapeMarkup(c.companyname || 'â€”')}</td>
-              <td class="td-dim">${escapeMarkup(c.email || 'â€”')}</td>
-              <td class="td-mono">${escapeMarkup(c.phonenumber || 'â€”')}</td>
+              <td>${escapeMarkup(c.title || '-')}</td>
+              <td>${escapeMarkup(c.companyname || '-')}</td>
+              <td class="td-dim">${escapeMarkup(c.email || '-')}</td>
+              <td class="td-mono">${escapeMarkup(c.phonenumber || '-')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -3020,7 +3020,7 @@ function handleGlobeClick(point) {
       const mro = buildMROSignals(ac);
       const ul = mro.isAOG ? 'AOG' : mro.isVeryHighTime ? '12K+ AFTT' : mro.isHighTime ? '8K+ AFTT' : 'Other';
       const uc = mro.isAOG ? 'critical' : mro.isVeryHighTime ? 'overdue' : mro.isHighTime ? 'high-time' : 'current';
-      return `<div class="drill-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}"><span class="drill-reg">${escapeMarkup(ac.regnbr || 'â€”')}</span><span class="drill-model">${escapeMarkup([ac.make, ac.model].filter(Boolean).join(' '))}</span><span class="drill-owner">${escapeMarkup(ac.owner || ac.operator || '')}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
+      return `<div class="drill-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}"><span class="drill-reg">${escapeMarkup(ac.regnbr || '-')}</span><span class="drill-model">${escapeMarkup([ac.make, ac.model].filter(Boolean).join(' '))}</span><span class="drill-owner">${escapeMarkup(ac.owner || ac.operator || '')}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
     }).join('');
   results.querySelectorAll('.drill-card[data-aircraft-id]').forEach((card) => {
     card.addEventListener('click', () => {
@@ -3038,7 +3038,7 @@ function handleGlobeHover(point) {
   if (point) {
     globeInstance.controls().autoRotate = false;
     const ul = point.hasAog ? 'AOG reported' : point.hasVeryHighTime ? '12K+ reported AFTT' : point.hasHighTime ? '8K+ reported AFTT' : 'No selected triage flag';
-    tooltip.innerHTML = `<div class="tt-icao">${escapeMarkup(point.icao)}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">${ul}${point.city ? ' Â· ' + escapeMarkup(point.city) : ''}</div>`;
+    tooltip.innerHTML = `<div class="tt-icao">${escapeMarkup(point.icao)}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">${ul}${point.city ? ' - ' + escapeMarkup(point.city) : ''}</div>`;
     tooltip.classList.remove('hidden');
     const mh = (e) => { const r = container.getBoundingClientRect(); tooltip.style.left = Math.min(e.clientX - r.left + 15, r.width - tooltip.offsetWidth - 10) + 'px'; tooltip.style.top = Math.min(e.clientY - r.top + 15, r.height - tooltip.offsetHeight - 10) + 'px'; };
     container._globeMouseMove = mh; container.addEventListener('mousemove', mh);
