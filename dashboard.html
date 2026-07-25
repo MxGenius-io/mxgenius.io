@@ -327,59 +327,9 @@
           <div id="mktResults" class="market-intel-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:16px;"></div>
         </div>
       </details>
-      <!-- Dashboard Filters -->
-      <div class="dashboard-filters" id="dashboardFilters">
-        <div class="search-field">
-          <label>Manufacturer</label>
-          <select id="filterMake" class="search-input" onchange="applyDashboardFilters()">
-            <option value="">All Makes</option>
-          </select>
-        </div>
-        <div class="search-field">
-          <label>Type</label>
-          <select id="filterType" class="search-input" onchange="applyDashboardFilters()">
-            <option value="">All Types</option>
-          </select>
-        </div>
-        <div class="search-field">
-          <label>Status</label>
-          <select id="filterStatus" class="search-input" onchange="applyDashboardFilters()">
-            <option value="">All</option>
-            <option value="maintained">Maintained</option>
-            <option value="adsb">ADS-B Equipped</option>
-          </select>
-        </div>
-        <button class="btn-primary" style="align-self:flex-end;padding:8px 16px;" onclick="clearDashboardFilters()">Clear</button>
-      </div>
 
-      <div class="dashboard-grid">
-        <div class="card">
-          <h3 class="card-title">Fleet by Manufacturer</h3>
-          <div id="chartMakes" class="chart-container"></div>
-        </div>
-        <div class="card">
-          <h3 class="card-title">Fleet by Type</h3>
-          <div id="chartTypes" class="chart-container"></div>
-        </div>
-        <div class="card">
-          <h3 class="card-title">ADS-B Compliance</h3>
-          <div id="chartADSB" class="chart-container" style="display:flex;align-items:center;justify-content:center;min-height:180px;"></div>
-        </div>
-        <div class="card">
-          <h3 class="card-title">Fleet Age Distribution</h3>
-          <div id="chartAge" class="chart-container"></div>
-        </div>
-          <div class="card">
-            <h3 class="card-title">Reported Engine TT / TBO</h3>
-          <div id="chartEngines" class="chart-container"></div>
-        </div>
-        <div class="card">
-          <h3 class="card-title">Maintenance Programs</h3>
-          <div id="chartMaint" class="chart-container"></div>
-        </div>
-        </div>
-      </div>
     </section>
+
 
 
 

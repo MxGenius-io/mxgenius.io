@@ -100,7 +100,7 @@ const MXCaseState = {
     const label = document.getElementById('activeCaseLabel');
     if (card) card.dataset.state = 'active';
     if (value) value.textContent = canonical.registration || 'Case';
-    if (label) label.textContent = `${detail.case?.status || 'open'} · v${detail.case?.version ?? '—'}`;
+    if (label) label.textContent = `${detail.case?.status || 'open'} Â· v${detail.case?.version ?? 'â€”'}`;
     const nav = document.getElementById('caseNav');
     if (nav) {
       nav.dataset.activeCaseId = detail.caseId || '';
@@ -186,19 +186,19 @@ function buildMROSignals(aircraft) {
     isForSale,
     isAOG,
     lifecycle,
-    maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || '—'
+    maintProgram: aircraft.maintenance?.airframemaintenanceprogram || aircraft.maintenanceprogram || 'â€”'
   };
 }
 
-// ═══════════════════════════════════════════════════
-//  RAG — On-demand search over display_index library
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  RAG â€” On-demand search over display_index library
 //  92 aircraft, 111K+ chapters of maintenance manuals
 //  Loads aircraft files on-demand, caches in memory
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const RAG = {
-  catalog: null,         // catalog.json — aircraft manifest
-  aircraftCache: {},     // { aircraftId: parsedJSON } — loaded on demand
+  catalog: null,         // catalog.json â€” aircraft manifest
+  aircraftCache: {},     // { aircraftId: parsedJSON } â€” loaded on demand
   imageMap: null,        // { "CHAPTER 27  FLIGHT CONTROLS_p209": "rag_images/abc.jpeg" }
   loaded: false,
   loading: false,
@@ -268,7 +268,7 @@ const RAG = {
       if (q.includes(name)) return entry;
     }
 
-    // Fallback: try token overlap (e.g., "7500 fuel leak" → gl7500)
+    // Fallback: try token overlap (e.g., "7500 fuel leak" â†’ gl7500)
     const qTokens = this.tokenize(query);
     for (const entry of this.catalog) {
       const acTokens = this.tokenize(entry.aircraft + ' ' + entry.manufacturer);
@@ -311,7 +311,7 @@ const RAG = {
 
         let score = 0;
         for (const term of qTerms) {
-          if (chLower.includes(term)) score += 10;  // Chapter name match — very relevant
+          if (chLower.includes(term)) score += 10;  // Chapter name match â€” very relevant
           if (ataStr.includes(term)) score += 8;     // ATA code match
           // Count occurrences in text preview
           let pos = 0, count = 0;
@@ -338,7 +338,7 @@ const RAG = {
     return results.slice(0, topK);
   },
 
-  // Strip metadata headers from chapter text — extract actual procedural steps
+  // Strip metadata headers from chapter text â€” extract actual procedural steps
   cleanChapterText(rawText, maxLen = 1200) {
     if (!rawText) return '';
     let text = rawText;
@@ -366,7 +366,7 @@ const RAG = {
     // Collapse multiple blank lines
     text = text.replace(/\n{3,}/g, '\n\n').trim();
 
-    // Find numbered steps — the real procedures
+    // Find numbered steps â€” the real procedures
     const stepMatch = text.match(/\n(\d+)\n(Make sure|Do |In |Get |Check |Install|Remove|Open |Close|Connect|Disconnect|Apply|Set |Start |Stop |Verify)/);
     if (stepMatch) {
       const idx = text.indexOf(stepMatch[0]);
@@ -414,7 +414,7 @@ const RAG = {
             // Strip metadata headers and extract actual procedural content
             const excerpt = RAG.cleanChapterText(h.text, 600);
             ctx += `\n[${h.chapter}]\n${excerpt}\n`;
-            // Collect images — display_index stores images as raw path strings
+            // Collect images â€” display_index stores images as raw path strings
             if (h.images && Array.isArray(h.images)) {
               for (const img of h.images) {
                 if (typeof img === 'string') {
@@ -442,7 +442,7 @@ const RAG = {
         }
       }
     } else {
-      // No aircraft detected — try a broad search across any cached aircraft
+      // No aircraft detected â€” try a broad search across any cached aircraft
       for (const [id, data] of Object.entries(this.aircraftCache)) {
         const hits = this.searchChapters(data, query, 2);
         if (hits.length > 0) {
@@ -489,7 +489,7 @@ const RAG = {
 
     const label = document.createElement('div');
     label.style.cssText = 'width:100%;font-size:11px;color:#8b949e;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;';
-    label.textContent = `📎 ${images.length} RELATED DIAGRAM${images.length > 1 ? 'S' : ''} FROM MAINTENANCE MANUALS`;
+    label.textContent = `ðŸ“Ž ${images.length} RELATED DIAGRAM${images.length > 1 ? 'S' : ''} FROM MAINTENANCE MANUALS`;
     gallery.appendChild(label);
 
     for (const img of images.slice(0, 6)) {
@@ -529,9 +529,9 @@ const RAG = {
   }
 };
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  UTILITIES
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function scrollDoc(event, sectionId) {
   event.preventDefault();
@@ -578,17 +578,17 @@ window.fetch = async function (url, options = {}) {
   return _originalFetch(url, options);
 };
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  INITIALIZATION
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 document.addEventListener('DOMContentLoaded', () => {
   // Phase 1: UI + local engines (instant, no network)
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   RAG.load();            // RAG index (non-blocking)
 
-  // Phase 2: Network-dependent (fire and forget — app works without it)
-  login().then(() => { loadDashboard(); loadGlobe(); MXOnboarding.checkFirstRun(); }).catch(() => { loadDashboard(); loadGlobe(); MXOnboarding.checkFirstRun(); });
+  // Phase 2: Network-dependent (fire and forget â€” app works without it)
+  login().then(() => { loadGlobe(); MXOnboarding.checkFirstRun(); }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
 
 async function login() {
@@ -603,9 +603,9 @@ async function login() {
   status.querySelector('span:last-child').textContent = 'Fleet proxy ready';
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  NAVIGATION
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function setupNavigation() {
   const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -621,7 +621,7 @@ function setupNavigation() {
   });
   document.getElementById('activeCaseCard')?.addEventListener('click', () => switchTab('case'));
 
-  // Search handlers — live search as you type (debounced) + button fallback
+  // Search handlers â€” live search as you type (debounced) + button fallback
   const acFields = ['acMake', 'acReg', 'acSerial', 'acCountry'];
   const compFields = ['compName', 'compCity', 'compCountry'];
   const contFields = ['contFirst', 'contLast', 'contCompany', 'contTitle'];
@@ -686,19 +686,19 @@ function setupChatPanel() {
     history.scrollTop = history.scrollHeight;
   });
 
-  // ── On-Device LLM State ──
+  // â”€â”€ On-Device LLM State â”€â”€
   let llamaContext = null;
   let modelReady = false;
   const MODEL_FILENAME = 'DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf';
 
-  // ── On-Device Token Counter + Cost Savings ──
-  // GPT-4o equivalent pricing — what this would cost on cloud
+  // â”€â”€ On-Device Token Counter + Cost Savings â”€â”€
+  // GPT-4o equivalent pricing â€” what this would cost on cloud
   const CLOUD_COST_PER_M_INPUT = 2.50;
   const CLOUD_COST_PER_M_OUTPUT = 10.00;
   let totalTokensUsed = parseInt(localStorage.getItem('mxgenius_total_tokens') || '0');
   let totalSaved = parseFloat(localStorage.getItem('mxgenius_total_saved') || '0');
 
-  // Header is now minimal — just the X close button
+  // Header is now minimal â€” just the X close button
 
   function updateCostCounter(inputTokens, outputTokens) {
     const cloudCost = (inputTokens / 1_000_000 * CLOUD_COST_PER_M_INPUT) +
@@ -709,7 +709,7 @@ function setupChatPanel() {
     localStorage.setItem('mxgenius_total_saved', totalSaved.toFixed(6));
     const badge = document.getElementById('cost-savings-badge');
     if (badge) {
-      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens • $${totalSaved.toFixed(2)} saved`;
+      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens â€¢ $${totalSaved.toFixed(2)} saved`;
       badge.style.transform = 'scale(1.2)';
       badge.style.color = '#6ee7b7';
       setTimeout(() => { badge.style.transform = 'scale(1)'; badge.style.color = '#34d399'; }, 400);
@@ -721,11 +721,11 @@ function setupChatPanel() {
     const dot = document.getElementById('backend-status-dot');
     if (dot) {
       dot.style.background = ready ? '#34d399' : '#f59e0b';
-      dot.title = ready ? `LLM: on-device — ${detail || 'ready'}` : `LLM: ${detail || 'loading'}`;
+      dot.title = ready ? `LLM: on-device â€” ${detail || 'ready'}` : `LLM: ${detail || 'loading'}`;
     }
   }
 
-  // ── System Prompt — single unified prompt for all queries ──
+  // â”€â”€ System Prompt â€” single unified prompt for all queries â”€â”€
   const AOG_SYSTEM_PROMPT = `You are MXGenius, an aviation maintenance assistant.
 Rules:
 1. Answer using the MANUAL text below when available.
@@ -735,13 +735,13 @@ Rules:
 5. If no authoritative manual is provided, state that evidence is unavailable and do not supply a maintenance procedure.
 6. Never explain your reasoning. Never say "I need to" or "Let me think".`;
 
-  // ── Aggressive model output cleanup (single source of truth) ──
-  // 5 layers: think-blocks → special tokens → untagged CoT → pre-fill → whitespace
+  // â”€â”€ Aggressive model output cleanup (single source of truth) â”€â”€
+  // 5 layers: think-blocks â†’ special tokens â†’ untagged CoT â†’ pre-fill â†’ whitespace
   function cleanModelOutput(raw) {
     if (!raw) return '';
     let text = raw;
 
-    // 1. Strip completed think blocks (greedy — catches nested/repeated blocks)
+    // 1. Strip completed think blocks (greedy â€” catches nested/repeated blocks)
     text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
     // 2. If still inside an unclosed think block, signal "not ready"
@@ -790,7 +790,7 @@ Rules:
     return text;
   }
 
-  // ── Format model response into polished HTML ──
+  // â”€â”€ Format model response into polished HTML â”€â”€
   function formatMxResponse(text) {
     if (!text) return '';
 
@@ -800,23 +800,23 @@ Rules:
     // Style NEXT STEP callouts
     html = html.replace(/NEXT\s*STEP[:\s]*(.*?)(?:\.|$)/gi, (match, step) => {
       return `<div style="margin-top:8px;padding:8px 12px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(59,130,246,0.08));border-left:3px solid #6366f1;border-radius:0 8px 8px 0;font-size:12px;">` +
-        `<span style="color:#818cf8;font-weight:700;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">▸ Next Step</span><br>` +
+        `<span style="color:#818cf8;font-weight:700;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">â–¸ Next Step</span><br>` +
         `<span style="color:#e2e8f0;">${step.trim()}</span></div>`;
     });
 
     // Style procedure codes (BD700-A-J28..., AMM 27-11-17-220-801, etc.)
     html = html.replace(/\b(BD\d{2,3}-[A-Z]-[A-Z0-9\-]+)/gi, (match, code) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;">📄 ${code}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;">ðŸ“„ ${code}</span>`;
     });
 
-    // Style ATA chapter citations → pill badges (AMM Ch.28, IPC Ch.32, etc.)
+    // Style ATA chapter citations â†’ pill badges (AMM Ch.28, IPC Ch.32, etc.)
     html = html.replace(/\(?(AMM|AMP|IPC|CMM|SRM|NDT|WDM|TSM|SFP|AIPC)\s+([^,.)]+)/gi, (match, manual, ref) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">📘 ${manual} ${ref.trim()}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">ðŸ“˜ ${manual} ${ref.trim()}</span>`;
     });
 
-    // Style standalone ATA references like "ATA 32" or "(ATA 28 — Fuel)"
+    // Style standalone ATA references like "ATA 32" or "(ATA 28 â€” Fuel)"
     html = html.replace(/\(?(ATA\s+\d+[^)]*)\)?/gi, (match, ata) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">📋 ${ata.trim()}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">ðŸ“‹ ${ata.trim()}</span>`;
     });
 
     // Style manual/chapter citations like (Chapter 28, p.12)
@@ -835,7 +835,7 @@ Rules:
     });
 
     // Convert dash-lists to styled bullets
-    html = html.replace(/^\s*-\s+/gm, '• ');
+    html = html.replace(/^\s*-\s+/gm, 'â€¢ ');
 
     // Convert line breaks to proper spacing
     html = html.replace(/\n\n+/g, '</p><p style="margin:6px 0;">');
@@ -847,7 +847,7 @@ Rules:
     return html;
   }
 
-  // ── Format RAG procedure text into collapsible manual reference pills ──
+  // â”€â”€ Format RAG procedure text into collapsible manual reference pills â”€â”€
   function formatProcedureBlock(hits) {
     if (!hits || hits.length === 0) return '';
 
@@ -859,9 +859,9 @@ Rules:
       // Collapsible pill wrapper
       html += `<details style="margin-top:10px;background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(59,130,246,0.04));border:1px solid rgba(99,102,241,0.2);border-radius:10px;overflow:hidden;">`;
       html += `<summary style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:8px;list-style:none;-webkit-tap-highlight-color:transparent;">`;
-      html += `<span style="font-size:13px;">📘</span>`;
+      html += `<span style="font-size:13px;">ðŸ“˜</span>`;
       html += `<span style="font-size:11px;font-weight:700;color:#818cf8;letter-spacing:0.3px;flex:1;">${escapeHtml(hit.chapter)}</span>`;
-      html += `<span style="font-size:10px;color:#6366f1;transition:transform 0.2s;">▼</span>`;
+      html += `<span style="font-size:10px;color:#6366f1;transition:transform 0.2s;">â–¼</span>`;
       html += `</summary>`;
       html += `<div style="padding:4px 14px 12px;">`;
 
@@ -874,7 +874,7 @@ Rules:
         if (!trimmed) continue;
 
         if (/^(CAUTION|WARNING)$/i.test(trimmed)) {
-          html += `<div style="margin:6px 0;padding:6px 10px;background:rgba(251,146,60,0.1);border-left:3px solid #fb923c;border-radius:0 6px 6px 0;font-size:11px;font-weight:700;color:#fb923c;">⚠️ ${trimmed}</div>`;
+          html += `<div style="margin:6px 0;padding:6px 10px;background:rgba(251,146,60,0.1);border-left:3px solid #fb923c;border-radius:0 6px 6px 0;font-size:11px;font-weight:700;color:#fb923c;">âš ï¸ ${trimmed}</div>`;
           continue;
         }
 
@@ -888,12 +888,12 @@ Rules:
         }
 
         if (/^\d+\.\d+/.test(trimmed)) {
-          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">└ ${escapeHtml(trimmed)}</div>`;
+          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">â”” ${escapeHtml(trimmed)}</div>`;
           continue;
         }
 
         if (/^For the .* refer to BD700/i.test(trimmed)) {
-          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">└ ${escapeHtml(trimmed)}</div>`;
+          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">â”” ${escapeHtml(trimmed)}</div>`;
           continue;
         }
 
@@ -1068,7 +1068,7 @@ Rules:
       recordHeader.append(rank, recordTitle, score);
       const meta = document.createElement('small');
       meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
-        .filter(Boolean).join(' · ');
+        .filter(Boolean).join(' Â· ');
       const excerpt = document.createElement('p');
       excerpt.textContent = record.excerpt || 'No excerpt supplied.';
       card.append(recordHeader, meta, excerpt);
@@ -1086,7 +1086,7 @@ Rules:
           image.src = src;
           image.addEventListener('error', () => figure.remove());
           const caption = document.createElement('figcaption');
-          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' · ');
+          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' Â· ');
           figure.append(image, caption);
           grid.appendChild(figure);
         });
@@ -1099,7 +1099,7 @@ Rules:
     return true;
   }
 
-  // ── Fleet Data Serializer (source attributes → compatibility context) ──
+  // â”€â”€ Fleet Data Serializer (source attributes â†’ compatibility context) â”€â”€
   function serializeFleetContext() {
     if (!cachedFleetSignals || cachedFleetSignals.length === 0) return '';
 
@@ -1126,11 +1126,11 @@ Rules:
       '\n--- END COMPATIBILITY FLEET CONTEXT ---\n';
   }
 
-  // ── Model Initialization (daisy-chained: LLM first, then TTS) ──
+  // â”€â”€ Model Initialization (daisy-chained: LLM first, then TTS) â”€â”€
   async function initOnDeviceLLM() {
-    // Gate: only run on Capacitor (native) — skip in browser
+    // Gate: only run on Capacitor (native) â€” skip in browser
     if (!window.Capacitor?.Plugins?.CapacitorLlama) {
-      console.log('[MXGenius] Not on Capacitor — LLM init skipped');
+      console.log('[MXGenius] Not on Capacitor â€” LLM init skipped');
       setLLMStatus(false, 'browser mode');
       return;
     }
@@ -1143,7 +1143,7 @@ Rules:
         <div style="width:20px;height:20px;border:2px solid rgba(99,102,241,0.3);border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
         <div>
           <div style="font-size:13px;font-weight:600;">Loading AI Engine</div>
-          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B • preparing on-device inference</div>
+          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B â€¢ preparing on-device inference</div>
         </div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
@@ -1177,7 +1177,7 @@ Rules:
     setLLMStatus(true, `DeepSeek 1.5B (${gpuStatus})${ttsStatus}`);
     const readyMsg = document.createElement('div');
     readyMsg.className = 'chat-msg ai-msg';
-    readyMsg.innerHTML = '<div class="msg-bubble">MXGenius AI is <strong>online</strong> — running on-device. No network required.' + (ttsStatus ? ' Voice enabled.' : '') + '</div>';
+    readyMsg.innerHTML = '<div class="msg-bubble">MXGenius AI is <strong>online</strong> â€” running on-device. No network required.' + (ttsStatus ? ' Voice enabled.' : '') + '</div>';
     history.appendChild(readyMsg);
     history.scrollTop = history.scrollHeight;
   }
@@ -1246,7 +1246,7 @@ Rules:
     history.scrollTop = history.scrollHeight;
     const streamTarget = aiMsg.querySelector('.stream-target');
 
-    // ── Cloud Inference (Azure Rust Backend) ──
+    // â”€â”€ Cloud Inference (Azure Rust Backend) â”€â”€
     try {
       // Refresh Entra token before every chat call
       if (window.MXGENIUS_AUTH?.getToken) {
@@ -1254,7 +1254,7 @@ Rules:
       }
       const applicationSession = window.MXGENIUS_CONFIG?.getSession?.() || {};
       if (!applicationSession.accessToken) {
-        throw new Error('Sign in required — please refresh the page and sign in with your Entra account.');
+        throw new Error('Sign in required â€” please refresh the page and sign in with your Entra account.');
       }
       const response = await MXApplicationClient.chat({
         message: text,
@@ -1288,19 +1288,19 @@ Rules:
         else if (data && data.advisory) answerText = data.advisory;
         else if (data && data.answer) answerText = data.answer;
         else if (data && data.synthesis) {
-          // Structured MXGenius response — build formatted answer
+          // Structured MXGenius response â€” build formatted answer
           let parts = [];
           if (data.synthesis) parts.push(data.synthesis);
           if (data.mxgenius_recommends) parts.push('**MXGenius Recommends:** ' + data.mxgenius_recommends);
           if (data.verify_first) parts.push('**Verify First:** ' + data.verify_first);
           if (data.most_likely_cause) parts.push('**Most Likely Cause:** ' + data.most_likely_cause);
           if (data.labor_by_action && data.labor_by_action.length) parts.push('**Labor Steps:**\n' + data.labor_by_action.map((s,i) => (i+1) + '. ' + s).join('\n'));
-          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => '• ' + p).join('\n'));
-          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => '• ' + w).join('\n'));
+          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => 'â€¢ ' + p).join('\n'));
+          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => 'â€¢ ' + w).join('\n'));
           answerText = parts.join('\n\n');
         }
       } catch (_) {
-        // Backend returned non-JSON — treat raw text as the answer
+        // Backend returned non-JSON â€” treat raw text as the answer
         answerText = rawText;
       }
       
@@ -1342,7 +1342,7 @@ Rules:
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
 
-  // ── Native Speech-to-Text transcription (tap) + Realtime voice (long-press) ──
+  // â”€â”€ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) â”€â”€
   let speechRecognition = null;
   let micLongPressTimer = null;
   const MIC_LONG_PRESS_MS = 500;
@@ -1368,7 +1368,7 @@ Rules:
     };
     recognition.onend = () => {
       micBtn.classList.remove('pulse-mic');
-      micBtn.title = 'Tap to dictate · hold for voice';
+      micBtn.title = 'Tap to dictate Â· hold for voice';
       input.focus();
     };
     recognition.onerror = (e) => {
@@ -1382,7 +1382,7 @@ Rules:
   function startTranscription() {
     if (!speechRecognition) speechRecognition = setupSpeechRecognition();
     if (!speechRecognition) {
-      // No browser support — fall through to realtime voice
+      // No browser support â€” fall through to realtime voice
       startRealtimeVoice();
       return;
     }
@@ -1391,7 +1391,7 @@ Rules:
       speechRecognition.start();
       micBtn.classList.add('pulse-mic');
       micBtn.title = 'Tap to stop dictation';
-      setRealtimeUiState('listening', 'Dictating — tap mic to stop');
+      setRealtimeUiState('listening', 'Dictating â€” tap mic to stop');
     } catch (e) {
       console.warn('[Speech] Already started or unavailable:', e.message);
     }
@@ -1489,7 +1489,7 @@ Rules:
     micBtn.title = active ? 'Dictation disabled (Realtime active)' : 'Tap to dictate';
     
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
-    input.placeholder = state === 'failed' ? 'Voice unavailable · use text chat' : 'Ask MXGenius…';
+    input.placeholder = state === 'failed' ? 'Voice unavailable Â· use text chat' : 'Ask MXGeniusâ€¦';
   }
 
   async function handleRealtimeEvent(event) {
@@ -1582,7 +1582,7 @@ Rules:
     if (!request || handledRealtimeCalls.has(request.callId)) return;
     realtimeConfirmationApprove.disabled = true;
     realtimeConfirmationCancel.disabled = true;
-    realtimeConfirmationSummary.textContent = `Issuing a single-use confirmation for ${request.name}…`;
+    realtimeConfirmationSummary.textContent = `Issuing a single-use confirmation for ${request.name}â€¦`;
     try {
       const qualifiedApproval = request.name === 'mxg.maintenance_case.update_status'
         && request.arguments.target_status === 'closed';
@@ -1618,12 +1618,12 @@ Rules:
   setupVoiceInput();
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  MODE TOGGLE & SETTINGS
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function setupModeToggle() {
-  // Mode toggle removed — always live
+  // Mode toggle removed â€” always live
 }
 
 async function fetchModeState() {
@@ -1638,7 +1638,6 @@ function reloadCurrentTab() {
   Object.keys(tabLoaded).forEach(k => tabLoaded[k] = false);
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
   if (activeTab === 'dashboard') {
-    loadDashboard();
     loadGlobe();
     loadAircraft();
     loadCompanies();
@@ -1682,12 +1681,12 @@ function switchTab(tabId) {
   }
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  SETTINGS
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function initSettings() {
-  // ── Account card ──
+  // â”€â”€ Account card â”€â”€
   const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
   const acct = session.account || window.MXGENIUS_AUTH?.account?.() || null;
   const nameEl = document.getElementById('settingsAccountName');
@@ -1702,13 +1701,13 @@ function initSettings() {
     const displayName = acct.name || acct.username || 'User';
     if (nameEl) nameEl.textContent = displayName;
     if (emailEl) emailEl.textContent = acct.username || '';
-    if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}…` : '';
-    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || '—';
+    if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}â€¦` : '';
+    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || 'â€”';
     if (avatarEl) {
       const initials = displayName.split(' ').map(w => w[0]).join('').substring(0, 2);
       avatarEl.textContent = initials;
     }
-    if (statusEl) statusEl.textContent = session.accessToken ? 'Active · token valid' : 'Token expired';
+    if (statusEl) statusEl.textContent = session.accessToken ? 'Active Â· token valid' : 'Token expired';
   } else {
     if (nameEl) nameEl.textContent = 'Not signed in';
     if (statusEl) statusEl.textContent = 'No session';
@@ -1909,337 +1908,11 @@ function setOutreachMode(mode) {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  DASHBOARD
-// ═══════════════════════════════════════════════════
-
-async function loadDashboard() {
-  try {
-    // Show loading throbbers in chart containers
-    const spinner = '<div class="loading-spinner"></div>';
-    ['chartMakes','chartTypes','chartADSB','chartAge','chartEngines','chartMaint'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:120px;">${spinner}<span style="margin-left:10px;color:var(--text-muted);font-size:0.8rem;">Loading data...</span></div>`;
-    });
-
-    let acList = [];
-    let bulkCount = 0;
-
-    if (TOKEN) {
-      // One-time cache bust to clear stale Gulfstream-only data
-      const cacheVersion = '3'; // bumped: fleet proxy redeployed 2026-07-24
-      if (localStorage.getItem('mx_cacheVer') !== cacheVersion) {
-        await MXCache.clearAll();
-        localStorage.setItem('mx_cacheVer', cacheVersion);
-        console.log('[Dashboard] Cache cleared for version upgrade');
-      }
-
-      try {
-        const bulkData = await MXApplicationClient.bulkAircraft({
-          token: TOKEN,
-          bearer: BEARER,
-          cacheTtl: MXCache.TTL.BULK
-        });
-        acList = bulkData.aircraft || [];
-        bulkCount = bulkData.count || acList.length;
-      } catch (e) { console.warn('[Dashboard] Bulk export failed:', e.message); }
-    }
-
-    // Store globally for filtering
-    window._dashboardData = { acList, bulkCount: bulkCount || acList.length };
-
-    // Populate filter dropdowns from live data
-    populateDashboardFilters(acList);
-
-    // Render with current filters (initially none)
-    renderDashboard(acList, bulkCount || acList.length);
-
-  } catch (e) {
-    console.error('Dashboard load failed:', e);
-  }
-}
-
-function populateDashboardFilters(acList) {
-  const makeSelect = document.getElementById('filterMake');
-  const typeSelect = document.getElementById('filterType');
-  if (!makeSelect || !typeSelect) return;
-
-  const typeLabels = {
-    'BusinessJet': 'Business Jets',
-    'Turboprop': 'Turboprops',
-    'JetAirliner': 'Jet Airliners',
-    'Piston': 'Piston',
-    'Turbine': 'Turbine'
-  };
-
-  // Clear existing options (keep the default "All" option)
-  makeSelect.innerHTML = '<option value="">All Makes</option>';
-  typeSelect.innerHTML = '<option value="">All Types</option>';
-
-  // Makes — sorted alphabetically (handling both camelCase and PascalCase)
-  const makes = [...new Set(acList.map(a => a.make || a.Make).filter(Boolean))].sort();
-  makes.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = m; opt.textContent = m;
-    makeSelect.appendChild(opt);
-  });
-
-  // Types (handling both camelCase and PascalCase)
-  const types = [...new Set(acList.map(a => a.maketype || a.MakeType || a.makeType).filter(Boolean))].sort();
-  types.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t; 
-    opt.textContent = typeLabels[t] || t;
-    typeSelect.appendChild(opt);
-  });
-}
-
-function applyDashboardFilters() {
-  const d = window._dashboardData;
-  if (!d) return;
-
-  const make = document.getElementById('filterMake')?.value || '';
-  const type = document.getElementById('filterType')?.value || '';
-  const status = document.getElementById('filterStatus')?.value || '';
-
-  let filtered = d.acList;
-  if (make) filtered = filtered.filter(a => (a.make || a.Make) === make);
-  if (type) filtered = filtered.filter(a => (a.maketype || a.MakeType || a.makeType) === type);
-  if (status === 'forsale') filtered = filtered.filter(a => a.forsale === true || a.forsale === 'true' || a.forsale === 'Y' || a.ForSale === true || a.ForSale === 'Y');
-  if (status === 'maintained') filtered = filtered.filter(a => a.maintained === 'Y' || a.maintained === true || a.Maintained === 'Y' || a.Maintained === true);
-  if (status === 'adsb') filtered = filtered.filter(a => a.hasadsb === 'Y' || a.hasadsb === true || a.HasAdsb === 'Y' || a.HasAdsb === true);
-
-  renderDashboard(filtered, filtered.length);
-}
-
-function clearDashboardFilters() {
-  const makeEl = document.getElementById('filterMake');
-  const typeEl = document.getElementById('filterType');
-  const statusEl = document.getElementById('filterStatus');
-  if (makeEl) makeEl.value = '';
-  if (typeEl) typeEl.value = '';
-  if (statusEl) statusEl.value = '';
-  const d = window._dashboardData;
-  if (d) renderDashboard(d.acList, d.bulkCount);
-}
-
-function renderDashboard(acList, bulkCount) {
-
-    const totalAircraft = bulkCount || acList.length || 0;
-    const adsbReady = acList.filter(a => a.hasadsb === 'Y' || a.hasadsb === true || a.HasAdsb === 'Y' || a.HasAdsb === true).length;
-
-    // ═══ Fleet by Make/Type (existing) ═══
-    const byMake = {};
-    const byType = {};
-    acList.forEach(a => {
-      const make = a.make || a.Make || 'Unknown';
-      byMake[make] = (byMake[make] || 0) + 1;
-      const type = a.maketype || a.MakeType || a.makeType || 'Unknown';
-      byType[type] = (byType[type] || 0) + 1;
-    });
-    const topMakes = Object.fromEntries(
-      Object.entries(byMake).sort((a, b) => b[1] - a[1]).slice(0, 6)
-    );
-
-    renderBarChart('chartMakes', topMakes, ['#00d4ff', '#0099ff', '#8b5cf6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#ec4899']);
-    renderBarChart('chartTypes', byType, ['#00d4ff', '#8b5cf6', '#10b981', '#f59e0b']);
-
-    // ═══ ADS-B Compliance Donut ═══
-    renderDonutChart('chartADSB', adsbReady, totalAircraft - adsbReady, 'ADS-B');
-
-    // ═══ Fleet Age Distribution Histogram ═══
-    renderAgeHistogram('chartAge', acList);
-
-    // ═══ Engine Health Overview ═══
-    renderEngineHealth('chartEngines', acList);
-
-    // ═══ Maintenance Program Breakdown ═══
-    renderMaintPrograms('chartMaint', acList);
-
-    // ── Update cache stats in settings ──
-    MXCache.stats().then(s => {
-      const el = document.getElementById('cacheStats');
-      if (el) el.textContent = `${s.entries} cached entries`;
-    });
-}
-
-function animateNumber(id, target, commas = false) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const duration = 1200;
-  const start = performance.now();
-
-  function tick(now) {
-    const elapsed = now - start;
-    const progress = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const current = Math.floor(eased * target);
-    el.textContent = commas ? current.toLocaleString() : current;
-    if (progress < 1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
-function renderBarChart(containerId, data, colors) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
-  if (entries.length === 0) { container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId); return; }
-  const max = Math.max(...entries.map(e => e[1]));
-
-  container.innerHTML = entries.map(([label, value], i) => {
-    const pct = Math.round((value / max) * 100);
-    const color = colors[i % colors.length];
-    return `
-      <div class="chart-row">
-        <span class="chart-label">${escapeMarkup(label)}</span>
-        <div class="chart-bar-bg">
-          <div class="chart-bar" style="width: ${pct}%; background: ${color};">${value}</div>
-        </div>
-      </div>`;
-  }).join('');
-
-  // Trigger animation
-  setTimeout(() => {
-    container.querySelectorAll('.chart-bar').forEach(bar => {
-      const w = bar.style.width;
-      bar.style.width = '0%';
-      requestAnimationFrame(() => { bar.style.width = w; });
-    });
-  }, 50);
-}
-
-// ═══════════════════════════════════════════════════
-//  DASHBOARD CHART RENDERERS
-// ═══════════════════════════════════════════════════
-
-function renderDonutChart(containerId, yesCount, noCount, label) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const total = yesCount + noCount;
-  if (total === 0) { container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId); return; }
-  const pct = Math.round((yesCount / total) * 100);
-  const deg = Math.round((yesCount / total) * 360);
-
-  container.innerHTML = `
-    <div class="donut-chart" style="--pct:${deg}deg; --color-yes:#22d3ee; --color-no:rgba(255,255,255,0.08);">
-      <div class="donut-center">
-        <div class="donut-value">${pct}%</div>
-        <div class="donut-label">${label}</div>
-      </div>
-    </div>
-    <div class="donut-legend">
-      <div><span class="donut-dot" style="background:#22d3ee;"></span> Equipped: ${yesCount.toLocaleString()}</div>
-      <div><span class="donut-dot" style="background:rgba(255,255,255,0.15);"></span> Not Equipped: ${noCount.toLocaleString()}</div>
-    </div>`;
-}
-
-function renderAgeHistogram(containerId, acList) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const currentYear = new Date().getFullYear();
-  const decades = {};
-  acList.forEach(a => {
-    if (!a.yearmfr || a.yearmfr < 1950) return;
-    const decade = Math.floor(a.yearmfr / 10) * 10;
-    const label = `${decade}s`;
-    decades[label] = (decades[label] || 0) + 1;
-  });
-  const sorted = Object.fromEntries(Object.entries(decades).sort((a, b) => a[0].localeCompare(b[0])));
-  renderBarChart(containerId, sorted, ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#7c3aed', '#5b21b6']);
-}
-
-function renderEngineHealth(containerId, acList) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  // Aggregate engines that have TBO and time data
-  let totalEngines = 0;
-  let green = 0, yellow = 0, red = 0;
-  const programs = {};
-
-  acList.forEach(a => {
-    // Check engines 1-4 (left/right/1/2 naming convention)
-    const suffixes = ['l', 'r', '1', '2'];
-    suffixes.forEach(s => {
-      const tt = a[`engtt${s}_new`];
-      const tbo = a[`tbo${s}_new`];
-      if (tt && tbo && tbo > 0) {
-        totalEngines++;
-        const ratio = tt / tbo;
-        if (ratio < 0.6) green++;
-        else if (ratio < 0.85) yellow++;
-        else red++;
-      }
-    });
-
-    // Engine program tracking
-    const prog = a.engineproviderprogram || a.emp || '';
-    if (prog && prog.trim()) {
-      const key = prog.trim();
-      programs[key] = (programs[key] || 0) + 1;
-    }
-  });
-
-  if (totalEngines === 0) {
-    container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId);
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="engine-health-bars">
-      <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#10b981;">Under 60% reported TT/TBO</span>
-        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(green/totalEngines*100)}%;background:#10b981;">${green}</div></div>
-      </div>
-      <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#f59e0b;">60–85% reported TT/TBO</span>
-        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(yellow/totalEngines*100)}%;background:#f59e0b;">${yellow}</div></div>
-      </div>
-      <div class="engine-bar-row">
-        <span class="engine-bar-label" style="color:#ef4444;">Over 85% reported TT/TBO</span>
-        <div class="chart-bar-bg"><div class="chart-bar" style="width:${Math.round(red/totalEngines*100)}%;background:#ef4444;">${red}</div></div>
-      </div>
-    </div>
-    <div class="engine-summary">${totalEngines} engines tracked</div>`;
-
-  // Animate
-  setTimeout(() => {
-    container.querySelectorAll('.chart-bar').forEach(bar => {
-      const w = bar.style.width; bar.style.width = '0%';
-      requestAnimationFrame(() => { bar.style.width = w; });
-    });
-  }, 50);
-}
-
-function renderMaintPrograms(containerId, acList) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  const programs = {};
-  acList.forEach(a => {
-    const prog = a.mxprog || a.amp || '';
-    if (prog && prog.trim()) {
-      const key = prog.trim();
-      programs[key] = (programs[key] || 0) + 1;
-    }
-  });
-
-  if (Object.keys(programs).length === 0) {
-    container.innerHTML = ''; MXOnboarding.injectEmptyCta(containerId);
-    return;
-  }
-
-  const topProgs = Object.fromEntries(
-    Object.entries(programs).sort((a, b) => b[1] - a[1]).slice(0, 8)
-  );
-  renderBarChart(containerId, topProgs, ['#f472b6', '#ec4899', '#db2777', '#be185d', '#9d174d', '#831843', '#fb7185', '#fda4af']);
-}
 
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  MARKET INTELLIGENCE
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function setupMarketIntel() {
   const btn = document.getElementById('mktSearchBtn');
@@ -2348,9 +2021,9 @@ function mktRow(label, value, prefix, suffix) {
 }
 
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  AIRCRAFT
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 let isAircraftInitialized = false;
 let acSearchMode = 'scan'; // 'scan' or 'direct'
@@ -2387,7 +2060,7 @@ async function loadAircraft() {
   let urgencyFilter = '';
 
   if (acSearchMode === 'direct') {
-    // Direct Search mode — use text fields
+    // Direct Search mode â€” use text fields
     const make = document.getElementById('acMake').value.trim();
     const regnbr = document.getElementById('acReg').value.trim();
     const sernbr = document.getElementById('acSerial').value.trim();
@@ -2397,7 +2070,7 @@ async function loadAircraft() {
     if (sernbr) body.sernbr = sernbr;
     if (basecountry) body.basecountry = basecountry;
   } else {
-    // Fleet triage mode — use source-attribute filters
+    // Fleet triage mode â€” use source-attribute filters
     const regionFilter = document.getElementById('acScanRegion')?.value || '';
     urgencyFilter = document.getElementById('acScanUrgency')?.value || '';
     
@@ -2489,10 +2162,10 @@ let aircraftScrollState = null;
 let aircraftScrollObserver = null;
 
 function renderAircraftCard(ac, forSale) {
-  const year = ac.yearmfg || ac.yearmfr || '—';
-  const reg = ac.regnbr || '—';
-  const base = ac.baseicao || ac.baseicaocode || ac.basecity || '—';
-  const type = ac.maketype || '—';
+  const year = ac.yearmfg || ac.yearmfr || 'â€”';
+  const reg = ac.regnbr || 'â€”';
+  const base = ac.baseicao || ac.baseicaocode || ac.basecity || 'â€”';
+  const type = ac.maketype || 'â€”';
   const typeClass = (type === 'BusinessJet' || type === 'JetAirliner') ? 'badge-jet' : type === 'Piston' ? 'badge-heli' : 'badge-turbo';
   const mro = buildMROSignals(ac);
   const mroBadge = mro.isAOG ? '<span class="badge badge-aog">AOG</span>'
@@ -2515,11 +2188,11 @@ function renderAircraftCard(ac, forSale) {
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Serial</span>
-          <span class="ac-card-detail-value">${escapeMarkup(ac.sernbr || '—')}</span>
+          <span class="ac-card-detail-value">${escapeMarkup(ac.sernbr || 'â€”')}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">AFTT</span>
-          <span class="ac-card-detail-value ${mro.isHighTime ? 'mro-metric-warn' : ''}">${ac.aftt?.toLocaleString() || ac.estaftt?.toLocaleString() || '—'}</span>
+          <span class="ac-card-detail-value ${mro.isHighTime ? 'mro-metric-warn' : ''}">${ac.aftt?.toLocaleString() || ac.estaftt?.toLocaleString() || 'â€”'}</span>
         </div>
         <div class="ac-card-detail">
           <span class="ac-card-detail-label">Base</span>
@@ -2531,7 +2204,7 @@ function renderAircraftCard(ac, forSale) {
         ${forSale ? '<span class="badge badge-forsale">FOR SALE</span>' : ''}
         ${mroBadge}
         ${hasActiveCase ? '<span class="badge badge-jet case-card-badge">ACTIVE CASE</span>' : ''}
-        <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || '—')}</span>
+        <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || 'â€”')}</span>
       </div>
     </div>`;
 }
@@ -2616,7 +2289,7 @@ async function showAircraftDetail(id) {
     const pictures = picData.pictures || [];
     const detailedEngines = engData.engines || [];
     const activeCase = MXCaseState.matchesAircraft({ aircraftid: ident.aircraftid, regnbr: ident.regnbr }) ? MXCaseState.active : null;
-    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case · ${escapeMarkup(activeCase.case.status)} · version ${escapeMarkup(activeCase.case.version)}</div>` : '';
+    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case Â· ${escapeMarkup(activeCase.case.status)} Â· version ${escapeMarkup(activeCase.case.version)}</div>` : '';
     const faaRegistrationSuffix = String(ident.regnbr || '').replace(/^N/i, '').replace(/[^a-z0-9]/gi, '');
 
     const galleryHtml = pictures.length > 0 ? `
@@ -2643,7 +2316,7 @@ async function showAircraftDetail(id) {
                target="_blank" 
                class="badge badge-heli" 
                style="text-decoration:none; cursor:pointer; font-size:0.65rem;">
-                FAA Registry ↗
+                FAA Registry â†—
             </a>
           ` : ''}
         </div>
@@ -2732,7 +2405,7 @@ async function showAircraftDetail(id) {
                   <td class="td-accent">${escapeMarkup(r.name)}</td>
                   <td>${escapeMarkup(r.relationtype)}</td>
                   <td class="td-dim">${escapeMarkup(r.businesstype)}</td>
-                  <td>${r.isoperator === 'Y' ? '✓' : ''}</td>
+                  <td>${r.isoperator === 'Y' ? 'âœ“' : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2814,7 +2487,7 @@ async function showAircraftDetail(id) {
 
         <div class="detail-section full-width" id="acDetailADs">
           <div class="detail-section-title">FAA Airworthiness Directives</div>
-          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capability…</div>
+          <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capabilityâ€¦</div>
         </div>
       </div>
     `;
@@ -2869,7 +2542,7 @@ async function showAircraftDetail(id) {
         }));
       } catch (error) {
         const friendly = error.code === 'TENANT_MISMATCH'
-          ? 'Organization configuration pending — AD retrieval will be available once tenant enrollment completes.'
+          ? 'Organization configuration pending â€” AD retrieval will be available once tenant enrollment completes.'
           : error.message || 'Compliance service unavailable';
         adContainer.textContent = friendly;
       }
@@ -2880,7 +2553,7 @@ async function showAircraftDetail(id) {
   }
 }
 function detailRow(label, value) {
-  return `<div class="detail-row"><span class="detail-row-label">${escapeMarkup(label)}</span><span class="detail-row-value">${escapeMarkup(value ?? '—')}</span></div>`;
+  return `<div class="detail-row"><span class="detail-row-label">${escapeMarkup(label)}</span><span class="detail-row-value">${escapeMarkup(value ?? 'â€”')}</span></div>`;
 }
 
 function openImageLightbox(src) {
@@ -2902,9 +2575,9 @@ function openImageLightbox(src) {
   lb.style.display = 'flex';
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  COMPANIES
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 let isCompaniesInitialized = false;
 
@@ -3002,7 +2675,7 @@ async function showCompanyDetail(id) {
           <div style="margin-top:16px">
             <div class="detail-section-title">Business Types</div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${escapeMarkup(b)}</span>`).join('') || '<span class="td-dim">—</span>'}
+              ${(comp.businesstypes || []).map(b => `<span class="badge badge-heli">${escapeMarkup(b)}</span>`).join('') || '<span class="td-dim">â€”</span>'}
             </div>
           </div>
         </div>
@@ -3016,8 +2689,8 @@ async function showCompanyDetail(id) {
               ${comp.contacts.map(c => `
                 <tr>
                   <td class="td-accent">${escapeMarkup([c.firstname, c.lastname].filter(Boolean).join(' '))}</td>
-                  <td>${escapeMarkup(c.title || '—')}</td>
-                  <td class="td-dim">${escapeMarkup(c.email || '—')}</td>
+                  <td>${escapeMarkup(c.title || 'â€”')}</td>
+                  <td class="td-dim">${escapeMarkup(c.email || 'â€”')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -3034,7 +2707,7 @@ async function showCompanyDetail(id) {
                 <tr>
                   <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
                   <td>${escapeMarkup(a.relationtype)}</td>
-                  <td>${a.isoperator === 'Y' ? '✓ Yes' : 'No'}</td>
+                  <td>${a.isoperator === 'Y' ? 'âœ“ Yes' : 'No'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -3056,9 +2729,9 @@ async function showCompanyDetail(id) {
   }
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CONTACTS
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 let isContactsInitialized = false;
 
@@ -3107,10 +2780,10 @@ async function loadContacts() {
            ${data.contacts.map(c => `
             <tr>
               <td class="td-accent">${escapeMarkup([c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' '))}</td>
-              <td>${escapeMarkup(c.title || '—')}</td>
-              <td>${escapeMarkup(c.companyname || '—')}</td>
-              <td class="td-dim">${escapeMarkup(c.email || '—')}</td>
-              <td class="td-mono">${escapeMarkup(c.phonenumber || '—')}</td>
+              <td>${escapeMarkup(c.title || 'â€”')}</td>
+              <td>${escapeMarkup(c.companyname || 'â€”')}</td>
+              <td class="td-dim">${escapeMarkup(c.email || 'â€”')}</td>
+              <td class="td-mono">${escapeMarkup(c.phonenumber || 'â€”')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -3124,9 +2797,9 @@ async function loadContacts() {
   }
 }
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  GLOBE
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 let globeInstance = null;
 let globeData = null;
@@ -3136,7 +2809,7 @@ let activeUrgencyFilter = null;
 // ICAO airport coordinates for plotting aircraft base locations on globe
 // Covers major business aviation airports worldwide [lat, lng]
 const ICAO_COORDS = {
-  // ── USA Major ──
+  // â”€â”€ USA Major â”€â”€
   KATL:[33.64,-84.43],KBOS:[42.36,-71.01],KORD:[41.97,-87.91],KMDW:[41.79,-87.74],
   KDFW:[32.90,-97.04],KDEN:[39.86,-104.67],KDTW:[42.21,-83.35],KEWR:[40.69,-74.17],
   KJFK:[40.64,-73.78],KLGA:[40.78,-73.87],KLAX:[33.94,-118.41],KLAS:[36.08,-115.15],
@@ -3151,7 +2824,7 @@ const ICAO_COORDS = {
   KBDL:[41.94,-72.68],KABQ:[35.04,-106.61],KTUL:[36.20,-95.89],KOMA:[41.30,-95.89],
   KSDF:[38.17,-85.74],KRIC:[37.51,-77.32],KBUF:[42.94,-78.73],KANC:[61.17,-150.00],
   PHNL:[21.32,-157.92],
-  // ── USA Business Aviation ──
+  // â”€â”€ USA Business Aviation â”€â”€
   KTEB:[40.85,-74.06],KHPN:[41.07,-73.71],KSDL:[33.62,-111.91],KVNY:[34.21,-118.49],
   KFXE:[26.20,-80.17],KAPA:[39.57,-104.85],KADS:[32.97,-96.84],KNEW:[30.04,-90.03],
   KOPF:[25.91,-80.28],KPDK:[33.88,-84.30],KPWK:[42.11,-87.90],KDPA:[41.91,-88.25],
@@ -3161,10 +2834,10 @@ const ICAO_COORDS = {
   KGAI:[39.17,-77.17],KLUK:[39.10,-84.42],KLNS:[40.12,-76.30],KMMU:[40.80,-74.42],
   KPTK:[42.67,-83.42],KSGR:[29.62,-95.66],KSWF:[41.50,-74.10],KVGT:[36.21,-115.19],
   KORL:[28.55,-81.33],KRVS:[36.04,-95.98],
-  // ── Canada ──
+  // â”€â”€ Canada â”€â”€
   CYYZ:[43.68,-79.63],CYVR:[49.19,-123.18],CYUL:[45.47,-73.74],CYYC:[51.11,-114.02],
   CYOW:[45.32,-75.67],CYEG:[53.31,-113.58],CYWG:[49.91,-97.24],CYHZ:[44.88,-63.51],
-  // ── Europe ──
+  // â”€â”€ Europe â”€â”€
   EGLL:[51.47,-0.46],EGLF:[51.28,-0.78],EGGW:[51.87,-0.37],EGSS:[51.89,0.24],
   EGKB:[51.33,0.03],EGTK:[51.84,-1.32],
   LFPG:[49.01,2.55],LFPB:[48.97,2.44],LFMN:[43.66,7.22],
@@ -3177,26 +2850,26 @@ const ICAO_COORDS = {
   EPWA:[52.17,20.97],LKPR:[50.10,14.26],LHBP:[47.43,19.26],
   UUEE:[55.97,37.41],UUDD:[55.41,37.91],
   EGPH:[55.95,-3.37],EIDW:[53.42,-6.27],LSGG:[46.24,6.11],
-  // ── Middle East ──
+  // â”€â”€ Middle East â”€â”€
   OMDB:[25.25,55.36],OMAA:[24.44,54.65],OEJN:[21.68,39.16],OERK:[24.96,46.70],
   OTHH:[25.27,51.61],OBBI:[26.27,50.64],OIII:[35.69,51.31],OLBA:[33.82,35.49],
   LLBG:[32.01,34.89],
-  // ── Asia Pacific ──
+  // â”€â”€ Asia Pacific â”€â”€
   RJTT:[35.55,139.78],RJBB:[34.43,135.24],RJAA:[35.76,140.39],
   VHHH:[22.31,113.91],WSSS:[1.35,103.99],VTBS:[13.69,100.75],
   WIII:[-6.13,106.66],RPLL:[14.51,121.02],VABB:[19.09,72.87],VIDP:[28.57,77.10],
   RKSI:[37.46,126.44],RCTP:[25.08,121.23],ZBAA:[40.08,116.58],ZPPP:[25.10,102.94],
   VMMC:[22.15,113.59],
-  // ── Latin America ──
+  // â”€â”€ Latin America â”€â”€
   MMMX:[19.44,-99.07],MMMY:[25.78,-100.11],MMTJ:[32.54,-116.97],MMUN:[21.04,-86.87],
   SBGR:[23.43,-46.47],SBRJ:[-22.91,-43.16],SBSP:[-23.63,-46.66],
   SKBO:[4.70,-74.15],SCEL:[-33.39,-70.79],SEQM:[-0.13,-78.49],SPJC:[-12.02,-77.11],
   SAEZ:[-34.82,-58.54],SVMI:[10.60,-66.99],SBBR:[-15.87,-47.92],
   MROC:[9.99,-84.21],MPTO:[9.07,-79.38],MUHA:[22.99,-82.41],
-  // ── Africa ──
+  // â”€â”€ Africa â”€â”€
   FAOR:[-26.13,28.23],DNMM:[6.58,3.32],HKJK:[-1.32,36.93],GABS:[14.74,-17.49],
   FALE:[-29.61,31.12],FACT:[-33.96,18.60],GOOY:[14.74,-17.49],
-  // ── Oceania ──
+  // â”€â”€ Oceania â”€â”€
   YSSY:[-33.95,151.18],YMML:[-37.67,144.84],NZAA:[-37.01,174.79],
   YBBN:[-27.39,153.12],YPPH:[-31.94,115.97],
 };
@@ -3347,7 +3020,7 @@ function handleGlobeClick(point) {
       const mro = buildMROSignals(ac);
       const ul = mro.isAOG ? 'AOG' : mro.isVeryHighTime ? '12K+ AFTT' : mro.isHighTime ? '8K+ AFTT' : 'Other';
       const uc = mro.isAOG ? 'critical' : mro.isVeryHighTime ? 'overdue' : mro.isHighTime ? 'high-time' : 'current';
-      return `<div class="drill-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}"><span class="drill-reg">${escapeMarkup(ac.regnbr || '—')}</span><span class="drill-model">${escapeMarkup([ac.make, ac.model].filter(Boolean).join(' '))}</span><span class="drill-owner">${escapeMarkup(ac.owner || ac.operator || '')}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
+      return `<div class="drill-card" data-aircraft-id="${safeRecordId(ac.aircraftid) ?? ''}"><span class="drill-reg">${escapeMarkup(ac.regnbr || 'â€”')}</span><span class="drill-model">${escapeMarkup([ac.make, ac.model].filter(Boolean).join(' '))}</span><span class="drill-owner">${escapeMarkup(ac.owner || ac.operator || '')}</span><span class="drill-urgency badge-${uc}">${ul}</span></div>`;
     }).join('');
   results.querySelectorAll('.drill-card[data-aircraft-id]').forEach((card) => {
     card.addEventListener('click', () => {
@@ -3365,7 +3038,7 @@ function handleGlobeHover(point) {
   if (point) {
     globeInstance.controls().autoRotate = false;
     const ul = point.hasAog ? 'AOG reported' : point.hasVeryHighTime ? '12K+ reported AFTT' : point.hasHighTime ? '8K+ reported AFTT' : 'No selected triage flag';
-    tooltip.innerHTML = `<div class="tt-icao">${escapeMarkup(point.icao)}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">${ul}${point.city ? ' · ' + escapeMarkup(point.city) : ''}</div>`;
+    tooltip.innerHTML = `<div class="tt-icao">${escapeMarkup(point.icao)}</div><div class="tt-count">${point.aircraft.length} aircraft</div><div class="tt-urgency">${ul}${point.city ? ' Â· ' + escapeMarkup(point.city) : ''}</div>`;
     tooltip.classList.remove('hidden');
     const mh = (e) => { const r = container.getBoundingClientRect(); tooltip.style.left = Math.min(e.clientX - r.left + 15, r.width - tooltip.offsetWidth - 10) + 'px'; tooltip.style.top = Math.min(e.clientY - r.top + 15, r.height - tooltip.offsetHeight - 10) + 'px'; };
     container._globeMouseMove = mh; container.addEventListener('mousemove', mh);

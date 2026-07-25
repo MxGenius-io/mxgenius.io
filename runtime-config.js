@@ -7,9 +7,5 @@ globalThis.MXGENIUS_CONFIG = Object.freeze({
   entraTenantId: 'bb1b06c5-1b43-4295-8c01-d7ffd3a5b366',
   entraClientId: '0874d536-cb48-4b1c-afb7-1349584a0366',
   entraApiScope: 'api://0874d536-cb48-4b1c-afb7-1349584a0366/access_as_user',
-  entraRedirectUri: 'https://mxgenius.io/dashboard.html',
-  organizationId: '00000000-0000-0000-0000-000000000000',
-  getSession: () => ({
-    organizationId: '00000000-0000-0000-0000-000000000000'
-  })
+  entraRedirectUri: 'https://mxgenius.io/dashboard.html'
 });
