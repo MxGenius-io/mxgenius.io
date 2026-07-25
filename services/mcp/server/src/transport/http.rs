@@ -940,20 +940,18 @@ async fn create_realtime_call(
             )
         }
     };
-    let model =
-        std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-4o-mini-realtime-preview".into());
-    let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "marin".into());
+    let model = std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-4o-mini-realtime-preview-2024-12-17".into());
+    let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "alloy".into());
     let session = json!({
-        "type": "realtime",
+        "modalities": ["audio", "text"],
         "model": model,
-        "output_modalities": ["audio"],
-        "audio": {
-            "input": {
-                "transcription": {"model": std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL").unwrap_or_else(|_| "gpt-realtime-whisper".into())},
-                "turn_detection": {"type": "semantic_vad"}
-            },
-            "output": {"voice": voice}
+        "input_audio_transcription": {
+            "model": std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL").unwrap_or_else(|_| "whisper-1".into())
         },
+        "turn_detection": {
+            "type": "server_vad"
+        },
+        "voice": voice,
         "instructions": "You are the MXGenius maintenance copilot. Treat application tools as authoritative. Never claim an operational mutation succeeded without an explicit application confirmation result."
     });
     let form = reqwest::multipart::Form::new()
@@ -989,7 +987,8 @@ async fn create_realtime_call(
         .filter(|value| value.starts_with("rtc_"))
         .map(str::to_owned);
     if !status.is_success() {
-        tracing::warn!(target: "mxgenius.realtime", upstream_status = %status, correlation_id = %context.correlation_id, "Realtime call exchange rejected");
+        let error_body = upstream.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
+        tracing::warn!(target: "mxgenius.realtime", upstream_status = %status, correlation_id = %context.correlation_id, error_body = %error_body, "Realtime call exchange rejected");
         let response_status = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             StatusCode::TOO_MANY_REQUESTS
         } else if status == reqwest::StatusCode::UNAUTHORIZED
@@ -1002,7 +1001,7 @@ async fn create_realtime_call(
         return realtime_error(
             response_status,
             "REALTIME_UPSTREAM_REJECTED",
-            "Realtime service rejected the connection",
+            &format!("Realtime service rejected the connection: {}", error_body),
         );
     }
     let answer = match upstream.text().await {
