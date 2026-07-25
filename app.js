@@ -3150,45 +3150,23 @@ async function loadGlobe() {
     globeInstance = Globe()
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
-      .htmlElementsData(allClusters)
-      .htmlAltitude(0)
-      .htmlElement(d => {
-        const wrapper = document.createElement('div');
-        wrapper.style.width = '0px';
-        wrapper.style.height = '0px';
-
-        const el = document.createElement('div');
-        const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
-        const isPriority = d.hasActiveCase || d.hasAog;
-        
-        // Dynamic pixel size based on cluster count
-        const px = Math.min(40, 10 + Math.log2(count) * 4);
-        const color = clusterColor(d);
-        
-        el.style.width = `${px}px`;
-        el.style.height = `${px}px`;
-        el.style.background = color;
-        el.style.borderRadius = '50%';
-        el.style.border = `2px solid ${isPriority ? '#ff3366' : 'rgba(255,255,255,0.8)'}`;
-        el.style.boxShadow = `0 0 ${isPriority ? '15px' : '6px'} ${color}`;
-        el.style.cursor = 'pointer';
-        el.style.pointerEvents = 'auto';
-        el.style.transition = 'transform 0.2s';
-        el.style.transform = 'translate(-50%, -50%)'; // Center perfectly on the lat/lng point
-        
-        el.onmouseenter = (e) => {
-          el.style.transform = 'translate(-50%, -50%) scale(1.3)';
-          handleGlobeHover(d, e);
-        };
-        el.onmouseleave = (e) => {
-          el.style.transform = 'translate(-50%, -50%) scale(1)';
-          handleGlobeHover(null, e);
-        };
-        el.onclick = () => handleGlobeClick(d);
-        
-        wrapper.appendChild(el);
-        return wrapper;
-      })
+      .pointsData(allClusters)
+      .pointLat(d => d.lat)
+      .pointLng(d => d.lng)
+      .pointAltitude(clusterAltitude)
+      .pointRadius(clusterRadius)
+      .pointColor(clusterColor)
+      .pointResolution(32)
+      .ringsData(allClusters.filter(c => c.hasActiveCase || c.hasAog))
+      .ringLat(d => d.lat)
+      .ringLng(d => d.lng)
+      .ringAltitude(clusterAltitude)
+      .ringColor(clusterRingColor)
+      .ringMaxRadius(clusterRingRadius)
+      .ringPropagationSpeed(1.5)
+      .ringRepeatPeriod(800)
+      .onPointHover(handleGlobeHover)
+      .onPointClick(handleGlobeClick)
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);
     globeInstance.controls().autoRotate = false; globeInstance.controls().autoRotateSpeed = 0.4;
