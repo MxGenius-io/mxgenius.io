@@ -43,6 +43,8 @@ const MXRealtime = (() => {
       try {
         this.audioElement = audioElement || document.createElement('audio');
         this.audioElement.autoplay = true;
+        this.audioElement.style.display = 'none';
+        if (!audioElement) document.body.appendChild(this.audioElement);
         this.peer = this.peerFactory();
         this.peer.ontrack = (event) => {
           this.audioElement.srcObject = event.streams[0];
@@ -57,7 +59,10 @@ const MXRealtime = (() => {
         this.media = await this.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
-        for (const track of this.media.getAudioTracks()) this.peer.addTrack(track, this.media);
+        for (const track of this.media.getAudioTracks()) {
+          track.enabled = false;
+          this.peer.addTrack(track, this.media);
+        }
         this.channel = this.peer.createDataChannel('oai-events');
         this.channel.addEventListener('open', () => this.emit('channel-open'));
         this.channel.addEventListener('close', () => this.emit('channel-close'));
@@ -174,7 +179,10 @@ const MXRealtime = (() => {
       if (this.channel) this.channel.close();
       if (this.peer) this.peer.close();
       if (this.media) for (const track of this.media.getTracks()) track.stop();
-      if (this.audioElement) this.audioElement.srcObject = null;
+      if (this.audioElement) {
+        this.audioElement.srcObject = null;
+        if (this.audioElement.parentNode === document.body) document.body.removeChild(this.audioElement);
+      }
       this.channel = null;
       this.peer = null;
       this.media = null;
