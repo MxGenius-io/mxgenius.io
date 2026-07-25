@@ -1454,9 +1454,17 @@ Rules:
     // Mic button is purely for dictation now
     const handleMicTap = (e) => {
       e?.preventDefault();
-      // If realtime is active, dictation is disabled
+      // If realtime is active, toggle the WebRTC microphone track instead of transcribing
       if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
-        console.warn('Cannot dictate while Realtime socket is active.');
+        if (realtimeSession.media) {
+          let enabled = false;
+          realtimeSession.media.getAudioTracks().forEach(t => {
+            t.enabled = !t.enabled;
+            enabled = t.enabled;
+          });
+          micBtn.style.color = enabled ? '#10b981' : '';
+          micBtn.classList.toggle('pulse-mic', enabled);
+        }
         return;
       }
       if (micBtn.classList.contains('pulse-mic')) {
@@ -1484,12 +1492,20 @@ Rules:
       realtimeToggleBtn.checked = active;
     }
     
-    micBtn.disabled = active;
-    micBtn.style.opacity = active ? '0.5' : '1';
-    micBtn.title = active ? 'Dictation disabled (Realtime active)' : 'Tap to dictate';
+    micBtn.disabled = false;
+    micBtn.style.opacity = '1';
+    micBtn.title = active ? 'Tap to toggle microphone' : 'Tap to dictate';
+    
+    if (state === 'connected' && realtimeSession?.media) {
+        const isEnabled = realtimeSession.media.getAudioTracks().some(t => t.enabled);
+        micBtn.style.color = isEnabled ? '#10b981' : '';
+        micBtn.classList.toggle('pulse-mic', isEnabled);
+    } else if (!active) {
+        micBtn.style.color = '';
+        micBtn.classList.remove('pulse-mic');
+    }
     
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
-    input.placeholder = state === 'failed' ? 'Voice unavailable - use text chat' : 'Ask MXGenius...';
   }
 
   async function handleRealtimeEvent(event) {
