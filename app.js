@@ -3153,6 +3153,10 @@ async function loadGlobe() {
       .htmlElementsData(allClusters)
       .htmlAltitude(0)
       .htmlElement(d => {
+        const wrapper = document.createElement('div');
+        wrapper.style.width = '0px';
+        wrapper.style.height = '0px';
+
         const el = document.createElement('div');
         const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
         const isPriority = d.hasActiveCase || d.hasAog;
@@ -3170,18 +3174,20 @@ async function loadGlobe() {
         el.style.cursor = 'pointer';
         el.style.pointerEvents = 'auto';
         el.style.transition = 'transform 0.2s';
+        el.style.transform = 'translate(-50%, -50%)'; // Center perfectly on the lat/lng point
         
         el.onmouseenter = (e) => {
-          el.style.transform = 'scale(1.3)';
+          el.style.transform = 'translate(-50%, -50%) scale(1.3)';
           handleGlobeHover(d, e);
         };
         el.onmouseleave = (e) => {
-          el.style.transform = 'scale(1)';
+          el.style.transform = 'translate(-50%, -50%) scale(1)';
           handleGlobeHover(null, e);
         };
         el.onclick = () => handleGlobeClick(d);
         
-        return el;
+        wrapper.appendChild(el);
+        return wrapper;
       })
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);
