@@ -7,22 +7,12 @@
  * implementation behind this boundary without rewriting workspace views.
  */
 const MXApplicationClient = (() => {
-  const API_BASE = 'https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io';
   const MCP_PROTOCOL_VERSION = '2025-11-25';
   const runtimeConfig = globalThis.MXGENIUS_CONFIG || {};
-  const MCP_BASE = String(runtimeConfig.mcpBase || API_BASE).replace(/\/$/, '');
-  const FLEET_API_BASE = String(runtimeConfig.fleetBase || API_BASE).replace(/\/$/, '');
+  const MCP_BASE = String(runtimeConfig.mcpBase || '').replace(/\/$/, '');
+  const FLEET_API_BASE = String(runtimeConfig.fleetBase || '').replace(/\/$/, '');
   let rpcSequence = 0;
 
-  async function request(path, options = {}) {
-    return fetch(`${API_BASE}${path}`, options);
-  }
-
-  async function requestJson(path, options = {}) {
-    const response = await request(path, options);
-    const data = await response.json();
-    return { response, data };
-  }
 
   async function fleetRequestJson(path, options = {}) {
     const response = await fetch(`${FLEET_API_BASE}${path}`, options);
@@ -416,7 +406,7 @@ const MXApplicationClient = (() => {
   }
 
   return Object.freeze({
-    API_BASE,
+
     MCP_BASE,
     MCP_PROTOCOL_VERSION,
     aircraftBundle,

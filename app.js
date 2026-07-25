@@ -1,7 +1,7 @@
 // MXGenius - Frontend Application
 // Auto-login, tab routing, API calls, dynamic rendering
 
-const API = MXApplicationClient.API_BASE;
+
 let TOKEN = '';
 let BEARER = '';
 let cachedFleetSignals = [];
