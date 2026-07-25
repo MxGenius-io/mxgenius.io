@@ -3135,6 +3135,7 @@ async function loadGlobe() {
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
       .htmlElementsData(allClusters)
+      .htmlAltitude(0)
       .htmlElement(d => {
         const el = document.createElement('div');
         const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
