@@ -2317,6 +2317,15 @@ async function showAircraftDetail(id) {
     body.innerHTML = `
       ${activeCaseHtml}
       ${galleryHtml}
+      <div class="detail-section full-width" style="margin-bottom: 12px; margin-top: 10px;">
+        <div class="detail-section-title">MXGenius AI Chat</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="maintenance schedule">Maintenance schedule</button>
+          <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="common AOG issues">Common AOG issues</button>
+          <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="inspection intervals">Inspection intervals</button>
+          <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="engine overhaul cycle">Engine overhaul</button>
+        </div>
+      </div>
       <div class="detail-header">
         <div class="detail-title-group">
           <div class="detail-make">${escapeMarkup(ident.make)}</div>
@@ -2491,15 +2500,7 @@ async function showAircraftDetail(id) {
             </tbody>
           </table>
         </div>` : ''}
-        <div class="detail-section full-width">
-          <div class="detail-section-title">MXGenius AI Chat</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="maintenance schedule">Maintenance schedule</button>
-            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="common AOG issues">Common AOG issues</button>
-            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="inspection intervals">Inspection intervals</button>
-            <button class="badge badge-heli aircraft-chat-prompt" type="button" style="cursor:pointer;border:none;font-size:0.75rem;" data-prompt-suffix="engine overhaul cycle">Engine overhaul</button>
-          </div>
-        </div>
+
 
         <div class="detail-section full-width" id="acDetailADs">
           <div class="detail-section-title">FAA Airworthiness Directives</div>
@@ -2515,6 +2516,7 @@ async function showAircraftDetail(id) {
     const aircraftPromptPrefix = [ident.make, ident.model].filter(Boolean).join(' ');
     body.querySelectorAll('.aircraft-chat-prompt').forEach((button) => {
       button.addEventListener('click', () => {
+        closeModal('acDetailModal');
         window.openChatWith(`${aircraftPromptPrefix} ${button.dataset.promptSuffix || ''}`.trim());
       });
     });
