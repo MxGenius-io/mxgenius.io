@@ -2964,7 +2964,6 @@ function setupGlobeSheet() {
     currentState = (currentState + 1) % states.length;
     sheet.className = 'globe-sheet' + (states[currentState] ? ' ' + states[currentState] : '');
   });
-  // Close button
   const closeBtn = document.getElementById('globeSheetClose');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -2972,19 +2971,6 @@ function setupGlobeSheet() {
       sheet.className = 'globe-sheet';
     });
   }
-  handle.addEventListener('touchstart', (e) => { handle._startY = e.touches[0].clientY; sheet.style.transition = 'none'; }, { passive: true });
-  handle.addEventListener('touchmove', (e) => {
-    const dy = e.touches[0].clientY - handle._startY;
-    const pct = Math.max(0, Math.min(100, (sheet.offsetHeight - 56 + dy) / sheet.offsetHeight * 100));
-    sheet.style.transform = `translateY(${pct}%)`;
-  }, { passive: true });
-  handle.addEventListener('touchend', () => {
-    sheet.style.transition = ''; sheet.style.transform = '';
-    const visible = window.innerHeight - sheet.getBoundingClientRect().top;
-    if (visible > window.innerHeight * 0.45) { currentState = 2; sheet.className = 'globe-sheet full'; }
-    else if (visible > 100) { currentState = 1; sheet.className = 'globe-sheet half'; }
-    else { currentState = 0; sheet.className = 'globe-sheet'; }
-  });
   document.querySelectorAll('.urgency-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       const f = pill.dataset.filter;
