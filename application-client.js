@@ -380,10 +380,13 @@ const MXApplicationClient = (() => {
     }, session);
   }
 
-  function applicableAds({ aircraftId, caseId, session = {} }) {
+  function applicableAds({ aircraftId, caseId, make, model, serial, session = {} }) {
     return callCapability('mxg.compliance.applicable_ads', {
       aircraft_id: String(aircraftId),
-      case_id: caseId || null
+      case_id: caseId || null,
+      make: make || null,
+      model: model || null,
+      serial: serial || null
     }, { ...session, confirmationGrant: undefined });
   }
 
