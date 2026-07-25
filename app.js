@@ -3030,7 +3030,6 @@ function handleGlobeClick(point) {
       if (id !== null) showAircraftDetail(id);
     });
   });
-  globeInstance.pointOfView({ lat: point.lat, lng: point.lng, altitude: 0.8 }, 800);
 }
 
 function handleGlobeHover(point) {
