@@ -2538,6 +2538,9 @@ async function showAircraftDetail(id) {
         const envelope = await MXApplicationClient.compliance.applicableAds({
           aircraftId: ident.aircraftid || id,
           caseId: MXCaseState.active?.caseId || null,
+          make: ident.make,
+          model: ident.model,
+          serial: ident.serial || ident.serialnumber || null,
           session
         });
         const output = MXApplicationClient.caseWorkspace.output(envelope);
