@@ -1177,7 +1177,7 @@ Rules:
     setLLMStatus(true, `DeepSeek 1.5B (${gpuStatus})${ttsStatus}`);
     const readyMsg = document.createElement('div');
     readyMsg.className = 'chat-msg ai-msg';
-    readyMsg.innerHTML = '<div class="msg-bubble">MXGenius AI is <strong>online</strong> â€” running on-device. No network required.' + (ttsStatus ? ' Voice enabled.' : '') + '</div>';
+    readyMsg.innerHTML = '<div class="msg-bubble">MXGenius AI is <strong>online</strong> - running on-device. No network required.' + (ttsStatus ? ' Voice enabled.' : '') + '</div>';
     history.appendChild(readyMsg);
     history.scrollTop = history.scrollHeight;
   }
