@@ -2156,17 +2156,61 @@ function initSettings() {
     });
   }
 
-  // Accent color picker
-  const colorPicker = document.getElementById('settingsAccentColor');
-  if (colorPicker) {
-    const savedColor = localStorage.getItem('mx_accentColor');
-    if (savedColor) {
-      colorPicker.value = savedColor;
-      document.documentElement.style.setProperty('--accent-cyan', savedColor);
+  const setupColorPicker = (id, prop, storageKey) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      el.value = saved;
+      document.documentElement.style.setProperty(prop, saved);
     }
-    colorPicker.addEventListener('input', function() {
-      document.documentElement.style.setProperty('--accent-cyan', this.value);
-      localStorage.setItem('mx_accentColor', this.value);
+    el.addEventListener('input', function() {
+      document.documentElement.style.setProperty(prop, this.value);
+      localStorage.setItem(storageKey, this.value);
+      localStorage.setItem('mx_theme', '');
+      const t = document.getElementById('settingsTheme');
+      if (t) t.value = '';
+    });
+  };
+
+  setupColorPicker('settingsAccentColor', '--accent-cyan', 'mx_accentColor');
+  setupColorPicker('settingsBgColor', '--bg-primary', 'mx_bgColor');
+  setupColorPicker('settingsTextColor', '--text-primary', 'mx_textColor');
+  setupColorPicker('settingsCardColor', '--bg-card', 'mx_cardColor');
+
+  // Theme preset picker
+  const themePicker = document.getElementById('settingsTheme');
+  if (themePicker) {
+    const savedTheme = localStorage.getItem('mx_theme');
+    if (savedTheme) themePicker.value = savedTheme;
+    themePicker.addEventListener('change', function() {
+      const theme = this.value;
+      if (!theme) return;
+      localStorage.setItem('mx_theme', theme);
+      
+      const themes = {
+        midnight: { bg: '#0a0e1a', text: '#e8ecf4', card: '#1a1f35', accent: '#00d4ff' },
+        slate:    { bg: '#1e293b', text: '#f1f5f9', card: '#334155', accent: '#38bdf8' },
+        ember:    { bg: '#1c1210', text: '#fde8e0', card: '#2d1f1b', accent: '#f97316' },
+        ocean:    { bg: '#0c1929', text: '#e0f2fe', card: '#132f4c', accent: '#06b6d4' },
+      };
+      const t = themes[theme];
+      if (t) {
+        document.documentElement.style.setProperty('--bg-primary', t.bg);
+        document.documentElement.style.setProperty('--text-primary', t.text);
+        document.documentElement.style.setProperty('--bg-card', t.card);
+        document.documentElement.style.setProperty('--accent-cyan', t.accent);
+        
+        localStorage.setItem('mx_bgColor', t.bg);
+        localStorage.setItem('mx_textColor', t.text);
+        localStorage.setItem('mx_cardColor', t.card);
+        localStorage.setItem('mx_accentColor', t.accent);
+        
+        const b = document.getElementById('settingsBgColor'); if (b) b.value = t.bg;
+        const txt = document.getElementById('settingsTextColor'); if (txt) txt.value = t.text;
+        const c = document.getElementById('settingsCardColor'); if (c) c.value = t.card;
+        const a = document.getElementById('settingsAccentColor'); if (a) a.value = t.accent;
+      }
     });
   }
 

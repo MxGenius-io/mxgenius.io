@@ -108,7 +108,7 @@
   --accent-orange: #f59e0b;
   --accent-red: #ef4444;
 
-  --gradient-cyan: linear-gradient(135deg, #00d4ff, #0099ff);
+  --gradient-cyan: var(--accent-cyan);
   --gradient-purple: linear-gradient(135deg, #8b5cf6, #6366f1);
   --gradient-green: linear-gradient(135deg, #10b981, #059669);
   --gradient-warm: linear-gradient(135deg, #f59e0b, #ef4444);
