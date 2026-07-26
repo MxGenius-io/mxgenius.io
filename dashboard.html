@@ -82,19 +82,12 @@
         <p class="subtitle">Case-aware fleet context, evidence, and operational tools</p>
       </div>
 
-      <button type="button" class="case-focus" id="activeCaseCard" data-state="empty">
-        <span class="case-focus__eyebrow">Active maintenance case</span>
-        <strong class="case-focus__value" id="activeCaseValue">No case selected</strong>
-        <span class="case-focus__detail" id="activeCaseLabel">Create a case to anchor evidence, actions, approvals, and 3D findings.</span>
-        <span class="case-focus__action">Open case workspace</span>
-      </button>
-
 
           <!-- Globe -->
           <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:24px;">
-            <div id="globeSidebarWrapper" style="position: absolute; left: 16px; top: 16px; z-index: 5; display: flex; align-items: flex-start; gap: 8px;">
-              <button class="texture-btn globe-filter-hamburger" id="globeFilterHamburger" title="Toggle Sidebar" style="display: flex; align-items: center; justify-content: center; padding: 4px 6px; transition: transform 0.3s ease;">
-                <svg id="globeHamburgerIcon" viewBox="0 0 20 20" width="14" height="14" fill="currentColor" style="transition: transform 0.3s ease;">
+            <div id="globeSidebarWrapper" class="collapsed" style="position: absolute; left: 16px; top: 16px; z-index: 5; display: flex; align-items: flex-start; gap: 8px;">
+              <button class="texture-btn globe-filter-hamburger" id="globeFilterHamburger" title="Toggle Sidebar" style="display: flex; align-items: center; justify-content: center; position: relative; z-index: 10; padding: 0; transition: transform 0.3s ease;">
+                <svg id="globeHamburgerIcon" viewBox="0 0 20 20" width="14" height="14" fill="currentColor" style="transform: rotate(180deg); transition: transform 0.3s ease;">
                   <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
                 </svg>
               </button>
@@ -122,24 +115,26 @@
               <button class="globe-sheet-toggle" id="globeSheetToggle" title="Toggle details" aria-label="Toggle fleet details">
                 <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
               </button>
-              <div class="globe-sheet-stats">
-                <span><strong id="globeTotal">&mdash;</strong> aircraft</span>
-                <span class="globe-sheet-divider">•</span>
-                <span><strong id="globeMapped">&mdash;</strong> mapped</span>
-                <span class="globe-sheet-divider">•</span>
-                <span><strong id="globeCountries">&mdash;</strong> countries</span>
-                <div class="globe-search-row" style="margin-left: auto; display: flex; gap: 8px;">
-                  <input type="text" id="globeSearch" class="globe-search-input" placeholder="Search tail, operator, model..." style="width: 200px; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
-                  <select id="globeTypeFilter" class="search-select" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
-                    <option value="">All Types</option>
-                    <option value="BusinessJet">Biz Jets</option>
-                    <option value="Turboprop">Turboprops</option>
-                    <option value="JetAirliner">Airliners</option>
-                    <option value="Piston">Piston</option>
-                  </select>
+              <div class="globe-sheet-content" style="height: 100%; overflow-y: auto;">
+                <div class="globe-sheet-stats">
+                  <span><strong id="globeTotal">&mdash;</strong> aircraft</span>
+                  <span class="globe-sheet-divider">•</span>
+                  <span><strong id="globeMapped">&mdash;</strong> mapped</span>
+                  <span class="globe-sheet-divider">•</span>
+                  <span><strong id="globeCountries">&mdash;</strong> countries</span>
+                  <div class="globe-search-row" style="margin-left: auto; display: flex; gap: 8px;">
+                    <input type="text" id="globeSearch" class="globe-search-input" placeholder="Search tail, operator, model..." style="width: 200px; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+                    <select id="globeTypeFilter" class="search-select" style="padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text);">
+                      <option value="">All Types</option>
+                      <option value="BusinessJet">Biz Jets</option>
+                      <option value="Turboprop">Turboprops</option>
+                      <option value="JetAirliner">Airliners</option>
+                      <option value="Piston">Piston</option>
+                    </select>
+                  </div>
                 </div>
+                <div class="globe-sheet-results" id="globeSheetResults"></div>
               </div>
-              <div class="globe-sheet-results" id="globeSheetResults"></div>
             </div>
           </div>
 
@@ -311,7 +306,12 @@
           <div id="mktResults" class="market-intel-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:16px;"></div>
         </div>
       </details>
-
+      <button type="button" class="case-focus" id="activeCaseCard" data-state="empty" style="margin-top: 16px;">
+        <span class="case-focus__eyebrow">Active maintenance case</span>
+        <strong class="case-focus__value" id="activeCaseValue">No case selected</strong>
+        <span class="case-focus__detail" id="activeCaseLabel">Create a case to anchor evidence, actions, approvals, and 3D findings.</span>
+        <span class="case-focus__action">Open case workspace</span>
+      </button>
     </section>
 
 
