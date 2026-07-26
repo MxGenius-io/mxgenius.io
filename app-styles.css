@@ -3310,11 +3310,11 @@ body.live-mode .api-status.connected .status-dot {
   opacity: 1;
 }
 .settings-card.collapsed .settings-row {
-  max-height: 0;
-  opacity: 0;
-  margin: 0;
-  padding: 0;
-  border: none;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
 }
 
 /* ── Chat Header Spacing ── */
