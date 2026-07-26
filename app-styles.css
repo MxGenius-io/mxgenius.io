@@ -1758,30 +1758,39 @@ body.live-mode .api-status.connected .status-dot {
 .globe-sheet.half, .globe-sheet.full {
   pointer-events: auto; /* when expanded, capture everything */
 }
-.globe-sheet-close {
+.globe-sheet-toggle {
   position: sticky;
-  float: right;
-  margin-right: 12px;
-  margin-top: 8px;
-  top: 8px;
-  z-index: 100;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.2);
+  top: 50%;
+  transform: translateY(-50%);
+  left: -16px;
+  margin-left: -16px;
+  z-index: 20;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
   color: var(--text-primary);
-  font-size: 1.3rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 48px;
+  border-radius: 8px 0 0 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
-  z-index: 20;
   transition: background 0.2s;
+  padding: 0;
 }
-.globe-sheet-close:hover {
-  background: rgba(239, 68, 68, 0.5);
+.globe-sheet-toggle svg {
+  transition: transform 0.3s;
+}
+.globe-sheet.half .globe-sheet-toggle svg,
+.globe-sheet.full .globe-sheet-toggle svg {
+  transform: rotate(0deg);
+}
+.globe-sheet .globe-sheet-toggle svg {
+  transform: rotate(180deg);
+}
+.globe-sheet-toggle:hover {
+  background: rgba(99, 102, 241, 0.3);
 }
 .globe-sheet.half, .globe-sheet.full { transform: translateX(0); }
 
@@ -3240,4 +3249,96 @@ body.live-mode .api-status.connected .status-dot {
   background: rgba(99, 102, 241, 0.3);
   border-color: var(--accent-cyan);
   box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
+}
+
+/* ── Globe Filter Hamburger Panel ── */
+.globe-filter-hamburger {
+  font-size: 1rem !important;
+  padding: 6px !important;
+}
+.globe-filters-panel {
+  position: absolute;
+  left: 60px;
+  top: 16px;
+  z-index: 6;
+  background: rgba(10, 15, 28, 0.95);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  max-width: 420px;
+  min-width: 280px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: filterSlideIn 0.2s ease-out;
+}
+.globe-filters-panel.hidden {
+  display: none;
+}
+@keyframes filterSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Collapsible Settings Cards ── */
+.settings-card-title {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  position: relative;
+}
+.settings-card-title::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  margin-left: auto;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+.settings-card.collapsed .settings-card-title::after {
+  transform: rotate(-45deg);
+}
+.settings-card .settings-row {
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+  overflow: hidden;
+  max-height: 200px;
+  opacity: 1;
+}
+.settings-card.collapsed .settings-row {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* ── Chat Header Spacing ── */
+.chat-header.realtime-header {
+  padding: 10px 12px;
+  gap: 8px;
+  min-height: 48px;
+}
+.realtime-state {
+  gap: 6px !important;
+  flex-wrap: wrap;
+}
+
+/* ── Thinking GIF: no frame, centered ── */
+.thinking-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0;
+}
+.thinking-indicator img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
 }

@@ -93,8 +93,8 @@
         <span class="case-focus__action">Open case workspace</span>
       </button>
 
-      <!-- Collapsible Globe + Aircraft Section -->
-      <details class="fleet-collapsible" id="fleetCollapsible">
+      <!-- Fleet Context (Globe Only) -->
+      <details class="fleet-collapsible" id="fleetCollapsible" open>
         <summary class="fleet-collapsible-summary">
           <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" style="flex-shrink:0;">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd" />
@@ -106,19 +106,46 @@
         </summary>
         <div class="fleet-collapsible-body">
           <!-- Globe -->
-          <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:20px;">
+          <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:0;">
             <div class="globe-texture-buttons" style="position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 5;">
               <button class="texture-btn" data-texture="earth-night.jpg" title="Night Mode">🌙</button>
               <button class="texture-btn" data-texture="earth-blue-marble.jpg" title="Blue Marble">🌍</button>
               <button class="texture-btn" data-texture="earth-dark.jpg" title="Dark Mode">🌑</button>
               <button class="texture-btn" data-texture="earth-water.png" title="Ocean Mode">💧</button>
               <button class="texture-btn active" data-texture="osm" title="Open Street Map">🗺️</button>
+              <!-- Globe Filter Hamburger -->
+              <button class="texture-btn globe-filter-hamburger" id="globeFilterHamburger" title="Toggle Filters">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+            <!-- Collapsible globe filters overlay -->
+            <div class="globe-filters-panel hidden" id="globeFiltersPanel">
+              <div class="urgency-pills" id="urgencyPills">
+                <button class="urgency-pill pill-active-case" data-filter="active-case">Active Case <span id="pillActiveCase">0</span></button>
+                <button class="urgency-pill pill-critical" data-filter="aog">AOG <span id="pillAog">0</span></button>
+                <button class="urgency-pill pill-overdue" data-filter="aftt-12000">12k+ AFTT <span id="pillAftt12000">0</span></button>
+                <button class="urgency-pill pill-hightime" data-filter="aftt-8000">8k+ AFTT <span id="pillAftt8000">0</span></button>
+                <button class="urgency-pill pill-current" data-filter="other">Other <span id="pillOther">0</span></button>
+              </div>
+              <div class="globe-search-row">
+                <input type="text" id="globeSearch" class="globe-search-input" placeholder="Search tail, operator, ICAO, model...">
+                <select id="globeTypeFilter" class="search-select">
+                  <option value="">All Types</option>
+                  <option value="BusinessJet">Business Jets</option>
+                  <option value="Turboprop">Turboprops</option>
+                  <option value="JetAirliner">Jet Airliners</option>
+                  <option value="Piston">Piston</option>
+                </select>
+              </div>
             </div>
             <div id="globeViz"></div>
             <div class="globe-tooltip hidden" id="globeTooltip"></div>
             <div class="globe-sheet" id="globeSheet">
               <div class="globe-sheet-handle" id="globeSheetHandle"></div>
-              <button class="globe-sheet-close" id="globeSheetClose" title="Close" aria-label="Close fleet results">&times;</button>
+              <!-- Arrow toggle instead of X -->
+              <button class="globe-sheet-toggle" id="globeSheetToggle" title="Toggle details" aria-label="Toggle fleet details">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+              </button>
               <div class="globe-sheet-stats">
                 <span><strong id="globeTotal">&mdash;</strong> aircraft</span>
                 <span class="globe-sheet-divider">•</span>
@@ -133,32 +160,25 @@
                   View in XR
                 </button>
               </div>
-              <div class="globe-sheet-filters" id="globeSheetFilters">
-                <div class="urgency-pills" id="urgencyPills">
-                  <button class="urgency-pill pill-active-case" data-filter="active-case">Active Case <span id="pillActiveCase">0</span></button>
-                  <button class="urgency-pill pill-critical" data-filter="aog">AOG <span id="pillAog">0</span></button>
-                  <button class="urgency-pill pill-overdue" data-filter="aftt-12000">12k+ AFTT <span id="pillAftt12000">0</span></button>
-                  <button class="urgency-pill pill-hightime" data-filter="aftt-8000">8k+ AFTT <span id="pillAftt8000">0</span></button>
-                  <button class="urgency-pill pill-current" data-filter="other">Other <span id="pillOther">0</span></button>
-                </div>
-                <div class="globe-search-row">
-                  <input type="text" id="globeSearch" class="globe-search-input" placeholder="Search tail, operator, ICAO, model...">
-                  <select id="globeTypeFilter" class="search-select">
-                    <option value="">All Types</option>
-                    <option value="BusinessJet">Business Jets</option>
-                    <option value="Turboprop">Turboprops</option>
-                    <option value="JetAirliner">Jet Airliners</option>
-                    <option value="Piston">Piston</option>
-                  </select>
-                </div>
-              </div>
               <div class="globe-sheet-results" id="globeSheetResults"></div>
             </div>
           </div>
+        </div>
+      </details>
 
-          <!-- Aircraft Explorer -->
+      <!-- Aircraft Explorer (Separate Section) -->
+      <details class="fleet-collapsible" id="aircraftExplorerCollapsible" open>
+        <summary class="fleet-collapsible-summary">
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" style="flex-shrink:0;">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+          </svg>
+          <span>Aircraft Explorer</span>
+          <svg class="fleet-collapsible-chevron" viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </summary>
+        <div class="fleet-collapsible-body">
           <div class="tab-header" style="padding:0 0 16px;">
-            <h1 style="font-size:1.2rem;">Aircraft Explorer</h1>
             <div class="ac-mode-toggle">
               <button id="acModeScan" class="ac-mode-btn ac-mode-active" onclick="setAcMode('scan')">Fleet Triage</button>
               <button id="acModeDirect" class="ac-mode-btn" onclick="setAcMode('direct')">Direct Search</button>
@@ -203,19 +223,6 @@
                 <input type="text" id="acCountry" placeholder="e.g. USA" class="search-input">
               </div>
               <button id="acDirectSearchBtn" class="btn-primary">Search</button>
-            </div>
-          </div>
-          <div class="stats-grid stats-row" id="acMROStats">
-            <div class="stat-card stat-contacts">
-              <div class="stat-value" id="acStatHighTime">0</div>
-              <div class="stat-label">8K+ reported AFTT</div>
-            <div class="stat-card stat-companies">
-              <div class="stat-value" id="acStatAvgAFTT">0</div>
-              <div class="stat-label">Average reported AFTT</div>
-            </div>
-            <div class="stat-card stat-hours">
-              <div class="stat-value" id="acStatFleet">0</div>
-              <div class="stat-label">Aircraft shown</div>
             </div>
           </div>
           <div id="aircraftGrid" class="aircraft-grid"></div>

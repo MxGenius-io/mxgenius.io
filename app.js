@@ -190,11 +190,11 @@ function buildMROSignals(aircraft) {
   };
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  RAG - On-demand search over display_index library
 //  92 aircraft, 111K+ chapters of maintenance manuals
 //  Loads aircraft files on-demand, caches in memory
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 const RAG = {
   catalog: null,         // catalog.json - aircraft manifest
@@ -268,7 +268,7 @@ const RAG = {
       if (q.includes(name)) return entry;
     }
 
-    // Fallback: try token overlap (e.g., "7500 fuel leak" â†’ gl7500)
+    // Fallback: try token overlap (e.g., "7500 fuel leak" Ã¢â€ â€™ gl7500)
     const qTokens = this.tokenize(query);
     for (const entry of this.catalog) {
       const acTokens = this.tokenize(entry.aircraft + ' ' + entry.manufacturer);
@@ -489,7 +489,7 @@ const RAG = {
 
     const label = document.createElement('div');
     label.style.cssText = 'width:100%;font-size:11px;color:#8b949e;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;';
-    label.textContent = `ðŸ“Ž ${images.length} RELATED DIAGRAM${images.length > 1 ? 'S' : ''} FROM MAINTENANCE MANUALS`;
+    label.textContent = `Ã°Å¸â€œÅ½ ${images.length} RELATED DIAGRAM${images.length > 1 ? 'S' : ''} FROM MAINTENANCE MANUALS`;
     gallery.appendChild(label);
 
     for (const img of images.slice(0, 6)) {
@@ -529,9 +529,9 @@ const RAG = {
   }
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  UTILITIES
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function scrollDoc(event, sectionId) {
   event.preventDefault();
@@ -584,7 +584,9 @@ window.fetch = async function (url, options = {}) {
 
 document.addEventListener('DOMContentLoaded', () => {
   // Phase 1: UI + local engines (instant, no network)
+  restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
+  setupCollapsibleSettings(); // Auto-collapse multi-row settings cards
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget - app works without it)
@@ -603,9 +605,57 @@ async function login() {
   status.querySelector('span:last-child').textContent = 'Fleet proxy ready';
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// -- EARLY APPEARANCE RESTORE --
+
+function restoreAppearance() {
+  const root = document.documentElement.style;
+  const themes = {
+    midnight: { bg: '#0a0e1a', text: '#e8ecf4', card: '#1a1f35', accent: '#00d4ff' },
+    slate:    { bg: '#1e293b', text: '#f1f5f9', card: '#334155', accent: '#38bdf8' },
+    ember:    { bg: '#1c1210', text: '#fde8e0', card: '#2d1f1b', accent: '#f97316' },
+    ocean:    { bg: '#0c1929', text: '#e0f2fe', card: '#132f4c', accent: '#06b6d4' },
+  };
+  const savedTheme = localStorage.getItem('mx_theme');
+  if (savedTheme && themes[savedTheme]) {
+    const t = themes[savedTheme];
+    root.setProperty('--bg-primary', t.bg);
+    root.setProperty('--text-primary', t.text);
+    root.setProperty('--bg-card', t.card);
+    root.setProperty('--accent-cyan', t.accent);
+  } else {
+    const bgColor = localStorage.getItem('mx_bgColor');
+    const textColor = localStorage.getItem('mx_textColor');
+    const cardColor = localStorage.getItem('mx_cardColor');
+    const accentColor = localStorage.getItem('mx_accentColor');
+    if (bgColor) root.setProperty('--bg-primary', bgColor);
+    if (textColor) root.setProperty('--text-primary', textColor);
+    if (cardColor) root.setProperty('--bg-card', cardColor);
+    if (accentColor) root.setProperty('--accent-cyan', accentColor);
+  }
+  if (localStorage.getItem('mx_compactMode') === 'true') {
+    document.body.classList.add('compact-mode');
+  }
+}
+
+// -- COLLAPSIBLE SETTINGS CARDS --
+
+function setupCollapsibleSettings() {
+  document.querySelectorAll('.settings-card').forEach(card => {
+    const rows = card.querySelectorAll('.settings-row');
+    if (rows.length <= 1) return;
+    card.classList.add('collapsed');
+    const title = card.querySelector('.settings-card-title');
+    if (title) {
+      title.addEventListener('click', () => {
+        card.classList.toggle('collapsed');
+      });
+    }
+  });
+}
+
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  NAVIGATION
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function setupNavigation() {
   const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -688,12 +738,12 @@ function setupChatPanel() {
     history.scrollTop = history.scrollHeight;
   });
 
-  // â”€â”€ On-Device LLM State â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ On-Device LLM State Ã¢â€â‚¬Ã¢â€â‚¬
   let llamaContext = null;
   let modelReady = false;
   const MODEL_FILENAME = 'DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf';
 
-  // â”€â”€ On-Device Token Counter + Cost Savings â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ On-Device Token Counter + Cost Savings Ã¢â€â‚¬Ã¢â€â‚¬
   // GPT-4o equivalent pricing - what this would cost on cloud
   const CLOUD_COST_PER_M_INPUT = 2.50;
   const CLOUD_COST_PER_M_OUTPUT = 10.00;
@@ -711,7 +761,7 @@ function setupChatPanel() {
     localStorage.setItem('mxgenius_total_saved', totalSaved.toFixed(6));
     const badge = document.getElementById('cost-savings-badge');
     if (badge) {
-      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens • $${totalSaved.toFixed(2)} saved`;
+      badge.textContent = `${totalTokensUsed.toLocaleString()} tokens â€¢ $${totalSaved.toFixed(2)} saved`;
       badge.style.transform = 'scale(1.2)';
       badge.style.color = '#6ee7b7';
       setTimeout(() => { badge.style.transform = 'scale(1)'; badge.style.color = '#34d399'; }, 400);
@@ -727,7 +777,7 @@ function setupChatPanel() {
     }
   }
 
-  // â”€â”€ System Prompt - single unified prompt for all queries â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ System Prompt - single unified prompt for all queries Ã¢â€â‚¬Ã¢â€â‚¬
   const AOG_SYSTEM_PROMPT = `You are MXGenius, an aviation maintenance assistant.
 Rules:
 1. Answer using the MANUAL text below when available.
@@ -737,8 +787,8 @@ Rules:
 5. If no authoritative manual is provided, state that evidence is unavailable and do not supply a maintenance procedure.
 6. Never explain your reasoning. Never say "I need to" or "Let me think".`;
 
-  // â”€â”€ Aggressive model output cleanup (single source of truth) â”€â”€
-  // 5 layers: think-blocks â†’ special tokens â†’ untagged CoT â†’ pre-fill â†’ whitespace
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Aggressive model output cleanup (single source of truth) Ã¢â€â‚¬Ã¢â€â‚¬
+  // 5 layers: think-blocks Ã¢â€ â€™ special tokens Ã¢â€ â€™ untagged CoT Ã¢â€ â€™ pre-fill Ã¢â€ â€™ whitespace
   function cleanModelOutput(raw) {
     if (!raw) return '';
     let text = raw;
@@ -792,7 +842,7 @@ Rules:
     return text;
   }
 
-  // â”€â”€ Format model response into polished HTML â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Format model response into polished HTML Ã¢â€â‚¬Ã¢â€â‚¬
   function formatMxResponse(text) {
     if (!text) return '';
 
@@ -802,23 +852,23 @@ Rules:
     // Style NEXT STEP callouts
     html = html.replace(/NEXT\s*STEP[:\s]*(.*?)(?:\.|$)/gi, (match, step) => {
       return `<div style="margin-top:8px;padding:8px 12px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(59,130,246,0.08));border-left:3px solid #6366f1;border-radius:0 8px 8px 0;font-size:12px;">` +
-        `<span style="color:#818cf8;font-weight:700;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">â–¸ Next Step</span><br>` +
+        `<span style="color:#818cf8;font-weight:700;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">Ã¢â€“Â¸ Next Step</span><br>` +
         `<span style="color:#e2e8f0;">${step.trim()}</span></div>`;
     });
 
     // Style procedure codes (BD700-A-J28..., AMM 27-11-17-220-801, etc.)
     html = html.replace(/\b(BD\d{2,3}-[A-Z]-[A-Z0-9\-]+)/gi, (match, code) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;">ðŸ“„ ${code}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;">Ã°Å¸â€œâ€ž ${code}</span>`;
     });
 
-    // Style ATA chapter citations â†’ pill badges (AMM Ch.28, IPC Ch.32, etc.)
+    // Style ATA chapter citations Ã¢â€ â€™ pill badges (AMM Ch.28, IPC Ch.32, etc.)
     html = html.replace(/\(?(AMM|AMP|IPC|CMM|SRM|NDT|WDM|TSM|SFP|AIPC)\s+([^,.)]+)/gi, (match, manual, ref) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">ðŸ“˜ ${manual} ${ref.trim()}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">Ã°Å¸â€œËœ ${manual} ${ref.trim()}</span>`;
     });
 
     // Style standalone ATA references like "ATA 32" or "(ATA 28 - Fuel)"
     html = html.replace(/\(?(ATA\s+\d+[^)]*)\)?/gi, (match, ata) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">ðŸ“‹ ${ata.trim()}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">Ã°Å¸â€œâ€¹ ${ata.trim()}</span>`;
     });
 
     // Style manual/chapter citations like (Chapter 28, p.12)
@@ -837,7 +887,7 @@ Rules:
     });
 
     // Convert dash-lists to styled bullets
-    html = html.replace(/^\s*-\s+/gm, '• ');
+    html = html.replace(/^\s*-\s+/gm, 'â€¢ ');
 
     // Convert line breaks to proper spacing
     html = html.replace(/\n\n+/g, '</p><p style="margin:6px 0;">');
@@ -849,7 +899,7 @@ Rules:
     return html;
   }
 
-  // â”€â”€ Format RAG procedure text into collapsible manual reference pills â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Format RAG procedure text into collapsible manual reference pills Ã¢â€â‚¬Ã¢â€â‚¬
   function formatProcedureBlock(hits) {
     if (!hits || hits.length === 0) return '';
 
@@ -861,9 +911,9 @@ Rules:
       // Collapsible pill wrapper
       html += `<details style="margin-top:10px;background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(59,130,246,0.04));border:1px solid rgba(99,102,241,0.2);border-radius:10px;overflow:hidden;">`;
       html += `<summary style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:8px;list-style:none;-webkit-tap-highlight-color:transparent;">`;
-      html += `<span style="font-size:13px;">ðŸ“˜</span>`;
+      html += `<span style="font-size:13px;">Ã°Å¸â€œËœ</span>`;
       html += `<span style="font-size:11px;font-weight:700;color:#818cf8;letter-spacing:0.3px;flex:1;">${escapeHtml(hit.chapter)}</span>`;
-      html += `<span style="font-size:10px;color:#6366f1;transition:transform 0.2s;">â–¼</span>`;
+      html += `<span style="font-size:10px;color:#6366f1;transition:transform 0.2s;">Ã¢â€“Â¼</span>`;
       html += `</summary>`;
       html += `<div style="padding:4px 14px 12px;">`;
 
@@ -876,7 +926,7 @@ Rules:
         if (!trimmed) continue;
 
         if (/^(CAUTION|WARNING)$/i.test(trimmed)) {
-          html += `<div style="margin:6px 0;padding:6px 10px;background:rgba(251,146,60,0.1);border-left:3px solid #fb923c;border-radius:0 6px 6px 0;font-size:11px;font-weight:700;color:#fb923c;">âš ï¸ ${trimmed}</div>`;
+          html += `<div style="margin:6px 0;padding:6px 10px;background:rgba(251,146,60,0.1);border-left:3px solid #fb923c;border-radius:0 6px 6px 0;font-size:11px;font-weight:700;color:#fb923c;">Ã¢Å¡Â Ã¯Â¸Â ${trimmed}</div>`;
           continue;
         }
 
@@ -890,12 +940,12 @@ Rules:
         }
 
         if (/^\d+\.\d+/.test(trimmed)) {
-          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">â”” ${escapeHtml(trimmed)}</div>`;
+          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">Ã¢â€â€ ${escapeHtml(trimmed)}</div>`;
           continue;
         }
 
         if (/^For the .* refer to BD700/i.test(trimmed)) {
-          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">â”” ${escapeHtml(trimmed)}</div>`;
+          html += `<div style="margin:2px 0 2px 28px;font-size:11px;color:#94a3b8;line-height:1.4;">Ã¢â€â€ ${escapeHtml(trimmed)}</div>`;
           continue;
         }
 
@@ -1101,7 +1151,7 @@ Rules:
     return true;
   }
 
-  // â”€â”€ Fleet Data Serializer (source attributes â†’ compatibility context) â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Fleet Data Serializer (source attributes Ã¢â€ â€™ compatibility context) Ã¢â€â‚¬Ã¢â€â‚¬
   function serializeFleetContext() {
     if (!cachedFleetSignals || cachedFleetSignals.length === 0) return '';
 
@@ -1128,7 +1178,7 @@ Rules:
       '\n--- END COMPATIBILITY FLEET CONTEXT ---\n';
   }
 
-  // â”€â”€ Model Initialization (daisy-chained: LLM first, then TTS) â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Model Initialization (daisy-chained: LLM first, then TTS) Ã¢â€â‚¬Ã¢â€â‚¬
   async function initOnDeviceLLM() {
     // Gate: only run on Capacitor (native) - skip in browser
     if (!window.Capacitor?.Plugins?.CapacitorLlama) {
@@ -1145,7 +1195,7 @@ Rules:
         <div style="width:20px;height:20px;border:2px solid rgba(99,102,241,0.3);border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
         <div>
           <div style="font-size:13px;font-weight:600;">Loading AI Engine</div>
-          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B • preparing on-device inference</div>
+          <div style="font-size:11px;color:#8b949e;margin-top:2px;">DeepSeek 1.5B â€¢ preparing on-device inference</div>
         </div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
@@ -1267,8 +1317,8 @@ Rules:
     const aiMsg = document.createElement('div');
     aiMsg.className = 'chat-msg ai-msg';
     aiMsg.innerHTML = `<div class="msg-bubble"><span class="stream-target">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;">
-        <img src="assets/mx_thinking.gif" alt="Thinking..." style="width:80px;height:80px;border-radius:16px;object-fit:cover;box-shadow:0 6px 16px rgba(10,37,64,0.12);">
+      <div class="thinking-indicator">
+        <img src="assets/mx_thinking.gif" alt="Thinking...">
         <div style="position:relative;height:14px;overflow:hidden;">
           <span style="position:absolute;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#8b949e;opacity:0;animation:mxWord 8s ease-in-out infinite;">Servicing</span>
           <span style="position:absolute;font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#8b949e;opacity:0;animation:mxWord 8s ease-in-out infinite;animation-delay:2s;">Thinking</span>
@@ -1281,7 +1331,7 @@ Rules:
     history.scrollTop = history.scrollHeight;
     const streamTarget = aiMsg.querySelector('.stream-target');
 
-    // â”€â”€ Cloud Inference (Azure Rust Backend) â”€â”€
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Cloud Inference (Azure Rust Backend) Ã¢â€â‚¬Ã¢â€â‚¬
     try {
       // Refresh Entra token before every chat call
       if (window.MXGENIUS_AUTH?.getToken) {
@@ -1333,8 +1383,8 @@ Rules:
           if (data.verify_first) parts.push('**Verify First:** ' + data.verify_first);
           if (data.most_likely_cause) parts.push('**Most Likely Cause:** ' + data.most_likely_cause);
           if (data.labor_by_action && data.labor_by_action.length) parts.push('**Labor Steps:**\n' + data.labor_by_action.map((s,i) => (i+1) + '. ' + s).join('\n'));
-          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => '• ' + p).join('\n'));
-          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => '• ' + w).join('\n'));
+          if (data.parts_and_references && data.parts_and_references.length) parts.push('**Parts & References:**\n' + data.parts_and_references.map(p => 'â€¢ ' + p).join('\n'));
+          if (data.what_worked && data.what_worked.length) parts.push('**What Worked:**\n' + data.what_worked.map(w => 'â€¢ ' + w).join('\n'));
           answerText = parts.join('\n\n');
         }
       } catch (_) {
@@ -1398,7 +1448,7 @@ Rules:
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
 
-  // â”€â”€ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) Ã¢â€â‚¬Ã¢â€â‚¬
   let speechRecognition = null;
   let micLongPressTimer = null;
   const MIC_LONG_PRESS_MS = 500;
@@ -1542,11 +1592,11 @@ Rules:
     realtimeState.dataset.state = state;
     if (realtimeStateLabel) {
       const fallbackLabels = {
-        connecting: 'Connecting voice…',
-        reconnecting: 'Reconnecting voice…',
+        connecting: 'Connecting voiceâ€¦',
+        reconnecting: 'Reconnecting voiceâ€¦',
         listening: 'Voice listening',
-        'user-speaking': 'Hearing you…',
-        thinking: 'MXGenius thinking…',
+        'user-speaking': 'Hearing youâ€¦',
+        thinking: 'MXGenius thinkingâ€¦',
         speaking: 'MXGenius speaking',
         interrupted: 'Response interrupted',
         degraded: 'Voice degraded',
@@ -1730,9 +1780,9 @@ Rules:
   setupVoiceInput();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  MODE TOGGLE & SETTINGS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function setupModeToggle() {
   // Mode toggle removed - always live
@@ -1793,12 +1843,12 @@ function switchTab(tabId) {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  SETTINGS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function initSettings() {
-  // â”€â”€ Account card â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Account card Ã¢â€â‚¬Ã¢â€â‚¬
   const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
   const acct = session.account || window.MXGENIUS_AUTH?.account?.() || null;
   const nameEl = document.getElementById('settingsAccountName');
@@ -2022,9 +2072,9 @@ function setOutreachMode(mode) {
 
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  MARKET INTELLIGENCE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function setupMarketIntel() {
   const btn = document.getElementById('mktSearchBtn');
@@ -2133,9 +2183,9 @@ function mktRow(label, value, prefix, suffix) {
 }
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  AIRCRAFT
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 let isAircraftInitialized = false;
 let acSearchMode = 'scan'; // 'scan' or 'direct'
@@ -2437,7 +2487,7 @@ async function showAircraftDetail(id) {
                target="_blank" 
                class="badge badge-heli" 
                style="text-decoration:none; cursor:pointer; font-size:0.65rem;">
-                FAA Registry â†—
+                FAA Registry Ã¢â€ â€”
             </a>
           ` : ''}
         </div>
@@ -2526,7 +2576,7 @@ async function showAircraftDetail(id) {
                   <td class="td-accent">${escapeMarkup(r.name)}</td>
                   <td>${escapeMarkup(r.relationtype)}</td>
                   <td class="td-dim">${escapeMarkup(r.businesstype)}</td>
-                  <td>${r.isoperator === 'Y' ? '✓' : ''}</td>
+                  <td>${r.isoperator === 'Y' ? 'âœ“' : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2692,9 +2742,9 @@ function openImageLightbox(src) {
   lb.style.display = 'flex';
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  COMPANIES
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 let isCompaniesInitialized = false;
 
@@ -2824,7 +2874,7 @@ async function showCompanyDetail(id) {
                 <tr>
                   <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
                   <td>${escapeMarkup(a.relationtype)}</td>
-                  <td>${a.isoperator === 'Y' ? '✓ Yes' : 'No'}</td>
+                  <td>${a.isoperator === 'Y' ? 'âœ“ Yes' : 'No'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2846,9 +2896,9 @@ async function showCompanyDetail(id) {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  CONTACTS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 let isContactsInitialized = false;
 
@@ -2914,9 +2964,9 @@ async function loadContacts() {
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  GLOBE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 let globeInstance = null;
 let globeData = null;
@@ -2926,7 +2976,7 @@ let activeUrgencyFilter = null;
 // ICAO airport coordinates for plotting aircraft base locations on globe
 // Covers major business aviation airports worldwide [lat, lng]
 const ICAO_COORDS = {
-  // â”€â”€ USA Major â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ USA Major Ã¢â€â‚¬Ã¢â€â‚¬
   KATL:[33.64,-84.43],KBOS:[42.36,-71.01],KORD:[41.97,-87.91],KMDW:[41.79,-87.74],
   KDFW:[32.90,-97.04],KDEN:[39.86,-104.67],KDTW:[42.21,-83.35],KEWR:[40.69,-74.17],
   KJFK:[40.64,-73.78],KLGA:[40.78,-73.87],KLAX:[33.94,-118.41],KLAS:[36.08,-115.15],
@@ -2941,7 +2991,7 @@ const ICAO_COORDS = {
   KBDL:[41.94,-72.68],KABQ:[35.04,-106.61],KTUL:[36.20,-95.89],KOMA:[41.30,-95.89],
   KSDF:[38.17,-85.74],KRIC:[37.51,-77.32],KBUF:[42.94,-78.73],KANC:[61.17,-150.00],
   PHNL:[21.32,-157.92],
-  // â”€â”€ USA Business Aviation â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ USA Business Aviation Ã¢â€â‚¬Ã¢â€â‚¬
   KTEB:[40.85,-74.06],KHPN:[41.07,-73.71],KSDL:[33.62,-111.91],KVNY:[34.21,-118.49],
   KFXE:[26.20,-80.17],KAPA:[39.57,-104.85],KADS:[32.97,-96.84],KNEW:[30.04,-90.03],
   KOPF:[25.91,-80.28],KPDK:[33.88,-84.30],KPWK:[42.11,-87.90],KDPA:[41.91,-88.25],
@@ -2951,10 +3001,10 @@ const ICAO_COORDS = {
   KGAI:[39.17,-77.17],KLUK:[39.10,-84.42],KLNS:[40.12,-76.30],KMMU:[40.80,-74.42],
   KPTK:[42.67,-83.42],KSGR:[29.62,-95.66],KSWF:[41.50,-74.10],KVGT:[36.21,-115.19],
   KORL:[28.55,-81.33],KRVS:[36.04,-95.98],
-  // â”€â”€ Canada â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Canada Ã¢â€â‚¬Ã¢â€â‚¬
   CYYZ:[43.68,-79.63],CYVR:[49.19,-123.18],CYUL:[45.47,-73.74],CYYC:[51.11,-114.02],
   CYOW:[45.32,-75.67],CYEG:[53.31,-113.58],CYWG:[49.91,-97.24],CYHZ:[44.88,-63.51],
-  // â”€â”€ Europe â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Europe Ã¢â€â‚¬Ã¢â€â‚¬
   EGLL:[51.47,-0.46],EGLF:[51.28,-0.78],EGGW:[51.87,-0.37],EGSS:[51.89,0.24],
   EGKB:[51.33,0.03],EGTK:[51.84,-1.32],
   LFPG:[49.01,2.55],LFPB:[48.97,2.44],LFMN:[43.66,7.22],
@@ -2967,26 +3017,26 @@ const ICAO_COORDS = {
   EPWA:[52.17,20.97],LKPR:[50.10,14.26],LHBP:[47.43,19.26],
   UUEE:[55.97,37.41],UUDD:[55.41,37.91],
   EGPH:[55.95,-3.37],EIDW:[53.42,-6.27],LSGG:[46.24,6.11],
-  // â”€â”€ Middle East â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Middle East Ã¢â€â‚¬Ã¢â€â‚¬
   OMDB:[25.25,55.36],OMAA:[24.44,54.65],OEJN:[21.68,39.16],OERK:[24.96,46.70],
   OTHH:[25.27,51.61],OBBI:[26.27,50.64],OIII:[35.69,51.31],OLBA:[33.82,35.49],
   LLBG:[32.01,34.89],
-  // â”€â”€ Asia Pacific â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Asia Pacific Ã¢â€â‚¬Ã¢â€â‚¬
   RJTT:[35.55,139.78],RJBB:[34.43,135.24],RJAA:[35.76,140.39],
   VHHH:[22.31,113.91],WSSS:[1.35,103.99],VTBS:[13.69,100.75],
   WIII:[-6.13,106.66],RPLL:[14.51,121.02],VABB:[19.09,72.87],VIDP:[28.57,77.10],
   RKSI:[37.46,126.44],RCTP:[25.08,121.23],ZBAA:[40.08,116.58],ZPPP:[25.10,102.94],
   VMMC:[22.15,113.59],
-  // â”€â”€ Latin America â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Latin America Ã¢â€â‚¬Ã¢â€â‚¬
   MMMX:[19.44,-99.07],MMMY:[25.78,-100.11],MMTJ:[32.54,-116.97],MMUN:[21.04,-86.87],
   SBGR:[23.43,-46.47],SBRJ:[-22.91,-43.16],SBSP:[-23.63,-46.66],
   SKBO:[4.70,-74.15],SCEL:[-33.39,-70.79],SEQM:[-0.13,-78.49],SPJC:[-12.02,-77.11],
   SAEZ:[-34.82,-58.54],SVMI:[10.60,-66.99],SBBR:[-15.87,-47.92],
   MROC:[9.99,-84.21],MPTO:[9.07,-79.38],MUHA:[22.99,-82.41],
-  // â”€â”€ Africa â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Africa Ã¢â€â‚¬Ã¢â€â‚¬
   FAOR:[-26.13,28.23],DNMM:[6.58,3.32],HKJK:[-1.32,36.93],GABS:[14.74,-17.49],
   FALE:[-29.61,31.12],FACT:[-33.96,18.60],GOOY:[14.74,-17.49],
-  // â”€â”€ Oceania â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Oceania Ã¢â€â‚¬Ã¢â€â‚¬
   YSSY:[-33.95,151.18],YMML:[-37.67,144.84],NZAA:[-37.01,174.79],
   YBBN:[-27.39,153.12],YPPH:[-31.94,115.97],
 };
@@ -3065,11 +3115,31 @@ function setupGlobeSheet() {
     currentState = (currentState + 1) % states.length;
     sheet.className = 'globe-sheet' + (states[currentState] ? ' ' + states[currentState] : '');
   });
-  const closeBtn = document.getElementById('globeSheetClose');
+  const closeBtn = document.getElementById('globeSheetToggle');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
-      currentState = 0;
-      sheet.className = 'globe-sheet';
+      if (currentState > 0) {
+        currentState = 0;
+        sheet.className = 'globe-sheet';
+      } else {
+        currentState = 1;
+        sheet.className = 'globe-sheet half';
+      }
+    });
+  }
+  // Hamburger filter toggle
+  const filterHamburger = document.getElementById('globeFilterHamburger');
+  const filtersPanel = document.getElementById('globeFiltersPanel');
+  if (filterHamburger && filtersPanel) {
+    filterHamburger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      filtersPanel.classList.toggle('hidden');
+    });
+    // Close filters when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!filtersPanel.contains(e.target) && !filterHamburger.contains(e.target)) {
+        filtersPanel.classList.add('hidden');
+      }
     });
   }
   document.querySelectorAll('.urgency-pill').forEach(pill => {
@@ -3083,9 +3153,9 @@ function setupGlobeSheet() {
   const si = document.getElementById('globeSearch');
   if (si) { let db; si.addEventListener('input', () => { clearTimeout(db); db = setTimeout(applyGlobeFilters, 250); }); }
   document.getElementById('globeTypeFilter')?.addEventListener('change', applyGlobeFilters);
-  document.querySelectorAll('.texture-btn').forEach(btn => {
+  document.querySelectorAll('.texture-btn:not(.globe-filter-hamburger)').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      document.querySelectorAll('.texture-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.texture-btn:not(.globe-filter-hamburger)').forEach(b => b.classList.remove('active'));
       const targetBtn = e.currentTarget;
       targetBtn.classList.add('active');
       const texture = targetBtn.dataset.texture;
