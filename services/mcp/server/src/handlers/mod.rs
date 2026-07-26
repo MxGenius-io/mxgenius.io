@@ -106,6 +106,7 @@ pub fn spec<I: JsonSchema, O: JsonSchema>(
         domain_schema_version: "1.0.0".into(),
         action,
         requires_human_approval,
+        availability: "available".into(),
     }
 }
 
@@ -134,8 +135,11 @@ where
     where
         F: Fn(Req) -> Resp + Send + Sync + 'static,
     {
+        let mut tool_spec =
+            spec::<Req, Resp>(name, title, description, action, requires_human_approval);
+        tool_spec.availability = "not_configured".into();
         Self {
-            tool_spec: spec::<Req, Resp>(name, title, description, action, requires_human_approval),
+            tool_spec,
             default_factory: Box::new(default_factory),
             _phantom: std::marker::PhantomData,
         }

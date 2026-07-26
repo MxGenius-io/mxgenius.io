@@ -44,6 +44,19 @@ test('Realtime tools are generated from canonical MCP schemas and decoded back t
   assert.equal(request.spec.meta.requires_human_approval, true);
 });
 
+test('Realtime omits capabilities declared not configured by the MCP registry', () => {
+  const MXRealtime = loadClient();
+  const sent = [];
+  const session = new MXRealtime.RealtimeSession({ exchangeSdp: async () => ({ sdp: 'v=0' }), mediaDevices: {} });
+  session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
+  session.configureTools([
+    { name: 'mxg.aircraft.lookup', description: 'Lookup', inputSchema: {}, meta: { availability: 'available', callable: true } },
+    { name: 'mxg.weather.airport_now', description: 'Weather', inputSchema: {}, meta: { availability: 'not_configured', callable: false } }
+  ]);
+  assert.deepEqual(sent[0].session.tools.map((tool) => tool.name), ['mxg__aircraft__lookup']);
+  assert.equal(session.toolSpecs.has('mxg__weather__airport_now'), false);
+});
+
 test('Realtime tool output is correlated and followed by one response request', () => {
   const MXRealtime = loadClient();
   const sent = [];
@@ -57,7 +70,7 @@ test('Realtime tool output is correlated and followed by one response request', 
   assert.equal(sent[1].type, 'response.create');
 });
 
-test('barge-in cancels current output and service errors become an honest degraded state', () => {
+test('server VAD owns barge-in while explicit interruption cancels only active output', () => {
   const MXRealtime = loadClient();
   const events = [];
   const sent = [];
@@ -68,7 +81,13 @@ test('barge-in cancels current output and service errors become an honest degrad
   });
   session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
   session.handleMessage(JSON.stringify({ type: 'input_audio_buffer.speech_started' }));
+  assert.equal(sent.length, 0);
+  assert.equal(session.state, 'user-speaking');
+  session.handleMessage(JSON.stringify({ type: 'response.created', response: { id: 'response-1' } }));
+  assert.equal(session.interrupt(), true);
   assert.equal(sent[0].type, 'response.cancel');
+  assert.equal(sent[0].response_id, 'response-1');
+  assert.equal(sent[1].type, 'output_audio_buffer.clear');
   assert.ok(events.some((event) => event.type === 'interrupted'));
   session.handleMessage(JSON.stringify({ type: 'error', error: { code: 'rate_limit', message: 'Quota reached' } }));
   assert.equal(session.state, 'degraded');

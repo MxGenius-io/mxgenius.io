@@ -32,9 +32,11 @@ WIP limit: **one implementation item**. A new item does not start until the acti
 
 ### NEXT
 
-1. **REL-106 / UI-103** Mount the authenticated backend and expose every pilot capability through a case-scoped frontend flow or an honest unavailable state.
-2. **UI-108 through UI-109** Perform final accessibility, visual, device, and interaction testing on the deployed full stack.
-3. **REL-101 through REL-108** Complete observability, evaluations, rollback, and pilot freeze.
+1. **REL-AI-201** Keep the restored green baseline as a deployment gate and add the separate backend release workflow.
+2. **RTC-201 through RTC-203** Repair the current Realtime session contract and deterministic voice lifecycle.
+3. **MCP-AI-201 through AI-205** Close MCP lifecycle/tool-routing, text-conversation, grounding, streaming, and fallback gaps.
+4. **UI-108 through UI-109** Perform final accessibility, visual, device, and interaction testing on the deployed full stack.
+5. **REL-101 through REL-108 / REL-AI-202 through REL-AI-203** Complete observability, evaluations, rollback, and pilot freeze.
 
 ### EXTERNAL VERIFICATION QUEUE
 
@@ -152,14 +154,36 @@ Exit gate: manuals and regulatory claims in production come from configured auth
 - [x] **RTC-101** Define the media-plane/application-plane/MCP boundary.
 - [x] **RTC-102** Recover and classify the native iOS `TokenStreamServer` as the on-device token fallback.
 - [x] **RTC-103** Safely probe the earmarked server-side OpenAI key for Realtime/model entitlement. (`gpt-realtime-2.1` returned HTTP 200; no secret was printed or copied.)
-- [x] **RTC-104** Add an authenticated SDP exchange endpoint backed by `POST /v1/realtime/calls`.
+- [~] **RTC-104** Add an authenticated SDP exchange endpoint backed by `POST /v1/realtime/calls`. The endpoint and current session body are request-tested; a live authenticated smoke test remains.
 - [x] **RTC-105** Add browser `RTCPeerConnection`, microphone/audio, and Realtime data-channel handling.
-- [x] **RTC-106** Stream transcript, connection, interruption, tool, error, and usage state into the chat UI.
+- [~] **RTC-106** Stream transcript, connection, interruption, tool, error, and usage state into the chat UI. Transcript, visible connection state, interruption, error, and usage events are wired; richer tool diagnostics and a live device smoke test remain.
 - [x] **RTC-107** Route Realtime function requests through the authenticated application/MCP boundary.
 - [x] **RTC-108** Require an explicit dashboard confirmation card for every voice-requested mutation.
-- [x] **RTC-109** Add barge-in, cancellation, reconnect/idempotency, device-denied, quota, and text-fallback tests. (Live microphone/audio validation remains in final UI-109.)
+- [~] **RTC-109** Add barge-in, cancellation, reconnect/idempotency, device-denied, quota, and text-fallback tests. The automated lifecycle suite passes and bounded reconnect plus local text fallback are implemented; live network, device, and quota smoke tests remain.
 
 Exit gate: voice is low-latency and case-aware, but cannot bypass evidence, authorization, tenancy, versioning, or human approval.
+
+## G2. Chat, MCP, and Realtime gap closure
+
+Detailed execution plan: [`CHAT_MCP_REALTIME_GAP_CLOSURE.md`](CHAT_MCP_REALTIME_GAP_CLOSURE.md)
+
+- [!] **SEC-AI-201** Deferred for closed beta by explicit product-owner risk acceptance.
+- [~] **REL-AI-201** Frontend/Rust tests now gate Pages deployment; the separate backend release workflow remains.
+- [~] **RTC-201** Current OpenAI Realtime WebRTC session contract is implemented and request-tested; deployed audio smoke remains.
+- [~] **RTC-202** Voice state, interruption, cleanup, and bounded reconnect are implemented; device/network smoke remains.
+- [~] **RTC-203** Final transcripts, usage, errors, and text fallback are surfaced; richer tool diagnostics remain.
+- [x] **MCP-AI-201** Use initialize/version negotiation/initialized before browser MCP operations.
+- [~] **MCP-AI-202** Static availability and mutation classification are implemented; live adapter/role task scoping remains.
+- [~] **MCP-AI-203** Tool timeouts, cancellation, and trace preservation are implemented; read retry policy remains.
+- [~] **AI-201** Bounded client-supplied prior turns reset on case change; server-owned conversation persistence remains.
+- [~] **AI-202** A bounded read-only Responses tool loop runs over the authenticated MCP dispatcher; broader integration evals remain.
+- [~] **AI-203** Citation-set validation is implemented; claim-level grounding and prompt-injection evals remain.
+- [ ] **AI-204** Stream safe progress and conversational output while buffering final structured advisories.
+- [~] **AI-205** Recoverable cloud failures reach a labeled non-authoritative local fallback; device/TTS validation remains.
+- [~] **REL-AI-202** Correlated completion telemetry and contract tests are present; dashboards, golden evals, and thresholds remain.
+- [ ] **REL-AI-203** Complete staged deployment, rollback exercise, version alignment, and release evidence.
+
+Exit gate: chat and voice are current-contract, grounded, tool-capable, observable, reversible, and honestly degraded before pilot release.
 
 ## H. Final dashboard reconciliation
 

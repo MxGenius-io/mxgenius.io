@@ -19,6 +19,16 @@ const MXRealtime = (() => {
       this.userTranscript = '';
       this.assistantTranscript = '';
       this.toolSpecs = new Map();
+      this.responseActive = false;
+      this.responseId = null;
+      this.lastConnectOptions = null;
+      this.manualDisconnect = false;
+      this.reconnectAttempts = 0;
+      this.maxReconnectAttempts = 3;
+      this.reconnectTimer = null;
+      this.createdAudioElement = false;
+      this.eventSequence = 0;
+      this.closingResources = false;
     }
 
     emit(type, detail = {}) {
@@ -33,6 +43,8 @@ const MXRealtime = (() => {
     async connect({ session, audioElement } = {}) {
       if (this.connecting) return this.connecting;
       if (this.peer && ['connecting', 'connected'].includes(this.peer.connectionState)) return;
+      this.manualDisconnect = false;
+      this.lastConnectOptions = { session, audioElement };
       this.connecting = this.open({ session, audioElement }).finally(() => { this.connecting = null; });
       return this.connecting;
     }
@@ -41,20 +53,32 @@ const MXRealtime = (() => {
       if (!this.mediaDevices?.getUserMedia) throw new Error('Microphone capture is unavailable');
       this.setState('connecting');
       try {
-        this.audioElement = audioElement || document.createElement('audio');
+        if (audioElement) {
+          this.audioElement = audioElement;
+          this.createdAudioElement = false;
+        } else if (typeof document !== 'undefined') {
+          this.audioElement = document.createElement('audio');
+          this.createdAudioElement = true;
+          document.body?.appendChild(this.audioElement);
+        } else {
+          this.audioElement = {};
+          this.createdAudioElement = false;
+        }
         this.audioElement.autoplay = true;
-        this.audioElement.style.display = 'none';
-        if (!audioElement) document.body.appendChild(this.audioElement);
+        if (this.audioElement.style) this.audioElement.style.display = 'none';
         this.peer = this.peerFactory();
         this.peer.ontrack = (event) => {
           this.audioElement.srcObject = event.streams[0];
         };
         this.peer.onconnectionstatechange = () => {
           const state = this.peer?.connectionState;
-          if (state === 'connected') this.setState('listening');
-          if (state === 'failed') this.setState('failed', { reason: 'WebRTC connection failed' });
-          if (state === 'disconnected') this.setState('degraded', { reason: 'Realtime connection interrupted' });
-          if (state === 'closed') this.setState('disconnected');
+          if (state === 'connected') {
+            this.reconnectAttempts = 0;
+            this.setState('listening');
+          }
+          if (state === 'failed' || state === 'disconnected') {
+            this.scheduleReconnect(state === 'failed' ? 'WebRTC connection failed' : 'Realtime connection interrupted');
+          }
         };
         this.media = await this.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -65,7 +89,12 @@ const MXRealtime = (() => {
         }
         this.channel = this.peer.createDataChannel('oai-events');
         this.channel.addEventListener('open', () => this.emit('channel-open'));
-        this.channel.addEventListener('close', () => this.emit('channel-close'));
+        this.channel.addEventListener('close', () => {
+          this.emit('channel-close');
+          if (!this.manualDisconnect && !this.closingResources && this.peer?.connectionState !== 'connected') {
+            this.scheduleReconnect('Realtime event channel closed');
+          }
+        });
         this.channel.addEventListener('message', (event) => this.handleMessage(event.data));
         const offer = await this.peer.createOffer();
         await this.peer.setLocalDescription(offer);
@@ -85,18 +114,25 @@ const MXRealtime = (() => {
       this.emit('server-event', { event });
       if (event.type === 'input_audio_buffer.speech_started') {
         this.userTranscript = '';
-        this.interrupt();
-        this.setState('listening');
+        this.setState('user-speaking');
       } else if (event.type === 'input_audio_buffer.speech_stopped') {
         this.setState('thinking');
       } else if (event.type === 'response.created') {
         this.assistantTranscript = '';
+        this.responseActive = true;
+        this.responseId = event.response?.id || null;
         this.setState('thinking');
       } else if (event.type === 'response.output_audio.delta') {
         this.setState('speaking');
       } else if (event.type === 'response.done') {
+        this.responseActive = false;
+        this.responseId = null;
         this.setState('listening');
-        this.emit('usage', { usage: event.response?.usage || null });
+        this.emit('usage', {
+          usage: event.response?.usage || null,
+          status: event.response?.status || null,
+          statusDetails: event.response?.status_details || null
+        });
       } else if (event.type === 'error') {
         this.setState('degraded', { reason: event.error?.message || 'Realtime service error', code: event.error?.code });
       } else if (event.type === 'conversation.item.input_audio_transcription.delta') {
@@ -104,13 +140,13 @@ const MXRealtime = (() => {
         this.emit('transcript', { role: 'user', text: this.userTranscript, final: false });
       } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
         this.userTranscript = event.transcript || this.userTranscript;
-        this.emit('transcript', { role: 'user', text: this.userTranscript, final: true });
+        this.emit('transcript', { role: 'user', text: this.userTranscript, final: true, itemId: event.item_id || null });
       } else if (event.type === 'response.output_audio_transcript.delta') {
         this.assistantTranscript += event.delta || '';
         this.emit('transcript', { role: 'assistant', text: this.assistantTranscript, final: false });
       } else if (event.type === 'response.output_audio_transcript.done') {
         this.assistantTranscript = event.transcript || this.assistantTranscript;
-        this.emit('transcript', { role: 'assistant', text: this.assistantTranscript, final: true });
+        this.emit('transcript', { role: 'assistant', text: this.assistantTranscript, final: true, itemId: event.item_id || null });
       } else if (event.type === 'response.function_call_arguments.done') {
         const spec = this.toolSpecs.get(event.name) || null;
         this.emit('tool-request', {
@@ -124,7 +160,9 @@ const MXRealtime = (() => {
 
     configureTools(tools, { instructions } = {}) {
       this.toolSpecs.clear();
-      const realtimeTools = (tools || []).map((tool) => {
+      const realtimeTools = (tools || [])
+        .filter((tool) => tool.meta?.callable !== false && tool.meta?.availability !== 'not_configured')
+        .map((tool) => {
         const transportName = tool.name.replaceAll('.', '__');
         this.toolSpecs.set(transportName, tool);
         return {
@@ -133,7 +171,7 @@ const MXRealtime = (() => {
           description: `${tool.description} Canonical MXGenius capability: ${tool.name}`,
           parameters: tool.inputSchema
         };
-      });
+        });
       return this.send({
         type: 'session.update',
         session: {
@@ -160,32 +198,87 @@ const MXRealtime = (() => {
 
     send(event) {
       if (!this.channel || this.channel.readyState !== 'open') return false;
-      this.channel.send(JSON.stringify(event));
+      const payload = event.event_id
+        ? event
+        : { ...event, event_id: `mxg_${Date.now()}_${++this.eventSequence}` };
+      this.channel.send(JSON.stringify(payload));
       return true;
     }
 
     interrupt() {
-      const sent = this.send({ type: 'response.cancel' });
-      if (sent) this.emit('interrupted');
+      if (!this.responseActive) return false;
+      const sent = this.send({
+        type: 'response.cancel',
+        ...(this.responseId ? { response_id: this.responseId } : {})
+      });
+      if (sent) {
+        this.send({ type: 'output_audio_buffer.clear' });
+        this.responseActive = false;
+        this.responseId = null;
+        this.setState('interrupted');
+        this.emit('interrupted');
+      }
       return sent;
     }
 
     disconnect() {
+      this.manualDisconnect = true;
+      this.clearReconnectTimer();
       this.closeResources();
       this.setState('disconnected');
     }
 
-    closeResources() {
-      if (this.channel) this.channel.close();
-      if (this.peer) this.peer.close();
-      if (this.media) for (const track of this.media.getTracks()) track.stop();
-      if (this.audioElement) {
-        this.audioElement.srcObject = null;
-        if (this.audioElement.parentNode === document.body) document.body.removeChild(this.audioElement);
+    scheduleReconnect(reason) {
+      if (this.manualDisconnect || !this.lastConnectOptions || this.reconnectTimer || this.connecting) return;
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        this.setState('failed', { reason, code: 'REALTIME_RECONNECT_EXHAUSTED' });
+        return;
       }
-      this.channel = null;
-      this.peer = null;
-      this.media = null;
+      this.reconnectAttempts += 1;
+      const delayMs = Math.min(
+        4250,
+        500 * (2 ** (this.reconnectAttempts - 1)) + Math.floor(Math.random() * 250)
+      );
+      this.setState('reconnecting', { reason, attempt: this.reconnectAttempts, delayMs });
+      this.reconnectTimer = setTimeout(async () => {
+        this.reconnectTimer = null;
+        const options = { ...this.lastConnectOptions, audioElement: this.audioElement };
+        this.closeResources({ preserveAudio: true });
+        try {
+          await this.connect(options);
+        } catch (error) {
+          this.scheduleReconnect(error.message || reason);
+        }
+      }, delayMs);
+    }
+
+    clearReconnectTimer() {
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    closeResources({ preserveAudio = false } = {}) {
+      this.closingResources = true;
+      try {
+        if (this.channel) this.channel.close();
+        if (this.peer) this.peer.close();
+        if (this.media) for (const track of this.media.getTracks()) track.stop();
+        if (this.audioElement && !preserveAudio) {
+          this.audioElement.srcObject = null;
+          if (this.createdAudioElement && typeof document !== 'undefined' && this.audioElement.parentNode === document.body) {
+            document.body.removeChild(this.audioElement);
+          }
+          this.audioElement = null;
+          this.createdAudioElement = false;
+        }
+        this.channel = null;
+        this.peer = null;
+        this.media = null;
+        this.responseActive = false;
+        this.responseId = null;
+      } finally {
+        this.closingResources = false;
+      }
     }
   }
 

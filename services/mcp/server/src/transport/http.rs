@@ -4,7 +4,7 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::body::Bytes;
 use axum::extract::{Query, State};
@@ -452,9 +452,17 @@ async fn issue_confirmation(
 struct ChatRequest {
     message: String,
     #[serde(default)]
+    history: Vec<ChatTurn>,
+    #[serde(default)]
     fleet_signals: Value,
     #[serde(default)]
     case_context: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatTurn {
+    role: String,
+    content: String,
 }
 
 fn maintenance_advisory_schema() -> Value {
@@ -544,6 +552,31 @@ fn retrieval_percent(score: Option<f32>) -> Option<u8> {
     score.map(|value| (value.clamp(0.0, 1.0) * 100.0).round() as u8)
 }
 
+fn advisory_citations_are_valid(
+    advisory: &Value,
+    allowed: &std::collections::HashSet<String>,
+) -> bool {
+    match advisory {
+        Value::Object(fields) => fields.iter().all(|(key, value)| {
+            if key == "citations" {
+                value.as_array().is_some_and(|citations| {
+                    citations.iter().all(|citation| {
+                        citation
+                            .as_str()
+                            .is_some_and(|label| allowed.contains(label))
+                    })
+                })
+            } else {
+                advisory_citations_are_valid(value, allowed)
+            }
+        }),
+        Value::Array(items) => items
+            .iter()
+            .all(|item| advisory_citations_are_valid(item, allowed)),
+        _ => true,
+    }
+}
+
 fn manual_reference(evidence: &Evidence, index: usize, excerpt_limit: usize) -> Value {
     let images = evidence
         .assets
@@ -582,6 +615,7 @@ async fn chat(
     headers: HeaderMap,
     Json(input): Json<ChatRequest>,
 ) -> Response {
+    let chat_started = Instant::now();
     if !origin_allowed(&headers) {
         return realtime_error(
             StatusCode::FORBIDDEN,
@@ -595,6 +629,19 @@ async fn chat(
             StatusCode::BAD_REQUEST,
             "INVALID_MESSAGE",
             "message must be between 1 byte and 20 KiB",
+        );
+    }
+    if input.history.len() > 12
+        || input.history.iter().any(|turn| {
+            !matches!(turn.role.as_str(), "user" | "assistant")
+                || turn.content.trim().is_empty()
+                || turn.content.len() > MAX_CHAT_MESSAGE_BYTES
+        })
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_CHAT_HISTORY",
+            "history must contain at most 12 bounded user or assistant turns",
         );
     }
     let mut auth = match auth_request(&headers) {
@@ -646,7 +693,7 @@ async fn chat(
     {
         let read_auth = AuthRequest {
             confirmation_grant: None,
-            ..auth
+            ..auth.clone()
         };
         let current = match invoke(
             &state.dispatcher,
@@ -718,17 +765,49 @@ async fn chat(
         "manual_retrieval_warning": manual_warning.clone()
     });
     let model =
-        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "o3-mini".into());
-    let request_body = json!({
+        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-sol".into());
+    let mut conversation_input = input
+        .history
+        .iter()
+        .map(|turn| {
+            json!({
+                "role": turn.role,
+                "content": [{"type": "input_text", "text": turn.content}]
+            })
+        })
+        .collect::<Vec<_>>();
+    conversation_input.push(json!({
+        "role": "user",
+        "content": [{
+            "type": "input_text",
+            "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
+        }]
+    }));
+    let model_tools = state
+        .dispatcher
+        .registry()
+        .list_tools()
+        .into_iter()
+        .filter(|tool| {
+            tool.availability == "available" && crate::tool::is_read_only_action(tool.action)
+        })
+        .map(|tool| {
+            json!({
+                "type": "function",
+                "name": tool.name.replace('.', "__"),
+                "description": format!("{} Canonical capability: {}", tool.description, tool.name),
+                "parameters": tool.input_schema,
+                "strict": false
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut request_body = json!({
         "model": model,
-        "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
-        "input": [{
-            "role": "user",
-            "content": [{
-                "type": "input_text",
-                "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
-            }]
-        }],
+        "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use supplied read-only tools when authoritative application state is needed. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
+        "input": conversation_input,
+        "tools": model_tools,
+        "tool_choice": "auto",
+        "parallel_tool_calls": false,
         "text": {
             "format": {
                 "type": "json_schema",
@@ -741,54 +820,127 @@ async fn chat(
         "max_output_tokens": 2600,
         "store": false
     });
-    let upstream = match state
-        .realtime_client
-        .post(OPENAI_RESPONSES_URL)
-        .bearer_auth(api_key)
-        .header(
-            "OpenAI-Safety-Identifier",
-            realtime_safety_identifier(&context),
-        )
-        .header("x-client-request-id", context.correlation_id.to_string())
-        .json(&request_body)
-        .send()
-        .await
-    {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(target: "mxgenius.openai", error = %error, correlation_id = %context.correlation_id, "OpenAI Responses request failed");
+    let mut final_payload = None;
+    let mut answer = String::new();
+    let mut model_tool_calls = 0usize;
+    for _ in 0..4 {
+        let upstream = match state
+            .realtime_client
+            .post(OPENAI_RESPONSES_URL)
+            .bearer_auth(&api_key)
+            .header(
+                "OpenAI-Safety-Identifier",
+                realtime_safety_identifier(&context),
+            )
+            .header("x-client-request-id", context.correlation_id.to_string())
+            .json(&request_body)
+            .send()
+            .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(target: "mxgenius.openai", error = %error, correlation_id = %context.correlation_id, "OpenAI Responses request failed");
+                return realtime_error(
+                    StatusCode::BAD_GATEWAY,
+                    "OPENAI_UPSTREAM_UNAVAILABLE",
+                    "OpenAI service did not return a response",
+                );
+            }
+        };
+        let upstream_status = upstream.status();
+        if !upstream_status.is_success() {
+            tracing::warn!(target: "mxgenius.openai", %upstream_status, correlation_id = %context.correlation_id, "OpenAI Responses request rejected");
+            let status = if upstream_status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                StatusCode::TOO_MANY_REQUESTS
+            } else {
+                StatusCode::BAD_GATEWAY
+            };
             return realtime_error(
-                StatusCode::BAD_GATEWAY,
-                "OPENAI_UPSTREAM_UNAVAILABLE",
-                "OpenAI service did not return a response",
+                status,
+                "OPENAI_UPSTREAM_REJECTED",
+                "OpenAI service rejected the request",
             );
         }
-    };
-    let upstream_status = upstream.status();
-    if !upstream_status.is_success() {
-        tracing::warn!(target: "mxgenius.openai", %upstream_status, correlation_id = %context.correlation_id, "OpenAI Responses request rejected");
-        let status = if upstream_status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            StatusCode::TOO_MANY_REQUESTS
-        } else {
-            StatusCode::BAD_GATEWAY
+        let payload: Value = match upstream.json().await {
+            Ok(value) => value,
+            Err(_) => {
+                return realtime_error(
+                    StatusCode::BAD_GATEWAY,
+                    "INVALID_OPENAI_RESPONSE",
+                    "OpenAI service returned an invalid response",
+                )
+            }
         };
-        return realtime_error(
-            status,
-            "OPENAI_UPSTREAM_REJECTED",
-            "OpenAI service rejected the request",
-        );
-    }
-    let payload: Value = match upstream.json().await {
-        Ok(value) => value,
-        Err(_) => {
-            return realtime_error(
-                StatusCode::BAD_GATEWAY,
-                "INVALID_OPENAI_RESPONSE",
-                "OpenAI service returned an invalid response",
-            )
+        let output_items = payload
+            .get("output")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let function_calls = output_items
+            .iter()
+            .filter(|item| item.get("type").and_then(Value::as_str) == Some("function_call"))
+            .cloned()
+            .collect::<Vec<_>>();
+        if function_calls.is_empty() {
+            answer = extract_openai_output_text(&payload);
+            final_payload = Some(payload);
+            break;
         }
+        let next_input = request_body["input"]
+            .as_array_mut()
+            .expect("chat input is always an array");
+        next_input.extend(output_items);
+        for call in function_calls {
+            model_tool_calls += 1;
+            let Some(transport_name) = call.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            let tool_name = transport_name.replace("__", ".");
+            let call_id = call
+                .get("call_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let arguments = call
+                .get("arguments")
+                .and_then(Value::as_str)
+                .and_then(|value| serde_json::from_str::<Value>(value).ok())
+                .unwrap_or_else(|| json!({}));
+            let allowed = state
+                .dispatcher
+                .registry()
+                .tool(&tool_name)
+                .is_some_and(|tool| {
+                    let spec = tool.spec();
+                    spec.availability == "available"
+                        && crate::tool::is_read_only_action(spec.action)
+                });
+            let output = if allowed {
+                match invoke(&state.dispatcher, auth.clone(), &tool_name, arguments).await {
+                    Ok(envelope) => {
+                        capability_trace.push(trace_summary(&tool_name, &envelope));
+                        envelope
+                    }
+                    Err(_) => {
+                        json!({"status":"failed","errors":[{"code":"CAPABILITY_FAILED","message":"Capability execution failed"}]})
+                    }
+                }
+            } else {
+                json!({"status":"failed","errors":[{"code":"CAPABILITY_NOT_CALLABLE","message":"Capability is unavailable or requires confirmation"}]})
+            };
+            next_input.push(json!({
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": output.to_string()
+            }));
+        }
+    }
+    let Some(payload) = final_payload else {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "TOOL_LOOP_EXHAUSTED",
+            "OpenAI service did not complete after the allowed tool calls",
+        );
     };
-    let answer = extract_openai_output_text(&payload);
     if answer.is_empty() {
         return realtime_error(
             StatusCode::BAD_GATEWAY,
@@ -807,6 +959,18 @@ async fn chat(
             );
         }
     };
+    let allowed_citations = manual_model_context
+        .iter()
+        .filter_map(|record| record.get("citation").and_then(Value::as_str))
+        .map(str::to_owned)
+        .collect::<std::collections::HashSet<_>>();
+    if !advisory_citations_are_valid(&advisory, &allowed_citations) {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "INVALID_CITATIONS",
+            "OpenAI service cited evidence that was not retrieved",
+        );
+    }
     let include_references =
         advisory.get("response_kind").and_then(Value::as_str) == Some("maintenance_advisory");
     let manual_records = if include_references {
@@ -819,6 +983,20 @@ async fn chat(
         vec![]
     };
     let manual_record_count = manual_records.len();
+    tracing::info!(
+        target: "mxgenius.chat",
+        correlation_id = %context.correlation_id,
+        model = %model,
+        latency_ms = chat_started.elapsed().as_millis(),
+        model_tool_calls,
+        manual_record_count,
+        response_id = payload
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or(""),
+        terminal_status = "success",
+        "chat request completed"
+    );
     (
         StatusCode::OK,
         Json(json!({
@@ -859,11 +1037,37 @@ fn extract_openai_output_text(payload: &Value) -> String {
         .join("")
 }
 
+fn realtime_session_config(model: String, voice: String, transcription_model: String) -> Value {
+    json!({
+        "type": "realtime",
+        "model": model,
+        "output_modalities": ["audio"],
+        "audio": {
+            "input": {
+                "transcription": {
+                    "model": transcription_model,
+                    "language": "en"
+                },
+                "turn_detection": {
+                    "type": "server_vad",
+                    "create_response": true,
+                    "interrupt_response": true
+                }
+            },
+            "output": {
+                "voice": voice
+            }
+        },
+        "instructions": "You are the MXGenius maintenance copilot. Treat application tools as authoritative. Never claim an operational mutation succeeded without an explicit application confirmation result."
+    })
+}
+
 async fn create_realtime_call(
     State(state): State<AppState>,
     headers: HeaderMap,
     offer: Bytes,
 ) -> Response {
+    let exchange_started = Instant::now();
     if !origin_allowed(&headers) {
         return realtime_error(
             StatusCode::FORBIDDEN,
@@ -940,20 +1144,12 @@ async fn create_realtime_call(
             )
         }
     };
-    let model = std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-4o-mini-realtime-preview-2024-12-17".into());
-    let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "alloy".into());
-    let session = json!({
-        "modalities": ["audio", "text"],
-        "model": model,
-        "input_audio_transcription": {
-            "model": std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL").unwrap_or_else(|_| "whisper-1".into())
-        },
-        "turn_detection": {
-            "type": "server_vad"
-        },
-        "voice": voice,
-        "instructions": "You are the MXGenius maintenance copilot. Treat application tools as authoritative. Never claim an operational mutation succeeded without an explicit application confirmation result."
-    });
+    let model =
+        std::env::var("MXGENIUS_REALTIME_MODEL").unwrap_or_else(|_| "gpt-realtime-2.1".into());
+    let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "marin".into());
+    let transcription_model = std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL")
+        .unwrap_or_else(|_| "gpt-4o-mini-transcribe".into());
+    let session = realtime_session_config(model.clone(), voice.clone(), transcription_model);
     let form = reqwest::multipart::Form::new()
         .text("sdp", offer.to_owned())
         .text("session", session.to_string());
@@ -987,8 +1183,7 @@ async fn create_realtime_call(
         .filter(|value| value.starts_with("rtc_"))
         .map(str::to_owned);
     if !status.is_success() {
-        let error_body = upstream.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
-        tracing::warn!(target: "mxgenius.realtime", upstream_status = %status, correlation_id = %context.correlation_id, error_body = %error_body, "Realtime call exchange rejected");
+        tracing::warn!(target: "mxgenius.realtime", upstream_status = %status, correlation_id = %context.correlation_id, "Realtime call exchange rejected");
         let response_status = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             StatusCode::TOO_MANY_REQUESTS
         } else if status == reqwest::StatusCode::UNAUTHORIZED
@@ -1001,7 +1196,7 @@ async fn create_realtime_call(
         return realtime_error(
             response_status,
             "REALTIME_UPSTREAM_REJECTED",
-            &format!("Realtime service rejected the connection: {}", error_body),
+            "Realtime service rejected the connection",
         );
     }
     let answer = match upstream.text().await {
@@ -1025,6 +1220,15 @@ async fn create_realtime_call(
     if let Some(call_id) = call_id.and_then(|value| HeaderValue::from_str(&value).ok()) {
         response_headers.insert("x-mxg-realtime-call-id", call_id);
     }
+    tracing::info!(
+        target: "mxgenius.realtime",
+        correlation_id = %context.correlation_id,
+        model = %model,
+        voice = %voice,
+        latency_ms = exchange_started.elapsed().as_millis(),
+        terminal_status = "connected",
+        "Realtime call exchange completed"
+    );
     (StatusCode::OK, response_headers, answer).into_response()
 }
 
@@ -1376,5 +1580,42 @@ mod structured_advisory_tests {
     fn model_context_excerpt_is_bounded_on_unicode_boundaries() {
         let value = truncate_chars("bleed loop — verify connector", 12);
         assert_eq!(value, "bleed loop —...");
+    }
+
+    #[test]
+    fn realtime_session_uses_current_nested_audio_contract() {
+        let session = realtime_session_config(
+            "gpt-realtime-2.1".into(),
+            "marin".into(),
+            "gpt-4o-mini-transcribe".into(),
+        );
+        assert_eq!(session["type"], "realtime");
+        assert_eq!(session["output_modalities"], json!(["audio"]));
+        assert_eq!(session["audio"]["output"]["voice"], "marin");
+        assert_eq!(
+            session["audio"]["input"]["transcription"]["model"],
+            "gpt-4o-mini-transcribe"
+        );
+        assert_eq!(
+            session["audio"]["input"]["turn_detection"]["interrupt_response"],
+            true
+        );
+        assert!(session.get("modalities").is_none());
+        assert!(session.get("voice").is_none());
+        assert!(session.get("turn_detection").is_none());
+        assert!(session.get("input_audio_transcription").is_none());
+    }
+
+    #[test]
+    fn advisory_citations_must_resolve_to_retrieved_labels() {
+        let allowed = ["M-01".to_string()].into_iter().collect();
+        assert!(advisory_citations_are_valid(
+            &json!({"verify_first":[{"text":"Inspect","citations":["M-01"]}]}),
+            &allowed
+        ));
+        assert!(!advisory_citations_are_valid(
+            &json!({"verify_first":[{"text":"Inspect","citations":["M-99"]}]}),
+            &allowed
+        ));
     }
 }
