@@ -43,6 +43,19 @@ function harness(outputs, orchestration = null) {
           })
         };
       }
+      if (url.includes('/api/')) {
+        const request = options.body && typeof options.body === 'string'
+          ? JSON.parse(options.body)
+          : options.body;
+        requests.push({ url, options, request });
+        return {
+          ok: true,
+          status: options.method === 'DELETE' ? 204 : 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({ ok: true, request }),
+          text: async () => ''
+        };
+      }
       const request = JSON.parse(options.body);
       requests.push({ url, options, request });
       if (request.method === 'initialize') {
@@ -172,6 +185,7 @@ test('chat uses application identity and carries canonical case context without 
   );
   await client.chat({
     message: 'status',
+    threadId: 'thread-1',
     fleetSignals: [],
     caseContext: { case_id: 'case-1', version: 3 },
     accessToken: 'oidc-token',
@@ -182,6 +196,42 @@ test('chat uses application identity and carries canonical case context without 
   assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'org-1');
   assert.equal(requests[0].request.case_context.case_id, 'case-1');
   assert.equal(requests[0].request.case_context.version, 3);
+  assert.equal(requests[0].request.thread_id, 'thread-1');
+});
+
+test('server persistence clients keep threads cases and profiles behind application identity', async () => {
+  const { client, requests } = harness({});
+  const session = {
+    accessToken: 'oidc-token',
+    organizationId: 'org-1',
+    correlationId: 'correlation-1'
+  };
+
+  await client.cases.list(session);
+  await client.cases.get('case-1', session);
+  await client.threads.create({ title: 'Hydraulics', caseId: 'case-1', session });
+  await client.threads.update('thread-1', { title: 'Hydraulics follow-up' }, session);
+  await client.threads.messages('thread-1', session);
+  await client.profile.update({
+    displayName: 'MX User',
+    timezone: 'America/New_York',
+    settings: { compactMode: true }
+  }, session);
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [url, options.method]),
+    [
+      ['/api/cases', 'GET'],
+      ['/api/cases/case-1', 'GET'],
+      ['/api/threads', 'POST'],
+      ['/api/threads/thread-1', 'PATCH'],
+      ['/api/threads/thread-1/messages', 'GET'],
+      ['/api/profile', 'PATCH']
+    ]
+  );
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
+  assert.equal(requests[2].request.case_id, 'case-1');
+  assert.equal(requests[5].request.settings.compactMode, true);
 });
 
 test('chat sends only bounded relevant fleet context instead of the full compatibility dataset', async () => {

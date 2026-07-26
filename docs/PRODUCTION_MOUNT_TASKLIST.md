@@ -34,7 +34,7 @@ WIP limit: **one implementation item**. A new item does not start until the acti
 
 1. **REL-AI-201** Keep the restored green baseline as a deployment gate and add the separate backend release workflow.
 2. **RTC-201 through RTC-203** Repair the current Realtime session contract and deterministic voice lifecycle.
-3. **MCP-AI-201 through AI-205** Close MCP lifecycle/tool-routing, text-conversation, grounding, streaming, and fallback gaps.
+3. **MCP-AI-201 through AI-206** Close MCP lifecycle/tool-routing, durable conversation, grounding, fallback, and application-state gaps.
 4. **UI-108 through UI-109** Perform final accessibility, visual, device, and interaction testing on the deployed full stack.
 5. **REL-101 through REL-108 / REL-AI-202 through REL-AI-203** Complete observability, evaluations, rollback, and pilot freeze.
 
@@ -169,17 +169,18 @@ Detailed execution plan: [`CHAT_MCP_REALTIME_GAP_CLOSURE.md`](CHAT_MCP_REALTIME_
 
 - [!] **SEC-AI-201** Deferred for closed beta by explicit product-owner risk acceptance.
 - [~] **REL-AI-201** Frontend/Rust tests now gate Pages deployment; the separate backend release workflow remains.
-- [~] **RTC-201** Current OpenAI Realtime WebRTC session contract is implemented and request-tested; deployed audio smoke remains.
+- [x] **RTC-201** Current OpenAI Realtime WebRTC session contract is implemented and live streaming is working in closed beta.
 - [~] **RTC-202** Voice state, interruption, cleanup, and bounded reconnect are implemented; device/network smoke remains.
 - [~] **RTC-203** Final transcripts, usage, errors, and text fallback are surfaced; richer tool diagnostics remain.
 - [x] **MCP-AI-201** Use initialize/version negotiation/initialized before browser MCP operations.
 - [~] **MCP-AI-202** Static availability and mutation classification are implemented; live adapter/role task scoping remains.
 - [~] **MCP-AI-203** Tool timeouts, cancellation, and trace preservation are implemented; read retry policy remains.
-- [~] **AI-201** Bounded client-supplied prior turns reset on case change; server-owned conversation persistence remains.
+- [~] **AI-201** Tenant/user/case-scoped server threads and messages now provide bounded conversational memory; the production migration smoke remains.
 - [~] **AI-202** A bounded read-only Responses tool loop runs over the authenticated MCP dispatcher; broader integration evals remain.
 - [~] **AI-203** Citation-set validation is implemented; claim-level grounding and prompt-injection evals remain.
-- [ ] **AI-204** Stream safe progress and conversational output while buffering final structured advisories.
+- [!] **AI-204** Token-by-token text streaming is not a product requirement; chat intentionally waits for validated, reformatted output.
 - [~] **AI-205** Recoverable cloud failures reach a labeled non-authoritative local fallback; device/TTS validation remains.
+- [~] **AI-206** Authenticated case reads, profile settings, and bounded profile-image storage are implemented; production migration and UI smoke remain.
 - [~] **REL-AI-202** Correlated completion telemetry and contract tests are present; dashboards, golden evals, and thresholds remain.
 - [ ] **REL-AI-203** Complete staged deployment, rollback exercise, version alignment, and release evidence.
 

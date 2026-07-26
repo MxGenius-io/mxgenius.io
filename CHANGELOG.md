@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased]
+
+### Added — Server-owned application state
+
+- Added tenant/user/case-scoped chat threads and durable message history with a bounded 24-turn model context.
+- Added authenticated thread create, list, read, rename, archive, and message-history APIs.
+- Added authenticated case list/get APIs over the existing PostgreSQL maintenance-case spine.
+- Added server-backed profile settings plus authenticated JPEG, PNG, and WebP profile-image storage up to 2 MiB.
+- Added browser clients for cases, threads, profiles, and profile images; active chat threads resume across reloads.
+
+### Clarified — Chat and Realtime
+
+- Live Realtime voice streaming remains supported and is not tracked as an open defect.
+- Token-by-token text streaming is intentionally out of scope because chat renders only validated, reformatted responses.
+
+### Improved — Retrieval and output quality
+
+- Added hybrid keyword/vector manual retrieval so exact ATA, section, model, and part terminology can reinforce semantic matches.
+- Added ATA pre-filtering and follow-up query expansion from recent user turns plus the active case discrepancy.
+- Limited model context to the top 12 deduplicated manual records while retaining up to 33 references for review.
+- Tightened the prompt so unsubstantiated historical work, labor, parts, procedures, and limits remain empty or explicitly unverified.
+- Relabeled raw search scores as retrieval relevance rather than diagnostic or semantic accuracy.
+
 ## [3.3.0] — 2026-07-26
 
 ### Changed — Chat and model output

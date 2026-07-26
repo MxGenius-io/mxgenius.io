@@ -140,7 +140,42 @@ const MXApplicationClient = (() => {
       .map(({ compact }) => compact);
   }
 
-  function chat({ message, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function applicationHeaders(session = {}, contentType = 'application/json') {
+    if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
+    const headers = { 'Authorization': `Bearer ${session.accessToken}` };
+    if (contentType) headers['Content-Type'] = contentType;
+    if (session.organizationId) headers['X-MXG-Organization-ID'] = session.organizationId;
+    if (session.correlationId) headers['X-Correlation-ID'] = session.correlationId;
+    return headers;
+  }
+
+  async function applicationRequest(path, { session = {}, method = 'GET', body, contentType = 'application/json' } = {}) {
+    const response = await fetch(`${MCP_BASE}${path}`, {
+      method,
+      headers: applicationHeaders(session, contentType),
+      credentials: 'include',
+      signal: session.signal,
+      body: body === undefined ? undefined : (contentType === 'application/json' ? JSON.stringify(body) : body)
+    });
+    if (!response.ok) {
+      const responseType = response.headers.get('content-type') || '';
+      const payload = responseType.includes('application/json')
+        ? await response.json()
+        : { error: { message: await response.text() } };
+      const error = new Error(payload.error?.message || `Application request failed (${response.status})`);
+      error.code = payload.error?.code || 'APPLICATION_REQUEST_FAILED';
+      error.status = response.status;
+      throw error;
+    }
+    if (response.status === 204) return null;
+    return response;
+  }
+
+  async function applicationJson(path, options) {
+    return (await applicationRequest(path, options)).json();
+  }
+
+  function chat({ message, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -154,10 +189,98 @@ const MXApplicationClient = (() => {
       credentials: 'include',
       body: JSON.stringify({
         message,
+        thread_id: threadId || null,
         history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
         case_context: caseContext || null
       })
+    });
+  }
+
+  function listCases(session = {}) {
+    return applicationJson('/api/cases', { session });
+  }
+
+  function getCase(caseId, session = {}) {
+    return applicationJson(`/api/cases/${encodeURIComponent(caseId)}`, { session });
+  }
+
+  function listThreads(session = {}) {
+    return applicationJson('/api/threads', { session });
+  }
+
+  function createThread({ title, caseId, session = {} } = {}) {
+    return applicationJson('/api/threads', {
+      session,
+      method: 'POST',
+      body: { title: title || null, case_id: caseId || null }
+    });
+  }
+
+  function getThread(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, { session });
+  }
+
+  function updateThread(threadId, changes, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, {
+      session,
+      method: 'PATCH',
+      body: {
+        title: changes?.title ?? null,
+        status: changes?.status ?? null
+      }
+    });
+  }
+
+  function archiveThread(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, {
+      session,
+      method: 'DELETE'
+    });
+  }
+
+  function listThreadMessages(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, { session });
+  }
+
+  function getProfile(session = {}) {
+    return applicationJson('/api/profile', { session });
+  }
+
+  function updateProfile(profile, session = {}) {
+    return applicationJson('/api/profile', {
+      session,
+      method: 'PATCH',
+      body: {
+        display_name: profile?.displayName ?? null,
+        timezone: profile?.timezone ?? null,
+        settings: profile?.settings || {}
+      }
+    });
+  }
+
+  async function getProfileImage(session = {}) {
+    return (await applicationRequest('/api/profile/image', {
+      session,
+      contentType: null
+    })).blob();
+  }
+
+  function putProfileImage(file, session = {}) {
+    if (!(file instanceof Blob)) throw new TypeError('Profile image must be a Blob or File');
+    return applicationJson('/api/profile/image', {
+      session,
+      method: 'PUT',
+      body: file,
+      contentType: file.type
+    });
+  }
+
+  function deleteProfileImage(session = {}) {
+    return applicationRequest('/api/profile/image', {
+      session,
+      method: 'DELETE',
+      contentType: null
     });
   }
 
@@ -488,6 +611,25 @@ const MXApplicationClient = (() => {
     aircraftList,
     bulkAircraft,
     chat,
+    cases: Object.freeze({
+      list: listCases,
+      get: getCase
+    }),
+    threads: Object.freeze({
+      list: listThreads,
+      create: createThread,
+      get: getThread,
+      update: updateThread,
+      archive: archiveThread,
+      messages: listThreadMessages
+    }),
+    profile: Object.freeze({
+      get: getProfile,
+      update: updateProfile,
+      getImage: getProfileImage,
+      putImage: putProfileImage,
+      deleteImage: deleteProfileImage
+    }),
     companyDetail,
     companyList,
     contactList,

@@ -46,7 +46,7 @@ SEC-AI-201 credential containment
   -> AI-201 server-owned multi-turn text conversation
   -> AI-202 server-owned MCP tool loop
   -> AI-203 grounded output and citation validation
-  -> AI-204 streaming/progress UX
+  -> AI-204 validated/reformatted text response UX (token streaming not required)
   -> AI-205 honest on-device fallback
   -> REL-AI-202 observability and evaluation
   -> REL-AI-203 staged deployment, rollback, and release evidence
@@ -212,14 +212,13 @@ Acceptance:
 
 ### AI-201 — Add server-owned, bounded multi-turn conversation state
 
-- [ ] Choose and document one state model:
-  - server-managed conversation records with bounded prior turns; or
-  - Responses continuation using `previous_response_id` with an approved retention mode.
-- [ ] Bind conversation IDs to authenticated user, organization, and active case.
-- [ ] Reset or branch context when the active case changes.
-- [ ] Bound turns and tokens, summarize older conversational context, and preserve material caveats.
+- [x] Use server-managed thread/message records with bounded prior turns.
+- [x] Bind thread IDs to authenticated user, organization, and optional active case.
+- [x] Branch context when the active case changes.
+- [~] Bound active memory to 24 stored turns; older-context summarization remains an enhancement.
 - [x] Keep `store: false` unless retention policy explicitly approves stored Responses.
-- [ ] Add tests for follow-ups, case switching, tenant isolation, stale conversation IDs, and context limits.
+- [~] Add tests for client thread propagation, missing persistence, tenant-scoped schema, and context limits;
+      isolated-Postgres follow-up and cross-tenant tests remain.
 
 Acceptance:
 
@@ -263,20 +262,16 @@ Acceptance:
 - Untrusted retrieved text cannot change authorization, tool, or output-policy instructions.
 - Golden abstention cases do not produce invented procedures, parts, labor, diagnoses, or percentages.
 
-### AI-204 — Add streaming and progress without weakening structured output
+### AI-204 — Preserve validated, reformatted text output
 
-- [ ] Define a versioned `/chat` event contract with retrieval, tool, model, partial-text, final-structured,
-      usage-summary, and error events.
-- [ ] Stream safe progress events immediately.
-- [ ] Buffer strict structured JSON until it validates; do not render incomplete JSON as an advisory.
-- [ ] Stream ordinary conversational text when the selected response schema permits it.
+- [!] Token-by-token text streaming is explicitly out of scope because the chat reformats validated output.
+- [x] Buffer strict structured JSON until it validates; do not render incomplete JSON as an advisory.
+- [x] Preserve one final authoritative response object for storage, audit, and rendering.
 - [ ] Add client cancellation when the panel closes, the active case changes, or the user sends a replacement request.
-- [ ] Preserve one final authoritative response object for audit and rendering.
 
 Acceptance:
 
-- The user sees meaningful progress before the final advisory.
-- Cancellation stops upstream generation and pending idempotent tool work where supported.
+- The user sees an intentional thinking/progress state before the final advisory.
 - Partial output is never mistaken for a validated maintenance advisory.
 
 ### AI-205 — Make the local model a real, constrained fallback or remove it
@@ -295,6 +290,21 @@ Acceptance:
 - Cloud failure produces either a tested constrained fallback or a clear text-only unavailable state.
 - The app does not load large unused models during normal web startup.
 - Offline output cannot be confused with an authoritative cloud/MCP result.
+
+### AI-206 — Persist cases and user profile state
+
+- [x] Expose authenticated tenant-scoped case list/get APIs over the existing PostgreSQL case spine.
+- [x] Persist user display settings by organization and user identity.
+- [x] Store authenticated JPEG, PNG, or WebP profile images with a 2 MiB server limit.
+- [x] Expose thread create/list/get/rename/archive and message-history APIs.
+- [x] Fail closed when persistent storage is unavailable.
+- [ ] Run migration `0012` and the application-state API suite against an isolated production-shaped PostgreSQL database.
+
+Acceptance:
+
+- Case, thread, message, profile, and image reads cannot cross organization or user boundaries.
+- A browser reload can resume the current server-owned conversation.
+- Profile settings and images survive browser-local storage loss.
 
 ## Phase 4: Observability, evaluation, and release
 
