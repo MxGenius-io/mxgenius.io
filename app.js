@@ -3374,16 +3374,16 @@ function setupGlobeSheet() {
   }
   // Hamburger filter toggle
   const filterHamburger = document.getElementById('globeFilterHamburger');
-  const filtersPanel = document.getElementById('globeFiltersPanel');
-  if (filterHamburger && filtersPanel) {
+  const sidebarWrapper = document.getElementById('globeSidebarWrapper');
+  const hamburgerIcon = document.getElementById('globeHamburgerIcon');
+  if (filterHamburger && sidebarWrapper) {
     filterHamburger.addEventListener('click', (e) => {
       e.stopPropagation();
-      filtersPanel.classList.toggle('hidden');
-    });
-    // Close filters when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!filtersPanel.contains(e.target) && !filterHamburger.contains(e.target)) {
-        filtersPanel.classList.add('hidden');
+      sidebarWrapper.classList.toggle('collapsed');
+      if (sidebarWrapper.classList.contains('collapsed')) {
+        hamburgerIcon.style.transform = 'rotate(180deg)';
+      } else {
+        hamburgerIcon.style.transform = 'rotate(0deg)';
       }
     });
   }
