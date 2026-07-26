@@ -816,6 +816,8 @@
         <select class="header-model-select" id="model-select">
             <option value="">No models loaded</option>
         </select>
+        <label for="model-upload-input" class="header-back-btn" style="margin-left:8px; margin-right:0; cursor:pointer;" title="Upload a tenant-scoped GLB model">Upload GLB</label>
+        <input id="model-upload-input" type="file" accept=".glb,model/gltf-binary" hidden>
 
         <div id="xr-button-container" style="margin-left: 15px;">
             <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
@@ -953,9 +955,8 @@
     </script>
 
     <script src="../runtime-config.js?v=3"></script>
-    <script src="../application-client.js?v=6"></script>
+    <script src="../application-client.js?v=9"></script>
     <script src="../realtime-client.js?v=2"></script>
-    <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
@@ -1031,6 +1032,7 @@
         let selectedMesh = null;
         let selectedOriginalMaterial = null;
         let selectedHighlightMaterial = null;
+        let pendingRemoteSelector = null;
         let pointerDownPosition = null;
         let viewerContext = {};
         let xrMediaPanel = null;
@@ -1231,18 +1233,34 @@
         //  Model Catalog — Fetch + Navigate
         // =============================================
         async function loadCatalog() {
+            let staticCatalog = [];
             try {
                 const res = await fetch('./models.json');
                 if (!res.ok) throw new Error('models.json not found');
-                catalog = await res.json();
+                staticCatalog = await res.json();
             } catch (e) {
                 console.warn('No models.json found, using empty catalog');
-                catalog = [];
             }
+            let uploadedCatalog = [];
+            try {
+                const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                if (session.accessToken || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
+                    const result = await globalThis.MXApplicationClient.digitalTwin.listModels(session);
+                    uploadedCatalog = (result.models || []).map((model) => ({
+                        ...model,
+                        modelId: model.id,
+                        provider: 'uploaded',
+                        operationalStatus: 'user_uploaded',
+                        description: `${model.mesh_manifest?.length || 0} selectable mesh nodes · tenant upload`
+                    }));
+                }
+            } catch (error) {
+                console.warn('Uploaded model catalog unavailable:', error);
+            }
+            catalog = [...uploadedCatalog, ...staticCatalog];
 
             if (catalog.length > 0) {
-                // Find helmet index if it exists, otherwise default to 0
-                let startIdx = catalog.findIndex(c => String(c.file || '').toLowerCase().includes('helmet'));
+                let startIdx = uploadedCatalog.length ? 0 : catalog.findIndex(c => String(c.file || '').toLowerCase().includes('helmet'));
                 if (startIdx === -1) startIdx = 0;
                 
                 catalogIndex = startIdx;
@@ -1270,6 +1288,10 @@
             if (idx < 0 || idx >= catalog.length) return;
             catalogIndex = idx;
             const entry = catalog[idx];
+            if (entry.provider === 'uploaded') {
+                loadUploadedModel(entry);
+                return;
+            }
             if (entry.provider === 'sketchfab') {
                 loadSketchfabModel(entry);
                 return;
@@ -1365,6 +1387,34 @@
                     }, 2000);
                 }
             );
+        }
+
+        async function loadUploadedModel(entry) {
+            activateLocalProvider();
+            loaderEl.classList.remove('hidden');
+            updateProgress(10, `Loading ${entry.name || 'uploaded model'}...`);
+            updateNavBar();
+            updateModelMeta(entry);
+            try {
+                const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                const bytes = await globalThis.MXApplicationClient.digitalTwin.modelContent(entry.modelId, session);
+                const loader = new GLTFLoader();
+                const dracoLoader = new DRACOLoader();
+                dracoLoader.setDecoderPath('./lib/libs/draco/');
+                loader.setDRACOLoader(dracoLoader);
+                loader.parse(bytes, '', (gltf) => {
+                    addModelToScene(gltf.scene);
+                    if (gltf.animations?.length) setupAnimations(gltf.animations, gltf.scene);
+                    updateProgress(100, 'Ready');
+                    setTimeout(() => loaderEl.classList.add('hidden'), 400);
+                }, (error) => {
+                    console.warn('Uploaded model parse error:', error);
+                    updateProgress(100, 'Uploaded GLB could not be rendered');
+                });
+            } catch (error) {
+                console.warn('Uploaded model load error:', error);
+                updateProgress(100, error.message || 'Uploaded GLB could not be loaded');
+            }
         }
 
         function loadFBX(url) {
@@ -1505,12 +1555,18 @@
                     type: 'mxgenius.viewer.ready',
                     version: 1,
                     model: {
+                        id: entry.modelId || entry.id || null,
                         name: entry.name || entry.file || 'Unknown model',
                         file: entry.file || null,
                         revision: entry.revision || null,
                         operationalStatus: entry.operationalStatus || 'unclassified'
                     }
                 }, window.location.origin);
+            }
+            if (pendingRemoteSelector) {
+                const selector = pendingRemoteSelector;
+                pendingRemoteSelector = null;
+                selectPartBySelector(selector);
             }
         }
 
@@ -1969,6 +2025,7 @@
             const detail = {
                 context: viewerContext,
                 model: {
+                    id: entry.modelId || entry.id || null,
                     name: entry.name || entry.file || 'Unknown model',
                     file: entry.file || null,
                     revision: entry.revision || null,
@@ -1987,7 +2044,20 @@
             partSelectionName.textContent = detail.selection.meshName;
             partSelectionPath.textContent = path || '(model root)';
             partSelectionStatus.textContent = mappingStatus;
-            if (emit) emitPartSelection(detail);
+            if (emit) {
+                emitPartSelection(detail);
+                const modelId = detail.model.id;
+                if (modelId) {
+                    const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                    void globalThis.MXApplicationClient.digitalTwin.saveHighlight({
+                        modelId,
+                        meshId: detail.selection.meshName,
+                        meshPath: detail.selection.path,
+                        componentId: detail.selection.componentId,
+                        session
+                    }).catch((error) => console.warn('Highlight state could not be persisted:', error));
+                }
+            }
         }
 
         function selectPartBySelector(selector = {}) {
@@ -2143,7 +2213,17 @@
                         : {};
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                 } else if (message.type === 'mxgenius.viewer.highlight-part') {
-                    selectPartBySelector(message.selector);
+                    const selector = message.selector || {};
+                    const requestedModelId = selector.modelId || selector.model_id;
+                    const requestedIndex = requestedModelId
+                        ? catalog.findIndex((entry) => String(entry.modelId || entry.id || '') === String(requestedModelId))
+                        : catalogIndex;
+                    if (requestedIndex >= 0 && requestedIndex !== catalogIndex) {
+                        pendingRemoteSelector = selector;
+                        loadModelByIndex(requestedIndex);
+                    } else {
+                        selectPartBySelector(selector);
+                    }
                 } else if (message.type === 'mxgenius.viewer.set-tutorial') {
                     configureProcedureMedia(message.tutorial);
                 } else if (message.type === 'mxgenius.viewer.clear-selection') {
@@ -2232,6 +2312,41 @@
                 const idx = parseInt(e.target.value);
                 if (!isNaN(idx) && idx >= 0 && idx < catalog.length) {
                     loadModelByIndex(idx);
+                }
+            });
+            document.getElementById('model-upload-input').addEventListener('change', async (event) => {
+                const input = event.currentTarget;
+                const file = input.files?.[0];
+                if (!file) return;
+                loaderEl.classList.remove('hidden');
+                updateProgress(5, `Uploading ${file.name}...`);
+                try {
+                    if (!file.name.toLowerCase().endsWith('.glb')) {
+                        throw new Error('Only self-contained GLB files are supported');
+                    }
+                    const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                    const uploaded = await globalThis.MXApplicationClient.digitalTwin.uploadModel({
+                        file,
+                        name: file.name.replace(/\.glb$/i, ''),
+                        applicableAircraft: viewerContext.aircraftId ? [viewerContext.aircraftId] : [],
+                        session
+                    });
+                    const entry = {
+                        ...uploaded,
+                        modelId: uploaded.id,
+                        provider: 'uploaded',
+                        operationalStatus: 'user_uploaded',
+                        description: `${uploaded.mesh_manifest?.length || 0} selectable mesh nodes · tenant upload`
+                    };
+                    catalog = [entry, ...catalog.filter((item) => String(item.modelId || item.id || '') !== String(uploaded.id))];
+                    catalogIndex = 0;
+                    updateNavBar();
+                    loadModelByIndex(0);
+                } catch (error) {
+                    updateProgress(100, error.message || 'GLB upload failed');
+                    setTimeout(() => loaderEl.classList.add('hidden'), 1800);
+                } finally {
+                    input.value = '';
                 }
             });
 

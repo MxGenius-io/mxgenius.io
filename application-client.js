@@ -140,7 +140,7 @@ const MXApplicationClient = (() => {
       .map(({ compact }) => compact);
   }
 
-  function chat({ message, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function chat({ message, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -154,6 +154,7 @@ const MXApplicationClient = (() => {
       credentials: 'include',
       body: JSON.stringify({
         message,
+        thread_id: threadId || null,
         history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
         case_context: caseContext || null
@@ -528,6 +529,63 @@ const MXApplicationClient = (() => {
     return { component, documents };
   }
 
+  function listTwinModels(session = {}) {
+    return applicationJson('/api/digital-twin/models', { session });
+  }
+
+  function uploadTwinModel({ file, name, revision = '1', lod = 'uploaded', applicableAircraft = [], session = {} }) {
+    if (!(file instanceof Blob)) throw new Error('A GLB file is required');
+    const query = new URLSearchParams({
+      name: String(name || 'Uploaded model'),
+      revision: String(revision || '1'),
+      lod: String(lod || 'uploaded'),
+      applicable_aircraft: applicableAircraft.map(String).join(',')
+    });
+    return applicationJson(`/api/digital-twin/models?${query}`, {
+      session,
+      method: 'POST',
+      body: file,
+      contentType: 'model/gltf-binary'
+    });
+  }
+
+  async function twinModelContent(modelId, session = {}) {
+    const response = await applicationRequest(
+      `/api/digital-twin/models/${encodeURIComponent(modelId)}/content`,
+      { session, contentType: null }
+    );
+    return response.arrayBuffer();
+  }
+
+  function saveTwinHighlight({ modelId, meshId, meshPath, componentId, zoneId, session = {} }) {
+    return applicationJson('/api/digital-twin/highlight', {
+      session,
+      method: 'PUT',
+      body: {
+        model_id: modelId,
+        mesh_id: meshId,
+        mesh_path: meshPath || null,
+        component_id: componentId || null,
+        zone_id: zoneId || null
+      }
+    });
+  }
+
+  function currentTwinHighlight(session = {}) {
+    return applicationJson('/api/digital-twin/highlight', { session });
+  }
+
+  function highlightTwinZone({ modelId, meshId, meshPath, componentId, zoneId, session = {} }) {
+    return callCapability('mxg.digital_twin.highlight_zone', {
+      model_id: modelId,
+      mesh_id: meshId || null,
+      mesh_path: meshPath || null,
+      component_id: componentId || null,
+      zone_id: zoneId || null,
+      read_current: false
+    }, { ...session, confirmationGrant: undefined });
+  }
+
   function attachTwinMarker({ caseId, componentId, zoneId, severity, observationId, session = {} }) {
     return callCapability('mxg.digital_twin.attach_case_marker', {
       case_id: caseId,
@@ -606,6 +664,12 @@ const MXApplicationClient = (() => {
       output: capabilityOutput
     }),
     digitalTwin: Object.freeze({
+      listModels: listTwinModels,
+      uploadModel: uploadTwinModel,
+      modelContent: twinModelContent,
+      saveHighlight: saveTwinHighlight,
+      currentHighlight: currentTwinHighlight,
+      highlight: highlightTwinZone,
       inspectSelection: inspectTwinSelection,
       attachMarker: attachTwinMarker
     }),

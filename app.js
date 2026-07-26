@@ -80,6 +80,18 @@ const MX3DViewer = {
 
 window.MX3DViewer = MX3DViewer;
 
+function applyCapabilityUiEffect(name, envelopeOrOutput) {
+  if (name !== 'mxg.digital_twin.highlight_zone') return;
+  const output = envelopeOrOutput?.output || envelopeOrOutput || {};
+  const meshName = Array.isArray(output.mesh_ids) ? output.mesh_ids[0] : null;
+  if (!output.model_id || !meshName) return;
+  MX3DViewer.highlightPart({
+    modelId: output.model_id,
+    meshName,
+    path: output.mesh_path || null
+  });
+}
+
 const MXCaseState = {
   active: null,
   normalizeRegistration(value) {
@@ -1421,6 +1433,7 @@ Rules:
       }
       const response = await MXApplicationClient.chat({
         message: text,
+        threadId: activeThreadId,
         history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
         caseContext: activeCaseContext && {
@@ -1445,6 +1458,11 @@ Rules:
       try {
         const rawData = JSON.parse(rawText);
         data = rawData.response || rawData;
+        (data?.client_actions || []).forEach((action) => {
+          if (action?.type === 'digital_twin.highlight') {
+            applyCapabilityUiEffect('mxg.digital_twin.highlight_zone', action.payload);
+          }
+        });
         if (data?.thread_id) {
           activeThreadId = data.thread_id;
           localStorage.setItem('mxg_active_thread_id', activeThreadId);
@@ -1830,6 +1848,7 @@ Rules:
         correlationId: window.crypto?.randomUUID?.(),
         confirmationGrant
       });
+      applyCapabilityUiEffect(name, envelope);
       realtimeSession.sendToolOutput(callId, envelope);
     } catch (error) {
       realtimeSession.sendToolOutput(callId, {

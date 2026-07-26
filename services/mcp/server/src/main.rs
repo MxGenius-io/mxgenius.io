@@ -103,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
             case_service,
             evidence_service,
             RegistryAdapters {
+                pool: production_pool.clone(),
                 manual: manual.clone(),
                 jetnet,
                 aircraft_catalog,

@@ -1,4 +1,4 @@
-//! Digital twin contracts (5): `mxg.digital_twin.*`.
+//! Digital twin contracts: `mxg.digital_twin.*`.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,18 @@ pub struct TwinModelDto {
     pub lod: String,
     pub applicable_aircraft: Vec<String>,
     pub resource_url: String,
+    pub mesh_manifest: Vec<TwinMeshDto>,
     pub freshness: Option<UtcDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TwinMeshDto {
+    pub mesh_id: String,
+    pub node_index: Option<u32>,
+    pub mesh_index: Option<u32>,
+    pub vertex_count: Option<u64>,
+    pub bounds_min: Option<Vec<f32>>,
+    pub bounds_max: Option<Vec<f32>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -62,18 +73,26 @@ pub struct DigitalTwinComponentStateResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DigitalTwinHighlightZoneRequest {
-    pub model_id: ModelId,
+    pub model_id: Option<ModelId>,
+    pub mesh_id: Option<String>,
+    pub mesh_path: Option<String>,
     pub component_id: Option<String>,
     pub zone_id: Option<String>,
+    #[serde(default)]
+    pub read_current: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DigitalTwinHighlightZoneResponse {
-    pub model_id: ModelId,
+    pub model_id: Option<ModelId>,
     pub mesh_ids: Vec<String>,
+    pub mesh_path: Option<String>,
+    pub component_id: Option<String>,
     pub zone_id: Option<String>,
+    pub source: Option<String>,
     pub camera_preset: Option<String>,
     pub annotation_ids: Vec<String>,
+    pub updated_at: Option<UtcDateTime>,
 }
 
 // 36. mxg.digital_twin.link_documents ------------------------------------

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::body::{Body, Bytes};
-use axum::extract::{Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -37,6 +37,7 @@ const OPENAI_REALTIME_CALLS_URL: &str = "https://api.openai.com/v1/realtime/call
 const OPENAI_RESPONSES_URL: &str = "https://api.openai.com/v1/responses";
 const MAX_CHAT_MESSAGE_BYTES: usize = 20 * 1024;
 const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
@@ -126,11 +127,24 @@ pub fn router_with_health_and_manual(
                 .put(put_profile_image)
                 .delete(delete_profile_image),
         )
+        .route(
+            "/api/digital-twin/models",
+            get(list_twin_models).post(upload_twin_model),
+        )
+        .route(
+            "/api/digital-twin/models/:model_id/content",
+            get(get_twin_model_content),
+        )
+        .route(
+            "/api/digital-twin/highlight",
+            get(get_twin_highlight).put(put_twin_highlight),
+        )
         .route("/confirmations", post(issue_confirmation))
         .route("/orchestration/cases/first-slice", post(first_case_slice))
         .route("/realtime/calls", post(create_realtime_call))
         .route("/mcp", get(method_not_allowed).post(handle))
         .with_state(state)
+        .layer(DefaultBodyLimit::max(MAX_TWIN_MODEL_BYTES))
         .layer(cors_layer())
         .layer(TraceLayer::new_for_http())
 }
@@ -1188,8 +1202,434 @@ async fn delete_profile_image(State(state): State<AppState>, headers: HeaderMap)
 }
 
 #[derive(Debug, Deserialize)]
+struct UploadTwinModelQuery {
+    name: String,
+    #[serde(default)]
+    revision: Option<String>,
+    #[serde(default)]
+    lod: Option<String>,
+    #[serde(default)]
+    applicable_aircraft: Option<String>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct TwinModelApiRow {
+    id: Uuid,
+    name: String,
+    revision: String,
+    lod: String,
+    applicable_aircraft: Vec<String>,
+    content_hash: String,
+    mesh_manifest: Value,
+    created_at: OffsetDateTime,
+    updated_at: OffsetDateTime,
+}
+
+fn twin_model_response(row: TwinModelApiRow) -> Value {
+    json!({
+        "id": row.id,
+        "name": row.name,
+        "revision": row.revision,
+        "lod": row.lod,
+        "applicable_aircraft": row.applicable_aircraft,
+        "content_hash": row.content_hash,
+        "mesh_manifest": row.mesh_manifest,
+        "resource_url": format!("/api/digital-twin/models/{}/content", row.id),
+        "created_at": row.created_at,
+        "updated_at": row.updated_at
+    })
+}
+
+fn glb_u32(bytes: &[u8], offset: usize) -> Option<u32> {
+    bytes
+        .get(offset..offset + 4)
+        .and_then(|value| value.try_into().ok())
+        .map(u32::from_le_bytes)
+}
+
+fn parse_glb_mesh_manifest(bytes: &[u8]) -> Result<Value, &'static str> {
+    if bytes.len() < 20 || bytes.get(0..4) != Some(b"glTF") {
+        return Err("file is not a binary glTF (GLB) asset");
+    }
+    if glb_u32(bytes, 4) != Some(2) {
+        return Err("only GLB version 2 is supported");
+    }
+    let declared_length = glb_u32(bytes, 8).unwrap_or_default() as usize;
+    if declared_length != bytes.len() {
+        return Err("GLB declared length does not match the uploaded content");
+    }
+    let json_length = glb_u32(bytes, 12).unwrap_or_default() as usize;
+    if glb_u32(bytes, 16) != Some(0x4E4F534A) || 20 + json_length > bytes.len() {
+        return Err("GLB does not contain a valid JSON metadata chunk");
+    }
+    let document: Value = serde_json::from_slice(&bytes[20..20 + json_length])
+        .map_err(|_| "GLB JSON metadata is invalid")?;
+    let meshes = document
+        .get("meshes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let nodes = document
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let accessors = document
+        .get("accessors")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut manifest = Vec::new();
+    for (node_index, node) in nodes.iter().enumerate() {
+        let Some(mesh_index) = node.get("mesh").and_then(Value::as_u64) else {
+            continue;
+        };
+        let mesh = meshes.get(mesh_index as usize);
+        let mesh_id = node
+            .get("name")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                mesh.and_then(|value| value.get("name"))
+                    .and_then(Value::as_str)
+            })
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("mesh-{mesh_index}-node-{node_index}"));
+        let position_accessor = mesh
+            .and_then(|value| value.get("primitives"))
+            .and_then(Value::as_array)
+            .and_then(|primitives| primitives.first())
+            .and_then(|primitive| primitive.pointer("/attributes/POSITION"))
+            .and_then(Value::as_u64)
+            .and_then(|index| accessors.get(index as usize));
+        manifest.push(json!({
+            "mesh_id": mesh_id,
+            "node_index": node_index,
+            "mesh_index": mesh_index,
+            "vertex_count": position_accessor
+                .and_then(|accessor| accessor.get("count"))
+                .and_then(Value::as_u64),
+            "bounds_min": position_accessor.and_then(|accessor| accessor.get("min")).cloned(),
+            "bounds_max": position_accessor.and_then(|accessor| accessor.get("max")).cloned()
+        }));
+    }
+    if manifest.is_empty() {
+        return Err("GLB contains no named or selectable mesh nodes");
+    }
+    Ok(Value::Array(manifest))
+}
+
+async fn list_twin_models(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, TwinModelApiRow>(
+        r#"SELECT id,name,revision,lod,applicable_aircraft,content_hash,
+                  mesh_manifest,created_at,updated_at
+           FROM digital_twin_models
+           WHERE organization_id=$1
+           ORDER BY updated_at DESC
+           LIMIT 100"#,
+    )
+    .bind(context.organization_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(rows) => (
+            StatusCode::OK,
+            Json(json!({"models": rows.into_iter().map(twin_model_response).collect::<Vec<_>>()})),
+        )
+            .into_response(),
+        Err(error) => persistence_error("digital_twin.models.list", error),
+    }
+}
+
+async fn upload_twin_model(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(input): Query<UploadTwinModelQuery>,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if body.len() < 20 || body.len() > MAX_TWIN_MODEL_BYTES {
+        return realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "INVALID_TWIN_MODEL_SIZE",
+            "GLB model must be between 20 bytes and 100 MiB",
+        );
+    }
+    let media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    if media_type != "model/gltf-binary" {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_TWIN_MODEL_TYPE",
+            "digital twin uploads must use the model/gltf-binary content type",
+        );
+    }
+    let name = input.name.trim();
+    let revision = input.revision.as_deref().unwrap_or("1").trim();
+    let lod = input.lod.as_deref().unwrap_or("uploaded").trim();
+    if name.is_empty()
+        || name.chars().count() > 160
+        || revision.is_empty()
+        || revision.chars().count() > 80
+        || lod.is_empty()
+        || lod.chars().count() > 40
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_TWIN_MODEL_METADATA",
+            "name, revision, or LOD metadata is invalid",
+        );
+    }
+    let mesh_manifest = match parse_glb_mesh_manifest(&body) {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_GLB", message);
+        }
+    };
+    let applicable_aircraft = input
+        .applicable_aircraft
+        .as_deref()
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .take(50)
+        .map(|value| value.chars().take(120).collect::<String>())
+        .collect::<Vec<_>>();
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let id = Uuid::new_v4();
+    let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    let result = sqlx::query_as::<_, TwinModelApiRow>(
+        r#"INSERT INTO digital_twin_models
+           (id,organization_id,uploaded_by,name,revision,lod,applicable_aircraft,
+            media_type,content,content_hash,mesh_manifest,created_at,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'model/gltf-binary',$8,$9,$10,now(),now())
+           ON CONFLICT (organization_id,content_hash) DO UPDATE SET
+             name=EXCLUDED.name, revision=EXCLUDED.revision, lod=EXCLUDED.lod,
+             applicable_aircraft=EXCLUDED.applicable_aircraft,
+             mesh_manifest=EXCLUDED.mesh_manifest, updated_at=now()
+           RETURNING id,name,revision,lod,applicable_aircraft,content_hash,
+                     mesh_manifest,created_at,updated_at"#,
+    )
+    .bind(id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(name)
+    .bind(revision)
+    .bind(lod)
+    .bind(applicable_aircraft)
+    .bind(body.as_ref())
+    .bind(&content_hash)
+    .bind(mesh_manifest)
+    .fetch_one(pool)
+    .await;
+    match result {
+        Ok(row) => (StatusCode::CREATED, Json(twin_model_response(row))).into_response(),
+        Err(error) => persistence_error("digital_twin.models.upload", error),
+    }
+}
+
+async fn get_twin_model_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(model_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let row: Result<Option<(Vec<u8>, String)>, sqlx::Error> = sqlx::query_as(
+        r#"SELECT content,content_hash FROM digital_twin_models
+           WHERE organization_id=$1 AND id=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(model_id)
+    .fetch_optional(pool)
+    .await;
+    match row {
+        Ok(Some((content, content_hash))) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "model/gltf-binary")
+            .header(header::CACHE_CONTROL, "private, max-age=300")
+            .header(header::ETAG, format!("\"{content_hash}\""))
+            .body(Body::from(content))
+            .expect("valid GLB response"),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "TWIN_MODEL_NOT_FOUND",
+            "digital twin model not found",
+        ),
+        Err(error) => persistence_error("digital_twin.models.content", error),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PutTwinHighlightRequest {
+    model_id: Uuid,
+    mesh_id: String,
+    #[serde(default)]
+    mesh_path: Option<String>,
+    #[serde(default)]
+    component_id: Option<String>,
+    #[serde(default)]
+    zone_id: Option<String>,
+}
+
+async fn put_twin_highlight(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<PutTwinHighlightRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mesh_id = input.mesh_id.trim();
+    if mesh_id.is_empty() || mesh_id.chars().count() > 400 {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_MESH_SELECTOR",
+            "mesh_id must contain between 1 and 400 characters",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let exists: Result<bool, sqlx::Error> = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM digital_twin_models WHERE organization_id=$1 AND id=$2)",
+    )
+    .bind(context.organization_id.0)
+    .bind(input.model_id)
+    .fetch_one(pool)
+    .await;
+    match exists {
+        Ok(false) => {
+            return realtime_error(
+                StatusCode::NOT_FOUND,
+                "TWIN_MODEL_NOT_FOUND",
+                "digital twin model not found",
+            )
+        }
+        Err(error) => return persistence_error("digital_twin.highlight.model", error),
+        Ok(true) => {}
+    }
+    let mesh_ids = json!([mesh_id]);
+    let result = sqlx::query(
+        r#"INSERT INTO digital_twin_highlight_state
+           (organization_id,user_id,model_id,mesh_ids,mesh_path,component_id,zone_id,source,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'user_raycast',now())
+           ON CONFLICT (organization_id,user_id) DO UPDATE SET
+             model_id=EXCLUDED.model_id, mesh_ids=EXCLUDED.mesh_ids,
+             mesh_path=EXCLUDED.mesh_path, component_id=EXCLUDED.component_id,
+             zone_id=EXCLUDED.zone_id, source=EXCLUDED.source, updated_at=now()"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(input.model_id)
+    .bind(&mesh_ids)
+    .bind(input.mesh_path.as_deref())
+    .bind(input.component_id.as_deref())
+    .bind(input.zone_id.as_deref())
+    .execute(pool)
+    .await;
+    match result {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({
+                "model_id": input.model_id,
+                "mesh_ids": mesh_ids,
+                "mesh_path": input.mesh_path,
+                "component_id": input.component_id,
+                "zone_id": input.zone_id,
+                "source": "user_raycast"
+            })),
+        )
+            .into_response(),
+        Err(error) => persistence_error("digital_twin.highlight.put", error),
+    }
+}
+
+async fn get_twin_highlight(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let row: Result<
+        Option<(
+            Uuid,
+            Value,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            String,
+            OffsetDateTime,
+        )>,
+        sqlx::Error,
+    > = sqlx::query_as(
+        r#"SELECT model_id,mesh_ids,mesh_path,component_id,zone_id,source,updated_at
+               FROM digital_twin_highlight_state
+               WHERE organization_id=$1 AND user_id=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await;
+    match row {
+        Ok(Some((model_id, mesh_ids, mesh_path, component_id, zone_id, source, updated_at))) => (
+            StatusCode::OK,
+            Json(json!({
+                "model_id": model_id,
+                "mesh_ids": mesh_ids,
+                "mesh_path": mesh_path,
+                "component_id": component_id,
+                "zone_id": zone_id,
+                "source": source,
+                "updated_at": updated_at
+            })),
+        )
+            .into_response(),
+        Ok(None) => (
+            StatusCode::OK,
+            Json(json!({"model_id": null, "mesh_ids": []})),
+        )
+            .into_response(),
+        Err(error) => persistence_error("digital_twin.highlight.get", error),
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct ChatRequest {
     message: String,
+    #[serde(default)]
+    thread_id: Option<Uuid>,
     #[serde(default)]
     history: Vec<ChatTurn>,
     #[serde(default)]
@@ -1198,10 +1638,156 @@ struct ChatRequest {
     case_context: Option<Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ChatTurn {
     role: String,
     content: String,
+}
+
+fn first_message_title(message: &str) -> String {
+    let title = message
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(80)
+        .collect::<String>();
+    if title.is_empty() {
+        "New conversation".into()
+    } else {
+        title
+    }
+}
+
+async fn prepare_chat_memory(
+    pool: &sqlx::PgPool,
+    context: &ExecutionContext,
+    requested_thread_id: Option<Uuid>,
+    case_id: Option<Uuid>,
+    message: &str,
+) -> Result<(Uuid, Vec<ChatTurn>), Response> {
+    let thread = if let Some(thread_id) = requested_thread_id {
+        match sqlx::query_as::<_, ThreadApiRow>(
+            r#"SELECT id, case_id, title, status, created_at, updated_at
+               FROM chat_threads
+               WHERE id=$1 AND organization_id=$2 AND user_id=$3"#,
+        )
+        .bind(thread_id)
+        .bind(context.organization_id.0)
+        .bind(context.user_id.0)
+        .fetch_optional(pool)
+        .await
+        {
+            Ok(Some(thread)) if thread.status == "active" => thread,
+            Ok(Some(_)) => {
+                return Err(realtime_error(
+                    StatusCode::CONFLICT,
+                    "THREAD_ARCHIVED",
+                    "conversation thread is archived",
+                ))
+            }
+            Ok(None) => {
+                return Err(realtime_error(
+                    StatusCode::NOT_FOUND,
+                    "THREAD_NOT_FOUND",
+                    "conversation thread not found",
+                ))
+            }
+            Err(error) => return Err(persistence_error("chat.thread.get", error)),
+        }
+    } else {
+        if let Some(case_id) = case_id {
+            match case_exists(pool, context.organization_id.0, case_id).await {
+                Ok(true) => {}
+                Ok(false) => {
+                    return Err(realtime_error(
+                        StatusCode::BAD_REQUEST,
+                        "CASE_NOT_FOUND",
+                        "chat case was not found",
+                    ))
+                }
+                Err(error) => return Err(persistence_error("chat.case_check", error)),
+            }
+        }
+        insert_thread(pool, context, &first_message_title(message), case_id)
+            .await
+            .map_err(|error| persistence_error("chat.thread.create", error))?
+    };
+    if case_id.is_some() && thread.case_id != case_id {
+        return Err(realtime_error(
+            StatusCode::CONFLICT,
+            "THREAD_CASE_MISMATCH",
+            "conversation thread belongs to a different case context",
+        ));
+    }
+    let history = sqlx::query_as::<_, (String, String)>(
+        r#"SELECT role, content FROM (
+             SELECT role, content, created_at, id
+             FROM chat_messages
+             WHERE thread_id=$1 AND organization_id=$2 AND user_id=$3
+             ORDER BY created_at DESC, id DESC
+             LIMIT $4
+           ) recent
+           ORDER BY created_at, id"#,
+    )
+    .bind(thread.id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(CHAT_MEMORY_TURN_LIMIT)
+    .fetch_all(pool)
+    .await
+    .map_err(|error| persistence_error("chat.memory.load", error))?
+    .into_iter()
+    .map(|(role, content)| ChatTurn { role, content })
+    .collect();
+    Ok((thread.id, history))
+}
+
+async fn persist_chat_exchange(
+    pool: &sqlx::PgPool,
+    context: &ExecutionContext,
+    thread_id: Uuid,
+    message: &str,
+    assistant_content: &str,
+    response_id: Option<&str>,
+    assistant_payload: &Value,
+) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    sqlx::query(
+        r#"INSERT INTO chat_messages
+           (id,thread_id,organization_id,user_id,role,content,created_at)
+           VALUES ($1,$2,$3,$4,'user',$5,now())"#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(message)
+    .execute(&mut *transaction)
+    .await?;
+    sqlx::query(
+        r#"INSERT INTO chat_messages
+           (id,thread_id,organization_id,user_id,role,content,response_id,payload,created_at)
+           VALUES ($1,$2,$3,$4,'assistant',$5,$6,$7,now())"#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(assistant_content)
+    .bind(response_id)
+    .bind(assistant_payload)
+    .execute(&mut *transaction)
+    .await?;
+    sqlx::query(
+        "UPDATE chat_threads SET updated_at=now() WHERE id=$1 AND organization_id=$2 AND user_id=$3",
+    )
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await
 }
 
 fn maintenance_advisory_schema() -> Value {
@@ -1686,6 +2272,7 @@ async fn chat(
     let mut final_payload = None;
     let mut answer = String::new();
     let mut model_tool_calls = 0usize;
+    let mut client_actions = Vec::new();
     for _ in 0..4 {
         let upstream = match state
             .realtime_client
@@ -1768,6 +2355,8 @@ async fn chat(
                 .and_then(Value::as_str)
                 .and_then(|value| serde_json::from_str::<Value>(value).ok())
                 .unwrap_or_else(|| json!({}));
+            let reads_current_highlight =
+                arguments.get("read_current").and_then(Value::as_bool) == Some(true);
             let allowed = state
                 .dispatcher
                 .registry()
@@ -1781,6 +2370,14 @@ async fn chat(
                 match invoke(&state.dispatcher, auth.clone(), &tool_name, arguments).await {
                     Ok(envelope) => {
                         capability_trace.push(trace_summary(&tool_name, &envelope));
+                        if tool_name == "mxg.digital_twin.highlight_zone"
+                            && !reads_current_highlight
+                        {
+                            client_actions.push(json!({
+                                "type": "digital_twin.highlight",
+                                "payload": envelope.get("output").cloned().unwrap_or(Value::Null)
+                            }));
+                        }
                         envelope
                     }
                     Err(_) => {
@@ -1834,6 +2431,21 @@ async fn chat(
             "OpenAI service cited evidence that was not retrieved",
         );
     }
+    if let (Some(pool), Some(thread_id)) = (&persistent_pool, thread_id) {
+        if let Err(error) = persist_chat_exchange(
+            pool,
+            &context,
+            thread_id,
+            message,
+            &answer,
+            payload.get("id").and_then(Value::as_str),
+            &advisory,
+        )
+        .await
+        {
+            return persistence_error("chat.memory.persist", error);
+        }
+    }
     let include_references =
         advisory.get("response_kind").and_then(Value::as_str) == Some("maintenance_advisory");
     let manual_records = if include_references {
@@ -1878,6 +2490,7 @@ async fn chat(
                 "memory_persisted": persistent_pool.is_some(),
                 "usage": payload.get("usage"),
                 "capability_trace": capability_trace,
+                "client_actions": client_actions,
                 "correlation_id": context.correlation_id
             }
         })),

@@ -517,7 +517,7 @@ fn all_50_tool_schemas_match_the_locked_snapshot() {
     let encoded = serde_json::to_vec(&snapshot).unwrap();
     let actual = hex::encode(sha2::Sha256::digest(encoded));
     assert_eq!(
-        actual, "707e9a61a87b93d8c683dbe0e8558aecb67694de02a3f014cd13c4c775de117c",
+        actual, "c8a26851e578fc5bb7b5a8cddbf91d37511f0dab1e02dc688f8f9c4472e8d192",
         "schema snapshot changed: {actual}"
     );
 }
