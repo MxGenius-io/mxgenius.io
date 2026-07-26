@@ -161,6 +161,93 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function listCases(session = {}) {
+    return applicationJson('/api/cases', { session });
+  }
+
+  function getCase(caseId, session = {}) {
+    return applicationJson(`/api/cases/${encodeURIComponent(caseId)}`, { session });
+  }
+
+  function listThreads(session = {}) {
+    return applicationJson('/api/threads', { session });
+  }
+
+  function createThread({ title, caseId, session = {} } = {}) {
+    return applicationJson('/api/threads', {
+      session,
+      method: 'POST',
+      body: { title: title || null, case_id: caseId || null }
+    });
+  }
+
+  function getThread(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, { session });
+  }
+
+  function updateThread(threadId, changes, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, {
+      session,
+      method: 'PATCH',
+      body: {
+        title: changes?.title ?? null,
+        status: changes?.status ?? null
+      }
+    });
+  }
+
+  function archiveThread(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}`, {
+      session,
+      method: 'DELETE'
+    });
+  }
+
+  function listThreadMessages(threadId, session = {}) {
+    return applicationJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, { session });
+  }
+
+  function getProfile(session = {}) {
+    return applicationJson('/api/profile', { session });
+  }
+
+  function updateProfile(profile, session = {}) {
+    return applicationJson('/api/profile', {
+      session,
+      method: 'PATCH',
+      body: {
+        display_name: profile?.displayName ?? null,
+        timezone: profile?.timezone ?? null,
+        settings: profile?.settings || {}
+      }
+    });
+  }
+
+  async function getProfileImage(session = {}) {
+    return (await applicationRequest('/api/profile/image', {
+      session,
+      contentType: null
+    })).blob();
+  }
+
+  function putProfileImage(file, session = {}) {
+    if (!(file instanceof Blob)) throw new TypeError('Profile image must be a Blob or File');
+    return applicationJson('/api/profile/image', {
+      session,
+      method: 'PUT',
+      body: file,
+      contentType: file.type
+    });
+  }
+
+  function deleteProfileImage(session = {}) {
+    return applicationRequest('/api/profile/image', {
+      session,
+      method: 'DELETE',
+      contentType: null
+    });
+  }
+
   async function exchangeRealtimeSdp({ sdp, session = {} }) {
     if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     if (typeof sdp !== 'string' || !sdp.startsWith('v=0')) {
@@ -488,6 +575,25 @@ const MXApplicationClient = (() => {
     aircraftList,
     bulkAircraft,
     chat,
+    cases: Object.freeze({
+      list: listCases,
+      get: getCase
+    }),
+    threads: Object.freeze({
+      list: listThreads,
+      create: createThread,
+      get: getThread,
+      update: updateThread,
+      archive: archiveThread,
+      messages: listThreadMessages
+    }),
+    profile: Object.freeze({
+      get: getProfile,
+      update: updateProfile,
+      getImage: getProfileImage,
+      putImage: putProfileImage,
+      deleteImage: deleteProfileImage
+    }),
     companyDetail,
     companyList,
     contactList,

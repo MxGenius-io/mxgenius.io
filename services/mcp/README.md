@@ -96,6 +96,7 @@ Production startup:
 7. mounts the authoritative manual corpus only when its Search filter and embedding provider are configured, and exposes verified linked images through the authenticated `/manual-assets` proxy when private asset access is configured;
 8. mounts JetNet through a tenant-scoped canonical aircraft catalog when its credentials are present;
 9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable.
+10. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images.
 
 Live manual retrieval can be checked without starting the full authenticated server:
 

@@ -161,3 +161,41 @@ test('concurrent connect requests share one in-flight operation', async () => {
   await Promise.all([first, second]);
   assert.equal(captureCount, 1);
 });
+
+test('Realtime capture starts live and mute state is controlled without closing WebRTC', async () => {
+  const MXRealtime = loadClient();
+  const events = [];
+  const track = { enabled: false, stop() {} };
+  const media = {
+    getAudioTracks: () => [track],
+    getTracks: () => [track]
+  };
+  const peer = {
+    connectionState: 'new',
+    close() {},
+    createDataChannel: () => ({ addEventListener() {}, close() {} }),
+    addTrack() {},
+    createOffer: async () => ({ type: 'offer', sdp: 'v=0\r\no=offer' }),
+    setLocalDescription: async () => {},
+    setRemoteDescription: async () => {}
+  };
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0\r\no=answer' }),
+    peerFactory: () => peer,
+    mediaDevices: { getUserMedia: async () => media },
+    onEvent: (event) => events.push(event)
+  });
+
+  await session.connect({ session: { accessToken: 'token' }, audioElement: {} });
+  assert.equal(track.enabled, true);
+  assert.equal(session.isMicrophoneEnabled(), true);
+
+  assert.equal(session.setMicrophoneEnabled(false), false);
+  assert.equal(track.enabled, false);
+  assert.equal(session.peer, peer);
+
+  assert.equal(session.setMicrophoneEnabled(true), true);
+  assert.equal(track.enabled, true);
+  assert.ok(events.some((event) => event.type === 'microphone' && event.enabled === true));
+  assert.ok(events.some((event) => event.type === 'microphone' && event.enabled === false));
+});

@@ -435,6 +435,17 @@
           </div>
           <div class="settings-row">
             <div class="settings-label">
+              <span>Profile Image</span>
+              <span class="settings-hint" id="settingsProfileImageStatus">JPEG, PNG, or WebP up to 2 MiB</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <input id="settingsProfileImageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+              <button class="btn-primary" style="padding:6px 12px;font-size:0.78rem;" id="settingsProfileImageChoose" type="button">Upload</button>
+              <button class="btn-primary" style="padding:6px 12px;font-size:0.78rem;background:#64748b;" id="settingsProfileImageRemove" type="button">Remove</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
               <span>Organization</span>
               <span class="settings-hint" id="settingsOrgId">&mdash;</span>
             </div>
@@ -521,6 +532,10 @@
         <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Realtime</span>
         <span id="realtimeStateLabel" style="font-size:0.72rem;color:var(--text-muted);">Voice disconnected</span>
       </div>
+      <select id="chatThreadSelect" class="search-input" aria-label="Conversation thread" style="max-width:180px;padding:5px 8px;font-size:0.72rem;">
+        <option value="">New conversation</option>
+      </select>
+      <button id="chatNewThreadBtn" type="button" class="btn-primary" title="Start a new conversation" aria-label="Start a new conversation" style="padding:5px 9px;font-size:0.8rem;">+</button>
       <button id="realtimeInterruptBtn" class="realtime-interrupt" type="button" hidden>Interrupt</button>
       <button id="closeChatBtn" class="chat-close-btn" aria-label="Close copilot">&times;</button>
     </div>
@@ -559,12 +574,12 @@
   <script src="auth.js"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=7"></script>
-  <script src="realtime-client.js"></script>
+<script src="application-client.js?v=8"></script>
+  <script src="realtime-client.js?v=2"></script>
   <script src="case-workspace.js?v=2"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=2"></script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=14"></script>
   <div id="onboardingRoot"></div>
 </body>
 

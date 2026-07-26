@@ -6,16 +6,20 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use axum::body::Bytes;
-use axum::extract::{Query, State};
+use axum::body::{Body, Bytes};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::Digest;
+use sqlx::FromRow;
+use time::OffsetDateTime;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
+use uuid::Uuid;
 
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -23,6 +27,7 @@ use crate::dispatcher::{Dispatcher, JsonRpcRequest};
 use mxgenius_shared::adapters::manual::{
     ManualCorpusAdapter, ManualQuery, NotConfiguredManualAdapter,
 };
+use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceAssetAvailability};
 use mxgenius_shared::domain::ids::{CorrelationId, OrganizationId};
 
@@ -31,6 +36,10 @@ const MAX_REALTIME_SDP_BYTES: usize = 64 * 1024;
 const OPENAI_REALTIME_CALLS_URL: &str = "https://api.openai.com/v1/realtime/calls";
 const OPENAI_RESPONSES_URL: &str = "https://api.openai.com/v1/responses";
 const MAX_CHAT_MESSAGE_BYTES: usize = 20 * 1024;
+const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
+const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
+const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
 
 #[derive(Clone)]
 struct AppState {
@@ -99,6 +108,24 @@ pub fn router_with_health_and_manual(
         .route("/adapterz", get(adapterz))
         .route("/manual-assets", get(manual_asset))
         .route("/chat", post(chat))
+        .route("/api/cases", get(list_cases))
+        .route("/api/cases/:case_id", get(get_case))
+        .route("/api/threads", get(list_threads).post(create_thread))
+        .route(
+            "/api/threads/:thread_id",
+            get(get_thread).patch(update_thread).delete(archive_thread),
+        )
+        .route(
+            "/api/threads/:thread_id/messages",
+            get(list_thread_messages),
+        )
+        .route("/api/profile", get(get_profile).patch(update_profile))
+        .route(
+            "/api/profile/image",
+            get(get_profile_image)
+                .put(put_profile_image)
+                .delete(delete_profile_image),
+        )
         .route("/confirmations", post(issue_confirmation))
         .route("/orchestration/cases/first-slice", post(first_case_slice))
         .route("/realtime/calls", post(create_realtime_call))
@@ -119,7 +146,14 @@ fn cors_layer() -> CorsLayer {
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([
             header::ACCEPT,
             header::AUTHORIZATION,
@@ -448,6 +482,711 @@ async fn issue_confirmation(
     }
 }
 
+fn postgres_pool(state: &AppState) -> Option<&sqlx::PgPool> {
+    match &state.health {
+        HealthState::Postgres(pool) => Some(pool),
+        HealthState::Local => None,
+    }
+}
+
+fn persistence_not_configured() -> Response {
+    realtime_error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "PERSISTENCE_NOT_CONFIGURED",
+        "server-side persistence is not configured",
+    )
+}
+
+async fn application_context(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ExecutionContext, Response> {
+    if !origin_allowed(headers) {
+        return Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        ));
+    }
+    let mut auth = auth_request(headers)
+        .map_err(|message| realtime_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message))?;
+    auth.confirmation_grant = None;
+    match state.dispatcher.authenticate(&auth).await {
+        Ok(value) => Ok(value),
+        Err(AuthError::Required | AuthError::InvalidToken(_)) => Err(realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "AUTH_REQUIRED",
+            "authentication required",
+        )),
+        Err(AuthError::TenantMismatch) => Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "TENANT_MISMATCH",
+            "tenant access denied",
+        )),
+        Err(AuthError::Internal(_)) => Err(realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "AUTH_UNAVAILABLE",
+            "authentication service unavailable",
+        )),
+    }
+}
+
+fn persistence_error(operation: &'static str, error: impl std::fmt::Display) -> Response {
+    tracing::error!(
+        target: "mxgenius.persistence",
+        %error,
+        operation,
+        "server-side persistence operation failed"
+    );
+    realtime_error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "PERSISTENCE_UNAVAILABLE",
+        "server-side persistence is temporarily unavailable",
+    )
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct CaseApiRow {
+    case_id: Uuid,
+    aircraft_id: String,
+    status: String,
+    priority: String,
+    opened_at: OffsetDateTime,
+    updated_at: OffsetDateTime,
+    location: Option<Value>,
+    raw_discrepancy: String,
+    normalized_discrepancy: Option<Value>,
+    assigned_user_ids: Vec<Uuid>,
+    evidence_ids: Vec<Uuid>,
+    approval_state: String,
+    version: i64,
+}
+
+async fn list_cases(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, CaseApiRow>(
+        r#"SELECT case_id, aircraft_id, status, priority, opened_at, updated_at,
+                  location, raw_discrepancy, normalized_discrepancy,
+                  assigned_user_ids, evidence_ids, approval_state, version
+           FROM maintenance_cases
+           WHERE organization_id=$1
+           ORDER BY updated_at DESC
+           LIMIT 250"#,
+    )
+    .bind(context.organization_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(cases) => (StatusCode::OK, Json(json!({"cases": cases}))).into_response(),
+        Err(error) => persistence_error("cases.list", error),
+    }
+}
+
+async fn get_case(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(case_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, CaseApiRow>(
+        r#"SELECT case_id, aircraft_id, status, priority, opened_at, updated_at,
+                  location, raw_discrepancy, normalized_discrepancy,
+                  assigned_user_ids, evidence_ids, approval_state, version
+           FROM maintenance_cases
+           WHERE organization_id=$1 AND case_id=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(case_id)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(case)) => (StatusCode::OK, Json(json!({"case": case}))).into_response(),
+        Ok(None) => realtime_error(StatusCode::NOT_FOUND, "CASE_NOT_FOUND", "case not found"),
+        Err(error) => persistence_error("cases.get", error),
+    }
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct ThreadApiRow {
+    id: Uuid,
+    case_id: Option<Uuid>,
+    title: String,
+    status: String,
+    created_at: OffsetDateTime,
+    updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateThreadRequest {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    case_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateThreadRequest {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
+}
+
+fn normalized_thread_title(value: Option<&str>) -> Option<String> {
+    let title = value.unwrap_or("New conversation").trim();
+    if title.is_empty() || title.chars().count() > 160 {
+        return None;
+    }
+    Some(title.to_owned())
+}
+
+async fn case_exists(
+    pool: &sqlx::PgPool,
+    organization_id: Uuid,
+    case_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM maintenance_cases WHERE organization_id=$1 AND case_id=$2)",
+    )
+    .bind(organization_id)
+    .bind(case_id)
+    .fetch_one(pool)
+    .await
+}
+
+async fn insert_thread(
+    pool: &sqlx::PgPool,
+    context: &ExecutionContext,
+    title: &str,
+    case_id: Option<Uuid>,
+) -> Result<ThreadApiRow, sqlx::Error> {
+    sqlx::query_as::<_, ThreadApiRow>(
+        r#"INSERT INTO chat_threads
+           (id, organization_id, user_id, case_id, title, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,'active',now(),now())
+           RETURNING id, case_id, title, status, created_at, updated_at"#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(case_id)
+    .bind(title)
+    .fetch_one(pool)
+    .await
+}
+
+async fn list_threads(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, ThreadApiRow>(
+        r#"SELECT id, case_id, title, status, created_at, updated_at
+           FROM chat_threads
+           WHERE organization_id=$1 AND user_id=$2
+           ORDER BY updated_at DESC
+           LIMIT 100"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(threads) => (StatusCode::OK, Json(json!({"threads": threads}))).into_response(),
+        Err(error) => persistence_error("threads.list", error),
+    }
+}
+
+async fn create_thread(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateThreadRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let title = match normalized_thread_title(input.title.as_deref()) {
+        Some(value) => value,
+        None => {
+            return realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_THREAD_TITLE",
+                "thread title must contain between 1 and 160 characters",
+            )
+        }
+    };
+    if let Some(case_id) = input.case_id {
+        match case_exists(pool, context.organization_id.0, case_id).await {
+            Ok(true) => {}
+            Ok(false) => {
+                return realtime_error(
+                    StatusCode::BAD_REQUEST,
+                    "CASE_NOT_FOUND",
+                    "thread case was not found",
+                )
+            }
+            Err(error) => return persistence_error("threads.case_check", error),
+        }
+    }
+    match insert_thread(pool, &context, &title, input.case_id).await {
+        Ok(thread) => (StatusCode::CREATED, Json(json!({"thread": thread}))).into_response(),
+        Err(error) => persistence_error("threads.create", error),
+    }
+}
+
+async fn get_thread(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, ThreadApiRow>(
+        r#"SELECT id, case_id, title, status, created_at, updated_at
+           FROM chat_threads
+           WHERE id=$1 AND organization_id=$2 AND user_id=$3"#,
+    )
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(thread)) => (StatusCode::OK, Json(json!({"thread": thread}))).into_response(),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "THREAD_NOT_FOUND",
+            "conversation thread not found",
+        ),
+        Err(error) => persistence_error("threads.get", error),
+    }
+}
+
+async fn update_thread(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<Uuid>,
+    Json(input): Json<UpdateThreadRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let title = match input.title.as_deref() {
+        Some(value) => match normalized_thread_title(Some(value)) {
+            Some(value) => Some(value),
+            None => {
+                return realtime_error(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_THREAD_TITLE",
+                    "thread title must contain between 1 and 160 characters",
+                )
+            }
+        },
+        None => None,
+    };
+    if input
+        .status
+        .as_deref()
+        .is_some_and(|value| !matches!(value, "active" | "archived"))
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_THREAD_STATUS",
+            "thread status must be active or archived",
+        );
+    }
+    match sqlx::query_as::<_, ThreadApiRow>(
+        r#"UPDATE chat_threads
+           SET title=COALESCE($1,title), status=COALESCE($2,status), updated_at=now()
+           WHERE id=$3 AND organization_id=$4 AND user_id=$5
+           RETURNING id, case_id, title, status, created_at, updated_at"#,
+    )
+    .bind(title)
+    .bind(input.status)
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(thread)) => (StatusCode::OK, Json(json!({"thread": thread}))).into_response(),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "THREAD_NOT_FOUND",
+            "conversation thread not found",
+        ),
+        Err(error) => persistence_error("threads.update", error),
+    }
+}
+
+async fn archive_thread(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<Uuid>,
+) -> Response {
+    update_thread(
+        State(state),
+        headers,
+        Path(thread_id),
+        Json(UpdateThreadRequest {
+            title: None,
+            status: Some("archived".into()),
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct MessageApiRow {
+    id: Uuid,
+    thread_id: Uuid,
+    role: String,
+    content: String,
+    response_id: Option<String>,
+    payload: Option<Value>,
+    created_at: OffsetDateTime,
+}
+
+async fn list_thread_messages(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, MessageApiRow>(
+        r#"SELECT m.id, m.thread_id, m.role, m.content, m.response_id, m.payload, m.created_at
+           FROM chat_messages m
+           JOIN chat_threads t ON t.id=m.thread_id
+           WHERE m.thread_id=$1 AND t.organization_id=$2 AND t.user_id=$3
+           ORDER BY m.created_at, m.id
+           LIMIT 500"#,
+    )
+    .bind(thread_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(messages) => (StatusCode::OK, Json(json!({"messages": messages}))).into_response(),
+        Err(error) => persistence_error("threads.messages", error),
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileResponse {
+    display_name: Option<String>,
+    email: Option<String>,
+    timezone: Option<String>,
+    settings: Value,
+    image_url: Option<&'static str>,
+    updated_at: Option<OffsetDateTime>,
+}
+
+#[derive(Debug, FromRow)]
+struct ProfileQueryRow {
+    display_name: Option<String>,
+    email: Option<String>,
+    timezone: Option<String>,
+    settings: Value,
+    updated_at: Option<OffsetDateTime>,
+    has_image: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateProfileRequest {
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    timezone: Option<String>,
+    #[serde(default = "empty_object")]
+    settings: Value,
+}
+
+fn empty_object() -> Value {
+    json!({})
+}
+
+fn validate_profile_update(
+    input: &UpdateProfileRequest,
+) -> Result<(), (&'static str, &'static str)> {
+    if input
+        .display_name
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty() || value.chars().count() > 120)
+    {
+        return Err((
+            "INVALID_DISPLAY_NAME",
+            "display name must contain between 1 and 120 characters",
+        ));
+    }
+    if input
+        .timezone
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty() || value.chars().count() > 80)
+    {
+        return Err((
+            "INVALID_TIMEZONE",
+            "timezone must contain between 1 and 80 characters",
+        ));
+    }
+    if !input.settings.is_object() || input.settings.to_string().len() > MAX_PROFILE_SETTINGS_BYTES
+    {
+        return Err((
+            "INVALID_PROFILE_SETTINGS",
+            "profile settings must be a JSON object no larger than 32 KiB",
+        ));
+    }
+    Ok(())
+}
+
+async fn get_profile(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let result = sqlx::query_as::<_, ProfileQueryRow>(
+        r#"SELECT COALESCE(p.display_name,u.display_name) AS display_name,
+                  u.email, p.timezone, COALESCE(p.settings,'{}'::jsonb) AS settings,
+                  p.updated_at,
+                  EXISTS(
+                    SELECT 1 FROM profile_images i
+                    WHERE i.organization_id=$1 AND i.user_id=$2
+                  ) AS has_image
+           FROM users u
+           LEFT JOIN user_profiles p
+             ON p.organization_id=$1 AND p.user_id=u.id
+           WHERE u.id=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await;
+    match result {
+        Ok(Some(profile)) => (
+            StatusCode::OK,
+            Json(ProfileResponse {
+                display_name: profile.display_name,
+                email: profile.email,
+                timezone: profile.timezone,
+                settings: profile.settings,
+                image_url: profile.has_image.then_some("/api/profile/image"),
+                updated_at: profile.updated_at,
+            }),
+        )
+            .into_response(),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "PROFILE_NOT_FOUND",
+            "profile identity was not found",
+        ),
+        Err(error) => persistence_error("profile.get", error),
+    }
+}
+
+async fn update_profile(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(mut input): Json<UpdateProfileRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if let Err((code, message)) = validate_profile_update(&input) {
+        return realtime_error(StatusCode::BAD_REQUEST, code, message);
+    }
+    input.display_name = input.display_name.map(|value| value.trim().to_owned());
+    input.timezone = input.timezone.map(|value| value.trim().to_owned());
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let result = sqlx::query(
+        r#"INSERT INTO user_profiles
+           (organization_id,user_id,display_name,timezone,settings,created_at,updated_at)
+           VALUES ($1,$2,$3,$4,$5,now(),now())
+           ON CONFLICT (organization_id,user_id) DO UPDATE SET
+             display_name=EXCLUDED.display_name,
+             timezone=EXCLUDED.timezone,
+             settings=EXCLUDED.settings,
+             updated_at=now()"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(input.display_name)
+    .bind(input.timezone)
+    .bind(input.settings)
+    .execute(pool)
+    .await;
+    match result {
+        Ok(_) => get_profile(State(state), headers).await,
+        Err(error) => persistence_error("profile.update", error),
+    }
+}
+
+async fn get_profile_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let result: Result<Option<(String, Vec<u8>, String)>, sqlx::Error> = sqlx::query_as(
+        r#"SELECT media_type, content, content_hash FROM profile_images
+           WHERE organization_id=$1 AND user_id=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await;
+    match result {
+        Ok(Some((media_type, content, content_hash))) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, media_type)
+            .header(header::CACHE_CONTROL, "private, max-age=300")
+            .header(header::ETAG, format!("\"{content_hash}\""))
+            .body(Body::from(content))
+            .expect("valid profile image response"),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "PROFILE_IMAGE_NOT_FOUND",
+            "profile image not found",
+        ),
+        Err(error) => persistence_error("profile.image.get", error),
+    }
+}
+
+async fn put_profile_image(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if body.is_empty() || body.len() > MAX_PROFILE_IMAGE_BYTES {
+        return realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "INVALID_PROFILE_IMAGE_SIZE",
+            "profile image must be between 1 byte and 2 MiB",
+        );
+    }
+    let media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    if !matches!(media_type, "image/jpeg" | "image/png" | "image/webp") {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_PROFILE_IMAGE_TYPE",
+            "profile image must be JPEG, PNG, or WebP",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    let result = sqlx::query(
+        r#"INSERT INTO profile_images
+           (organization_id,user_id,media_type,content,content_hash,updated_at)
+           VALUES ($1,$2,$3,$4,$5,now())
+           ON CONFLICT (organization_id,user_id) DO UPDATE SET
+             media_type=EXCLUDED.media_type,
+             content=EXCLUDED.content,
+             content_hash=EXCLUDED.content_hash,
+             updated_at=now()"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(media_type)
+    .bind(body.as_ref())
+    .bind(&content_hash)
+    .execute(pool)
+    .await;
+    match result {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({
+                "image_url": "/api/profile/image",
+                "content_hash": content_hash
+            })),
+        )
+            .into_response(),
+        Err(error) => persistence_error("profile.image.put", error),
+    }
+}
+
+async fn delete_profile_image(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query("DELETE FROM profile_images WHERE organization_id=$1 AND user_id=$2")
+        .bind(context.organization_id.0)
+        .bind(context.user_id.0)
+        .execute(pool)
+        .await
+    {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => persistence_error("profile.image.delete", error),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
     message: String,
@@ -610,6 +1349,91 @@ fn manual_reference(evidence: &Evidence, index: usize, excerpt_limit: usize) -> 
     })
 }
 
+fn extract_ata_chapter(text: &str) -> Option<String> {
+    let uppercase = text.to_ascii_uppercase();
+    let mut remainder = uppercase.as_str();
+    while let Some(marker) = remainder.find("ATA") {
+        let after_marker = &remainder[marker + 3..];
+        let digits = after_marker
+            .trim_start_matches(|character: char| {
+                character.is_ascii_whitespace() || matches!(character, '-' | ':' | '#')
+            })
+            .chars()
+            .take_while(|character| character.is_ascii_digit())
+            .take(3)
+            .collect::<String>();
+        if digits.len() >= 2 {
+            return Some(digits);
+        }
+        remainder = after_marker;
+    }
+    None
+}
+
+fn should_search_manual(message: &str, case_id: Option<Uuid>) -> bool {
+    if case_id.is_some() {
+        return true;
+    }
+    let text = message.to_ascii_lowercase();
+    [
+        "aircraft",
+        "maintenance",
+        "manual",
+        "inspect",
+        "inspection",
+        "fault",
+        "failure",
+        "discrepancy",
+        "engine",
+        "hydraulic",
+        "avionic",
+        "fuel",
+        "pressure",
+        "leak",
+        "temperature",
+        "vibration",
+        "warning",
+        "indication",
+        "electrical",
+        "pneumatic",
+        "brake",
+        "landing gear",
+        "flight control",
+        "ata ",
+        "part number",
+        "procedure",
+        "troubleshoot",
+    ]
+    .iter()
+    .any(|term| text.contains(term))
+}
+
+fn build_manual_search_query(
+    message: &str,
+    history: &[ChatTurn],
+    authoritative_case_context: &Value,
+) -> String {
+    let mut parts = vec![message.trim().to_owned()];
+    parts.extend(
+        history
+            .iter()
+            .rev()
+            .filter(|turn| turn.role == "user")
+            .take(3)
+            .map(|turn| turn.content.trim().to_owned())
+            .filter(|value| !value.is_empty()),
+    );
+    if let Some(discrepancy) = authoritative_case_context
+        .pointer("/case/raw_discrepancy")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(format!("Active case discrepancy: {discrepancy}"));
+    }
+    truncate_chars(&parts.join("\n"), 2_000)
+}
+
 async fn chat(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -672,6 +1496,37 @@ async fn chat(
                 "authentication service unavailable",
             )
         }
+    };
+    let requested_case_id = match input
+        .case_context
+        .as_ref()
+        .and_then(|value| value.get("case_id"))
+        .and_then(Value::as_str)
+    {
+        Some(value) => match Uuid::parse_str(value) {
+            Ok(case_id) => Some(case_id),
+            Err(_) => {
+                return realtime_error(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_CASE_ID",
+                    "case context contains an invalid case id",
+                )
+            }
+        },
+        None => None,
+    };
+    let persistent_pool = match &state.health {
+        HealthState::Postgres(pool) => Some(pool.clone()),
+        HealthState::Local => None,
+    };
+    let (thread_id, conversation_history) = if let Some(pool) = &persistent_pool {
+        match prepare_chat_memory(pool, &context, input.thread_id, requested_case_id, message).await
+        {
+            Ok((thread_id, history)) => (Some(thread_id), history),
+            Err(response) => return response,
+        }
+    } else {
+        (None, input.history.clone())
     };
     let api_key = match std::env::var("OPENAI_API_KEY") {
         Ok(value) if !value.trim().is_empty() => value,
@@ -736,21 +1591,29 @@ async fn chat(
         .pointer("/case/aircraft_id")
         .and_then(Value::as_str)
         .map(str::to_owned);
-    let (manual_evidence, manual_warning) = match state
-        .manual
-        .search(&ManualQuery {
-            aircraft_id,
-            ata: None,
-            text: message.to_owned(),
-            limit: Some(33),
-        })
-        .await
-    {
-        Ok(evidence) => (evidence, None),
-        Err(error) => (vec![], Some(error.to_string())),
-    };
+    let manual_search_query =
+        build_manual_search_query(message, &conversation_history, &authoritative_case_context);
+    let (manual_evidence, manual_warning) =
+        if should_search_manual(&manual_search_query, requested_case_id) {
+            match state
+                .manual
+                .search(&ManualQuery {
+                    aircraft_id,
+                    ata: extract_ata_chapter(&manual_search_query),
+                    text: manual_search_query,
+                    limit: Some(33),
+                })
+                .await
+            {
+                Ok(evidence) => (evidence, None),
+                Err(error) => (vec![], Some(error.to_string())),
+            }
+        } else {
+            (vec![], None)
+        };
     let manual_model_context = manual_evidence
         .iter()
+        .take(MODEL_MANUAL_RECORD_LIMIT)
         .enumerate()
         .map(|(index, evidence)| manual_reference(evidence, index, 1_200))
         .collect::<Vec<_>>();
@@ -1006,10 +1869,13 @@ async fn chat(
                 "retrieval": {
                     "requested": 33,
                     "returned": manual_record_count,
+                    "model_context_records": manual_model_context.len(),
                     "warning": manual_warning
                 },
                 "model": payload.get("model"),
                 "response_id": payload.get("id"),
+                "thread_id": thread_id,
+                "memory_persisted": persistent_pool.is_some(),
                 "usage": payload.get("usage"),
                 "capability_trace": capability_trace,
                 "correlation_id": context.correlation_id
@@ -1569,11 +2435,51 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn semantic_scores_are_bounded_percentages() {
+    fn retrieval_scores_are_bounded_for_display() {
         assert_eq!(retrieval_percent(Some(0.684)), Some(68));
         assert_eq!(retrieval_percent(Some(1.4)), Some(100));
         assert_eq!(retrieval_percent(Some(-0.2)), Some(0));
         assert_eq!(retrieval_percent(None), None);
+    }
+
+    #[test]
+    fn follow_up_retrieval_uses_recent_user_turns_case_discrepancy_and_ata() {
+        let history = vec![
+            ChatTurn {
+                role: "user".into(),
+                content: "Hydraulic quantity decreased after flight".into(),
+            },
+            ChatTurn {
+                role: "assistant".into(),
+                content: "Which system?".into(),
+            },
+            ChatTurn {
+                role: "user".into(),
+                content: "ATA 29, system 1".into(),
+            },
+        ];
+        let context = json!({
+            "case": {"raw_discrepancy": "HYD SYS 1 pressure low"}
+        });
+        let query = build_manual_search_query("What should I inspect next?", &history, &context);
+        assert!(query.contains("What should I inspect next?"));
+        assert!(query.contains("ATA 29, system 1"));
+        assert!(query.contains("Hydraulic quantity decreased after flight"));
+        assert!(query.contains("HYD SYS 1 pressure low"));
+        assert_eq!(extract_ata_chapter(&query), Some("29".into()));
+    }
+
+    #[test]
+    fn obvious_general_conversation_skips_manual_retrieval() {
+        assert!(!should_search_manual("Hello, thanks for the help", None));
+        assert!(should_search_manual(
+            "What inspection applies to this hydraulic fault?",
+            None
+        ));
+        assert!(should_search_manual(
+            "What about that?",
+            Some(Uuid::new_v4())
+        ));
     }
 
     #[test]

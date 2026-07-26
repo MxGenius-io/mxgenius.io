@@ -6,7 +6,7 @@ The application mounts `services/mcp` as a separate capability service. It does 
 
 - `shared`: canonical types, policy vocabulary, envelopes, and 50 request/response contracts.
 - `server`: MCP transport, trusted identity, policy enforcement, handlers, and adapters.
-- `migrations`: 11 ordered Postgres migrations.
+- `migrations`: 12 ordered Postgres migrations.
 - `fixtures`: fictional data for explicit local mode only.
 
 ## Application boundary
@@ -30,6 +30,7 @@ Identity, tenant, role, approval, and confirmation never appear in tool argument
 | Boundary | Local/unavailable behavior | Production mount |
 | --- | --- | --- |
 | Case/evidence | in-memory | `PostgresCaseService` / `PostgresEvidenceService` |
+| Threads/profile | unavailable (fails closed) | tenant/user-scoped Postgres threads, messages, settings, and profile images |
 | Aircraft | sanitized fixture for the first slice | JetNet adapter |
 | Manuals | sanitized excerpts | Azure AI Search/manual corpus adapter |
 | FAA | fictional fixture context or `NOT_CONFIGURED` | AD, DRS, and SAIB adapters |

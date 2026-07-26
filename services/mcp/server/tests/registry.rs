@@ -1497,6 +1497,48 @@ async fn health_readiness_and_adapter_endpoints_are_distinct() {
 }
 
 #[tokio::test]
+async fn application_state_routes_fail_closed_without_persistent_storage() {
+    use axum::body::{to_bytes, Body};
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let app = mxgenius_mcp::transport::http::router(dispatcher);
+    for path in ["/api/cases", "/api/threads", "/api/profile"] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 503, "{path}");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["error"]["code"], "PERSISTENCE_NOT_CONFIGURED");
+    }
+}
+
+#[test]
+fn durable_user_state_migration_is_tenant_and_user_scoped() {
+    let migration = include_str!("../../migrations/0012_user_state_and_conversations.sql");
+    for table in [
+        "chat_threads",
+        "chat_messages",
+        "user_profiles",
+        "profile_images",
+    ] {
+        assert!(
+            migration.contains(&format!("CREATE TABLE IF NOT EXISTS {table}")),
+            "missing {table}"
+        );
+    }
+    assert!(migration.contains("organization_id uuid NOT NULL"));
+    assert!(migration.contains("user_id         uuid NOT NULL"));
+    assert!(migration.contains("ON DELETE CASCADE"));
+    assert!(migration.contains("octet_length(content) BETWEEN 1 AND 2097152"));
+    assert!(migration.contains("media_type IN ('image/jpeg', 'image/png', 'image/webp')"));
+}
+
+#[tokio::test]
 async fn streamable_http_handles_malformed_content_auth_resources_and_prompts() {
     use axum::body::{to_bytes, Body};
     use axum::http::Request;

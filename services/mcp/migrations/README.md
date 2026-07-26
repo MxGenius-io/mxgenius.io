@@ -5,9 +5,9 @@ this against the existing baseline (`organizations`, `users`, `conversations`,
 `messages`, `documents`, `document_chunks`, `chunk_embeddings`, `answer_audits`)
 when mounting the package into `mxgenius-cloud-poc`.
 
-Stub: each migration is a thin placeholder with the canonical table shape and
-no constraints beyond the basics. Flesh out: row-level security, indexes,
-triggers for `updated_at`, and reconciliation of the baseline tables.
+The migrations define tenant-safe foreign keys, validation constraints, and
+query indexes. Isolated-Postgres migration and cross-tenant verification remain
+release gates.
 
 | File | Purpose |
 | --- | --- |
@@ -20,3 +20,6 @@ triggers for `updated_at`, and reconciliation of the baseline tables.
 | `0007_parts.sql`                          | parts, requirements, suppliers, certificates |
 | `0008_mro_and_scheduling.sql`             | facilities, capabilities, schedules, recommendations |
 | `0009_evidence_approvals_audit.sql`       | evidence, approvals, audit, capability traces, tool versions |
+| `0010_confirmation_grants.sql`            | signed single-use confirmation grants |
+| `0011_digital_twin_markers.sql`           | case-bound digital-twin markers |
+| `0012_user_state_and_conversations.sql`   | chat threads/messages, user settings, and profile images |

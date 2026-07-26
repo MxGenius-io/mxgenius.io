@@ -720,14 +720,92 @@ function setupChatPanel() {
   const input = document.getElementById('chatInput');
   const sendBtn = document.querySelector('.chat-send-btn');
   const history = document.getElementById('chatHistory');
+  const threadSelect = document.getElementById('chatThreadSelect');
+  const newThreadBtn = document.getElementById('chatNewThreadBtn');
   let activeCaseContext = null;
   const chatTurns = [];
 
   if (!panel || !toggleBtn) return;
 
+  const currentApplicationSession = () => {
+    const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+    return {
+      accessToken: session.accessToken,
+      organizationId: session.organizationId,
+      correlationId: window.crypto?.randomUUID?.()
+    };
+  };
+
+  const renderThreadMessage = (message) => {
+    const turn = document.createElement('div');
+    turn.className = `chat-msg ${message.role === 'user' ? 'user-msg' : 'ai-msg'}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    const payload = message.payload || {};
+    bubble.textContent = message.role === 'assistant'
+      ? (payload.conversation_answer || payload.synthesis || message.content)
+      : message.content;
+    turn.appendChild(bubble);
+    history.appendChild(turn);
+  };
+
+  const loadThreadMessages = async (threadId) => {
+    if (!threadId) return;
+    const result = await MXApplicationClient.threads.messages(threadId, currentApplicationSession());
+    history.replaceChildren();
+    (result.messages || []).forEach(renderThreadMessage);
+    history.scrollTop = history.scrollHeight;
+  };
+
+  const refreshThreads = async (restoreMessages = false) => {
+    const session = currentApplicationSession();
+    if (!session.accessToken || !threadSelect) return;
+    try {
+      const result = await MXApplicationClient.threads.list(session);
+      const threads = (result.threads || []).filter(thread => thread.status === 'active');
+      threadSelect.replaceChildren(new Option('New conversation', ''));
+      threads.forEach(thread => threadSelect.add(new Option(thread.title, thread.id)));
+      if (activeThreadId && threads.some(thread => thread.id === activeThreadId)) {
+        threadSelect.value = activeThreadId;
+        if (restoreMessages) await loadThreadMessages(activeThreadId);
+      } else if (activeThreadId) {
+        activeThreadId = null;
+        localStorage.removeItem('mxg_active_thread_id');
+      }
+    } catch (error) {
+      console.warn('[MXGenius] Conversation list unavailable:', error.message);
+    }
+  };
+
+  threadSelect?.addEventListener('change', async () => {
+    activeThreadId = threadSelect.value || null;
+    chatTurns.length = 0;
+    if (activeThreadId) {
+      localStorage.setItem('mxg_active_thread_id', activeThreadId);
+      try { await loadThreadMessages(activeThreadId); } catch (error) {
+        console.warn('[MXGenius] Conversation history unavailable:', error.message);
+      }
+    } else {
+      localStorage.removeItem('mxg_active_thread_id');
+      history.replaceChildren();
+    }
+  });
+
+  newThreadBtn?.addEventListener('click', () => {
+    activeThreadId = null;
+    chatTurns.length = 0;
+    localStorage.removeItem('mxg_active_thread_id');
+    if (threadSelect) threadSelect.value = '';
+    history.replaceChildren();
+    input.focus();
+  });
+
+  void refreshThreads(true);
+
   window.addEventListener('mxg:case-selected', (event) => {
     chatTurns.length = 0;
     activeCaseContext = event.detail || null;
+    history.replaceChildren();
     const notice = document.createElement('div');
     notice.className = 'chat-msg ai-msg';
     const bubble = document.createElement('div');
@@ -1115,8 +1193,8 @@ Rules:
       const score = document.createElement('span');
       score.className = 'mx-manual-record__score';
       score.textContent = Number.isFinite(record.match_percent)
-        ? `${record.match_percent}% semantic match`
-        : 'ranked semantic match';
+        ? `${record.match_percent}% retrieval relevance`
+        : 'ranked retrieval result';
       recordHeader.append(rank, recordTitle, score);
       const meta = document.createElement('small');
       meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
@@ -1367,6 +1445,11 @@ Rules:
       try {
         const rawData = JSON.parse(rawText);
         data = rawData.response || rawData;
+        if (data?.thread_id) {
+          activeThreadId = data.thread_id;
+          localStorage.setItem('mxg_active_thread_id', activeThreadId);
+          void refreshThreads();
+        }
         // Try multiple response fields from the structured backend response
         if (data && data.advisory && typeof data.advisory === 'object') {
           renderedStructured = renderMaintenanceAdvisory(streamTarget, data.advisory, data.manual_records || []);
@@ -1444,14 +1527,32 @@ Rules:
   const realtimeConfirmationApprove = document.getElementById('realtimeConfirmationApprove');
   let realtimeSession = null;
   let realtimeApplicationSession = null;
+  let realtimeModeEnabled = false;
+  let realtimeMicEnabled = true;
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) Ã¢â€â‚¬Ã¢â€â‚¬
   let speechRecognition = null;
-  let micLongPressTimer = null;
-  const MIC_LONG_PRESS_MS = 500;
+  let transcriptionActive = false;
+
+  function renderMicState() {
+    if (!micBtn) return;
+    if (realtimeModeEnabled) {
+      micBtn.classList.toggle('pulse-mic', realtimeMicEnabled);
+      micBtn.style.color = realtimeMicEnabled ? '#10b981' : '';
+      micBtn.title = realtimeMicEnabled ? 'Mute Realtime microphone' : 'Unmute Realtime microphone';
+      micBtn.setAttribute('aria-label', micBtn.title);
+      micBtn.setAttribute('aria-pressed', String(realtimeMicEnabled));
+      return;
+    }
+    micBtn.classList.toggle('pulse-mic', transcriptionActive);
+    micBtn.style.color = '';
+    micBtn.title = transcriptionActive ? 'Stop dictation' : 'Start dictation';
+    micBtn.setAttribute('aria-label', micBtn.title);
+    micBtn.setAttribute('aria-pressed', String(transcriptionActive));
+  }
 
   function setupSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1473,13 +1574,14 @@ Rules:
       input.value = (finalTranscript + interim).trim();
     };
     recognition.onend = () => {
-      micBtn.classList.remove('pulse-mic');
-      micBtn.title = 'Tap to dictate - hold for voice';
+      transcriptionActive = false;
+      renderMicState();
       input.focus();
     };
     recognition.onerror = (e) => {
       if (e.error !== 'aborted') console.warn('[Speech] Recognition error:', e.error);
-      micBtn.classList.remove('pulse-mic');
+      transcriptionActive = false;
+      renderMicState();
     };
     recognition.onstart_reset = () => { finalTranscript = ''; };
     return recognition;
@@ -1488,32 +1590,33 @@ Rules:
   function startTranscription() {
     if (!speechRecognition) speechRecognition = setupSpeechRecognition();
     if (!speechRecognition) {
-      // No browser support - fall through to realtime voice
-      startRealtimeVoice();
+      setRealtimeUiState('failed', 'Dictation is unavailable in this browser');
       return;
     }
     speechRecognition.onstart_reset();
     try {
       speechRecognition.start();
-      micBtn.classList.add('pulse-mic');
-      micBtn.title = 'Tap to stop dictation';
+      transcriptionActive = true;
+      renderMicState();
       setRealtimeUiState('listening', 'Dictating - tap mic to stop');
     } catch (e) {
       console.warn('[Speech] Already started or unavailable:', e.message);
     }
   }
 
-  function stopTranscription() {
+  function stopTranscription({ resetVoiceState = true } = {}) {
     if (speechRecognition) {
       try { speechRecognition.stop(); } catch (_) {}
     }
-    micBtn.classList.remove('pulse-mic');
-    setRealtimeUiState('disconnected', 'Voice disconnected');
+    transcriptionActive = false;
+    renderMicState();
+    if (resetVoiceState) setRealtimeUiState('disconnected', 'Voice disconnected');
   }
 
   async function startRealtimeVoice() {
     const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
     if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      realtimeModeEnabled = false;
       setRealtimeUiState('failed', 'Sign in to use Realtime voice');
       return;
     }
@@ -1527,6 +1630,8 @@ Rules:
         session: realtimeApplicationSession
       });
     } catch (error) {
+      realtimeModeEnabled = false;
+      setRealtimeUiState('failed', error.message || 'Realtime voice unavailable');
       console.warn('[Realtime] Connection failed:', error.code || error.message);
     }
   }
@@ -1545,35 +1650,38 @@ Rules:
     }
 
     if (realtimeToggleBtn) {
-      realtimeToggleBtn.addEventListener('change', (e) => {
+      realtimeToggleBtn.addEventListener('change', async (e) => {
         if (e.target.checked) {
-          stopTranscription();
-          if (realtimeSession) startRealtimeVoice();
+          realtimeModeEnabled = true;
+          realtimeMicEnabled = true;
+          stopTranscription({ resetVoiceState: false });
+          realtimeSession?.setMicrophoneEnabled(true);
+          renderMicState();
+          if (realtimeSession) {
+            await startRealtimeVoice();
+          } else {
+            realtimeModeEnabled = false;
+            setRealtimeUiState('failed', 'Realtime voice is unavailable in this browser');
+          }
         } else {
+          realtimeModeEnabled = false;
           if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
             realtimeSession.disconnect();
           }
+          setRealtimeUiState('disconnected', 'Voice disconnected');
+          renderMicState();
         }
       });
     }
 
-    // Mic button is purely for dictation now
     const handleMicTap = (e) => {
       e?.preventDefault();
-      // If realtime is active, toggle the WebRTC microphone track instead of transcribing
-      if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
-        if (realtimeSession.media) {
-          let enabled = false;
-          realtimeSession.media.getAudioTracks().forEach(t => {
-            t.enabled = !t.enabled;
-            enabled = t.enabled;
-          });
-          micBtn.style.color = enabled ? '#10b981' : '';
-          micBtn.classList.toggle('pulse-mic', enabled);
-        }
+      if (realtimeModeEnabled) {
+        realtimeMicEnabled = realtimeSession?.setMicrophoneEnabled(!realtimeMicEnabled) ?? !realtimeMicEnabled;
+        renderMicState();
         return;
       }
-      if (micBtn.classList.contains('pulse-mic')) {
+      if (transcriptionActive) {
         stopTranscription();
       } else {
         startTranscription();
@@ -1581,7 +1689,7 @@ Rules:
     };
 
     micBtn.addEventListener('click', handleMicTap);
-    micBtn.title = 'Tap to dictate';
+    renderMicState();
     
     realtimeInterruptBtn?.addEventListener('click', () => realtimeSession?.interrupt());
     realtimeConfirmationCancel?.addEventListener('click', declineRealtimeMutation);
@@ -1609,8 +1717,7 @@ Rules:
     
     const realtimeToggleBtn = document.getElementById('realtimeToggleBtn');
     if (realtimeToggleBtn) {
-      // Don't trigger change event when setting programmatically
-      realtimeToggleBtn.checked = active;
+      realtimeToggleBtn.checked = realtimeModeEnabled;
     }
     
     micBtn.disabled = false;
@@ -1631,7 +1738,13 @@ Rules:
 
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
+      if (event.state === 'failed') realtimeModeEnabled = false;
       setRealtimeUiState(event.state, event.reason);
+      return;
+    }
+    if (event.type === 'microphone') {
+      realtimeMicEnabled = event.enabled;
+      renderMicState();
       return;
     }
     if (event.type === 'transcript') {
@@ -1858,6 +1971,16 @@ function initSettings() {
   const avatarEl = document.getElementById('settingsAvatar');
   const statusEl = document.getElementById('settingsSessionStatus');
   const signOutBtn = document.getElementById('settingsSignOutBtn');
+  const profileImageInput = document.getElementById('settingsProfileImageInput');
+  const profileImageChoose = document.getElementById('settingsProfileImageChoose');
+  const profileImageRemove = document.getElementById('settingsProfileImageRemove');
+  const profileImageStatus = document.getElementById('settingsProfileImageStatus');
+  const serverSession = {
+    accessToken: session.accessToken,
+    organizationId: session.organizationId,
+    correlationId: window.crypto?.randomUUID?.()
+  };
+  let profileImageObjectUrl = null;
 
   if (acct) {
     const displayName = acct.name || acct.username || 'User';
@@ -1874,6 +1997,128 @@ function initSettings() {
     if (nameEl) nameEl.textContent = 'Not signed in';
     if (statusEl) statusEl.textContent = 'No session';
   }
+
+  const applyProfileImage = (blob) => {
+    if (!avatarEl || !blob) return;
+    if (profileImageObjectUrl) URL.revokeObjectURL(profileImageObjectUrl);
+    profileImageObjectUrl = URL.createObjectURL(blob);
+    avatarEl.textContent = '';
+    avatarEl.style.backgroundImage = `url("${profileImageObjectUrl}")`;
+    avatarEl.style.backgroundSize = 'cover';
+    avatarEl.style.backgroundPosition = 'center';
+  };
+
+  const clearProfileImage = () => {
+    if (!avatarEl) return;
+    if (profileImageObjectUrl) URL.revokeObjectURL(profileImageObjectUrl);
+    profileImageObjectUrl = null;
+    avatarEl.style.backgroundImage = '';
+    const displayName = nameEl?.textContent || acct?.name || 'User';
+    avatarEl.textContent = displayName.split(' ').map(word => word[0]).join('').substring(0, 2);
+  };
+
+  if (session.accessToken) {
+    void MXApplicationClient.profile.get(serverSession).then(async (profile) => {
+      if (profile.display_name && nameEl) nameEl.textContent = profile.display_name;
+      if (profile.email && emailEl) emailEl.textContent = profile.email;
+      const settings = profile.settings || {};
+      const serverValues = {
+        mx_accentColor: settings.accentColor,
+        mx_compactMode: settings.compactMode,
+        mx_bgColor: settings.backgroundColor,
+        mx_textColor: settings.textColor,
+        mx_cardColor: settings.cardColor,
+        mx_theme: settings.theme
+      };
+      Object.entries(serverValues).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) localStorage.setItem(key, String(value));
+      });
+      if (settings.accentColor) {
+        document.documentElement.style.setProperty('--accent-cyan', settings.accentColor);
+        const element = document.getElementById('settingsAccentColor');
+        if (element) element.value = settings.accentColor;
+      }
+      if (settings.backgroundColor) {
+        document.documentElement.style.setProperty('--bg-primary', settings.backgroundColor);
+        const element = document.getElementById('settingsBgColor');
+        if (element) element.value = settings.backgroundColor;
+      }
+      if (settings.textColor) {
+        document.documentElement.style.setProperty('--text-primary', settings.textColor);
+        const element = document.getElementById('settingsTextColor');
+        if (element) element.value = settings.textColor;
+      }
+      if (settings.cardColor) {
+        document.documentElement.style.setProperty('--bg-card', settings.cardColor);
+        const element = document.getElementById('settingsCardColor');
+        if (element) element.value = settings.cardColor;
+      }
+      if (typeof settings.compactMode === 'boolean') {
+        document.body.classList.toggle('compact-mode', settings.compactMode);
+        const element = document.getElementById('settingsCompactMode');
+        if (element) element.checked = settings.compactMode;
+      }
+      if (settings.theme) {
+        const element = document.getElementById('settingsTheme');
+        if (element) element.value = settings.theme;
+      }
+      if (profile.image_url) {
+        try { applyProfileImage(await MXApplicationClient.profile.getImage(serverSession)); } catch (_) {}
+      }
+    }).catch((error) => {
+      console.warn('[MXGenius] Server profile unavailable:', error.message);
+    });
+  }
+
+  profileImageChoose?.addEventListener('click', () => profileImageInput?.click());
+  profileImageInput?.addEventListener('change', async () => {
+    const file = profileImageInput.files?.[0];
+    if (!file) return;
+    if (profileImageStatus) profileImageStatus.textContent = 'Uploading...';
+    try {
+      await MXApplicationClient.profile.putImage(file, serverSession);
+      applyProfileImage(file);
+      if (profileImageStatus) profileImageStatus.textContent = 'Profile image saved';
+    } catch (error) {
+      if (profileImageStatus) profileImageStatus.textContent = error.message;
+    } finally {
+      profileImageInput.value = '';
+    }
+  });
+  profileImageRemove?.addEventListener('click', async () => {
+    try {
+      await MXApplicationClient.profile.deleteImage(serverSession);
+      clearProfileImage();
+      if (profileImageStatus) profileImageStatus.textContent = 'Profile image removed';
+    } catch (error) {
+      if (profileImageStatus) profileImageStatus.textContent = error.message;
+    }
+  });
+
+  let profileSaveTimer = null;
+  const scheduleServerProfileSave = () => {
+    if (!session.accessToken) return;
+    clearTimeout(profileSaveTimer);
+    profileSaveTimer = setTimeout(() => {
+      void MXApplicationClient.profile.update({
+        displayName: nameEl?.textContent || acct?.name || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        settings: {
+          accentColor: localStorage.getItem('mx_accentColor'),
+          compactMode: localStorage.getItem('mx_compactMode') === 'true',
+          backgroundColor: localStorage.getItem('mx_bgColor'),
+          textColor: localStorage.getItem('mx_textColor'),
+          cardColor: localStorage.getItem('mx_cardColor'),
+          theme: localStorage.getItem('mx_theme')
+        }
+      }, serverSession).catch((error) => {
+        console.warn('[MXGenius] Server profile save failed:', error.message);
+      });
+    }, 500);
+  };
+  const settingsTab = document.getElementById('tab-settings');
+  settingsTab?.addEventListener('input', scheduleServerProfileSave);
+  settingsTab?.addEventListener('change', scheduleServerProfileSave);
 
   if (signOutBtn) {
     signOutBtn.addEventListener('click', () => {

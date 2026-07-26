@@ -138,6 +138,17 @@ impl ManualCorpusAdapter for AzureManualCorpusAdapter {
         let vector = self.embed(text).await?;
         let limit = query.limit.unwrap_or(8).clamp(1, 33);
         let candidate_limit = (limit * 3).min(99);
+        let filter = query
+            .ata
+            .as_deref()
+            .filter(|ata| {
+                (2..=3).contains(&ata.len())
+                    && ata.chars().all(|character| character.is_ascii_digit())
+            })
+            .map_or_else(
+                || self.document_filter.clone(),
+                |ata| format!("({}) and ata eq '{ata}'", self.document_filter),
+            );
         let url = format!(
             "{}/indexes/{}/docs/search?api-version=2023-11-01",
             self.search_endpoint, self.index_name
@@ -147,14 +158,17 @@ impl ManualCorpusAdapter for AzureManualCorpusAdapter {
             .post(url)
             .header("api-key", &self.search_key)
             .json(&json!({
+                "search": text,
+                "searchFields": "title,section,content,aircraft_model",
                 "vectorQueries": [{
                     "vector": vector,
                     "k": candidate_limit,
                     "fields": "content_vector",
                     "kind": "vector"
                 }],
+                "vectorFilterMode": "preFilter",
                 "select": "id,document_id,content,title,source_blob,revision,effective_date,content_hash,assets_json,lineage_state",
-                "filter": self.document_filter,
+                "filter": filter,
                 "top": candidate_limit
             }))
             .send()
