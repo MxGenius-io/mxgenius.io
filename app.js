@@ -136,7 +136,9 @@ const MXCaseState = {
         cluster.hasActiveCase = cluster.aircraft.some((aircraft) => this.matchesAircraft(aircraft));
       });
       if (globeInstance) {
-        globeInstance.htmlElementsData(allClusters);
+        globeInstance
+          .pointsData(allClusters)
+          .ringsData(attentionClusters(allClusters));
         const cluster = allClusters.find((item) => item.hasActiveCase);
         if (cluster) globeInstance.pointOfView({ lat: cluster.lat, lng: cluster.lng, altitude: 1.1 }, 700);
       }
@@ -599,7 +601,9 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   setupCollapsibleSettings(); // Auto-collapse multi-row settings cards
-  RAG.load();            // RAG index (non-blocking)
+  if (globalThis.MXGENIUS_CONFIG?.legacyStaticRag === true) {
+    RAG.load();
+  }
 
   // Phase 2: Network-dependent (fire and forget - app works without it)
   login().then(() => { 
@@ -1984,6 +1988,10 @@ function switchTab(tabId) {
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 function initSettings() {
+  const settingsTab = document.getElementById('tab-settings');
+  if (!settingsTab || settingsTab.dataset.initialized === 'true') return;
+  settingsTab.dataset.initialized = 'true';
+
   // Ã¢â€â‚¬Ã¢â€â‚¬ Account card Ã¢â€â‚¬Ã¢â€â‚¬
   const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
   const acct = session.account || window.MXGENIUS_AUTH?.account?.() || null;
@@ -2041,7 +2049,7 @@ function initSettings() {
   };
 
   if (session.accessToken) {
-    void MXApplicationClient.profile.get(serverSession).then(async (profile) => {
+    void Promise.resolve().then(() => MXApplicationClient.profile.get(serverSession)).then(async (profile) => {
       if (profile.display_name && nameEl) nameEl.textContent = profile.display_name;
       if (profile.email && emailEl) emailEl.textContent = profile.email;
       const settings = profile.settings || {};
@@ -2139,9 +2147,8 @@ function initSettings() {
       });
     }, 500);
   };
-  const settingsTab = document.getElementById('tab-settings');
-  settingsTab?.addEventListener('input', scheduleServerProfileSave);
-  settingsTab?.addEventListener('change', scheduleServerProfileSave);
+  settingsTab.addEventListener('input', scheduleServerProfileSave);
+  settingsTab.addEventListener('change', scheduleServerProfileSave);
 
   if (signOutBtn) {
     signOutBtn.addEventListener('click', () => {
@@ -3343,7 +3350,9 @@ function applyGlobeFilters() {
     );
     if (filtered.length === 1) globeInstance.pointOfView({ lat: filtered[0].lat, lng: filtered[0].lng, altitude: 1.2 }, 600);
   }
-  globeInstance.htmlElementsData(filtered);
+  globeInstance
+    .pointsData(filtered)
+    .ringsData(attentionClusters(filtered));
 }
 
 function setupGlobeSheet() {
@@ -3576,6 +3585,8 @@ async function loadGlobe() {
     if (!gw._globeClickBound) { gw._globeClickBound = true; gw.addEventListener('click', (e) => { if (e.target.closest('.globe-sheet') || e.target.closest('.globe-tooltip')) return; if (window._lastGlobePoint?.icao) handleGlobeClick(window._lastGlobePoint); }); }
     setupGlobeSheet();
   } else {
-    globeInstance.htmlElementsData(allClusters);
+    globeInstance
+      .pointsData(allClusters)
+      .ringsData(attentionClusters(allClusters));
   }
 }

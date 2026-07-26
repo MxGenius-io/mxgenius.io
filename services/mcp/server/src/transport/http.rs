@@ -2629,9 +2629,15 @@ async fn create_realtime_call(
     let transcription_model = std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL")
         .unwrap_or_else(|_| "gpt-4o-mini-transcribe".into());
     let session = realtime_session_config(model.clone(), voice.clone(), transcription_model);
+    let sdp_part = reqwest::multipart::Part::text(offer.to_owned())
+        .mime_str("application/sdp")
+        .expect("application/sdp is a valid multipart MIME type");
+    let session_part = reqwest::multipart::Part::text(session.to_string())
+        .mime_str("application/json")
+        .expect("application/json is a valid multipart MIME type");
     let form = reqwest::multipart::Form::new()
-        .text("sdp", offer.to_owned())
-        .text("session", session.to_string());
+        .part("sdp", sdp_part)
+        .part("session", session_part);
     let safety_identifier = realtime_safety_identifier(&context);
     let upstream = match state
         .realtime_client
@@ -2662,7 +2668,23 @@ async fn create_realtime_call(
         .filter(|value| value.starts_with("rtc_"))
         .map(str::to_owned);
     if !status.is_success() {
-        tracing::warn!(target: "mxgenius.realtime", upstream_status = %status, correlation_id = %context.correlation_id, "Realtime call exchange rejected");
+        let upstream_request_id = upstream
+            .headers()
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let upstream_error = upstream
+            .text()
+            .await
+            .unwrap_or_else(|_| "unreadable upstream error".into());
+        tracing::warn!(
+            target: "mxgenius.realtime",
+            upstream_status = %status,
+            upstream_request_id = upstream_request_id.as_deref().unwrap_or(""),
+            upstream_error = %truncate_chars(&upstream_error, 1_000),
+            correlation_id = %context.correlation_id,
+            "Realtime call exchange rejected"
+        );
         let response_status = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             StatusCode::TOO_MANY_REQUESTS
         } else if status == reqwest::StatusCode::UNAUTHORIZED

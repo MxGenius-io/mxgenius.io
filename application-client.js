@@ -140,6 +140,43 @@ const MXApplicationClient = (() => {
       .map(({ compact }) => compact);
   }
 
+  function applicationHeaders(session = {}, contentType = 'application/json') {
+    if (!session.accessToken && !runtimeConfig.allowInsecurePilot) {
+      throw new Error('Authenticated application session required');
+    }
+    const headers = { 'Authorization': `Bearer ${session.accessToken}` };
+    if (contentType) headers['Content-Type'] = contentType;
+    if (session.organizationId) headers['X-MXG-Organization-ID'] = session.organizationId;
+    if (session.correlationId) headers['X-Correlation-ID'] = session.correlationId;
+    return headers;
+  }
+
+  async function applicationRequest(path, { session = {}, method = 'GET', body, contentType = 'application/json' } = {}) {
+    const response = await fetch(`${MCP_BASE}${path}`, {
+      method,
+      headers: applicationHeaders(session, contentType),
+      credentials: 'include',
+      signal: session.signal,
+      body: body === undefined ? undefined : (contentType === 'application/json' ? JSON.stringify(body) : body)
+    });
+    if (!response.ok) {
+      const responseType = response.headers.get('content-type') || '';
+      const payload = responseType.includes('application/json')
+        ? await response.json()
+        : { error: { message: await response.text() } };
+      const error = new Error(payload.error?.message || `Application request failed (${response.status})`);
+      error.code = payload.error?.code || 'APPLICATION_REQUEST_FAILED';
+      error.status = response.status;
+      throw error;
+    }
+    if (response.status === 204) return null;
+    return response;
+  }
+
+  async function applicationJson(path, options) {
+    return (await applicationRequest(path, options)).json();
+  }
+
   function chat({ message, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {

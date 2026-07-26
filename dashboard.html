@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>MXGenius Maintenance Operations</title>
-  <meta name="description" content="Case-aware aviation maintenance operations">
+  <title>MXGenius</title>
+  <meta name="description" content="MXGenius aviation operations">
   <!-- Fonts: system stack for airgap. Inter/JetBrains Mono via CSS fallback -->
   <style>
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
@@ -77,13 +77,7 @@
   <main id="content">
     <!-- Dashboard Tab -->
     <section id="tab-dashboard" class="tab-content active">
-      <div class="tab-header">
-        <h1>Maintenance Operations</h1>
-        <p class="subtitle">Case-aware fleet context, evidence, and operational tools</p>
-      </div>
-
-
-          <!-- Globe -->
+      <!-- Globe -->
           <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:24px;">
             <div id="globeSidebarWrapper" class="collapsed" style="position: absolute; left: 0; top: 16px; bottom: 16px; width: 60px; z-index: 10; display: flex; flex-direction: column; background: rgba(10, 15, 28, 0.96); border-right: 1px solid rgba(99, 102, 241, 0.2); border-radius: 0 12px 12px 0; padding: 12px 0; align-items: center; box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);">
               <div class="globe-texture-buttons" id="globeTextureButtons" style="display: flex; flex-direction: column; gap: 8px;">
@@ -347,7 +341,7 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=10" allow="xr-spatial-tracking; fullscreen" allowfullscreen style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=11" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->
@@ -453,7 +447,7 @@
           <div class="settings-row"><div class="settings-label"><span>Background Color</span><span class="settings-hint">Main page background</span></div><input type="color" id="settingsBgColor" value="#0a0e1a" class="settings-color-picker"></div>
           <div class="settings-row"><div class="settings-label"><span>Text Color</span><span class="settings-hint">Primary text color</span></div><input type="color" id="settingsTextColor" value="#e8ecf4" class="settings-color-picker"></div>
           <div class="settings-row"><div class="settings-label"><span>Card Background</span><span class="settings-hint">Panel and card fill color</span></div><input type="color" id="settingsCardColor" value="#1a1f35" class="settings-color-picker"></div>
-          <div class="settings-row"><div class="settings-label"><span>Theme Preset</span><span class="settings-hint">Quick-switch color palettes</span></div><select id="settingsTheme" class="search-input" style="width:auto;min-width:140px;"><option value="">Custom</option><option value="midnight" selected>Midnight</option><option value="slate">Slate</option><option value="ember">Ember</option><option value="ocean">Ocean</option></select></div>
+          <div class="settings-row"><div class="settings-label"><span>Theme Preset</span><span class="settings-hint">Quick-switch color palettes</span></div><select id="settingsTheme" class="search-input" style="width:auto;min-width:140px;"><option value="">Custom</option><option value="midnight">Midnight</option><option value="slate">Slate</option><option value="ember">Ember</option><option value="ocean">Ocean</option></select></div>
         </div>
 
         <!-- Data &amp; Cache -->
@@ -563,12 +557,12 @@
   <script src="auth.js"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=9"></script>
+<script src="application-client.js?v=10"></script>
   <script src="realtime-client.js?v=2"></script>
   <script src="case-workspace.js?v=2"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=2"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
   <div id="onboardingRoot"></div>
 </body>
 

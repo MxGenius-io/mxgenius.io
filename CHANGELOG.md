@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Realtime and application shell
+
+- Restored the shared authenticated application request helpers used by profile, case, and digital-twin APIs.
+- Corrected Realtime WebRTC multipart MIME types for the SDP offer and JSON session payload.
+- Prevented profile loading from disabling Appearance controls and stopped duplicate settings bindings.
+- Replaced invalid globe HTML-element updates and silenced retired static RAG asset requests by default.
+- Removed redundant iframe fullscreen attributes and refreshed frontend asset versions.
+- Removed the redundant Maintenance Operations dashboard heading and subtext.
+
 ### Added — Digital twin meshes
 
 - Added authenticated, tenant-scoped GLB upload and retrieval with parsed mesh/node manifests.
