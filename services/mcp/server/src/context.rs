@@ -417,43 +417,56 @@ impl MembershipResolver for PostgresMembershipResolver {
         .await
         .map_err(|e| AuthError::Internal(format!("membership lookup failed: {e}")))?;
         if rows.len() != 1 {
-            let is_whitelisted = identity
-                .email
-                .as_ref()
-                .map(|email| {
-                    let e = email.to_lowercase();
-                    e.contains("@advancedaog")
-                        || e == "hagy2392@gmail.com"
-                        || e == "dwaynetillman@7hermeticlabs.dev"
-                })
-                .unwrap_or(false);
-
-            if is_whitelisted {
-                let new_org_id = Uuid::new_v4();
+            let email = identity.email.as_deref().map(str::to_lowercase);
+            let access_rules: Vec<(Uuid, String)> = if let Some(email) = &email {
+                sqlx::query_as(
+                    r#"SELECT DISTINCT ON (organization_id) organization_id, member_role
+                       FROM beta_access_rules
+                       WHERE ($2::uuid IS NULL OR organization_id=$2)
+                         AND (
+                           (rule_type='email' AND rule=$1)
+                           OR
+                           (rule_type='domain' AND right($1, char_length(rule))=rule)
+                         )
+                       ORDER BY organization_id, CASE rule_type WHEN 'email' THEN 0 ELSE 1 END
+                       LIMIT 2"#,
+                )
+                .bind(email)
+                .bind(selected_organization_id.map(|id| id.0))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AuthError::Internal(format!("beta access lookup failed: {e}")))?
+            } else {
+                vec![]
+            };
+            if access_rules.len() == 1 {
+                let (organization_id, member_role) = &access_rules[0];
                 let new_user_id = Uuid::new_v4();
-                let email_str = identity.email.as_deref().unwrap_or("unknown");
+                let email_str = email.as_deref().unwrap_or("unknown");
 
                 let mut tx = self
                     .pool
                     .begin()
                     .await
                     .map_err(|e| AuthError::Internal(format!("failed to start tx: {e}")))?;
-                sqlx::query(
-                    "INSERT INTO organizations (id, name, identity_tenant_id) VALUES ($1, $2, $3)",
+                let enrolled_user_id: Uuid = sqlx::query_scalar(
+                    r#"INSERT INTO users (id, external_issuer, external_subject, email)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (external_issuer, external_subject)
+                       WHERE external_issuer IS NOT NULL AND external_subject IS NOT NULL
+                       DO UPDATE SET email=EXCLUDED.email
+                       RETURNING id"#,
                 )
-                .bind(new_org_id)
-                .bind(format!("{}'s Organization", email_str))
-                .bind(&identity.identity_tenant_id)
-                .execute(&mut *tx)
+                .bind(new_user_id)
+                .bind(&identity.issuer)
+                .bind(&identity.subject)
+                .bind(email_str)
+                .fetch_one(&mut *tx)
                 .await
-                .map_err(|e| AuthError::Internal(format!("failed to insert org: {e}")))?;
-
-                sqlx::query("INSERT INTO users (id, external_issuer, external_subject, email) VALUES ($1, $2, $3, $4)")
-                    .bind(new_user_id).bind(&identity.issuer).bind(&identity.subject).bind(email_str)
-                    .execute(&mut *tx).await.map_err(|e| AuthError::Internal(format!("failed to insert user: {e}")))?;
+                .map_err(|e| AuthError::Internal(format!("failed to enroll user: {e}")))?;
 
                 sqlx::query("INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, $4)")
-                    .bind(Uuid::new_v4()).bind(new_org_id).bind(new_user_id).bind("administrator")
+                    .bind(Uuid::new_v4()).bind(organization_id).bind(enrolled_user_id).bind(member_role)
                     .execute(&mut *tx).await.map_err(|e| AuthError::Internal(format!("failed to insert membership: {e}")))?;
 
                 tx.commit()
@@ -461,9 +474,9 @@ impl MembershipResolver for PostgresMembershipResolver {
                     .map_err(|e| AuthError::Internal(format!("failed to commit tx: {e}")))?;
 
                 return Ok(ResolvedMembership {
-                    organization_id: OrganizationId(new_org_id),
-                    user_id: UserId(new_user_id),
-                    role: Role::Administrator,
+                    organization_id: OrganizationId(*organization_id),
+                    user_id: UserId(enrolled_user_id),
+                    role: parse_role(member_role)?,
                 });
             }
 

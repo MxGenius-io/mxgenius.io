@@ -29,6 +29,7 @@ const MXRealtime = (() => {
       this.createdAudioElement = false;
       this.eventSequence = 0;
       this.closingResources = false;
+      this.microphoneEnabled = true;
     }
 
     emit(type, detail = {}) {
@@ -191,6 +192,29 @@ const MXRealtime = (() => {
           type: 'function_call_output',
           call_id: callId,
           output: typeof output === 'string' ? output : JSON.stringify(output)
+        }
+      });
+      if (sent) this.send({ type: 'response.create' });
+      return sent;
+    }
+
+    sendUserMessage({ text = '', images = [] } = {}) {
+      const content = [];
+      const normalizedText = String(text || '').trim();
+      if (normalizedText) content.push({ type: 'input_text', text: normalizedText });
+      for (const image of images.slice(0, 4)) {
+        const imageUrl = image?.dataUrl || image?.data_url;
+        if (typeof imageUrl === 'string' && /^data:image\/(?:jpeg|png|webp);base64,/i.test(imageUrl)) {
+          content.push({ type: 'input_image', image_url: imageUrl });
+        }
+      }
+      if (!content.length) return false;
+      const sent = this.send({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'user',
+          content
         }
       });
       if (sent) this.send({ type: 'response.create' });

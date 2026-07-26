@@ -742,8 +742,15 @@ function setupChatPanel() {
   const history = document.getElementById('chatHistory');
   const threadSelect = document.getElementById('chatThreadSelect');
   const newThreadBtn = document.getElementById('chatNewThreadBtn');
+  const attachBtn = document.getElementById('chatAttachBtn');
+  const imageInput = document.getElementById('chatImageInput');
+  const attachmentPreview = document.getElementById('chatAttachmentPreview');
   let activeCaseContext = null;
   const chatTurns = [];
+  let pendingImages = [];
+  const MAX_CHAT_IMAGES = 4;
+  const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
+  const CHAT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
   if (!panel || !toggleBtn) return;
 
@@ -756,15 +763,103 @@ function setupChatPanel() {
     };
   };
 
+  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result || '')));
+    reader.addEventListener('error', () => reject(reader.error || new Error('Image could not be read')));
+    reader.readAsDataURL(file);
+  });
+
+  const appendChatImages = (container, images) => {
+    const safeImages = (images || []).filter((image) => {
+      const src = image?.dataUrl || image?.data_url;
+      return typeof src === 'string' && /^data:image\/(?:jpeg|png|webp);base64,/i.test(src);
+    });
+    if (!safeImages.length) return;
+    const grid = document.createElement('div');
+    grid.className = 'chat-message-images';
+    safeImages.forEach((image, index) => {
+      const src = image.dataUrl || image.data_url;
+      const element = document.createElement('img');
+      element.src = src;
+      element.alt = image.name || `Chat image ${index + 1}`;
+      element.loading = 'lazy';
+      element.addEventListener('click', () => openImageLightbox(src));
+      grid.appendChild(element);
+    });
+    container.appendChild(grid);
+  };
+
+  const setChatBubbleContent = (bubble, text, images = []) => {
+    bubble.replaceChildren();
+    appendChatImages(bubble, images);
+    if (text) bubble.appendChild(document.createTextNode(text));
+  };
+
+  const renderAttachmentPreview = () => {
+    if (!attachmentPreview) return;
+    attachmentPreview.replaceChildren();
+    attachmentPreview.hidden = pendingImages.length === 0;
+    pendingImages.forEach((image, index) => {
+      const chip = document.createElement('div');
+      chip.className = 'chat-attachment-chip';
+      const thumbnail = document.createElement('img');
+      thumbnail.src = image.dataUrl;
+      thumbnail.alt = image.name;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.title = `Remove ${image.name}`;
+      remove.setAttribute('aria-label', `Remove ${image.name}`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        pendingImages.splice(index, 1);
+        renderAttachmentPreview();
+      });
+      chip.append(thumbnail, remove);
+      attachmentPreview.appendChild(chip);
+    });
+  };
+
+  const clearPendingImages = () => {
+    pendingImages = [];
+    if (imageInput) imageInput.value = '';
+    renderAttachmentPreview();
+  };
+
+  attachBtn?.addEventListener('click', () => imageInput?.click());
+  imageInput?.addEventListener('change', async () => {
+    const available = Math.max(0, MAX_CHAT_IMAGES - pendingImages.length);
+    const files = Array.from(imageInput.files || []).slice(0, available);
+    imageInput.value = '';
+    for (const file of files) {
+      if (!CHAT_IMAGE_TYPES.has(file.type) || file.size <= 0 || file.size > MAX_CHAT_IMAGE_BYTES) {
+        console.warn(`[MXGenius] Skipping unsupported or oversized chat image: ${file.name}`);
+        continue;
+      }
+      try {
+        pendingImages.push({
+          name: file.name.slice(0, 160),
+          type: file.type,
+          dataUrl: await fileToDataUrl(file),
+          detail: 'auto'
+        });
+      } catch (error) {
+        console.warn(`[MXGenius] Chat image could not be read: ${error.message}`);
+      }
+    }
+    renderAttachmentPreview();
+  });
+
   const renderThreadMessage = (message) => {
     const turn = document.createElement('div');
     turn.className = `chat-msg ${message.role === 'user' ? 'user-msg' : 'ai-msg'}`;
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     const payload = message.payload || {};
-    bubble.textContent = message.role === 'assistant'
+    const text = message.role === 'assistant'
       ? (payload.conversation_answer || payload.synthesis || message.content)
       : message.content;
+    setChatBubbleContent(bubble, text, payload.images || []);
     turn.appendChild(bubble);
     history.appendChild(turn);
   };
@@ -800,6 +895,7 @@ function setupChatPanel() {
   threadSelect?.addEventListener('change', async () => {
     activeThreadId = threadSelect.value || null;
     chatTurns.length = 0;
+    clearPendingImages();
     if (activeThreadId) {
       localStorage.setItem('mxg_active_thread_id', activeThreadId);
       try { await loadThreadMessages(activeThreadId); } catch (error) {
@@ -814,6 +910,7 @@ function setupChatPanel() {
   newThreadBtn?.addEventListener('click', () => {
     activeThreadId = null;
     chatTurns.length = 0;
+    clearPendingImages();
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
     history.replaceChildren();
@@ -1234,9 +1331,13 @@ Rules:
           image.loading = 'lazy';
           image.alt = asset.caption || `${record.title} reference image`;
           image.src = src;
-          image.addEventListener('error', () => figure.remove());
           const caption = document.createElement('figcaption');
           caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' - ');
+          image.addEventListener('error', () => {
+            image.remove();
+            figure.classList.add('is-unavailable');
+            caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
+          });
           figure.append(image, caption);
           grid.appendChild(figure);
         });
@@ -1399,18 +1500,25 @@ Rules:
   });
 
   async function sendMessage() {
-    const text = input.value.trim();
-    if (!text) return;
+    const typedText = input.value.trim();
+    const images = pendingImages.slice();
+    if (!typedText && !images.length) return;
+    const text = typedText || 'Please analyze the attached image(s).';
     
     const userMsg = document.createElement('div');
     userMsg.className = 'chat-msg user-msg';
     const userBubble = document.createElement('div');
     userBubble.className = 'msg-bubble';
-    userBubble.textContent = text;
+    setChatBubbleContent(userBubble, text, images);
     userMsg.appendChild(userBubble);
     history.appendChild(userMsg);
     input.value = '';
+    clearPendingImages();
     history.scrollTop = history.scrollHeight;
+
+    if (realtimeModeEnabled && images.length && realtimeSession?.sendUserMessage({ text: typedText, images })) {
+      return;
+    }
 
     const aiMsg = document.createElement('div');
     aiMsg.className = 'chat-msg ai-msg';
@@ -1441,6 +1549,7 @@ Rules:
       }
       const response = await MXApplicationClient.chat({
         message: text,
+        images,
         threadId: activeThreadId,
         history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
@@ -1514,7 +1623,7 @@ Rules:
       
     } catch (e) {
       console.error('[MXGenius] Cloud chat error:', e.message);
-      const recoverableCloudFailure = !e.status || e.status === 429 || e.status >= 500;
+      const recoverableCloudFailure = images.length === 0 && (!e.status || e.status === 429 || e.status >= 500);
       try {
         if (!recoverableCloudFailure) throw e;
         const fallback = await runOnDeviceFallback(text);
@@ -1543,6 +1652,7 @@ Rules:
   const realtimeState = document.getElementById('realtimeState');
   const realtimeStateLabel = document.getElementById('realtimeStateLabel');
   const realtimeTranscript = document.getElementById('realtimeTranscript');
+  const realtimeUserTranscriptRow = document.getElementById('realtimeUserTranscriptRow');
   const realtimeUserTranscript = document.getElementById('realtimeUserTranscript');
   const realtimeAssistantTranscript = document.getElementById('realtimeAssistantTranscript');
   const realtimeInterruptBtn = document.getElementById('realtimeInterruptBtn');
@@ -1555,6 +1665,7 @@ Rules:
   let realtimeApplicationSession = null;
   let realtimeModeEnabled = false;
   let realtimeMicEnabled = true;
+  let realtimeUserTranscriptClearTimer = null;
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
@@ -1776,8 +1887,21 @@ Rules:
     if (event.type === 'transcript') {
       realtimeTranscript.hidden = false;
       const target = event.role === 'user' ? realtimeUserTranscript : realtimeAssistantTranscript;
+      if (event.role === 'user') {
+        clearTimeout(realtimeUserTranscriptClearTimer);
+        if (realtimeUserTranscriptRow) realtimeUserTranscriptRow.hidden = false;
+      }
       target.textContent = event.text || '';
       target.dataset.final = String(event.final);
+      if (event.role === 'user' && event.final) {
+        const completedText = event.text || '';
+        realtimeUserTranscriptClearTimer = setTimeout(() => {
+          if (realtimeUserTranscript.textContent === completedText) {
+            realtimeUserTranscript.textContent = '';
+            if (realtimeUserTranscriptRow) realtimeUserTranscriptRow.hidden = true;
+          }
+        }, 5_000);
+      }
       const completedKey = `${event.role}:${event.itemId || event.text}`;
       if (event.final && event.text && !completedVoiceItems.has(completedKey)) {
         completedVoiceItems.add(completedKey);
@@ -2006,6 +2130,9 @@ function initSettings() {
   const profileImageChoose = document.getElementById('settingsProfileImageChoose');
   const profileImageRemove = document.getElementById('settingsProfileImageRemove');
   const profileImageStatus = document.getElementById('settingsProfileImageStatus');
+  const contentUploadInput = document.getElementById('settingsContentUploadInput');
+  const contentUploadChoose = document.getElementById('settingsContentUploadChoose');
+  const contentUploadStatus = document.getElementById('settingsContentUploadStatus');
   const serverSession = {
     accessToken: session.accessToken,
     organizationId: session.organizationId,
@@ -2125,6 +2252,29 @@ function initSettings() {
       if (profileImageStatus) profileImageStatus.textContent = error.message;
     }
   });
+  contentUploadChoose?.addEventListener('click', () => contentUploadInput?.click());
+  contentUploadInput?.addEventListener('change', async () => {
+    const file = contentUploadInput.files?.[0];
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      if (contentUploadStatus) contentUploadStatus.textContent = 'Content must be no larger than 50 MiB';
+      contentUploadInput.value = '';
+      return;
+    }
+    contentUploadChoose.disabled = true;
+    if (contentUploadStatus) contentUploadStatus.textContent = `Uploading ${file.name}...`;
+    try {
+      const result = await MXApplicationClient.content.upload(file, serverSession);
+      if (contentUploadStatus) {
+        contentUploadStatus.textContent = `${result.filename} stored for ingestion`;
+      }
+    } catch (error) {
+      if (contentUploadStatus) contentUploadStatus.textContent = error.message;
+    } finally {
+      contentUploadChoose.disabled = false;
+      contentUploadInput.value = '';
+    }
+  });
 
   let profileSaveTimer = null;
   const scheduleServerProfileSave = () => {
@@ -2227,66 +2377,90 @@ function initSettings() {
   const betaInput = document.getElementById('betaWhitelistInput');
   const betaAddBtn = document.getElementById('betaWhitelistAddBtn');
   const betaTags = document.getElementById('betaWhitelistTags');
+  const betaStatus = document.getElementById('betaWhitelistStatus');
   if (betaInput && betaAddBtn && betaTags) {
-    const defaultSeeds = ['@advancedaog', 'hagy2392@gmail.com', 'dwaynetillman@7hermeticlabs.dev'];
-    let customWhitelist = [];
-    try { customWhitelist = JSON.parse(localStorage.getItem('mx_beta_whitelist') || '[]'); } catch(e){}
+    let accessRules = [];
 
     const renderTags = () => {
       betaTags.innerHTML = '';
-      const allTags = [...new Set([...defaultSeeds, ...customWhitelist])];
-      allTags.forEach(tag => {
-        const isDefault = defaultSeeds.includes(tag.toLowerCase());
+      accessRules.forEach(rule => {
         const el = document.createElement('span');
         el.className = 'badge';
         el.style.fontSize = '0.75rem';
         el.style.display = 'inline-flex';
         el.style.alignItems = 'center';
         el.style.gap = '4px';
-        el.style.background = isDefault ? 'var(--bg-hover)' : 'rgba(34,211,238,0.1)';
-        el.style.color = isDefault ? 'var(--text-secondary)' : 'var(--accent-cyan)';
+        el.style.background = rule.rule_type === 'domain' ? 'var(--bg-hover)' : 'rgba(34,211,238,0.1)';
+        el.style.color = rule.rule_type === 'domain' ? 'var(--text-secondary)' : 'var(--accent-cyan)';
         el.style.border = '1px solid rgba(255,255,255,0.05)';
-        
-        el.textContent = tag;
-        
-        if (!isDefault) {
-          const rmBtn = document.createElement('button');
-          rmBtn.innerHTML = '&times;';
-          rmBtn.style.background = 'none';
-          rmBtn.style.border = 'none';
-          rmBtn.style.color = 'inherit';
-          rmBtn.style.cursor = 'pointer';
-          rmBtn.style.fontSize = '1.1rem';
-          rmBtn.style.lineHeight = '1';
-          rmBtn.style.padding = '0 2px';
-          rmBtn.onclick = () => {
-            customWhitelist = customWhitelist.filter(t => t !== tag);
-            localStorage.setItem('mx_beta_whitelist', JSON.stringify(customWhitelist));
+        el.textContent = rule.rule;
+        const rmBtn = document.createElement('button');
+        rmBtn.innerHTML = '&times;';
+        rmBtn.style.background = 'none';
+        rmBtn.style.border = 'none';
+        rmBtn.style.color = 'inherit';
+        rmBtn.style.cursor = 'pointer';
+        rmBtn.style.fontSize = '1.1rem';
+        rmBtn.style.lineHeight = '1';
+        rmBtn.style.padding = '0 2px';
+        rmBtn.onclick = async () => {
+          rmBtn.disabled = true;
+          try {
+            await MXApplicationClient.betaAccess.delete(rule.id, serverSession);
+            accessRules = accessRules.filter(entry => entry.id !== rule.id);
             renderTags();
-          };
-          el.appendChild(rmBtn);
-        }
+            if (betaStatus) betaStatus.textContent = 'Server-managed closed-beta access rules';
+          } catch (error) {
+            rmBtn.disabled = false;
+            if (betaStatus) betaStatus.textContent = error.message;
+          }
+        };
+        el.appendChild(rmBtn);
         betaTags.appendChild(el);
       });
     };
-    
-    renderTags();
 
-    const addTag = () => {
-      const val = betaInput.value.trim().toLowerCase();
-      if (!val) return;
-      if (!defaultSeeds.includes(val) && !customWhitelist.includes(val)) {
-        customWhitelist.push(val);
-        localStorage.setItem('mx_beta_whitelist', JSON.stringify(customWhitelist));
+    const refreshBetaAccess = async () => {
+      if (!session.accessToken) return;
+      try {
+        const result = await MXApplicationClient.betaAccess.list(serverSession);
+        accessRules = result.rules || [];
         renderTags();
+        if (betaStatus) betaStatus.textContent = 'Email entries send an Entra guest invitation; domains authorize invited guests';
+      } catch (error) {
+        if (betaStatus) betaStatus.textContent = error.message;
       }
-      betaInput.value = '';
     };
 
-    betaAddBtn.addEventListener('click', addTag);
-    betaInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') addTag();
+    const addTag = async () => {
+      const val = betaInput.value.trim().toLowerCase();
+      if (!val) return;
+      betaAddBtn.disabled = true;
+      if (betaStatus) betaStatus.textContent = val.startsWith('@') ? 'Adding domain rule…' : 'Creating Entra guest invitation…';
+      try {
+        const result = await MXApplicationClient.betaAccess.add(val, serverSession);
+        if (!accessRules.some(rule => rule.id === result.rule.id)) accessRules.push(result.rule);
+        accessRules.sort((left, right) => left.rule.localeCompare(right.rule));
+        renderTags();
+        if (betaStatus) betaStatus.textContent = result.invited
+          ? `Invitation sent to ${result.rule.rule}`
+          : `${result.rule.rule} is allowed`;
+        betaInput.value = '';
+      } catch (error) {
+        if (betaStatus) betaStatus.textContent = error.message;
+      } finally {
+        betaAddBtn.disabled = false;
+      }
+    };
+
+    betaAddBtn.addEventListener('click', () => void addTag());
+    betaInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void addTag();
+      }
     });
+    void refreshBetaAccess();
   }
 
 

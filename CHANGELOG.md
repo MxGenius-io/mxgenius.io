@@ -23,6 +23,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Wired model-issued highlights into text chat, Realtime tool calls, and the embedded 3D viewer.
 - Removed the Sketchfab catalog dependency in favor of owned and user-uploaded model assets.
 
+### Added — Conversation, images, and corpus expansion
+
+- Added bounded JPEG, PNG, and WebP attachments to text chat and Realtime messages.
+- Added a Settings content-upload control and authenticated Azure Blob staging endpoint for later RAG ingestion.
+- Kept the strict structured maintenance advisory schema active for multimodal requests.
+
+### Fixed — Conversation continuity and manual evidence
+
+- Injected tenant-scoped persisted thread history into model requests so conversational memory survives page reloads.
+- Made finalized Realtime user transcription transient after five seconds while retaining the completed chat turn.
+- Kept retrieved manual diagrams visible through the controlled asset proxy and now shows an explicit unavailable state when an image cannot load.
+
+### Fixed — Closed-beta access
+
+- Replaced the browser-local whitelist with organization-scoped server persistence.
+- Corrected the incomplete `@advancedaog` rule to `@advancedaog.com`.
+- Added managed-identity Microsoft Graph invitations for exact email additions.
+- Made the application API verify membership after Entra sign-in and enroll matching invited guests as viewers.
+
 ---
 
 ## [3.3.0] — 2026-07-26

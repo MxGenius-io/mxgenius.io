@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css">
+  <link rel="stylesheet" href="app-styles.css?v=2">
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=5">
@@ -454,6 +454,16 @@
         <div class="settings-card">
           <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/><path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/><path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"/></svg>Data &amp; Cache</h3>
           <div class="settings-row"><div class="settings-label"><span>Cached Entries</span><span class="settings-hint" id="cacheStats">Loading...</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXCache.clearAll().then(()=>{document.getElementById('cacheStats').textContent='Cache cleared';})">Clear Cache</button></div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>Content Expansion</span>
+              <span class="settings-hint" id="settingsContentUploadStatus">Store additional RAG source content for later ingestion</span>
+            </div>
+            <div>
+              <input id="settingsContentUploadInput" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.htm,.jpg,.jpeg,.png,.webp" hidden>
+              <button class="btn-primary" style="padding:6px 12px;font-size:0.78rem;" id="settingsContentUploadChoose" type="button">Content Upload</button>
+            </div>
+          </div>
           <div class="settings-row"><div class="settings-label"><span>Fleet compatibility source</span><span class="settings-hint">Aerodex Live &middot; discovery context only</span></div><span class="badge badge-jet" style="font-size:0.7rem;">Aerodex</span></div>
         </div>
 
@@ -472,7 +482,7 @@
           <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:12px;">
             <div class="settings-label">
               <span>Allowed Domains &amp; Emails</span>
-              <span class="settings-hint">Users matching this list can sign in during the closed beta.</span>
+              <span class="settings-hint" id="betaWhitelistStatus">Loading server-managed access rules…</span>
             </div>
             <div style="display:flex; gap:8px;">
               <input type="text" id="betaWhitelistInput" class="search-input" style="flex:1;" placeholder="e.g. user@domain.com or @domain.com">
@@ -523,7 +533,7 @@
       </div>
     </div>
     <div id="realtimeTranscript" class="realtime-transcript" aria-live="polite" hidden>
-      <div><span>You</span><p id="realtimeUserTranscript"></p></div>
+      <div id="realtimeUserTranscriptRow"><span>You</span><p id="realtimeUserTranscript"></p></div>
       <div><span>MXGenius</span><p id="realtimeAssistantTranscript"></p></div>
     </div>
     <section id="realtimeConfirmation" class="realtime-confirmation" hidden aria-labelledby="realtimeConfirmationTitle">
@@ -540,7 +550,10 @@
         <div class="msg-bubble">I can brief the active maintenance case, retrieve evidence, or help triage an aircraft. Operational changes always require your confirmation.</div>
       </div>
     </div>
+    <div id="chatAttachmentPreview" class="chat-attachment-preview" hidden aria-live="polite"></div>
     <div class="chat-footer">
+      <input id="chatImageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      <button id="chatAttachBtn" class="chat-attach-btn" type="button" title="Add images" aria-label="Add images">+</button>
       <input type="text" id="chatInput" class="chat-input">
       <button class="chat-mic-btn" type="button" title="Start Realtime voice" aria-label="Start Realtime voice" aria-pressed="false">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
@@ -554,15 +567,15 @@
 
 
   <script src="runtime-config.js?v=3"></script>
-  <script src="auth.js"></script>
+  <script src="auth.js?v=5"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=10"></script>
-  <script src="realtime-client.js?v=2"></script>
+<script src="application-client.js?v=11"></script>
+  <script src="realtime-client.js?v=3"></script>
   <script src="case-workspace.js?v=2"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=2"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
   <div id="onboardingRoot"></div>
 </body>
 

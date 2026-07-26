@@ -151,10 +151,16 @@ const MXApplicationClient = (() => {
     return headers;
   }
 
-  async function applicationRequest(path, { session = {}, method = 'GET', body, contentType = 'application/json' } = {}) {
+  async function applicationRequest(path, {
+    session = {},
+    method = 'GET',
+    body,
+    contentType = 'application/json',
+    headers: extraHeaders = {}
+  } = {}) {
     const response = await fetch(`${MCP_BASE}${path}`, {
       method,
-      headers: applicationHeaders(session, contentType),
+      headers: { ...applicationHeaders(session, contentType), ...extraHeaders },
       credentials: 'include',
       signal: session.signal,
       body: body === undefined ? undefined : (contentType === 'application/json' ? JSON.stringify(body) : body)
@@ -177,7 +183,7 @@ const MXApplicationClient = (() => {
     return (await applicationRequest(path, options)).json();
   }
 
-  function chat({ message, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function chat({ message, images = [], threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -191,6 +197,11 @@ const MXApplicationClient = (() => {
       credentials: 'include',
       body: JSON.stringify({
         message,
+        images: Array.isArray(images) ? images.slice(0, 4).map((image) => ({
+          name: String(image.name || 'image').slice(0, 160),
+          data_url: image.dataUrl || image.data_url,
+          detail: image.detail || 'auto'
+        })) : [],
         thread_id: threadId || null,
         history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
@@ -283,6 +294,37 @@ const MXApplicationClient = (() => {
       session,
       method: 'DELETE',
       contentType: null
+    });
+  }
+
+  function listBetaAccess(session = {}) {
+    return applicationJson('/api/beta-access', { session });
+  }
+
+  function addBetaAccess(rule, session = {}) {
+    return applicationJson('/api/beta-access', {
+      session,
+      method: 'POST',
+      body: { rule }
+    });
+  }
+
+  function deleteBetaAccess(ruleId, session = {}) {
+    return applicationRequest(`/api/beta-access/${encodeURIComponent(ruleId)}`, {
+      session,
+      method: 'DELETE',
+      contentType: null
+    });
+  }
+
+  function uploadContent(file, session = {}) {
+    if (!(file instanceof Blob)) throw new TypeError('Content upload must be a Blob or File');
+    const filename = String(file.name || 'uploaded-content').slice(0, 180);
+    return applicationJson(`/api/content/uploads?filename=${encodeURIComponent(filename)}`, {
+      session,
+      method: 'POST',
+      body: file,
+      contentType: file.type || 'application/octet-stream'
     });
   }
 
@@ -688,6 +730,14 @@ const MXApplicationClient = (() => {
       getImage: getProfileImage,
       putImage: putProfileImage,
       deleteImage: deleteProfileImage
+    }),
+    content: Object.freeze({
+      upload: uploadContent
+    }),
+    betaAccess: Object.freeze({
+      list: listBetaAccess,
+      add: addBetaAccess,
+      delete: deleteBetaAccess
     }),
     companyDetail,
     companyList,

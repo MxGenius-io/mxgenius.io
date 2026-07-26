@@ -32,5 +32,14 @@ test('manual images stay behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);
   assert.match(app, /MXApplicationClient\.evidence\.manualAssetUrl/);
+  assert.match(app, /image unavailable/);
   assert.match(dashboard, /app\.js\?v=\d+/);
+});
+
+test('structured output remains enabled with persisted memory and multimodal input', () => {
+  assert.match(backend, /chat_conversation_input\(\s*&conversation_history/);
+  assert.match(backend, /"type": "input_image"/);
+  assert.match(backend, /maintenance_advisory_schema\(\)/);
+  assert.match(dashboard, /id="chatAttachBtn"/);
+  assert.match(dashboard, /id="settingsContentUploadChoose"/);
 });

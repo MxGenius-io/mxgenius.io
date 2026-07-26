@@ -13,6 +13,7 @@ function harness(outputs, orchestration = null) {
     String,
     TypeError,
     Error,
+    Blob,
     globalThis: null,
     fetch: async (url, options) => {
       if (url.endsWith('/realtime/calls')) {
@@ -199,6 +200,34 @@ test('chat uses application identity and carries canonical case context without 
   assert.equal(requests[0].request.thread_id, 'thread-1');
 });
 
+test('chat sends bounded image inputs and content uploads use the authenticated application API', async () => {
+  const { client, requests } = harness({});
+  await client.chat({
+    message: 'Inspect this panel',
+    images: [{
+      name: 'panel.png',
+      dataUrl: 'data:image/png;base64,aGVsbG8=',
+      detail: 'high'
+    }],
+    fleetSignals: [],
+    accessToken: 'oidc-token',
+    organizationId: 'org-1'
+  });
+  const file = new Blob(['manual'], { type: 'application/pdf' });
+  Object.defineProperty(file, 'name', { value: 'ATA 29.pdf' });
+  await client.content.upload(file, {
+    accessToken: 'oidc-token',
+    organizationId: 'org-1'
+  });
+
+  assert.equal(requests[0].request.images[0].data_url, 'data:image/png;base64,aGVsbG8=');
+  assert.equal(requests[0].request.images[0].detail, 'high');
+  assert.match(requests[1].url, /\/api\/content\/uploads\?filename=ATA%2029\.pdf$/);
+  assert.equal(requests[1].options.headers.Authorization, 'Bearer oidc-token');
+  assert.equal(requests[1].options.headers['Content-Type'], 'application/pdf');
+  assert.equal(requests[1].request, file);
+});
+
 test('server persistence clients keep threads cases and profiles behind application identity', async () => {
   const { client, requests } = harness({});
   const session = {
@@ -232,6 +261,25 @@ test('server persistence clients keep threads cases and profiles behind applicat
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
   assert.equal(requests[2].request.case_id, 'case-1');
   assert.equal(requests[5].request.settings.compactMode, true);
+});
+
+test('beta access rules use the authenticated server boundary instead of browser storage', async () => {
+  const { client, requests } = harness({});
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+  await client.betaAccess.list(session);
+  await client.betaAccess.add('sameera.tillman@advancedaog.com', session);
+  await client.betaAccess.delete('rule-1', session);
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [url, options.method]),
+    [
+      ['/api/beta-access', 'GET'],
+      ['/api/beta-access', 'POST'],
+      ['/api/beta-access/rule-1', 'DELETE']
+    ]
+  );
+  assert.equal(requests[1].request.rule, 'sameera.tillman@advancedaog.com');
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
 test('chat sends only bounded relevant fleet context instead of the full compatibility dataset', async () => {

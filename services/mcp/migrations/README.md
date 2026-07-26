@@ -23,4 +23,5 @@ release gates.
 | `0010_confirmation_grants.sql`            | signed single-use confirmation grants |
 | `0011_digital_twin_markers.sql`           | case-bound digital-twin markers |
 | `0012_user_state_and_conversations.sql`   | chat threads/messages, user settings, and profile images |
+| `0014_beta_access_rules.sql`              | server-owned closed-beta email/domain access rules |
 | `0013_digital_twin_models.sql`            | uploaded GLB models, mesh manifests, and model/user highlight state |

@@ -35,33 +35,6 @@
     const response = await instance.handleRedirectPromise();
     account = response?.account || instance.getActiveAccount() || instance.getAllAccounts()[0] || null;
 
-    // --- BETA WHITELIST CHECK ---
-    if (account && isDashboard) {
-      let storedWhitelist = [];
-      try { storedWhitelist = JSON.parse(localStorage.getItem('mx_beta_whitelist') || '[]'); } catch (e) {}
-      
-      const defaultWhitelist = ['@advancedaog', 'hagy2392@gmail.com', 'dwaynetillman@7hermeticlabs.dev'];
-      const activeWhitelist = [...new Set([...defaultWhitelist, ...storedWhitelist])].map(s => s.toLowerCase().trim());
-      
-      const userEmail = (account.username || '').toLowerCase().trim();
-      
-      // Check if userEmail matches exactly, or if userEmail ends with a whitelisted domain (e.g. '@advancedaog')
-      const isAllowed = activeWhitelist.some(rule => {
-        if (rule.startsWith('@')) return userEmail.endsWith(rule);
-        return userEmail === rule;
-      });
-
-      if (!isAllowed) {
-        // Log out immediately to prevent token caching for unauthorized user
-        await instance.logoutPopup().catch(() => {}); // Popup to not lose redirect context, or just let MSAL drop session
-        account = null;
-        localStorage.setItem('mx_beta_rejected', userEmail);
-        location.replace(`login.html?rejected=beta`);
-        return null;
-      }
-    }
-    // ----------------------------
-
     if (account) instance.setActiveAccount(account);
     publishIdentity(account);
     globalThis.MXGENIUS_AUTH = {
@@ -81,7 +54,28 @@
       return null;
     }
     if (account && !accessToken) {
-      try { await globalThis.MXGENIUS_AUTH.getToken(); } catch (error) { console.warn('Entra token acquisition pending interactive sign-in', error); }
+      try {
+        await globalThis.MXGENIUS_AUTH.getToken();
+        if (isDashboard) {
+          const accessResponse = await fetch(`${config.mcpBase}/api/profile`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            credentials: 'include'
+          });
+          if (accessResponse.status === 401 || accessResponse.status === 403) {
+            const rejectedEmail = (account.username || '').toLowerCase().trim();
+            await instance.logoutPopup().catch(() => {});
+            account = null;
+            accessToken = '';
+            localStorage.setItem('mx_beta_rejected', rejectedEmail);
+            location.replace('login.html?rejected=beta');
+            return null;
+          }
+          if (!accessResponse.ok) throw new Error(`MXGenius access verification failed (${accessResponse.status})`);
+        }
+      } catch (error) {
+        console.warn('Entra token or MXGenius access verification failed', error);
+        throw error;
+      }
     }
     return account;
   })().catch((error) => {

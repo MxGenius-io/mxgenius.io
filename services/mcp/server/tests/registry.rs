@@ -1538,6 +1538,15 @@ fn durable_user_state_migration_is_tenant_and_user_scoped() {
     assert!(migration.contains("media_type IN ('image/jpeg', 'image/png', 'image/webp')"));
 }
 
+#[test]
+fn beta_access_rules_are_server_owned_and_organization_scoped() {
+    let migration = include_str!("../../migrations/0014_beta_access_rules.sql");
+    assert!(migration.contains("CREATE TABLE IF NOT EXISTS beta_access_rules"));
+    assert!(migration.contains("organization_id uuid NOT NULL REFERENCES organizations"));
+    assert!(migration.contains("rule_type IN ('email', 'domain')"));
+    assert!(migration.contains("UNIQUE (organization_id, rule)"));
+}
+
 #[tokio::test]
 async fn streamable_http_handles_malformed_content_auth_resources_and_prompts() {
     use axum::body::{to_bytes, Body};

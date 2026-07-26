@@ -12,6 +12,7 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode}
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
@@ -36,6 +37,9 @@ const MAX_REALTIME_SDP_BYTES: usize = 64 * 1024;
 const OPENAI_REALTIME_CALLS_URL: &str = "https://api.openai.com/v1/realtime/calls";
 const OPENAI_RESPONSES_URL: &str = "https://api.openai.com/v1/responses";
 const MAX_CHAT_MESSAGE_BYTES: usize = 20 * 1024;
+const MAX_CHAT_IMAGES: usize = 4;
+const MAX_CHAT_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+const MAX_CONTENT_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
@@ -109,6 +113,7 @@ pub fn router_with_health_and_manual(
         .route("/adapterz", get(adapterz))
         .route("/manual-assets", get(manual_asset))
         .route("/chat", post(chat))
+        .route("/api/content/uploads", post(upload_content))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/threads", get(list_threads).post(create_thread))
@@ -121,6 +126,14 @@ pub fn router_with_health_and_manual(
             get(list_thread_messages),
         )
         .route("/api/profile", get(get_profile).patch(update_profile))
+        .route(
+            "/api/beta-access",
+            get(list_beta_access).post(add_beta_access),
+        )
+        .route(
+            "/api/beta-access/:rule_id",
+            axum::routing::delete(delete_beta_access),
+        )
         .route(
             "/api/profile/image",
             get(get_profile_image)
@@ -301,6 +314,185 @@ async fn manual_asset(
         HeaderValue::from_static("private, max-age=3600"),
     );
     (StatusCode::OK, response_headers, body).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct ContentUploadQuery {
+    filename: String,
+}
+
+fn safe_upload_filename(value: &str) -> Option<String> {
+    let filename = value.rsplit(['/', '\\']).next().unwrap_or_default().trim();
+    if filename.is_empty() || filename.chars().count() > 180 {
+        return None;
+    }
+    let sanitized = filename
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if sanitized == "." || sanitized == ".." || !sanitized.contains('.') {
+        None
+    } else {
+        Some(sanitized)
+    }
+}
+
+fn content_upload_media_type(media_type: &str, filename: &str) -> Option<&'static str> {
+    let lowercase = filename.to_ascii_lowercase();
+    let expected = if lowercase.ends_with(".pdf") {
+        "application/pdf"
+    } else if lowercase.ends_with(".docx") {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    } else if lowercase.ends_with(".doc") {
+        "application/msword"
+    } else if lowercase.ends_with(".txt") {
+        "text/plain"
+    } else if lowercase.ends_with(".md") {
+        "text/markdown"
+    } else if lowercase.ends_with(".csv") {
+        "text/csv"
+    } else if lowercase.ends_with(".json") {
+        "application/json"
+    } else if lowercase.ends_with(".html") || lowercase.ends_with(".htm") {
+        "text/html"
+    } else if lowercase.ends_with(".jpg") || lowercase.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if lowercase.ends_with(".png") {
+        "image/png"
+    } else if lowercase.ends_with(".webp") {
+        "image/webp"
+    } else {
+        return None;
+    };
+    if media_type == expected
+        || media_type == "application/octet-stream"
+        || (expected == "text/markdown" && media_type == "text/plain")
+    {
+        Some(expected)
+    } else {
+        None
+    }
+}
+
+async fn upload_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(input): Query<ContentUploadQuery>,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if body.is_empty() || body.len() > MAX_CONTENT_UPLOAD_BYTES {
+        return realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "INVALID_CONTENT_UPLOAD_SIZE",
+            "content must be between 1 byte and 50 MiB",
+        );
+    }
+    let Some(filename) = safe_upload_filename(&input.filename) else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_CONTENT_UPLOAD_NAME",
+            "content filename is invalid",
+        );
+    };
+    let supplied_media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    let Some(media_type) = content_upload_media_type(supplied_media_type, &filename) else {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_CONTENT_UPLOAD_TYPE",
+            "supported content types are PDF, Word, text, Markdown, CSV, JSON, HTML, JPEG, PNG, and WebP",
+        );
+    };
+    let sas = match std::env::var("MXGENIUS_CONTENT_UPLOAD_SAS") {
+        Ok(value) if !value.trim().is_empty() => value.replace("%26", "&"),
+        _ => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "CONTENT_UPLOAD_NOT_CONFIGURED",
+                "content upload storage is not configured",
+            )
+        }
+    };
+    let origin = std::env::var("MXGENIUS_CONTENT_UPLOAD_ORIGIN")
+        .or_else(|_| std::env::var("MXGENIUS_MANUAL_ASSET_ORIGIN"))
+        .unwrap_or_else(|_| "https://mxgstorage50106.blob.core.windows.net".into());
+    let upload_id = Uuid::new_v4();
+    let blob_path = format!(
+        "documents/content-uploads/{}/{}-{}",
+        context.organization_id.0, upload_id, filename
+    );
+    let url = format!(
+        "{}/{}?{}",
+        origin.trim_end_matches('/'),
+        blob_path,
+        sas.trim_start_matches('?')
+    );
+    let upstream = match state
+        .realtime_client
+        .put(url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, media_type)
+        .body(body.clone())
+        .send()
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(
+                target: "mxgenius.content_upload",
+                %error,
+                upload_id = %upload_id,
+                "content upload failed"
+            );
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CONTENT_UPLOAD_FAILED",
+                "content could not be stored",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        tracing::warn!(
+            target: "mxgenius.content_upload",
+            status = %upstream.status(),
+            upload_id = %upload_id,
+            "Azure Blob Storage rejected content upload"
+        );
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "CONTENT_UPLOAD_REJECTED",
+            "content storage rejected the upload",
+        );
+    }
+    let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    (
+        StatusCode::CREATED,
+        Json(json!({
+            "upload_id": upload_id,
+            "filename": filename,
+            "media_type": media_type,
+            "size_bytes": body.len(),
+            "content_hash": content_hash,
+            "source_reference": format!("azure-blob://{blob_path}"),
+            "status": "stored_for_ingestion"
+        })),
+    )
+        .into_response()
 }
 
 async fn readyz(State(state): State<AppState>) -> Response {
@@ -557,6 +749,287 @@ fn persistence_error(operation: &'static str, error: impl std::fmt::Display) -> 
         "PERSISTENCE_UNAVAILABLE",
         "server-side persistence is temporarily unavailable",
     )
+}
+
+fn beta_admin_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct BetaAccessRuleRow {
+    id: Uuid,
+    rule: String,
+    rule_type: String,
+    member_role: String,
+    created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+struct AddBetaAccessRequest {
+    rule: String,
+}
+
+fn normalize_beta_access_rule(value: &str) -> Option<(String, &'static str)> {
+    let rule = value.trim().to_ascii_lowercase();
+    if rule.len() < 3
+        || rule.len() > 254
+        || rule.chars().any(char::is_whitespace)
+        || rule.matches('@').count() != 1
+    {
+        return None;
+    }
+    let (local, domain) = rule.split_once('@')?;
+    if domain.is_empty()
+        || !domain.contains('.')
+        || domain.starts_with('.')
+        || domain.ends_with('.')
+    {
+        return None;
+    }
+    if local.is_empty() {
+        Some((format!("@{domain}"), "domain"))
+    } else {
+        Some((rule, "email"))
+    }
+}
+
+async fn seed_beta_access_rules(
+    pool: &sqlx::PgPool,
+    context: &ExecutionContext,
+) -> Result<(), sqlx::Error> {
+    for (rule, rule_type, member_role) in [
+        ("@advancedaog.com", "domain", "viewer"),
+        ("hagy2392@gmail.com", "email", "viewer"),
+        ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
+    ] {
+        sqlx::query(
+            r#"INSERT INTO beta_access_rules
+               (id,organization_id,rule,rule_type,member_role,created_by,created_at)
+               VALUES ($1,$2,$3,$4,$5,$6,now())
+               ON CONFLICT (organization_id,rule) DO NOTHING"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(context.organization_id.0)
+        .bind(rule)
+        .bind(rule_type)
+        .bind(member_role)
+        .bind(context.user_id.0)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !beta_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "BETA_ACCESS_ADMIN_REQUIRED",
+            "administrator or manager access is required",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    if let Err(error) = seed_beta_access_rules(pool, &context).await {
+        return persistence_error("beta_access.seed", error);
+    }
+    match sqlx::query_as::<_, BetaAccessRuleRow>(
+        r#"SELECT id,rule,rule_type,member_role,created_at
+           FROM beta_access_rules
+           WHERE organization_id=$1
+           ORDER BY rule_type DESC, rule ASC"#,
+    )
+    .bind(context.organization_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(rules) => (StatusCode::OK, Json(json!({"rules": rules}))).into_response(),
+        Err(error) => persistence_error("beta_access.list", error),
+    }
+}
+
+async fn managed_identity_graph_token(client: &reqwest::Client) -> Result<String, String> {
+    let endpoint = std::env::var("IDENTITY_ENDPOINT")
+        .map_err(|_| "Container App managed identity is not configured".to_string())?;
+    let identity_header = std::env::var("IDENTITY_HEADER")
+        .map_err(|_| "Container App managed identity is not configured".to_string())?;
+    let response = client
+        .get(endpoint)
+        .query(&[
+            ("resource", "https://graph.microsoft.com"),
+            ("api-version", "2019-08-01"),
+        ])
+        .header("X-IDENTITY-HEADER", identity_header)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "managed identity token request returned {}",
+            response.status()
+        ));
+    }
+    response
+        .json::<Value>()
+        .await
+        .map_err(|error| error.to_string())?
+        .get("access_token")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| "managed identity token response omitted access_token".to_string())
+}
+
+async fn invite_beta_user(client: &reqwest::Client, email: &str) -> Result<(), String> {
+    let token = managed_identity_graph_token(client).await?;
+    let redirect_url = std::env::var("MXGENIUS_BETA_INVITE_REDIRECT_URL")
+        .unwrap_or_else(|_| "https://mxgenius.io/dashboard.html".into());
+    let response = client
+        .post("https://graph.microsoft.com/v1.0/invitations")
+        .bearer_auth(token)
+        .json(&json!({
+            "invitedUserEmailAddress": email,
+            "inviteRedirectUrl": redirect_url,
+            "sendInvitationMessage": true
+        }))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Microsoft Graph returned {}", response.status()))
+    }
+}
+
+async fn add_beta_access(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<AddBetaAccessRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !beta_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "BETA_ACCESS_ADMIN_REQUIRED",
+            "administrator or manager access is required",
+        );
+    }
+    let Some((rule, rule_type)) = normalize_beta_access_rule(&input.rule) else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_BETA_ACCESS_RULE",
+            "enter a complete email address or domain such as @advancedaog.com",
+        );
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, BetaAccessRuleRow>(
+        r#"SELECT id,rule,rule_type,member_role,created_at
+           FROM beta_access_rules
+           WHERE organization_id=$1 AND rule=$2"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(&rule)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(existing)) => {
+            return (
+                StatusCode::OK,
+                Json(json!({"rule": existing, "invited": false})),
+            )
+                .into_response()
+        }
+        Ok(None) => {}
+        Err(error) => return persistence_error("beta_access.get", error),
+    }
+    if rule_type == "email" {
+        if let Err(error) = invite_beta_user(&state.realtime_client, &rule).await {
+            tracing::warn!(
+                target: "mxgenius.beta_access",
+                %error,
+                email = %rule,
+                "Entra guest invitation failed"
+            );
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "ENTRA_INVITATION_FAILED",
+                "the email could not be invited into the Hermetic Labs tenant",
+            );
+        }
+    }
+    match sqlx::query_as::<_, BetaAccessRuleRow>(
+        r#"INSERT INTO beta_access_rules
+           (id,organization_id,rule,rule_type,member_role,created_by,created_at)
+           VALUES ($1,$2,$3,$4,'viewer',$5,now())
+           RETURNING id,rule,rule_type,member_role,created_at"#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(context.organization_id.0)
+    .bind(&rule)
+    .bind(rule_type)
+    .bind(context.user_id.0)
+    .fetch_one(pool)
+    .await
+    {
+        Ok(created) => (
+            StatusCode::CREATED,
+            Json(json!({"rule": created, "invited": rule_type == "email"})),
+        )
+            .into_response(),
+        Err(error) => persistence_error("beta_access.add", error),
+    }
+}
+
+async fn delete_beta_access(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rule_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !beta_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "BETA_ACCESS_ADMIN_REQUIRED",
+            "administrator or manager access is required",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query("DELETE FROM beta_access_rules WHERE id=$1 AND organization_id=$2")
+        .bind(rule_id)
+        .bind(context.organization_id.0)
+        .execute(pool)
+        .await
+    {
+        Ok(result) if result.rows_affected() == 1 => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "BETA_ACCESS_RULE_NOT_FOUND",
+            "beta access rule not found",
+        ),
+        Err(error) => persistence_error("beta_access.delete", error),
+    }
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -1573,6 +2046,16 @@ async fn put_twin_highlight(
     }
 }
 
+type TwinHighlightRow = (
+    Uuid,
+    Value,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    String,
+    OffsetDateTime,
+);
+
 async fn get_twin_highlight(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let context = match application_context(&state, &headers).await {
         Ok(value) => value,
@@ -1582,18 +2065,7 @@ async fn get_twin_highlight(State(state): State<AppState>, headers: HeaderMap) -
         Some(value) => value,
         None => return persistence_not_configured(),
     };
-    let row: Result<
-        Option<(
-            Uuid,
-            Value,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            String,
-            OffsetDateTime,
-        )>,
-        sqlx::Error,
-    > = sqlx::query_as(
+    let row: Result<Option<TwinHighlightRow>, sqlx::Error> = sqlx::query_as(
         r#"SELECT model_id,mesh_ids,mesh_path,component_id,zone_id,source,updated_at
                FROM digital_twin_highlight_state
                WHERE organization_id=$1 AND user_id=$2"#,
@@ -1629,6 +2101,8 @@ async fn get_twin_highlight(State(state): State<AppState>, headers: HeaderMap) -
 struct ChatRequest {
     message: String,
     #[serde(default)]
+    images: Vec<ChatImage>,
+    #[serde(default)]
     thread_id: Option<Uuid>,
     #[serde(default)]
     history: Vec<ChatTurn>,
@@ -1639,9 +2113,86 @@ struct ChatRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct ChatImage {
+    #[serde(default)]
+    name: Option<String>,
+    data_url: String,
+    #[serde(default)]
+    detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct ChatTurn {
     role: String,
     content: String,
+}
+
+fn validate_chat_image(image: &ChatImage) -> Result<(), &'static str> {
+    if image
+        .name
+        .as_deref()
+        .is_some_and(|name| name.chars().count() > 160)
+    {
+        return Err("image names must not exceed 160 characters");
+    }
+    if !matches!(
+        image.detail.as_deref().unwrap_or("auto"),
+        "auto" | "low" | "high" | "original"
+    ) {
+        return Err("image detail must be auto, low, high, or original");
+    }
+    let Some((prefix, encoded)) = image.data_url.split_once(";base64,") else {
+        return Err("images must be base64 data URLs");
+    };
+    if !matches!(
+        prefix,
+        "data:image/jpeg" | "data:image/png" | "data:image/webp"
+    ) {
+        return Err("images must be JPEG, PNG, or WebP");
+    }
+    if encoded.len() > (MAX_CHAT_IMAGE_BYTES * 4 / 3) + 8 {
+        return Err("each image must be no larger than 5 MiB");
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| "images must contain valid base64")?;
+    if decoded.is_empty() || decoded.len() > MAX_CHAT_IMAGE_BYTES {
+        return Err("each image must be between 1 byte and 5 MiB");
+    }
+    Ok(())
+}
+
+fn chat_conversation_input(
+    history: &[ChatTurn],
+    message: &str,
+    grounded_context: &Value,
+    images: &[ChatImage],
+) -> Vec<Value> {
+    let mut input = history
+        .iter()
+        .map(|turn| {
+            json!({
+                "role": turn.role,
+                "content": [{"type": "input_text", "text": turn.content}]
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut current_content = vec![json!({
+        "type": "input_text",
+        "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
+    })];
+    current_content.extend(images.iter().map(|image| {
+        json!({
+            "type": "input_image",
+            "image_url": image.data_url,
+            "detail": image.detail.as_deref().unwrap_or("auto")
+        })
+    }));
+    input.push(json!({
+        "role": "user",
+        "content": current_content
+    }));
+    input
 }
 
 fn first_message_title(message: &str) -> String {
@@ -2054,6 +2605,20 @@ async fn chat(
             "history must contain at most 12 bounded user or assistant turns",
         );
     }
+    if input.images.len() > MAX_CHAT_IMAGES {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_CHAT_IMAGES",
+            "chat accepts at most 4 images",
+        );
+    }
+    if let Some(message) = input
+        .images
+        .iter()
+        .find_map(|image| validate_chat_image(image).err())
+    {
+        return realtime_error(StatusCode::BAD_REQUEST, "INVALID_CHAT_IMAGE", message);
+    }
     let mut auth = match auth_request(&headers) {
         Ok(value) => value,
         Err(message) => return realtime_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message),
@@ -2215,23 +2780,12 @@ async fn chat(
     });
     let model =
         std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-sol".into());
-    let mut conversation_input = input
-        .history
-        .iter()
-        .map(|turn| {
-            json!({
-                "role": turn.role,
-                "content": [{"type": "input_text", "text": turn.content}]
-            })
-        })
-        .collect::<Vec<_>>();
-    conversation_input.push(json!({
-        "role": "user",
-        "content": [{
-            "type": "input_text",
-            "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
-        }]
-    }));
+    let conversation_input = chat_conversation_input(
+        &conversation_history,
+        message,
+        &grounded_context,
+        &input.images,
+    );
     let model_tools = state
         .dispatcher
         .registry()
@@ -2252,7 +2806,7 @@ async fn chat(
         .collect::<Vec<_>>();
     let mut request_body = json!({
         "model": model,
-        "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use supplied read-only tools when authoritative application state is needed. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
+        "instructions": "You are the MXGenius aviation maintenance copilot. Return the required structured response. Use supplied read-only tools when authoritative application state is needed. Use response_kind=conversation for ordinary conversation and response_kind=maintenance_advisory for a technical maintenance question. For an advisory, mirror the familiar MRO sequence: synthesis, verify first, leading historical patterns, what worked, labor by action, parts used in records, limitations, and a follow-up question. Treat supplied manual records as authoritative retrieved technical evidence, not proof that work was performed on this aircraft. Use only their M-## labels in citations. Every technical procedure, limit, interval, or part claim must cite a supplied manual record. Never invent a citation, part, labor value, diagnosis, record, or percentage. evidence_strength_percent rates support in the supplied sources, not probability of a diagnosis. Clearly distinguish compatibility fleet signals from authoritative case evidence. If evidence is missing, partial, conflicting, stale, or not configured, say so. Never claim return-to-service authority and never claim an operational mutation occurred.",
         "input": conversation_input,
         "tools": model_tools,
         "tool_choice": "auto",
@@ -3067,6 +3621,82 @@ mod structured_advisory_tests {
         assert!(required.contains(&json!("verify_first")));
         assert!(required.contains(&json!("leading_historical_patterns")));
         assert!(required.contains(&json!("parts_used_in_records")));
+    }
+
+    #[test]
+    fn persisted_thread_memory_and_images_preserve_structured_request_input() {
+        let history = vec![
+            ChatTurn {
+                role: "user".into(),
+                content: "Remember this tail is N750MX".into(),
+            },
+            ChatTurn {
+                role: "assistant".into(),
+                content: "I will retain that in this thread.".into(),
+            },
+        ];
+        let image = ChatImage {
+            name: Some("panel.png".into()),
+            data_url: "data:image/png;base64,aGVsbG8=".into(),
+            detail: Some("high".into()),
+        };
+        let input = chat_conversation_input(
+            &history,
+            "What is highlighted?",
+            &json!({"manual_records":[]}),
+            &[image],
+        );
+        assert_eq!(input.len(), 3);
+        assert_eq!(
+            input[0]["content"][0]["text"],
+            "Remember this tail is N750MX"
+        );
+        assert_eq!(input[2]["role"], "user");
+        assert_eq!(input[2]["content"][1]["type"], "input_image");
+        assert_eq!(input[2]["content"][1]["detail"], "high");
+        assert_eq!(
+            input[2]["content"][1]["image_url"],
+            "data:image/png;base64,aGVsbG8="
+        );
+        assert_eq!(
+            maintenance_advisory_schema()["properties"]["response_kind"]["enum"],
+            json!(["maintenance_advisory", "conversation"])
+        );
+    }
+
+    #[test]
+    fn content_upload_names_and_types_are_bounded() {
+        assert_eq!(
+            safe_upload_filename(r"C:\manuals\ATA 29.pdf"),
+            Some("ATA_29.pdf".into())
+        );
+        assert!(safe_upload_filename("../").is_none());
+        assert_eq!(
+            content_upload_media_type("application/pdf", "ATA_29.pdf"),
+            Some("application/pdf")
+        );
+        assert_eq!(
+            content_upload_media_type("application/octet-stream", "notes.md"),
+            Some("text/markdown")
+        );
+        assert_eq!(
+            content_upload_media_type("application/octet-stream", "payload.exe"),
+            None
+        );
+    }
+
+    #[test]
+    fn beta_access_rules_require_complete_email_domains() {
+        assert_eq!(
+            normalize_beta_access_rule("@AdvancedAOG.com"),
+            Some(("@advancedaog.com".into(), "domain"))
+        );
+        assert_eq!(
+            normalize_beta_access_rule("Sameera.Tillman@AdvancedAOG.com"),
+            Some(("sameera.tillman@advancedaog.com".into(), "email"))
+        );
+        assert_eq!(normalize_beta_access_rule("@advancedaog"), None);
+        assert_eq!(normalize_beta_access_rule("not-an-email"), None);
     }
 
     #[test]

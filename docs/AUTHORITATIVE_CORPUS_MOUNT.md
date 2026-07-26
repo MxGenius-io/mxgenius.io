@@ -93,6 +93,9 @@ Missing revision or applicability fields stay unknown. They are never inferred f
 9. Use the training/reference corpus only in evaluation fixtures or as separately labeled non-authoritative context.
 10. Restore the original image corpus and source-relative lineage, upload it to controlled storage, and resolve visual evidence by source document ID plus page—not title alone. Exact asset restoration and the uniquely joined subset are complete; 46 repeated lineage keys remain quarantined.
 11. Backfill the 162 classified manual blobs that are not present in the mixed source index through the versioned ingestion path.
+12. Stage authenticated user corpus additions under `documents/content-uploads/{organization_id}/`.
+    Upload completion means the source is stored for ingestion; it does not become searchable or
+    authoritative until the versioned ingestion path classifies, hashes, chunks, embeds, and promotes it.
 
 ## Acceptance rail
 

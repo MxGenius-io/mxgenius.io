@@ -33,7 +33,7 @@ test('dashboard element IDs are unique', () => {
 
 test('every navigation tab resolves to exactly one panel', () => {
   const tabs = matches(/\bdata-tab="([^"]+)"/g);
-  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'operations', 'settings']);
+  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'settings']);
 
   for (const tab of tabs) {
     const escaped = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -67,8 +67,8 @@ test('technical evidence stays behind case and chat boundaries instead of a dead
   assert.match(client, /mxg\.compliance\.applicable_ads/);
 });
 
-test('all mounted typed capabilities are surfaced through the operations workbench', () => {
-  assert.match(dashboard, /data-tab="operations"/);
+test('all mounted typed capabilities are surfaced through the settings operations workbench', () => {
+  assert.match(dashboard, /id="settingsOperationsCard"/);
   assert.match(dashboard, /id="capabilityCatalog"/);
   assert.match(dashboard, /id="capabilityFields"/);
   assert.match(dashboard, /Advanced request/);
@@ -90,7 +90,7 @@ test('known POC-only data and loaders are absent', () => {
   }
 
   assert.doesNotMatch(application, /Token Marketplace/i);
-  assert.doesNotMatch(dashboard, /API Console|consolePanel|settingsAutoSpeak|chat-attach-btn/i);
+  assert.doesNotMatch(dashboard, /API Console|consolePanel|settingsAutoSpeak/i);
   assert.doesNotMatch(dashboard, />\s*(?:Overdue|Current)\s*</i);
   assert.doesNotMatch(dashboard, /MRO Scan/i);
   assert.doesNotMatch(application, /D-check overdue|Higher hours = more overdue maintenance/i);
@@ -99,6 +99,10 @@ test('known POC-only data and loaders are absent', () => {
   assert.doesNotMatch(application, /__MXG_API_EMAIL__|__MXG_API_PASSWORD__|adminLogin/);
   assert.doesNotMatch(client, /Admin\/APILogin|adminLogin/);
   assert.match(auth, /getCompatibilitySession/);
+  assert.doesNotMatch(auth, /mx_beta_whitelist/);
+  assert.match(auth, /\/api\/profile/);
+  assert.match(application, /MXApplicationClient\.betaAccess\.add/);
+  assert.match(dashboard, /@domain\.com/);
   assert.doesNotMatch(dashboard, /Work Order Invoice|Email Invoice|Pending AI/i);
 });
 
@@ -119,7 +123,6 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(application, /activeUrgencyFilter === 'active-case'/);
   assert.match(application, /cluster\.hasActiveCase/);
   assert.match(application, /case-context-banner/);
-  assert.match(dashboard, /id="pillActiveCase"/);
   assert.match(dashboard, /id="caseMarkerButton"/);
   assert.match(caseWorkspace, /digitalTwin\.inspectSelection/);
   assert.match(caseWorkspace, /digitalTwin\.attachMarker/);
@@ -195,7 +198,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=10/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=11/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -231,17 +234,10 @@ test('XR workspace uses one-grab translation and two-grab scale rotation', () =>
   assert.match(viewer, /distance \/ xrWorldGesture\.distance/);
 });
 
-test('public Sketchfab models are additive and share desktop animation controls', () => {
-  const external = modelCatalog.find((model) => model.provider === 'sketchfab');
-  assert.ok(external, 'a public Sketchfab catalog entry should be present');
+test('owned and uploaded GLB models remain available without a Sketchfab catalog dependency', () => {
   assert.ok(modelCatalog.some((model) => model.file?.endsWith('.glb')), 'local GLB models must remain available');
-  assert.equal(external.uid, '967cfd4aac234b2583e9e50060ff10af');
-  assert.equal(external.attribution.license, 'CC BY 4.0');
-  assert.match(viewer, /sketchfab-viewer-1\.12\.1\.js/);
-  assert.match(viewer, /id="sketchfab-frame"/);
-  assert.match(viewer, /getAnimations/);
-  assert.match(viewer, /seekTo/);
-  assert.match(viewer, /animation_autoplay: 0/);
+  assert.equal(modelCatalog.some((model) => model.provider === 'sketchfab'), false);
+  assert.doesNotMatch(JSON.stringify(modelCatalog), /sketchfab/i);
 });
 
 test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
