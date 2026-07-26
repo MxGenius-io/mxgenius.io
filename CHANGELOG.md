@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [3.3.0] — 2026-07-26
+
+### Changed — Chat and model output
+
+- Added bounded 12-turn text conversation context while retaining `store: false`.
+- Added a bounded server-side Responses tool loop that exposes only available, read-only MCP capabilities.
+- Added post-generation validation that rejects citations outside the exact retrieved `M-##` record set.
+- Wired the initialized DeepSeek model into a constrained on-device fallback when cloud chat is unavailable.
+- Updated the default text model configuration to `gpt-5.6-sol`; deployments can continue to override it with `MXGENIUS_OPENAI_TEXT_MODEL`.
+
+### Changed — MCP
+
+- Added the complete browser lifecycle: `initialize`, protocol/capability validation, `notifications/initialized`, then list/call.
+- Added registry availability metadata and removed `not_configured` tools from the Realtime model catalog.
+- Classified every mutation action as confirmation-required at the catalog boundary.
+- Added bounded browser MCP timeouts and stable transport error codes.
+
+### Changed — Voice and Realtime
+
+- Migrated WebRTC session creation to the current nested Realtime audio contract with `gpt-realtime-2.1`, `marin`, `gpt-4o-mini-transcribe`, and server VAD defaults.
+- Added explicit voice states, visible status, finalized transcript turns, active-response tracking, bounded reconnect with jitter, and event correlation IDs.
+- Removed unconditional response cancellation on normal server-VAD speech detection.
+- Stopped returning upstream Realtime error bodies to browsers.
+
+### Changed — Reliability
+
+- GitHub Pages deployment now depends on frontend tests, Rust formatting, workspace tests, and clippy with warnings denied.
+- Added contract tests for Realtime session shape, MCP lifecycle ordering, catalog filtering, VAD interruption, cleanup, citation validation, and fallback wiring.
+- Added safe correlated completion telemetry for chat and Realtime call exchange.
+
+---
+
 ## [3.2.0] — 2026-07-24
 
 ### Added — Aircraft Detail Modal

@@ -140,7 +140,7 @@ const MXApplicationClient = (() => {
       .map(({ compact }) => compact);
   }
 
-  function chat({ message, fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function chat({ message, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -154,6 +154,7 @@ const MXApplicationClient = (() => {
       credentials: 'include',
       body: JSON.stringify({
         message,
+        history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
         case_context: caseContext || null
       })
@@ -242,7 +243,8 @@ const MXApplicationClient = (() => {
   }
 
   async function mcpRequest(method, params = {}, options = {}) {
-    const id = options.id ?? `mxg-web-${Date.now()}-${++rpcSequence}`;
+    const notification = options.notification === true;
+    const id = notification ? undefined : (options.id ?? `mxg-web-${Date.now()}-${++rpcSequence}`);
     const headers = {
       'Accept': 'application/json, text/event-stream',
       'Content-Type': 'application/json'
@@ -255,14 +257,39 @@ const MXApplicationClient = (() => {
       headers['X-MXG-Confirmation-Grant'] = options.confirmationGrant;
     }
 
-    const response = await fetch(`${MCP_BASE}/mcp`, {
-      method: 'POST',
-      headers,
-      credentials: 'include',
-      signal: options.signal,
-      body: JSON.stringify({ jsonrpc: '2.0', id, method, params })
-    });
-    if (response.status === 202) return null;
+    const timeoutController = !options.signal && typeof AbortController !== 'undefined'
+      ? new AbortController()
+      : null;
+    const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 30_000;
+    const timeout = timeoutController
+      ? setTimeout(() => timeoutController.abort(), timeoutMs)
+      : null;
+    let response;
+    try {
+      response = await fetch(`${MCP_BASE}/mcp`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        signal: options.signal || timeoutController?.signal,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          ...(!notification ? { id } : {}),
+          method,
+          params
+        })
+      });
+    } catch (cause) {
+      const error = new Error(cause?.name === 'AbortError' ? 'MCP request timed out or was cancelled' : 'MCP request failed');
+      error.code = cause?.name === 'AbortError' ? 'MCP_REQUEST_TIMEOUT' : 'MCP_TRANSPORT_FAILED';
+      error.cause = cause;
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (response.status === 202) {
+      if (!notification) throw new Error('MCP request unexpectedly returned no response');
+      return null;
+    }
 
     const contentType = response.headers.get('content-type') || '';
     const payload = contentType.includes('application/json')
@@ -275,8 +302,18 @@ const MXApplicationClient = (() => {
       error.details = payload.error?.data || null;
       throw error;
     }
-    if (payload.id !== id) throw new Error('MCP response correlation ID mismatch');
+    if (!notification && payload.id !== id) throw new Error('MCP response correlation ID mismatch');
     return payload.result;
+  }
+
+  const capabilityConnections = new Map();
+
+  function capabilityConnectionKey(options = {}) {
+    return [
+      MCP_BASE,
+      options.organizationId || '',
+      options.accessToken || 'cookie-session'
+    ].join('|');
   }
 
   function initializeCapabilities(options = {}) {
@@ -287,14 +324,48 @@ const MXApplicationClient = (() => {
     }, options);
   }
 
-  function listCapabilities(options = {}) {
+  async function connectCapabilities(options = {}) {
+    const key = capabilityConnectionKey(options);
+    if (capabilityConnections.has(key)) return capabilityConnections.get(key);
+    const lifecycleOptions = { ...options, confirmationGrant: undefined };
+    const connection = (async () => {
+      const initialized = await initializeCapabilities(lifecycleOptions);
+      if (initialized?.protocolVersion !== MCP_PROTOCOL_VERSION) {
+        const error = new Error(`MCP protocol mismatch: expected ${MCP_PROTOCOL_VERSION}`);
+        error.code = 'MCP_PROTOCOL_MISMATCH';
+        throw error;
+      }
+      if (!initialized?.capabilities?.tools) {
+        const error = new Error('MCP server did not advertise tool capabilities');
+        error.code = 'MCP_TOOLS_UNAVAILABLE';
+        throw error;
+      }
+      await mcpRequest('notifications/initialized', {}, { ...lifecycleOptions, notification: true });
+      return initialized;
+    })();
+    capabilityConnections.set(key, connection);
+    try {
+      return await connection;
+    } catch (error) {
+      capabilityConnections.delete(key);
+      throw error;
+    }
+  }
+
+  function disconnectCapabilities(options = {}) {
+    capabilityConnections.delete(capabilityConnectionKey(options));
+  }
+
+  async function listCapabilities(options = {}) {
+    await connectCapabilities(options);
     return mcpRequest('tools/list', {}, options);
   }
 
-  function callCapability(name, args = {}, options = {}) {
+  async function callCapability(name, args = {}, options = {}) {
     if (!/^mxg\.[a-z_]+\.[a-z_]+$/.test(name)) {
       throw new TypeError(`Invalid MXGenius capability name: ${name}`);
     }
+    await connectCapabilities(options);
     return mcpRequest('tools/call', { name, arguments: args }, options);
   }
 
@@ -446,6 +517,8 @@ const MXApplicationClient = (() => {
     }),
     capabilities: Object.freeze({
       initialize: initializeCapabilities,
+      connect: connectCapabilities,
+      disconnect: disconnectCapabilities,
       list: listCapabilities,
       call: callCapability
     })

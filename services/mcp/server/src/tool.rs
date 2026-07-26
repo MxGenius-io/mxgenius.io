@@ -27,6 +27,25 @@ pub struct ToolSpec {
     pub domain_schema_version: String,
     pub action: Action,
     pub requires_human_approval: bool,
+    /// Static registry readiness. Runtime adapter failures remain represented
+    /// by typed partial envelopes.
+    pub availability: String,
+}
+
+pub fn is_read_only_action(action: Action) -> bool {
+    matches!(
+        action,
+        Action::AircraftRead
+            | Action::CaseRead
+            | Action::PartsRead
+            | Action::MroRead
+            | Action::WeatherRead
+            | Action::ComplianceRead
+            | Action::TwinRead
+            | Action::SchedulingRead
+            | Action::EvidenceRead
+            | Action::AnalyticsRead
+    )
 }
 
 /// Typed tool. Implementations map a single MCP tool name to a service call.

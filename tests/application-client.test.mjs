@@ -45,6 +45,41 @@ function harness(outputs, orchestration = null) {
       }
       const request = JSON.parse(options.body);
       requests.push({ url, options, request });
+      if (request.method === 'initialize') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              protocolVersion: '2025-11-25',
+              capabilities: { tools: { listChanged: false } },
+              serverInfo: { name: 'mxgenius-mcp', version: '0.1.0' }
+            }
+          })
+        };
+      }
+      if (request.method === 'notifications/initialized') {
+        return {
+          ok: true,
+          status: 202,
+          headers: { get: () => null }
+        };
+      }
+      if (request.method === 'tools/list') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: { tools: [] }
+          })
+        };
+      }
       if (url.endsWith('/orchestration/cases/first-slice')) {
         const status = orchestration?.status || 200;
         const payload = orchestration?.payload || {};
@@ -236,11 +271,12 @@ test('digital-twin reads omit confirmation and marker mutation carries it', asyn
   await client.digitalTwin.attachMarker({
     caseId: 'case-1', componentId: 'cmp-1', severity: 'high', session
   });
-  assert.equal(requests.length, 3);
-  assert.equal(requests[0].options.headers['X-MXG-Confirmation-Grant'], undefined);
-  assert.equal(requests[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
-  assert.equal(requests[2].options.headers['X-MXG-Confirmation-Grant'], 'grant');
-  assert.equal(requests[2].request.params.arguments.severity, 'high');
+  const calls = requests.filter(({ request }) => request.method === 'tools/call');
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].options.headers['X-MXG-Confirmation-Grant'], undefined);
+  assert.equal(calls[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
+  assert.equal(calls[2].options.headers['X-MXG-Confirmation-Grant'], 'grant');
+  assert.equal(calls[2].request.params.arguments.severity, 'high');
 });
 
 test('FAA candidate AD reads use the authenticated compliance capability', async () => {
@@ -252,10 +288,30 @@ test('FAA candidate AD reads use the authenticated compliance capability', async
     caseId: 'case-1',
     session: { accessToken: 'oidc-token', organizationId: 'org-1', confirmationGrant: 'must-not-leak' }
   });
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].request.params.name, 'mxg.compliance.applicable_ads');
-  assert.equal(requests[0].request.params.arguments.aircraft_id, 'aircraft-1');
-  assert.equal(requests[0].request.params.arguments.case_id, 'case-1');
-  assert.equal(requests[0].options.headers.Authorization, 'Bearer oidc-token');
+  const call = requests.find(({ request }) => request.method === 'tools/call');
+  assert.equal(call.request.params.name, 'mxg.compliance.applicable_ads');
+  assert.equal(call.request.params.arguments.aircraft_id, 'aircraft-1');
+  assert.equal(call.request.params.arguments.case_id, 'case-1');
+  assert.equal(call.options.headers.Authorization, 'Bearer oidc-token');
+  assert.equal(call.options.headers['X-MXG-Confirmation-Grant'], undefined);
+});
+
+test('capability calls complete one MCP initialization lifecycle per application session', async () => {
+  const { client, requests } = harness({
+    'mxg.aircraft.lookup': { matches: [] },
+    'mxg.aircraft.profile': { aircraft: null }
+  });
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1', confirmationGrant: 'grant-for-tool-only' };
+  await client.capabilities.call('mxg.aircraft.lookup', { registration: 'N12345' }, session);
+  await client.capabilities.call('mxg.aircraft.profile', { aircraft_id: 'aircraft-1' }, session);
+  assert.deepEqual(
+    requests.map(({ request }) => request.method),
+    ['initialize', 'notifications/initialized', 'tools/call', 'tools/call']
+  );
+  assert.equal('id' in requests[1].request, false);
+  assert.equal(requests[0].options.headers['MCP-Protocol-Version'], undefined);
+  assert.equal(requests[1].options.headers['MCP-Protocol-Version'], '2025-11-25');
   assert.equal(requests[0].options.headers['X-MXG-Confirmation-Grant'], undefined);
+  assert.equal(requests[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
+  assert.equal(requests[2].options.headers['X-MXG-Confirmation-Grant'], 'grant-for-tool-only');
 });

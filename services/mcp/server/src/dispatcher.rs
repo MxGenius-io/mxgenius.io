@@ -215,6 +215,8 @@ impl Dispatcher {
             .list_tools()
             .into_iter()
             .map(|t| {
+                let requires_human_approval =
+                    t.requires_human_approval || !crate::tool::is_read_only_action(t.action);
                 json!({
                     "name": t.name,
                     "title": t.title,
@@ -226,7 +228,9 @@ impl Dispatcher {
                         "input_schema_version": t.input_schema_version,
                         "output_schema_version": t.output_schema_version,
                         "domain_schema_version": t.domain_schema_version,
-                        "requires_human_approval": t.requires_human_approval
+                        "requires_human_approval": requires_human_approval,
+                        "availability": t.availability,
+                        "callable": t.availability == "available"
                     }
                 })
             })

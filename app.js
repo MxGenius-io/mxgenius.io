@@ -671,10 +671,12 @@ function setupChatPanel() {
   const sendBtn = document.querySelector('.chat-send-btn');
   const history = document.getElementById('chatHistory');
   let activeCaseContext = null;
+  const chatTurns = [];
 
   if (!panel || !toggleBtn) return;
 
   window.addEventListener('mxg:case-selected', (event) => {
+    chatTurns.length = 0;
     activeCaseContext = event.detail || null;
     const notice = document.createElement('div');
     notice.className = 'chat-msg ai-msg';
@@ -1184,6 +1186,39 @@ Rules:
 
   initOnDeviceLLM();
 
+  async function runOnDeviceFallback(message) {
+    if (!modelReady || !llamaContext?.completion) {
+      throw new Error('Cloud and on-device assistance are unavailable.');
+    }
+    const evidence = await RAG.buildContextAsync(message);
+    const prompt = [
+      '<|im_start|>system',
+      AOG_SYSTEM_PROMPT,
+      evidence.text || 'No authoritative manual evidence was retrieved.',
+      '<|im_end|>',
+      '<|im_start|>user',
+      message,
+      '<|im_end|>',
+      '<|im_start|>assistant',
+      'Answer:'
+    ].join('\n');
+    const result = await llamaContext.completion({
+      id: 1,
+      prompt,
+      n_predict: 512,
+      temperature: 0.2,
+      stop: ['<|im_end|>', '<|endoftext|>']
+    });
+    const raw = result?.text ?? result?.content ?? result?.response ?? '';
+    const answer = cleanModelOutput(raw);
+    if (!answer) throw new Error('The on-device model returned no usable answer.');
+    updateCostCounter(
+      Math.ceil(prompt.length / 4),
+      Number(result?.tokens_predicted) || Math.ceil(answer.length / 4)
+    );
+    return { answer, evidence };
+  }
+
 
   window.openChatWith = (text) => {
     if (!panel.classList.contains('open')) {
@@ -1258,6 +1293,7 @@ Rules:
       }
       const response = await MXApplicationClient.chat({
         message: text,
+        history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
         caseContext: activeCaseContext && {
           case_id: activeCaseContext.caseId,
@@ -1271,7 +1307,9 @@ Rules:
       
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        throw new Error(`Server returned ${response.status}: ${errBody.substring(0, 200) || response.statusText}`);
+        const responseError = new Error(`Server returned ${response.status}: ${errBody.substring(0, 200) || response.statusText}`);
+        responseError.status = response.status;
+        throw responseError;
       }
       
       const rawText = await response.text();
@@ -1311,10 +1349,27 @@ Rules:
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
       }
+      const assistantTurn = answerText || data?.advisory?.synthesis || data?.advisory?.conversation_answer || '';
+      chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: assistantTurn });
+      if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
       
     } catch (e) {
       console.error('[MXGenius] Cloud chat error:', e.message);
-      streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(e.message) + '</span>';
+      const recoverableCloudFailure = !e.status || e.status === 429 || e.status >= 500;
+      try {
+        if (!recoverableCloudFailure) throw e;
+        const fallback = await runOnDeviceFallback(text);
+        streamTarget.innerHTML =
+          '<div style="margin-bottom:8px;padding:6px 8px;border:1px solid #f59e0b;border-radius:6px;color:#fbbf24;font-size:11px;font-weight:700;">OFFLINE / NON-AUTHORITATIVE</div>' +
+          formatMxResponse(fallback.answer) +
+          formatProcedureBlock(fallback.evidence.hits);
+        RAG.renderImages(fallback.evidence.images, streamTarget);
+        chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: fallback.answer });
+        if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
+      } catch (fallbackError) {
+        console.error('[MXGenius] On-device chat error:', fallbackError.message);
+        streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(fallbackError.message) + '</span>';
+      }
     }
     history.scrollTop = history.scrollHeight;
   }
@@ -1341,6 +1396,7 @@ Rules:
   let realtimeApplicationSession = null;
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
+  const completedVoiceItems = new Set();
 
   // â”€â”€ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) â”€â”€
   let speechRecognition = null;
@@ -1484,6 +1540,21 @@ Rules:
 
   function setRealtimeUiState(state, label) {
     realtimeState.dataset.state = state;
+    if (realtimeStateLabel) {
+      const fallbackLabels = {
+        connecting: 'Connecting voice…',
+        reconnecting: 'Reconnecting voice…',
+        listening: 'Voice listening',
+        'user-speaking': 'Hearing you…',
+        thinking: 'MXGenius thinking…',
+        speaking: 'MXGenius speaking',
+        interrupted: 'Response interrupted',
+        degraded: 'Voice degraded',
+        failed: 'Voice unavailable',
+        disconnected: 'Voice disconnected'
+      };
+      realtimeStateLabel.textContent = label || fallbackLabels[state] || state;
+    }
     const active = !['disconnected', 'failed'].includes(state);
     
     const realtimeToggleBtn = document.getElementById('realtimeToggleBtn');
@@ -1496,7 +1567,7 @@ Rules:
     micBtn.style.opacity = '1';
     micBtn.title = active ? 'Tap to toggle microphone' : 'Tap to dictate';
     
-    if (state === 'connected' && realtimeSession?.media) {
+    if (['listening', 'user-speaking', 'thinking', 'speaking'].includes(state) && realtimeSession?.media) {
         const isEnabled = realtimeSession.media.getAudioTracks().some(t => t.enabled);
         micBtn.style.color = isEnabled ? '#10b981' : '';
         micBtn.classList.toggle('pulse-mic', isEnabled);
@@ -1517,6 +1588,19 @@ Rules:
       realtimeTranscript.hidden = false;
       const target = event.role === 'user' ? realtimeUserTranscript : realtimeAssistantTranscript;
       target.textContent = event.text || '';
+      target.dataset.final = String(event.final);
+      const completedKey = `${event.role}:${event.itemId || event.text}`;
+      if (event.final && event.text && !completedVoiceItems.has(completedKey)) {
+        completedVoiceItems.add(completedKey);
+        const turn = document.createElement('div');
+        turn.className = `chat-msg ${event.role === 'user' ? 'user-msg' : 'ai-msg'}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        bubble.textContent = event.text;
+        turn.appendChild(bubble);
+        history.appendChild(turn);
+        history.scrollTop = history.scrollHeight;
+      }
       return;
     }
     if (event.type === 'channel-open') {
@@ -1536,6 +1620,18 @@ Rules:
     if (event.type === 'tool-request') {
       setRealtimeUiState('thinking', `Tool requested: ${event.name}`);
       await routeRealtimeTool(event);
+      return;
+    }
+    if (event.type === 'channel-close' && realtimeSession?.state !== 'reconnecting') {
+      setRealtimeUiState('degraded', 'Realtime event channel closed');
+      return;
+    }
+    if (event.type === 'usage') {
+      window.dispatchEvent(new CustomEvent('mxg:realtime-usage', { detail: event }));
+      return;
+    }
+    if (event.type === 'interrupted') {
+      setRealtimeUiState('interrupted', 'Response interrupted');
     }
   }
 
@@ -3147,7 +3243,7 @@ async function loadGlobe() {
       .pointRadius(clusterRadius)
       .pointColor(clusterColor)
       .pointResolution(32)
-      .ringsData(allClusters.filter(c => c.hasActiveCase || c.hasAog))
+      .ringsData(attentionClusters(allClusters))
       .ringLat(d => d.lat)
       .ringLng(d => d.lng)
       .ringAltitude(clusterAltitude)

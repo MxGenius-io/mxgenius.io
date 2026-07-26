@@ -16,7 +16,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test application shell
+        run: npm test
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+
+      - name: Check Rust formatting
+        working-directory: services/mcp
+        run: cargo fmt --all -- --check
+
+      - name: Test MCP workspace
+        working-directory: services/mcp
+        run: cargo test --workspace
+
+      - name: Lint MCP workspace
+        working-directory: services/mcp
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
   deploy:
+    needs: validate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
