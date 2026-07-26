@@ -602,7 +602,11 @@ document.addEventListener('DOMContentLoaded', () => {
   RAG.load();            // RAG index (non-blocking)
 
   // Phase 2: Network-dependent (fire and forget - app works without it)
-  login().then(() => { loadGlobe(); MXOnboarding.checkFirstRun(); }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
+  login().then(() => { 
+    initSettings();
+    loadGlobe(); 
+    MXOnboarding.checkFirstRun(); 
+  }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
 
 async function login() {
