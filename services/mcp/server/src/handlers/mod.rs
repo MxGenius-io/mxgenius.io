@@ -59,7 +59,7 @@ pub fn register_all(
         adapters.faa_ad,
         adapters.saib,
     );
-    digital_twin::register(reg, case_service);
+    digital_twin::register(reg, case_service, adapters.pool.clone());
     scheduling::register(reg);
     evidence::register(reg, evidence_service);
     analytics::register(reg);

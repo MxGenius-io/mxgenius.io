@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased]
+
+### Added — Digital twin meshes
+
+- Added authenticated, tenant-scoped GLB upload and retrieval with parsed mesh/node manifests.
+- Added user/model highlight synchronization so MCP can set or read the exact raycast selection.
+- Wired model-issued highlights into text chat, Realtime tool calls, and the embedded 3D viewer.
+- Removed the Sketchfab catalog dependency in favor of owned and user-uploaded model assets.
+
+---
+
 ## [3.3.0] — 2026-07-26
 
 ### Changed — Chat and model output

@@ -99,6 +99,7 @@ pub fn default_registry(
         case_service,
         evidence_service,
         RegistryAdapters {
+            pool: None,
             manual: Arc::new(FixtureManualCorpusAdapter),
             jetnet: Arc::new(FixtureJetNetAdapter),
             aircraft_catalog: Arc::new(InMemoryAircraftCatalog::default()),
@@ -111,6 +112,7 @@ pub fn default_registry(
 
 #[derive(Clone)]
 pub struct RegistryAdapters {
+    pub pool: Option<sqlx::PgPool>,
     pub manual: Arc<dyn mxgenius_shared::adapters::manual::ManualCorpusAdapter>,
     pub jetnet: Arc<dyn mxgenius_shared::adapters::jetnet::JetNetAdapter>,
     pub aircraft_catalog: Arc<dyn crate::application::aircraft_catalog::AircraftCatalog>,
