@@ -1481,14 +1481,32 @@ Rules:
   const realtimeConfirmationApprove = document.getElementById('realtimeConfirmationApprove');
   let realtimeSession = null;
   let realtimeApplicationSession = null;
+  let realtimeModeEnabled = false;
+  let realtimeMicEnabled = true;
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
 
   // â”€â”€ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) â”€â”€
   let speechRecognition = null;
-  let micLongPressTimer = null;
-  const MIC_LONG_PRESS_MS = 500;
+  let transcriptionActive = false;
+
+  function renderMicState() {
+    if (!micBtn) return;
+    if (realtimeModeEnabled) {
+      micBtn.classList.toggle('pulse-mic', realtimeMicEnabled);
+      micBtn.style.color = realtimeMicEnabled ? '#10b981' : '';
+      micBtn.title = realtimeMicEnabled ? 'Mute Realtime microphone' : 'Unmute Realtime microphone';
+      micBtn.setAttribute('aria-label', micBtn.title);
+      micBtn.setAttribute('aria-pressed', String(realtimeMicEnabled));
+      return;
+    }
+    micBtn.classList.toggle('pulse-mic', transcriptionActive);
+    micBtn.style.color = '';
+    micBtn.title = transcriptionActive ? 'Stop dictation' : 'Start dictation';
+    micBtn.setAttribute('aria-label', micBtn.title);
+    micBtn.setAttribute('aria-pressed', String(transcriptionActive));
+  }
 
   function setupSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1510,13 +1528,14 @@ Rules:
       input.value = (finalTranscript + interim).trim();
     };
     recognition.onend = () => {
-      micBtn.classList.remove('pulse-mic');
-      micBtn.title = 'Tap to dictate - hold for voice';
+      transcriptionActive = false;
+      renderMicState();
       input.focus();
     };
     recognition.onerror = (e) => {
       if (e.error !== 'aborted') console.warn('[Speech] Recognition error:', e.error);
-      micBtn.classList.remove('pulse-mic');
+      transcriptionActive = false;
+      renderMicState();
     };
     recognition.onstart_reset = () => { finalTranscript = ''; };
     return recognition;
@@ -1525,32 +1544,33 @@ Rules:
   function startTranscription() {
     if (!speechRecognition) speechRecognition = setupSpeechRecognition();
     if (!speechRecognition) {
-      // No browser support - fall through to realtime voice
-      startRealtimeVoice();
+      setRealtimeUiState('failed', 'Dictation is unavailable in this browser');
       return;
     }
     speechRecognition.onstart_reset();
     try {
       speechRecognition.start();
-      micBtn.classList.add('pulse-mic');
-      micBtn.title = 'Tap to stop dictation';
+      transcriptionActive = true;
+      renderMicState();
       setRealtimeUiState('listening', 'Dictating - tap mic to stop');
     } catch (e) {
       console.warn('[Speech] Already started or unavailable:', e.message);
     }
   }
 
-  function stopTranscription() {
+  function stopTranscription({ resetVoiceState = true } = {}) {
     if (speechRecognition) {
       try { speechRecognition.stop(); } catch (_) {}
     }
-    micBtn.classList.remove('pulse-mic');
-    setRealtimeUiState('disconnected', 'Voice disconnected');
+    transcriptionActive = false;
+    renderMicState();
+    if (resetVoiceState) setRealtimeUiState('disconnected', 'Voice disconnected');
   }
 
   async function startRealtimeVoice() {
     const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
     if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      realtimeModeEnabled = false;
       setRealtimeUiState('failed', 'Sign in to use Realtime voice');
       return;
     }
@@ -1564,6 +1584,8 @@ Rules:
         session: realtimeApplicationSession
       });
     } catch (error) {
+      realtimeModeEnabled = false;
+      setRealtimeUiState('failed', error.message || 'Realtime voice unavailable');
       console.warn('[Realtime] Connection failed:', error.code || error.message);
     }
   }
@@ -1582,35 +1604,38 @@ Rules:
     }
 
     if (realtimeToggleBtn) {
-      realtimeToggleBtn.addEventListener('change', (e) => {
+      realtimeToggleBtn.addEventListener('change', async (e) => {
         if (e.target.checked) {
-          stopTranscription();
-          if (realtimeSession) startRealtimeVoice();
+          realtimeModeEnabled = true;
+          realtimeMicEnabled = true;
+          stopTranscription({ resetVoiceState: false });
+          realtimeSession?.setMicrophoneEnabled(true);
+          renderMicState();
+          if (realtimeSession) {
+            await startRealtimeVoice();
+          } else {
+            realtimeModeEnabled = false;
+            setRealtimeUiState('failed', 'Realtime voice is unavailable in this browser');
+          }
         } else {
+          realtimeModeEnabled = false;
           if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
             realtimeSession.disconnect();
           }
+          setRealtimeUiState('disconnected', 'Voice disconnected');
+          renderMicState();
         }
       });
     }
 
-    // Mic button is purely for dictation now
     const handleMicTap = (e) => {
       e?.preventDefault();
-      // If realtime is active, toggle the WebRTC microphone track instead of transcribing
-      if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
-        if (realtimeSession.media) {
-          let enabled = false;
-          realtimeSession.media.getAudioTracks().forEach(t => {
-            t.enabled = !t.enabled;
-            enabled = t.enabled;
-          });
-          micBtn.style.color = enabled ? '#10b981' : '';
-          micBtn.classList.toggle('pulse-mic', enabled);
-        }
+      if (realtimeModeEnabled) {
+        realtimeMicEnabled = realtimeSession?.setMicrophoneEnabled(!realtimeMicEnabled) ?? !realtimeMicEnabled;
+        renderMicState();
         return;
       }
-      if (micBtn.classList.contains('pulse-mic')) {
+      if (transcriptionActive) {
         stopTranscription();
       } else {
         startTranscription();
@@ -1618,7 +1643,7 @@ Rules:
     };
 
     micBtn.addEventListener('click', handleMicTap);
-    micBtn.title = 'Tap to dictate';
+    renderMicState();
     
     realtimeInterruptBtn?.addEventListener('click', () => realtimeSession?.interrupt());
     realtimeConfirmationCancel?.addEventListener('click', declineRealtimeMutation);
@@ -1642,33 +1667,27 @@ Rules:
       };
       realtimeStateLabel.textContent = label || fallbackLabels[state] || state;
     }
-    const active = !['disconnected', 'failed'].includes(state);
-    
     const realtimeToggleBtn = document.getElementById('realtimeToggleBtn');
     if (realtimeToggleBtn) {
-      // Don't trigger change event when setting programmatically
-      realtimeToggleBtn.checked = active;
+      realtimeToggleBtn.checked = realtimeModeEnabled;
     }
     
     micBtn.disabled = false;
     micBtn.style.opacity = '1';
-    micBtn.title = active ? 'Tap to toggle microphone' : 'Tap to dictate';
-    
-    if (['listening', 'user-speaking', 'thinking', 'speaking'].includes(state) && realtimeSession?.media) {
-        const isEnabled = realtimeSession.media.getAudioTracks().some(t => t.enabled);
-        micBtn.style.color = isEnabled ? '#10b981' : '';
-        micBtn.classList.toggle('pulse-mic', isEnabled);
-    } else if (!active) {
-        micBtn.style.color = '';
-        micBtn.classList.remove('pulse-mic');
-    }
+    renderMicState();
     
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
   }
 
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
+      if (event.state === 'failed') realtimeModeEnabled = false;
       setRealtimeUiState(event.state, event.reason);
+      return;
+    }
+    if (event.type === 'microphone') {
+      realtimeMicEnabled = event.enabled;
+      renderMicState();
       return;
     }
     if (event.type === 'transcript') {

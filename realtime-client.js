@@ -29,6 +29,7 @@ const MXRealtime = (() => {
       this.createdAudioElement = false;
       this.eventSequence = 0;
       this.closingResources = false;
+      this.microphoneEnabled = true;
     }
 
     emit(type, detail = {}) {
@@ -84,9 +85,10 @@ const MXRealtime = (() => {
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
         for (const track of this.media.getAudioTracks()) {
-          track.enabled = false;
+          track.enabled = this.microphoneEnabled;
           this.peer.addTrack(track, this.media);
         }
+        this.emit('microphone', { enabled: this.microphoneEnabled });
         this.channel = this.peer.createDataChannel('oai-events');
         this.channel.addEventListener('open', () => this.emit('channel-open'));
         this.channel.addEventListener('close', () => {
@@ -203,6 +205,21 @@ const MXRealtime = (() => {
         : { ...event, event_id: `mxg_${Date.now()}_${++this.eventSequence}` };
       this.channel.send(JSON.stringify(payload));
       return true;
+    }
+
+    setMicrophoneEnabled(enabled) {
+      this.microphoneEnabled = Boolean(enabled);
+      if (this.media) {
+        for (const track of this.media.getAudioTracks()) {
+          track.enabled = this.microphoneEnabled;
+        }
+      }
+      this.emit('microphone', { enabled: this.microphoneEnabled });
+      return this.microphoneEnabled;
+    }
+
+    isMicrophoneEnabled() {
+      return this.microphoneEnabled;
     }
 
     interrupt() {

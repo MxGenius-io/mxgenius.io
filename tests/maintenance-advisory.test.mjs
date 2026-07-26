@@ -32,5 +32,5 @@ test('manual images stay behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);
   assert.match(app, /MXApplicationClient\.evidence\.manualAssetUrl/);
-  assert.match(dashboard, /app\.js\?v=12/);
+  assert.match(dashboard, /app\.js\?v=\d+/);
 });
