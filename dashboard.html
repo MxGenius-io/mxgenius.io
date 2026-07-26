@@ -91,9 +91,15 @@
 
 
           <!-- Globe -->
-          <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:0;">
+          <div class="globe-container" id="globeContainer" style="height:500px; position:relative; border-radius:12px; overflow:hidden; margin-bottom:24px;">
             <div id="globeSidebarWrapper" style="position: absolute; left: 16px; top: 16px; z-index: 5; display: flex; align-items: flex-start; gap: 8px;">
-              <div class="globe-texture-buttons" id="globeTextureButtons" style="display: flex; flex-direction: column; gap: 8px; transition: transform 0.3s ease, opacity 0.3s ease;">
+              <button class="texture-btn globe-filter-hamburger" id="globeFilterHamburger" title="Toggle Sidebar" style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 6px; transition: transform 0.3s ease;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
+                <svg id="globeHamburgerIcon" viewBox="0 0 20 20" width="14" height="14" fill="currentColor" style="transition: transform 0.3s ease;">
+                  <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+              <div class="globe-texture-buttons" id="globeTextureButtons" style="display: flex; flex-direction: column; gap: 8px; transition: opacity 0.3s ease;">
                 <button class="texture-btn" data-texture="earth-night.jpg" title="Night Mode">🌙</button>
                 <button class="texture-btn" data-texture="earth-blue-marble.jpg" title="Blue Marble">🌍</button>
                 <button class="texture-btn" data-texture="earth-dark.jpg" title="Dark Mode">🌑</button>
@@ -103,13 +109,8 @@
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7.5h16a2 2 0 012 2v5a2 2 0 01-2 2h-4l-2-3h-4l-2 3H4a2 2 0 01-2-2v-5a2 2 0 012-2z"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>
                 </button>
               </div>
-              <button class="texture-btn globe-filter-hamburger" id="globeFilterHamburger" title="Toggle Sidebar" style="transition: transform 0.3s ease;">
-                <svg id="globeHamburgerIcon" viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                  <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                </svg>
-              </button>
             </div>
-            <div class="urgency-pills" id="urgencyPills" style="position: absolute; top: 16px; right: 16px; z-index: 5; margin: 0; background: var(--bg-panel); padding: 4px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: transform 0.3s ease;">
+            <div class="urgency-pills" id="urgencyPills" style="position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 5; margin: 0; background: var(--bg-panel); padding: 4px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: transform 0.3s ease;">
               <button class="urgency-pill pill-active-case" data-filter="active-case">Active Case <span id="pillActiveCase">0</span></button>
               <button class="urgency-pill pill-critical" data-filter="aog">AOG <span id="pillAog">0</span></button>
               <button class="urgency-pill pill-overdue" data-filter="aftt-12000">12k+ AFTT <span id="pillAftt12000">0</span></button>
@@ -371,7 +372,7 @@
             <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M3 3h6v6H3V3zm8 0h6v6h-6V3zM3 11h6v6H3v-6zm8 0h6v6h-6v-6z"/></svg>
             Operations
           </h3>
-          <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:16px; padding: 16px;">
+          <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:16px; padding: 16px; max-height: 400px; overflow-y: auto;">
             <div class="capability-toolbar">
               <div id="capabilityStatus" class="capability-status" role="status" aria-live="polite">Loading mounted capabilities…</div>
               <label class="capability-search">Find an operation<input id="capabilitySearch" type="search" placeholder="Aircraft, parts, weather…"></label>
@@ -406,6 +407,7 @@
               </details>
             </section>
           </div>
+          <div class="settings-row" style="display:none;"></div>
         </div>
 
         <!-- Account & Identity -->

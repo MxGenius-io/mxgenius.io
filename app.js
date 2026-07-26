@@ -3417,9 +3417,9 @@ function setupGlobeSheet() {
   const si = document.getElementById('globeSearch');
   if (si) { let db; si.addEventListener('input', () => { clearTimeout(db); db = setTimeout(applyGlobeFilters, 250); }); }
   document.getElementById('globeTypeFilter')?.addEventListener('change', applyGlobeFilters);
-  document.querySelectorAll('.texture-btn:not(.globe-filter-hamburger)').forEach(btn => {
+  document.querySelectorAll('.texture-btn[data-texture]').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      document.querySelectorAll('.texture-btn:not(.globe-filter-hamburger)').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.texture-btn[data-texture]').forEach(b => b.classList.remove('active'));
       const targetBtn = e.currentTarget;
       targetBtn.classList.add('active');
       const texture = targetBtn.dataset.texture;
