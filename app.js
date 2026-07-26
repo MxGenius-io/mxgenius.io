@@ -2214,16 +2214,7 @@ function initSettings() {
     });
   }
 
-  // Compact mode toggle
-  const compactToggle = document.getElementById('settingsCompactMode');
-  if (compactToggle) {
-    compactToggle.checked = localStorage.getItem('mx_compactMode') === 'true';
-    if (compactToggle.checked) document.body.classList.add('compact-mode');
-    compactToggle.addEventListener('change', function() {
-      localStorage.setItem('mx_compactMode', this.checked);
-      document.body.classList.toggle('compact-mode', this.checked);
-    });
-  }
+
 
   // Beta Access Management
   const betaInput = document.getElementById('betaWhitelistInput');
@@ -2291,69 +2282,7 @@ function initSettings() {
     });
   }
 
-  // Background, text, card color pickers
-  const colorBindings = [
-    { id: 'settingsBgColor',   prop: '--bg-primary',    key: 'mx_bgColor' },
-    { id: 'settingsTextColor', prop: '--text-primary',  key: 'mx_textColor' },
-    { id: 'settingsCardColor', prop: '--bg-card',       key: 'mx_cardColor' },
-  ];
-  colorBindings.forEach(({ id, prop, key }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      el.value = saved;
-      document.documentElement.style.setProperty(prop, saved);
-    }
-    el.addEventListener('input', function() {
-      document.documentElement.style.setProperty(prop, this.value);
-      localStorage.setItem(key, this.value);
-      document.getElementById('settingsTheme').value = ''; // switch to Custom
-    });
-  });
 
-  // Theme presets
-  const themes = {
-    midnight: { bg: '#0a0e1a', text: '#e8ecf4', card: '#1a1f35', accent: '#00d4ff' },
-    slate:    { bg: '#1e293b', text: '#f1f5f9', card: '#334155', accent: '#38bdf8' },
-    ember:    { bg: '#1c1210', text: '#fde8e0', card: '#2d1f1b', accent: '#f97316' },
-    ocean:    { bg: '#0c1929', text: '#e0f2fe', card: '#132f4c', accent: '#06b6d4' },
-  };
-  const themeSelect = document.getElementById('settingsTheme');
-  if (themeSelect) {
-    const savedTheme = localStorage.getItem('mx_theme');
-    if (savedTheme && themes[savedTheme]) {
-      themeSelect.value = savedTheme;
-      applyTheme(themes[savedTheme]);
-    }
-    themeSelect.addEventListener('change', function() {
-      const t = themes[this.value];
-      if (!t) return;
-      applyTheme(t);
-      localStorage.setItem('mx_theme', this.value);
-    });
-  }
-
-  function applyTheme(t) {
-    const root = document.documentElement.style;
-    root.setProperty('--bg-primary', t.bg);
-    root.setProperty('--text-primary', t.text);
-    root.setProperty('--bg-card', t.card);
-    root.setProperty('--accent-cyan', t.accent);
-    // Sync pickers
-    const bgEl = document.getElementById('settingsBgColor');
-    const txtEl = document.getElementById('settingsTextColor');
-    const cardEl = document.getElementById('settingsCardColor');
-    const accEl = document.getElementById('settingsAccentColor');
-    if (bgEl) bgEl.value = t.bg;
-    if (txtEl) txtEl.value = t.text;
-    if (cardEl) cardEl.value = t.card;
-    if (accEl) accEl.value = t.accent;
-    localStorage.setItem('mx_bgColor', t.bg);
-    localStorage.setItem('mx_textColor', t.text);
-    localStorage.setItem('mx_cardColor', t.card);
-    localStorage.setItem('mx_accentColor', t.accent);
-  }
 }
 
 function closeModal(id) {
