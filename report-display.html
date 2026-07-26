@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Report — Advanced AOG</title>
+    <link rel="icon" type="image/png" href="Hermetic Labs logo icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0F172A;
+            color: #F8FAFC;
+            line-height: 1.8;
+            padding: 3rem 2rem;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 1rem;
+            padding: 2.5rem;
+        }
+
+        .logo {
+            display: block;
+            height: 36px;
+            margin: 0 auto 1.5rem;
+            filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
+        }
+
+        h1 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #10B981;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        h2 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #3B82F6;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 1.25rem 0;
+        }
+
+        p {
+            margin-bottom: 0.75rem;
+            color: #94A3B8;
+        }
+
+        strong { color: #F8FAFC; }
+        em { color: #94A3B8; }
+
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #64748B;
+        }
+
+        .error {
+            text-align: center;
+            color: #94A3B8;
+            padding: 3rem 1rem;
+        }
+
+        .report-video {
+            width: 100%;
+            margin: 1rem 0;
+            background: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+
+        .report-video video {
+            width: 100%;
+            display: block;
+            max-height: 480px;
+        }
+
+        .report-video-caption {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #94A3B8;
+            font-style: italic;
+            margin-top: 0.25rem;
+            margin-bottom: 1rem;
+        }
+
+        ul, ol {
+            color: #94A3B8;
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+        }
+
+        li { margin-bottom: 0.25rem; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.85rem;
+        }
+
+        th {
+            background: #0F172A;
+            color: #3B82F6;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.6rem 0.75rem;
+            text-align: left;
+            border-bottom: 2px solid #334155;
+        }
+
+        td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #1E293B;
+            color: #94A3B8;
+        }
+
+        tr:hover td {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+
+        .scroll-block {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            margin: 1rem 0;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            color: #CBD5E1;
+        }
+
+        .scroll-block::-webkit-scrollbar { width: 6px; }
+        .scroll-block::-webkit-scrollbar-track { background: #1E293B; border-radius: 3px; }
+        .scroll-block::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .scroll-block::-webkit-scrollbar-thumb:hover { background: #64748B; }
+
+        .email-from {
+            font-weight: 600;
+            color: #3B82F6;
+            margin-top: 0.75rem;
+            margin-bottom: 0.15rem;
+        }
+
+        .email-date {
+            font-size: 0.75rem;
+            color: #64748B;
+            margin-bottom: 0.5rem;
+        }
+
+        .email-divider {
+            border: none;
+            border-top: 1px dashed #334155;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="Hermetic Labs logo icon.png" alt="Hermetic Labs" class="logo">
+        <div id="reportContent">
+            <p style="text-align: center; color: #64748B;">Loading report...</p>
+        </div>
+    </div>
+    <div class="footer">Advanced AOG &middot; Hermetic Labs &middot; Confidential</div>
+
+    <script>
+        function renderMarkdown(md, weekFolder) {
+            const lines = md.split('\n');
+            const output = [];
+            let inScroll = false;
+            let scrollBuf = [];
+            let tableBuf = [];
+
+            function formatInline(text) {
+                return text
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #3B82F6;">$1</a>');
+            }
+
+            function flushScroll() {
+                if (scrollBuf.length) {
+                    let inner = scrollBuf.join('\n');
+                    // Format email markers
+                    inner = inner.replace(/^::from\s+(.+)$/gm, '<div class="email-from">$1</div>');
+                    inner = inner.replace(/^::date\s+(.+)$/gm, '<div class="email-date">$1</div>');
+                    inner = inner.replace(/^::divider$/gm, '<hr class="email-divider">');
+                    // Bold and italic
+                    inner = inner.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                    inner = inner.replace(/\*(.+?)\*/g, '<em>$1</em>');
+                    // Line breaks for blank lines
+                    inner = inner.replace(/\n\n/g, '<br><br>');
+                    inner = inner.replace(/\n/g, '<br>');
+                    output.push(`<div class="scroll-block">${inner}</div>`);
+                    scrollBuf = [];
+                }
+            }
+
+            function flushTable() {
+                if (tableBuf.length < 2) { tableBuf = []; return; }
+                const headerCells = tableBuf[0].split('|').map(c => c.trim()).filter(c => c);
+                // Skip separator row (index 1)
+                const bodyRows = tableBuf.slice(2);
+                let html = '<table><thead><tr>';
+                headerCells.forEach(c => { html += `<th>${formatInline(c)}</th>`; });
+                html += '</tr></thead><tbody>';
+                bodyRows.forEach(row => {
+                    const cells = row.split('|').map(c => c.trim()).filter(c => c);
+                    html += '<tr>';
+                    cells.forEach(c => { html += `<td>${formatInline(c)}</td>`; });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                output.push(html);
+                tableBuf = [];
+            }
+
+            for (const rawLine of lines) {
+                const line = rawLine.trim();
+
+                if (line === ':::scroll') { inScroll = true; scrollBuf = []; continue; }
+                if (line === ':::end') { inScroll = false; flushScroll(); continue; }
+                if (inScroll) { scrollBuf.push(line); continue; }
+
+                // Table detection: lines with pipes
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    // Skip separator rows like |---|---|
+                    if (/^\|[\s\-:]+\|/.test(line) && tableBuf.length === 1) {
+                        tableBuf.push(line); // keep separator for flush logic
+                        continue;
+                    }
+                    tableBuf.push(line);
+                    continue;
+                } else if (tableBuf.length) {
+                    flushTable();
+                }
+
+                if (!line) { output.push(''); continue; }
+                if (line === '---') { output.push('<hr>'); continue; }
+                if (line.startsWith('# ')) { output.push(`<h1>${line.slice(2)}</h1>`); continue; }
+                if (line.startsWith('## ')) { output.push(`<h2>${line.slice(3)}</h2>`); continue; }
+                // List items
+                if (line.startsWith('- ')) {
+                    const content = formatInline(line.slice(2));
+                    output.push(`<ul><li>${content}</li></ul>`);
+                    continue;
+                }
+                // Numbered list items
+                const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
+                if (numMatch) {
+                    const content = formatInline(numMatch[2]);
+                    output.push(`<ol start="${numMatch[1]}"><li>${content}</li></ol>`);
+                    continue;
+                }
+                // Standalone link line: [text](url)
+                const linkOnlyMatch = line.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+                if (linkOnlyMatch) {
+                    output.push(`<p><a href="${linkOnlyMatch[2]}" target="_blank" style="color: #3B82F6; text-decoration: underline;">${linkOnlyMatch[1]}</a></p>`);
+                    continue;
+                }
+                // Images: ![alt](url)
+                const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+                if (imgMatch) {
+                    let imgSrc = imgMatch[2];
+                    if (weekFolder && !imgSrc.startsWith('http') && !imgSrc.startsWith('data:')) {
+                        imgSrc = `${weekFolder}/${imgSrc}`;
+                    }
+                    const encodedSrc = imgSrc.split('/').map(s => encodeURIComponent(s)).join('/');
+                    output.push(`<div style="margin: 1rem 0; text-align: center;"><img src="${encodedSrc}" alt="${imgMatch[1]}" style="max-width: 100%; border-radius: 0.5rem; border: 1px solid #334155;"></div>`);
+                    continue;
+                }
+                // Video references
+                if (line.startsWith('🎬')) {
+                    const filenameMatch = line.match(/\*\*Video:\*\*\s*(.+)/);
+                    if (filenameMatch && weekFolder) {
+                        const filename = filenameMatch[1].trim();
+                        const encodedPath = `${weekFolder}/${filename}`.split('/').map(s => encodeURIComponent(s)).join('/');
+                        const videoSrc = `https://media.githubusercontent.com/media/MxGenius-io/progress-tracker/main/${encodedPath}`;
+                        output.push(`<div class="report-video"><video controls preload="metadata"><source src="${videoSrc}" type="video/mp4">Your browser does not support the video tag.</video></div>`);
+                        continue;
+                    }
+                    let cleaned = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                    output.push(`<p style="color: #3B82F6;">🎬 ${cleaned.slice(2)}</p>`);
+                    continue;
+                }
+                output.push(`<p>${formatInline(line)}</p>`);
+            }
+            // Flush any remaining table
+            if (tableBuf.length) flushTable();
+            return output.join('\n');
+        }
+
+        // Called by the loaded .js report file
+        function reportLoaded(md) {
+            const paddedWeek = String(weekNum).padStart(2, '0');
+            const weekFolder = `Generated Reports/week-${paddedWeek}`;
+            document.getElementById('reportContent').innerHTML = renderMarkdown(md, weekFolder);
+        }
+
+        // Get week from URL
+        const params = new URLSearchParams(window.location.search);
+        const weekNum = parseInt(params.get('week')) || 0;
+
+        if (!weekNum) {
+            document.getElementById('reportContent').innerHTML = '<div class="error">No week specified.</div>';
+        } else {
+            const paddedWeek = String(weekNum).padStart(2, '0');
+            document.title = `Week ${weekNum} Report — Advanced AOG`;
+
+            // Load via script tag — works on file:// and HTTPS, no CORS
+            const script = document.createElement('script');
+            script.src = `Generated Reports/week-${paddedWeek}/week-${paddedWeek}-report.js`;
+            script.onerror = () => {
+                document.getElementById('reportContent').innerHTML =
+                    `<div class="error">No report found for Week ${weekNum} yet.</div>`;
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+</body>
+</html>

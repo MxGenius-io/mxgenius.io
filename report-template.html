@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAOG Weekly Report — Hermetic Labs</title>
+    <link rel="icon" type="image/png" href="Hermetic Labs logo icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0F172A;
+            --bg-secondary: #1E293B;
+            --bg-card: #1E293B;
+            --bg-hover: #334155;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --accent-blue: #3B82F6;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --accent-amber: #F59E0B;
+            --border-color: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ─── Main Report ─── */
+        .report-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .report-header {
+            text-align: center;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .report-header img.logo-banner {
+            max-width: 320px;
+            width: 100%;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.2));
+        }
+
+        .report-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .report-meta label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .week-select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .week-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .week-select option {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .date-range {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: var(--accent-blue);
+            padding: 0.5rem 1rem;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 0.5rem;
+        }
+
+        .report-title-row {
+            margin-top: 1.25rem;
+        }
+
+        .report-title-row h1 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .report-title-row .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* ─── Sections Container ─── */
+        .sections-container {
+            min-height: 200px;
+        }
+
+        .report-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            margin-bottom: 1.25rem;
+            overflow: hidden;
+            position: relative;
+            transition: border-color 0.2s;
+        }
+
+        .report-section:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: rgba(59, 130, 246, 0.06);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-type-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-type-badge.text {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .section-type-badge.image {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .section-type-badge.video {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .section-title-input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            flex: 1;
+        }
+
+        .section-title-input:focus { outline: none; }
+
+        .section-title-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .btn-remove-section {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .btn-remove-section:hover {
+            color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .section-body {
+            padding: 1rem;
+        }
+
+        /* Text Section */
+        .text-area {
+            width: 100%;
+            min-height: 120px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.875rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            resize: vertical;
+        }
+
+        .text-area:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .text-area::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.4;
+        }
+
+        /* Image Section */
+        .image-dropzone {
+            border: 2px dashed var(--border-color);
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-primary);
+            position: relative;
+        }
+
+        .image-dropzone:hover,
+        .image-dropzone.dragover {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .image-dropzone i {
+            font-size: 2rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .image-dropzone p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .image-dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .image-preview {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .image-preview .image-caption {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .image-preview .image-caption:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .image-preview .image-caption::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .image-preview.has-image { display: flex; }
+        .image-dropzone.has-image { display: none; }
+
+        /* Video Section */
+        .video-dropzone {
+            border: 2px dashed var(--border-color);
+            border-radius: 0.5rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-primary);
+            position: relative;
+        }
+
+        .video-dropzone:hover,
+        .video-dropzone.dragover {
+            border-color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .video-dropzone i {
+            font-size: 2rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .video-dropzone p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .video-dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .video-preview {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .video-preview.has-video { display: flex; }
+        .video-dropzone.has-video { display: none; }
+
+        .video-player-wrapper {
+            width: 100%;
+            background: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .video-player-wrapper video {
+            width: 100%;
+            max-height: 480px;
+            display: block;
+        }
+
+        .video-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .video-info i {
+            color: var(--accent-red);
+        }
+
+        .video-info .video-filename {
+            flex: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .video-info .video-size {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .video-caption {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .video-caption:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .video-caption::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        /* ─── Add Section Buttons ─── */
+        .add-section-bar {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 1.5rem 0;
+        }
+
+        .btn-add {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            background: var(--bg-secondary);
+            border: 1px dashed var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-add:hover {
+            border-style: solid;
+            color: var(--text-primary);
+        }
+
+        .btn-add.text:hover {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        .btn-add.image:hover {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        .btn-add.video:hover {
+            border-color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        /* ─── Footer / Signature ─── */
+        .report-footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .signature-block img {
+            height: 52px;
+            opacity: 0.85;
+        }
+
+        .signature-block p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.375rem;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-export {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-export.markdown {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-export.markdown:hover { background: #2563EB; }
+
+        .btn-export.clear {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-export.clear:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        /* ─── Toast ─── */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--accent-green);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transform: translateY(120%);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 9999;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 640px) {
+            .report-container { padding: 1rem; }
+            .report-meta { flex-direction: column; align-items: stretch; }
+            .report-footer { flex-direction: column; align-items: center; text-align: center; }
+            .report-actions { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══ Report Editor ═══ -->
+    <div class="report-container" id="reportContainer">
+
+        <!-- Header -->
+        <div class="report-header">
+            <img src="Hermetic Labs Logo Banner.png" alt="Hermetic Labs" class="logo-banner">
+
+            <div class="report-meta">
+                <label>Week</label>
+                <select class="week-select" id="weekSelect" onchange="updateDateRange()">
+                    <option value="0">Select Week...</option>
+                </select>
+                <span class="date-range" id="dateRange">—</span>
+            </div>
+
+            <div class="report-title-row">
+                <h1>Weekly Progress Report</h1>
+                <p class="subtitle">Advanced AOG &nbsp;·&nbsp; Hermetic Labs</p>
+            </div>
+        </div>
+
+        <!-- Dynamic Sections -->
+        <div class="sections-container" id="sectionsContainer">
+            <!-- Sections will be added here dynamically -->
+        </div>
+
+        <!-- Add Section Buttons -->
+        <div class="add-section-bar">
+            <button class="btn-add text" onclick="addSection('text')">
+                <i class="fas fa-paragraph"></i> Add Text
+            </button>
+            <button class="btn-add image" onclick="addSection('image')">
+                <i class="fas fa-image"></i> Add Image
+            </button>
+            <button class="btn-add video" onclick="addSection('video')">
+                <i class="fas fa-video"></i> Add Video
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <div class="report-footer">
+            <div class="signature-block">
+                <img src="Signature.png" alt="Signature">
+                <p>Hermetic Labs — Prepared for Advanced AOG</p>
+            </div>
+            <div class="report-actions">
+                <button class="btn-export clear" onclick="clearReport()">
+                    <i class="fas fa-eraser"></i> Clear
+                </button>
+                <button class="btn-export markdown" onclick="exportMarkdown()">
+                    <i class="fas fa-file-export"></i> Export Markdown
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ─── Init ───
+
+        // ─── Week Data ───
+        const weekStartDate = new Date(2026, 2, 16); // Mar 16, 2026 (month is 0-indexed)
+        const weekSelect = document.getElementById('weekSelect');
+
+        for (let i = 1; i <= 26; i++) {
+            const start = new Date(weekStartDate);
+            start.setDate(start.getDate() + (i - 1) * 7);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 6);
+
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = `Week ${i}`;
+            weekSelect.appendChild(opt);
+        }
+
+        function getWeekDates(weekNum) {
+            const start = new Date(weekStartDate);
+            start.setDate(start.getDate() + (weekNum - 1) * 7);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 6);
+
+            const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return { start: fmt(start), end: fmt(end) };
+        }
+
+        function updateDateRange() {
+            const w = parseInt(weekSelect.value);
+            const dr = document.getElementById('dateRange');
+            if (w > 0) {
+                const dates = getWeekDates(w);
+                dr.textContent = `${dates.start} — ${dates.end}`;
+            } else {
+                dr.textContent = '—';
+            }
+        }
+
+        // ─── Section Management ───
+        let sectionCounter = 0;
+
+        function addSection(type) {
+            const id = ++sectionCounter;
+            const container = document.getElementById('sectionsContainer');
+            const section = document.createElement('div');
+            section.className = 'report-section';
+            section.dataset.type = type;
+            section.dataset.id = id;
+
+            let bodyContent = '';
+
+            if (type === 'text') {
+                bodyContent = `<textarea class="text-area" placeholder="Write your update here..." data-sid="${id}"></textarea>`;
+            } else if (type === 'image') {
+                bodyContent = `
+                    <div class="image-dropzone" id="dropzone-${id}">
+                        <input type="file" accept="image/*" onchange="handleImageUpload(event, ${id})">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Drop an image here or click to browse</p>
+                    </div>
+                    <div class="image-preview" id="preview-${id}">
+                        <img id="img-${id}" src="" alt="">
+                        <input type="text" class="image-caption" placeholder="Add a caption..." data-sid="${id}">
+                    </div>`;
+            } else if (type === 'video') {
+                bodyContent = `
+                    <div class="video-dropzone" id="vdropzone-${id}">
+                        <input type="file" accept="video/mp4,video/webm,video/ogg" onchange="handleVideoUpload(event, ${id})">
+                        <i class="fas fa-film"></i>
+                        <p>Drop an MP4 video here or click to browse</p>
+                    </div>
+                    <div class="video-preview" id="vpreview-${id}">
+                        <div class="video-player-wrapper">
+                            <video id="vid-${id}" controls preload="metadata">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        <div class="video-info">
+                            <i class="fas fa-film"></i>
+                            <span class="video-filename" id="vname-${id}"></span>
+                            <span class="video-size" id="vsize-${id}"></span>
+                        </div>
+                        <input type="text" class="video-caption" placeholder="Add a caption..." data-sid="${id}">
+                    </div>`;
+            }
+
+            const badgeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+
+            section.innerHTML = `
+                <div class="section-header">
+                    <div class="section-header-left">
+                        <span class="section-type-badge ${type}">${badgeLabel}</span>
+                        <input type="text" class="section-title-input" placeholder="Section title (optional)" data-sid="${id}">
+                    </div>
+                    <button class="btn-remove-section" onclick="removeSection(this)" title="Remove section">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="section-body">
+                    ${bodyContent}
+                </div>
+            `;
+
+            container.appendChild(section);
+
+            // Set up drag & drop for image dropzones
+            if (type === 'image') {
+                const dz = document.getElementById(`dropzone-${id}`);
+                dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+                dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+                dz.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dz.classList.remove('dragover');
+                    if (e.dataTransfer.files.length) {
+                        loadImageFile(e.dataTransfer.files[0], id);
+                    }
+                });
+            }
+
+            // Set up drag & drop for video dropzones
+            if (type === 'video') {
+                const vdz = document.getElementById(`vdropzone-${id}`);
+                vdz.addEventListener('dragover', e => { e.preventDefault(); vdz.classList.add('dragover'); });
+                vdz.addEventListener('dragleave', () => vdz.classList.remove('dragover'));
+                vdz.addEventListener('drop', e => {
+                    e.preventDefault();
+                    vdz.classList.remove('dragover');
+                    if (e.dataTransfer.files.length) {
+                        loadVideoFile(e.dataTransfer.files[0], id);
+                    }
+                });
+            }
+
+            // Focus the first input
+            const firstInput = section.querySelector('.text-area, .section-title-input');
+            if (firstInput) setTimeout(() => firstInput.focus(), 50);
+        }
+
+        function removeSection(btn) {
+            const section = btn.closest('.report-section');
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(-10px)';
+            section.style.transition = 'all 0.2s ease';
+            setTimeout(() => section.remove(), 200);
+        }
+
+        function handleImageUpload(event, id) {
+            const file = event.target.files[0];
+            if (file) loadImageFile(file, id);
+        }
+
+        function loadImageFile(file, id) {
+            if (!file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById(`img-${id}`).src = e.target.result;
+                document.getElementById(`dropzone-${id}`).classList.add('has-image');
+                document.getElementById(`preview-${id}`).classList.add('has-image');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleVideoUpload(event, id) {
+            const file = event.target.files[0];
+            if (file) loadVideoFile(file, id);
+        }
+
+        function loadVideoFile(file, id) {
+            if (!file.type.startsWith('video/')) return;
+            const url = URL.createObjectURL(file);
+            const video = document.getElementById(`vid-${id}`);
+            video.src = url;
+            video.dataset.filename = file.name;
+            document.getElementById(`vname-${id}`).textContent = file.name;
+            document.getElementById(`vsize-${id}`).textContent = formatFileSize(file.size);
+            document.getElementById(`vdropzone-${id}`).classList.add('has-video');
+            document.getElementById(`vpreview-${id}`).classList.add('has-video');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        // ─── Export ───
+        async function exportMarkdown() {
+            const weekNum = parseInt(weekSelect.value);
+            if (!weekNum) {
+                showToast('Please select a week first', 'var(--accent-amber)');
+                return;
+            }
+
+            const dates = getWeekDates(weekNum);
+            const paddedWeek = String(weekNum).padStart(2, '0');
+
+            // Collect media blobs (images/videos embedded as data URIs) to save as files
+            const media = [];
+            let imageCounter = 0;
+
+            let md = '';
+            md += `# Weekly Progress Report — Week ${weekNum}\n`;
+            md += `**Date Range:** ${dates.start} — ${dates.end}\n`;
+            md += `**Project:** Advanced AOG · Hermetic Labs\n\n`;
+            md += `---\n\n`;
+
+            const sections = document.querySelectorAll('.report-section');
+
+            sections.forEach(section => {
+                const type = section.dataset.type;
+                const titleInput = section.querySelector('.section-title-input');
+                const title = titleInput ? titleInput.value.trim() : '';
+
+                if (title) {
+                    md += `## ${title}\n\n`;
+                }
+
+                if (type === 'text') {
+                    const ta = section.querySelector('.text-area');
+                    if (ta && ta.value.trim()) {
+                        md += `${ta.value.trim()}\n\n`;
+                    }
+                } else if (type === 'image') {
+                    const img = section.querySelector('.image-preview img');
+                    const caption = section.querySelector('.image-caption');
+                    if (img && img.src && !img.src.endsWith('#')) {
+                        const cap = caption ? caption.value.trim() : '';
+                        // If data URI, extract to a file for Electron saves
+                        if (img.src.startsWith('data:')) {
+                            imageCounter++;
+                            const mimeMatch = img.src.match(/^data:(image\/\w+);base64,/);
+                            const ext = mimeMatch ? mimeMatch[1].split('/')[1].replace('jpeg', 'jpg') : 'png';
+                            const filename = `image-${imageCounter}.${ext}`;
+                            const b64 = img.src.replace(/^data:image\/\w+;base64,/, '');
+                            media.push({ filename, data: b64 });
+                            md += `![${cap || 'Image'}](${filename})\n`;
+                        } else {
+                            md += `![${cap || 'Image'}](${img.src})\n`;
+                        }
+                        if (cap) md += `*${cap}*\n`;
+                        md += `\n`;
+                    }
+                } else if (type === 'video') {
+                    const video = section.querySelector('video');
+                    const caption = section.querySelector('.video-caption');
+                    if (video && video.dataset.filename) {
+                        const cap = caption ? caption.value.trim() : '';
+                        md += `🎬 **Video:** ${video.dataset.filename}\n`;
+                        if (cap) md += `*${cap}*\n`;
+                        md += `\n`;
+                    }
+                }
+            });
+
+            md += `---\n\n`;
+            md += `*Prepared by Hermetic Labs for Advanced AOG*\n`;
+
+            // Build the companion .js file for the display template
+            const jsContent = `reportLoaded(${JSON.stringify(md)});\n`;
+
+            // ── Electron/Puter path: auto-save to Generated Reports/week-XX/ ──
+            if (window.electronAPI && window.electronAPI.saveReport) {
+                try {
+                    const result = await window.electronAPI.saveReport({
+                        weekNum,
+                        mdContent: md,
+                        jsContent,
+                        media
+                    });
+                    if (result.ok) {
+                        showToast(`✓ Week ${weekNum} saved → Generated Reports/week-${paddedWeek}/`, 'var(--accent-green)');
+                    } else {
+                        showToast('⚠ Save failed', 'var(--accent-red)');
+                    }
+                    return;
+                } catch (err) {
+                    console.error('Electron save failed, falling back:', err);
+                }
+            }
+
+            // ── Browser fallback: File System Access API ──
+            if (window.showSaveFilePicker) {
+                try {
+                    const mdHandle = await window.showSaveFilePicker({
+                        suggestedName: `week-${paddedWeek}-report.md`,
+                        types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
+                    });
+                    const mdWritable = await mdHandle.createWritable();
+                    await mdWritable.write(new Blob([md], { type: 'text/markdown' }));
+                    await mdWritable.close();
+
+                    const jsHandle = await window.showSaveFilePicker({
+                        suggestedName: `week-${paddedWeek}-report.js`,
+                        types: [{ description: 'JavaScript', accept: { 'text/javascript': ['.js'] } }]
+                    });
+                    const jsWritable = await jsHandle.createWritable();
+                    await jsWritable.write(new Blob([jsContent], { type: 'text/javascript' }));
+                    await jsWritable.close();
+
+                    showToast(`✓ Week ${weekNum} report saved (.md + .js)`, 'var(--accent-green)');
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        showToast('Export cancelled', 'var(--text-secondary)');
+                        return;
+                    }
+                }
+            }
+
+            // ── Last resort: blob download ──
+            function downloadBlob(blob, name) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = name;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 500);
+            }
+            downloadBlob(new Blob([md], { type: 'text/markdown' }), `week-${paddedWeek}-report.md`);
+            setTimeout(() => {
+                downloadBlob(new Blob([jsContent], { type: 'text/javascript' }), `week-${paddedWeek}-report.js`);
+            }, 500);
+            showToast(`✓ Week ${weekNum} report downloaded (.md + .js)`, 'var(--accent-green)');
+        }
+
+        function clearReport() {
+            if (!confirm('Clear all sections? This cannot be undone.')) return;
+            document.getElementById('sectionsContainer').innerHTML = '';
+            weekSelect.value = '0';
+            document.getElementById('dateRange').textContent = '—';
+            sectionCounter = 0;
+        }
+
+        // ─── Toast ───
+        function showToast(msg, bg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.background = bg || 'var(--accent-green)';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+    </script>
+</body>
+</html>
