@@ -3342,8 +3342,9 @@ body.live-mode .api-status.connected .status-dot {
   object-fit: cover;
 }
 /* Globe Sidebar Collapse */
-#globeSidebarWrapper.collapsed #globeTextureButtons {
-  transform: translateX(-150%);
-  opacity: 0;
-  pointer-events: none;
+#globeSidebarWrapper {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#globeSidebarWrapper.collapsed {
+  transform: translateX(-100%);
 }
