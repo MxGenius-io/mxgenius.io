@@ -2,7 +2,7 @@
 // The API receives an access token; no client secret or provider key is stored here.
 (() => {
   const config = globalThis.MXGENIUS_CONFIG || {};
-  const isDashboard = /(?:^|\/)dashboard\.html$/i.test(location.pathname);
+  const isDashboard = /(?:^|\/)(dashboard|progress)\.html$/i.test(location.pathname);
   const isLogin = /(?:^|\/)login\.html$/i.test(location.pathname);
   const clientId = String(config.entraClientId || '').trim();
   const tenantId = String(config.entraTenantId || '').trim();

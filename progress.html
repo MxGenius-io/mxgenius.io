@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MxGenius Project Tracker</title>
+    <style id="auth-gate">body { visibility: hidden; }</style>
+    <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0F172A;
+            --bg-secondary: #1E293B;
+            --bg-card: #1E293B;
+            --bg-hover: #334155;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --accent-blue: #3B82F6;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --accent-amber: #F59E0B;
+            --border-color: #334155;
+        }
+
+
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            letter-spacing: 3px;
+        }
+
+        .logo span {
+            color: var(--text-primary);
+        }
+
+        .header-right {
+            text-align: right;
+        }
+
+        .countdown-container {
+            margin-bottom: 0.5rem;
+        }
+
+        .countdown-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.25rem;
+        }
+
+        .countdown {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            letter-spacing: 2px;
+        }
+
+        .countdown.adjusted {
+            color: var(--accent-green);
+        }
+
+        .countdown-detail {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 0.25rem;
+        }
+
+        .countdown-unit {
+            text-align: center;
+        }
+
+        .countdown-unit-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .countdown-unit-label {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .velocity-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: 9999px;
+            font-size: 0.8rem;
+        }
+
+        .velocity-badge i {
+            color: var(--accent-green);
+        }
+
+        /* Chart Section */
+        .chart-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chart-area {
+            height: 120px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .chart-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+            background-size: 25px 25px;
+        }
+
+        .chart-line-planned {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(16, 185, 129, 0.2) 0%, transparent 100%);
+            clip-path: polygon(0 100%, 0 83%, 16.6% 75%, 33.3% 67%, 50% 58%, 66.6% 50%, 83.3% 33%, 100% 17%, 100% 100%);
+        }
+
+        .chart-line-actual {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.4) 0%, rgba(59, 130, 246, 0.1) 100%);
+            clip-path: polygon(0 100%, 0 80%, 16.6% 70%, 33.3% 55%, 50% 45%, 66.6% 35%, 83.3% 20%, 100% 8%, 100% 100%);
+            transition: clip-path 0.5s ease;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* Phase & Task List */
+        .phase {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .phase-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .phase-header:hover {
+            background: var(--bg-hover);
+        }
+
+        .phase-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .phase-name {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .phase-progress {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .phase-toggle {
+            color: var(--accent-blue);
+            transition: transform 0.3s;
+        }
+
+        .phase.expanded .phase-toggle {
+            transform: rotate(180deg);
+        }
+
+        .phase-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .phase.expanded .phase-content {
+            max-height: 2000px;
+        }
+
+        .task-list {
+            padding: 0 1.5rem 1.5rem;
+        }
+
+        .task {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.875rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .task-header:hover {
+            background: var(--bg-hover);
+        }
+
+        .task-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .task-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: var(--bg-secondary);
+        }
+
+        .task-checkbox.checked {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .task-checkbox.checked i {
+            color: white;
+            font-size: 0.7rem;
+        }
+
+        .task-title {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .task.completed .task-title {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+
+        .task-toggle {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            transition: transform 0.3s;
+        }
+
+        .task.expanded .task-toggle {
+            transform: rotate(180deg);
+        }
+
+        .task-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .task.expanded .task-content {
+            max-height: 1000px;
+        }
+
+        .task-details {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+
+        .task-description {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .subtasks {
+            margin-bottom: 1rem;
+        }
+
+        .subtask {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .subtask i {
+            color: var(--accent-green);
+            font-size: 0.6rem;
+        }
+
+        /* Feedback Section - for Josh to add suggestions */
+        .feedback-section {
+            margin-bottom: 1rem;
+        }
+
+        .feedback-label {
+            font-size: 0.75rem;
+            color: var(--accent-amber);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-dropzone {
+            border: 2px dashed var(--accent-amber);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(245, 158, 11, 0.05);
+        }
+
+        .feedback-dropzone:hover {
+            border-color: var(--accent-amber);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .feedback-dropzone i {
+            font-size: 1.5rem;
+            color: var(--accent-amber);
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-dropzone p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .feedback-files {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .feedback-file {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-primary);
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .feedback-file i {
+            color: var(--accent-amber);
+        }
+
+        .feedback-file.image i { color: var(--accent-green); }
+        .feedback-file.video i { color: var(--accent-red); }
+        .feedback-file.audio i { color: var(--accent-blue); }
+        .feedback-file.pdf i { color: var(--accent-red); }
+        .feedback-file.docx i { color: #2b579a; }
+        .feedback-file.text i { color: var(--text-secondary); }
+        .feedback-file.spreadsheet i { color: #217346; }
+        .feedback-file.doc i { color: var(--accent-amber); }
+        .feedback-file.link i { color: var(--accent-blue); }
+
+        .feedback-link-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .link-input {
+            flex: 1;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+        }
+
+        .link-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .link-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .btn-link {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-link:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-amber);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: #d97706;
+        }
+
+        /* Email Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+
+        .email-preview {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .header-right {
+                text-align: left;
+                width: 100%;
+            }
+
+            .countdown {
+                font-size: 1.5rem;
+            }
+
+            .countdown-detail {
+                justify-content: flex-start;
+            }
+
+            .chart-legend {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: flex-start;
+            }
+        }
+
+        .need-textarea {
+            width: 100%;
+            min-height: 80px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+
+        .need-textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .need-textarea::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        /* Weekly Report Section - Timeline Style */
+        .weekly-report-section {
+            margin-top: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+
+        .weekly-report-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .weekly-report-header:hover {
+            background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-secondary) 100%);
+        }
+
+        .weekly-report-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .weekly-report-title i {
+            color: var(--accent-amber);
+        }
+
+        .weekly-report-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+            margin-left: 2rem;
+        }
+
+        .weekly-report-content {
+            padding: 1.5rem;
+            display: none;
+        }
+
+        .weekly-report-section.expanded .weekly-report-content {
+            display: block;
+        }
+
+        .weekly-report-toggle {
+            float: right;
+            color: var(--text-secondary);
+            transition: transform 0.3s ease;
+        }
+
+        .weekly-report-section.expanded .weekly-report-toggle {
+            transform: rotate(180deg);
+        }
+
+        /* Timeline Style */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            left: -2rem;
+            top: 0.25rem;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            border: 2px solid var(--accent-blue);
+        }
+
+        .timeline-item:first-child .timeline-marker {
+            background: var(--accent-blue);
+        }
+
+        .timeline-content {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-week {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .timeline-dates {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            flex-grow: 1;
+        }
+
+        .week-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .week-status.pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+        }
+
+        .week-status.in-progress {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .week-status.completed {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .week-status.model-training {
+            background: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .timeline-week.strikethrough {
+            text-decoration: line-through;
+            opacity: 0.55;
+        }
+
+        .week-status.report-ready {
+            background: var(--accent-green);
+            color: #000;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .week-status.report-ready:hover {
+            background: #059669;
+            transform: scale(1.05);
+        }
+
+        .task-new-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.55rem;
+            padding: 0.125rem 0.4rem;
+            border-radius: 9999px;
+            background: var(--accent-green);
+            color: #000;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .subtask.new-item {
+            color: var(--accent-green);
+        }
+
+        .subtask.new-item i {
+            color: var(--accent-green) !important;
+        }
+
+        /* Phase update notification dot */
+        .phase-update-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            margin-left: 0.5rem;
+            vertical-align: middle;
+            animation: pulse-dot 2s ease-in-out infinite;
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+        }
+
+        .phase-update-dot.amber {
+            background: var(--accent-amber);
+            box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.85); }
+        }
+
+        /* Report Viewer Modal */
+        .report-viewer-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .report-viewer-overlay.active {
+            display: flex;
+        }
+
+        .report-viewer {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .report-viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .report-viewer-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-green);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .report-viewer-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        .report-viewer-close:hover {
+            color: var(--text-primary);
+        }
+
+        .report-viewer-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .report-viewer-body h1 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .report-viewer-body h2 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin-top: 1rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .report-viewer-body hr {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 1rem 0;
+        }
+
+        .report-viewer-body p {
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .report-viewer-body strong {
+            color: var(--text-primary);
+        }
+
+        .report-viewer-body em {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .report-viewer-body .report-empty {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        .timeline-body {
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border-color);
+            margin-top: 0.5rem;
+        }
+
+        .timeline-row {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.9rem;
+        }
+
+        .timeline-label {
+            color: var(--text-secondary);
+            min-width: 70px;
+        }
+
+        .timeline-text {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Print */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .phase, .task, .chart-section, .card {
+                background: white;
+                border: 1px solid #ddd;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">MX<span>GENIUS</span></div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.25rem;">Last Updated: Jul 12, 2026 · 7:00 AM EST</div>
+            <div class="header-right">
+                <div class="velocity-badge">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span id="velocityText">0% Complete</span>
+                </div>
+            </div>
+        </header>
+
+
+        <!-- Report Ready Banner -->        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+            <i class="fas fa-check-circle" style="color: var(--accent-green); font-size: 1.25rem;"></i>
+            <div>
+                <div style="color: var(--accent-green); font-family: 'Rajdhani', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem;">Week 17 Report Ready</div>
+            </div>
+        </div>
+
+        <!-- Project Velocity Chart -->
+        <div class="chart-section">
+            <div class="chart-header">
+                <div class="chart-title">Project Velocity</div>
+            </div>
+            <div class="chart-area">
+                <div class="chart-grid"></div>
+                <div class="chart-line-planned"></div>
+                <div class="chart-line-actual" id="velocityChart"></div>
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(16, 185, 129, 0.5);"></div>
+                    <span>Planned Timeline</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-blue);"></div>
+                    <span>Actual Progress</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phases & Tasks -->
+        <div id="phasesContainer"></div>
+
+        <!-- Weekly Report Section -->
+        <div class="weekly-report-section" id="weeklyReport">
+            <div class="weekly-report-header" onclick="toggleWeeklyReport()">
+                <div class="weekly-report-title">
+                <i class="fas fa-calendar-alt"></i> Weekly Reports <span class="phase-update-dot amber" title="New updates"></span>
+                <i class="fas fa-chevron-down weekly-report-toggle"></i>
+                </div>
+                <div class="weekly-report-subtitle">Click to view weekly timeline and status</div>
+            </div>
+            <div class="weekly-report-content">
+                <div class="timeline">
+                    <!-- Week 1 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 1</span>
+                                <span class="timeline-dates">Mar 16 - Mar 22, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(1)" title="View Week 1 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Backend and Account set up Complete</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 2 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 2</span>
+                                <span class="timeline-dates">Mar 23 - Mar 29, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(2)" title="View Week 2 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Phase 1 completed, Phase 2 integrations underway</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 3 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 3</span>
+                                <span class="timeline-dates">Mar 30 - Apr 5, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(3)" title="View Week 3 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">AI Troubleshooting Engine & Voice Interface complete</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 4 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 4</span>
+                                <span class="timeline-dates">Apr 6 - Apr 12, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(4)" title="View Week 4 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Tracker reorganization, new milestone phases added</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 5 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 5</span>
+                                <span class="timeline-dates">Apr 13 - Apr 19, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(5)" title="View Week 5 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Phases updated to match workload + Project ASSIRT introduced</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 6 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 6</span>
+                                <span class="timeline-dates">Apr 20 - Apr 26, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(6)" title="View Week 6 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Timeline catch-up & follow-up from prior week's overflow</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 7 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 7</span>
+                                <span class="timeline-dates">Apr 27 - May 3, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(7)" title="View Week 7 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                                <span class="task-new-badge" style="font-size: 0.6rem;">NEW</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">VR collaboration tools, data pipeline monitoring, Apple Vision SDK, edge AI deployment</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 8 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week strikethrough">Week 8</span>
+                                <span class="timeline-dates">May 4 - May 10, 2026</span>
+                                <span class="week-status model-training"><i class="fas fa-brain" style="margin-right:0.3rem;"></i>Model Training & Tuning</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 9 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week strikethrough">Week 9</span>
+                                <span class="timeline-dates">May 11 - May 17, 2026</span>
+                                <span class="week-status model-training"><i class="fas fa-brain" style="margin-right:0.3rem;"></i>Model Training & Tuning</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 10 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week strikethrough">Week 10</span>
+                                <span class="timeline-dates">May 18 - May 24, 2026</span>
+                                <span class="week-status model-training"><i class="fas fa-brain" style="margin-right:0.3rem;"></i>Model Training & Tuning</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 11 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 11</span>
+                                <span class="timeline-dates">May 25 - May 31, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(11)" title="View Week 11 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">v3.0.3 — FAA directives, MxGenius AI chat, Globe filters, RAG integration, Kokoro &amp; model tuning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 12 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 12</span>
+                                <span class="timeline-dates">Jun 1 - Jun 7, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(12)" title="View Week 12 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Housekeeping, system maintenance &amp; restructure planning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 13 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 13</span>
+                                <span class="timeline-dates">Jun 8 - Jun 14, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(13)" title="View Week 13 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Strategic research — SAM.gov &amp; government contracts, R&amp;D tax credits, federal grants positioning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 14 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 14</span>
+                                <span class="timeline-dates">Jun 15 - Jun 21, 2026</span>
+                                <span class="week-status completed"><i class="fas fa-tools" style="margin-right:0.3rem;"></i>Restructuring & Refining</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Solidifying the future direction and shape.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 15 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 15</span>
+                                <span class="timeline-dates">Jun 22 - Jun 28, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(15)" title="View Week 15 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 16 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 16</span>
+                                <span class="timeline-dates">Jun 29 - Jul 5, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(16)" title="View Week 16 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Security hardening, work order parsing, GitHub org setup, CI/CD secret injection</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 17 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 17</span>
+                                <span class="timeline-dates">Jul 6 - Jul 12, 2026</span>
+                                <a class="week-status report-ready" onclick="viewReport(17)" title="View Week 17 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                                <span class="task-new-badge" style="font-size: 0.6rem;">NEW</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Dashboard rebuild, 3D viewer HDRI, AI chat hardening, landing page refresh, full UX overhaul</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 18 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 18</span>
+                                <span class="timeline-dates">Jul 13 - Jul 19, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 19 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 19</span>
+                                <span class="timeline-dates">Jul 20 - Jul 26, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 20 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 20</span>
+                                <span class="timeline-dates">Jul 27 - Aug 2, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 21 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 21</span>
+                                <span class="timeline-dates">Aug 3 - Aug 9, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 22 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 22</span>
+                                <span class="timeline-dates">Aug 10 - Aug 16, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 23 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 23</span>
+                                <span class="timeline-dates">Aug 17 - Aug 23, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 24 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 24</span>
+                                <span class="timeline-dates">Aug 24 - Aug 30, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 25 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 25</span>
+                                <span class="timeline-dates">Aug 31 - Sep 6, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Week 26 -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Week 26</span>
+                                <span class="timeline-dates">Sep 7 - Sep 13, 2026</span>
+                                <span class="week-status pending">Pending</span>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Modal -->
+    <div class="modal-overlay" id="emailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Email to Dwayne</div>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <pre class="email-preview" id="emailPreview"></pre>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeModal()">Close</button>
+                <a class="btn btn-primary" id="emailLink" href="#" target="_blank">
+                    <i class="fas fa-envelope"></i> Send Email
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Viewer Modal -->
+    <div class="report-viewer-overlay" id="reportViewerOverlay" onclick="if(event.target===this)closeReportViewer()">
+        <div class="report-viewer">
+            <div class="report-viewer-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <img src="Hermetic Labs logo icon.png" alt="" style="height: 28px; filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.3));">
+                    <span class="report-viewer-title" id="reportViewerTitle">Week 1 Report</span>
+                </div>
+                <button class="report-viewer-close" onclick="closeReportViewer()">&times;</button>
+            </div>
+            <!-- Report viewer content area -->
+        </div>
+    </div>
+
+    <script>
+        // Project Data
+        const launchDate = new Date('2026-09-16'); // 6 months from March 16
+        let completedTasks = 0;
+
+        const phases = [
+            {
+                name: "Phase 1: Data Pipeline & Ingestion (Months 1–2)",
+                hasUpdates: true,
+                updateColor: 'green',
+                tasks: [
+                    {
+                        id: 1,
+                        title: "Data Audit & Conversion",
+                        description: "Audit file types/volume and convert PDF, DOCX, scans into structured text.",
+                        subtasks: [
+                            "Data audit (file types, structure, volume)",
+                            "Conversion pipeline (PDF, DOCX, scans → structured text)",
+                            "Coverage & router logic in API"
+                        ],
+                        completed: true,
+                        completionNote: "Compressed 100GB+ of data into a flattened JSON structure. Built a custom router to surface it on the frontend. Conversion pipeline has completed its job — not currently running, but remains in the background for easy future updates when new data arrives.",
+                        feedback: []
+                    },
+                    {
+                        id: 2,
+                        title: "Normalization & Chunking",
+                        description: "Clean, format, tag data and implement semantic segmentation.",
+                        subtasks: [
+                            "Normalization (cleaning, formatting, tagging)",
+                            "Chunking strategy (semantic segmentation)"
+                        ],
+                        completed: true,
+                        completionNote: "Covered under the conversion pipeline. Available for future use when additional data is introduced.",
+                        feedback: []
+                    },
+                    {
+                        id: 3,
+                        title: "Storage & Embedding",
+                        description: "Set up storage, vector DB, and embedding pipeline.",
+                        subtasks: [
+                            "Embedding pipeline (vectorization)",
+                            "Storage architecture (local DB + custom embedding pipeline)"
+                        ],
+                        completed: true,
+                        completionNote: "Tentatively complete for current scale. Azure was unnecessary — replaced with a local database and a custom-built embedding pipeline. Revisit if scale requirements increase significantly in the future.",
+                        feedback: []
+                    },
+                    {
+                        id: 4,
+                        title: "Incremental Ingestion System",
+                        description: "Build system for incremental updates to avoid reprocessing everything.",
+                        subtasks: [
+                            "Incremental ingestion architecture",
+                            "Update scheduler and change detection"
+                        ],
+                        completed: true,
+                        completionNote: "Covered under the pipeline. Available for easy future updates — not currently running as it has completed its initial job.",
+                        feedback: []
+                    }
+                ]
+            },
+            {
+                name: "Phase 2: Model Training + Evaluation (Month 3)",
+                hasUpdates: true,
+                updateColor: 'amber',
+                tasks: [
+                    {
+                        id: 5,
+                        title: "Base Model & Training Setup",
+                        description: "Select base model and setup training pipeline.",
+                        subtasks: [
+                            "Base model selection",
+                            "Training pipeline setup",
+                            "Fine-tuning algorithm (to be decided — developing as we go)"
+                        ],
+                        completed: true,
+                        completionNote: "Base model confirmed: Qwen. Training pipeline and setup established as of end of Week 11. Fine-tuning algorithm is to be decided and will be developed as we progress.",
+                        feedback: []
+                    },
+                    {
+                        id: 6,
+                        title: "Evaluation & Benchmarking",
+                        description: "Create evaluation datasets from real AOG scenarios and benchmark 95% accuracy.",
+                        subtasks: [
+                            "Evaluation dataset creation (real AOG scenarios)",
+                            "Accuracy benchmarking (target 95% claim)"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 7,
+                        title: "Logic Integration",
+                        description: "Merge root cause/why/action output, cross-referencing, and risk scoring.",
+                        subtasks: [
+                            "Root cause / why / next action output",
+                            "Cross-referencing logic",
+                            "Risk scoring (early version)",
+                            "Feedback loop wiring (learning system)"
+                        ],
+                        completed: false,
+                        feedback: []
+                    }
+                ]
+            },
+            {
+                name: "Phase 3: Product Integration Layer (Month 4)",
+                hasUpdates: false,
+                tasks: [
+                    {
+                        id: 8,
+                        title: "API & Web Dashboard",
+                        description: "API layer for model access and web dashboard integration.",
+                        subtasks: [
+                            "API layer for model access",
+                            "Integration into web dashboard",
+                            "Real-time query handling"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 9,
+                        title: "Interfaces & Performance",
+                        description: "Voice interface, manual library frontend, and latency optimizations.",
+                        subtasks: [
+                            "Voice interface connection",
+                            "Manual library + RAG frontend",
+                            "Performance optimization (latency matters)"
+                        ],
+                        completed: false,
+                        feedback: []
+                    }
+                ]
+            },
+            {
+                name: "Phase 4: Apps + Platform Rollout (Month 5)",
+                hasUpdates: false,
+                tasks: [
+                    {
+                        id: 10,
+                        title: "Mobile Integration",
+                        description: "iOS app integration and Mobile UX polish.",
+                        subtasks: [
+                            "iOS app integration (priority)",
+                            "Mobile UX polish"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 11,
+                        title: "Platform Deployment",
+                        description: "Web access, deployment pipelines, and beta rollout.",
+                        subtasks: [
+                            "Web access (browser portal)",
+                            "Deployment pipelines",
+                            "Monitoring + logging",
+                            "Beta rollout"
+                        ],
+                        completed: false,
+                        feedback: []
+                    }
+                ]
+            },
+            {
+                name: "Phase 5: Launch + Optimization (End of Month 5)",
+                hasUpdates: false,
+                tasks: [
+                    {
+                        id: 12,
+                        title: "Polish & Stability",
+                        description: "Final polish, bug fixing, and stability hardening.",
+                        subtasks: [
+                            "Final polish",
+                            "Bug fixing",
+                            "Stability hardening"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 13,
+                        title: "Rollout",
+                        description: "Soft launch to full rollout with user feedback loops.",
+                        subtasks: [
+                            "Initial user feedback loop",
+                            "Soft launch → full rollout"
+                        ],
+                        completed: false,
+                        feedback: []
+                    }
+                ]
+            },
+            {
+                name: "Phase X: ASSIRT (Parallel Track)",
+                hasUpdates: true,
+                updateColor: 'blue',
+                tasks: [
+                    {
+                        id: 14,
+                        title: "Phase A: Simulation Foundation",
+                        description: "Environment modeling and scenario engine.",
+                        subtasks: [
+                            "Environment modeling (aircraft + systems)",
+                            "Scenario engine (failures, AOG cases)",
+                            "Physics / system behavior modeling"
+                        ],
+                        completed: true,
+                        completionNote: "Firm foundation — Apple Vision SDK, JetNet feed, 3 onboard and local models, a 3D viewer with animations. Call connection is the last box on the list to bring it all together.",
+                        feedback: []
+                    },
+                    {
+                        id: 15,
+                        title: "Phase B: Spacial Interaction Layer",
+                        description: "Real-time overlays and spacial UI/UX.",
+                        subtasks: [
+                            "Real-time overlays",
+                            "Spacial UI/UX (AR-ready if needed)",
+                            "Interaction logic (inspection, troubleshooting)"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 16,
+                        title: "Phase C: Integration + Packaging",
+                        description: "Connect to MxGenius and export into MSFS.",
+                        subtasks: [
+                            "Connect to MxGenius data/model outputs",
+                            "Export into Microsoft Flight Simulator ecosystem",
+                            "AOG branding (Advanced AOG)"
+                        ],
+                        completed: false,
+                        feedback: []
+                    },
+                    {
+                        id: 17,
+                        title: "Phase D: Release Strategy",
+                        description: "Release under MSFS Marketplace and position correctly.",
+                        subtasks: [
+                            "Release under MSFS Marketplace",
+                            "Advanced AOG branding",
+                            "Position as Training/Simulation/Diagnostic tool"
+                        ],
+                        completed: false,
+                        feedback: []
+                    }
+                ]
+            }
+        ];
+
+        const totalTasks = phases.reduce((acc, phase) => acc + phase.tasks.length, 0);
+
+        // Calculate completion
+        function updateProgress() {
+            completedTasks = phases.reduce((acc, phase) => {
+                return acc + phase.tasks.filter(t => t.completed).length;
+            }, 0);
+
+            const percentComplete = Math.round((completedTasks / totalTasks) * 100);
+
+            // Update velocity chart
+            const chart = document.getElementById('velocityChart');
+            const clipPercent = 100 - percentComplete;
+            chart.style.clipPath = `polygon(0 100%, 0 ${clipPercent}%, 16.6% ${clipPercent - 10}%, 33.3% ${clipPercent - 25}%, 50% ${clipPercent - 35}%, 66.6% ${clipPercent - 45}%, 83.3% ${clipPercent - 60}%, 100% ${clipPercent - 75}%, 100% 100%)`;
+
+            // Update velocity text
+            document.getElementById('velocityText').textContent = `${percentComplete}% Complete`;
+
+            // Update countdown
+            updateCountdown(percentComplete);
+        }
+
+        function updateCountdown(percentComplete) {
+            const now = new Date();
+            const timeRemaining = launchDate - now;
+
+            if (timeRemaining <= 0 || percentComplete >= 100) {
+                document.getElementById('countdown').textContent = "LAUNCHED!";
+                document.getElementById('countdown').classList.add('adjusted');
+                document.getElementById('days').textContent = "000";
+                document.getElementById('hours').textContent = "00";
+                document.getElementById('minutes').textContent = "00";
+                document.getElementById('seconds').textContent = "00";
+                return;
+            }
+
+            // Calculate days, hours, minutes, seconds
+            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+
+            document.getElementById('days').textContent = String(days).padStart(3, '0');
+            document.getElementById('hours').textContent = String(hours).padStart(2, '0');
+            document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
+            document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+
+            // Adjust weeks based on progress
+            const weeksRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24 * 7));
+            const adjustedWeeks = Math.max(1, Math.round(weeksRemaining * (1 - (percentComplete / 200))));
+
+            document.getElementById('countdown').textContent = `${adjustedWeeks} WEEKS`;
+
+            if (percentComplete > 10) {
+                document.getElementById('countdown').classList.add('adjusted');
+            }
+        }
+
+        // Render phases and tasks
+        function renderPhases() {
+            const container = document.getElementById('phasesContainer');
+
+            // Capture expanded states globally before wiping the DOM
+            const expandedPhaseIndexes = Array.from(document.querySelectorAll('.phase')).map((el, index) => el.classList.contains('expanded') ? index : -1).filter(i => i !== -1);
+            const expandedTaskIds = Array.from(document.querySelectorAll('.task.expanded')).map(el => el.id);
+
+            // Capture text box states globally
+            const textBoxStates = {};
+            document.querySelectorAll('.need-textarea[id^="feedback-text-"]').forEach(el => {
+                if (el.value) textBoxStates[el.id] = el.value;
+            });
+
+            container.innerHTML = '';
+
+            phases.forEach((phase, phaseIndex) => {
+                const completedInPhase = phase.tasks.filter(t => t.completed).length;
+                const phasePercent = Math.round((completedInPhase / phase.tasks.length) * 100);
+
+                const phaseEl = document.createElement('div');
+                phaseEl.className = 'phase' + (expandedPhaseIndexes.includes(phaseIndex) ? ' expanded' : '');
+                phaseEl.innerHTML = `
+                    <div class="phase-header" onclick="togglePhase(${phaseIndex})">
+                        <div class="phase-title">
+                            <span class="phase-name">${phase.name}${phase.hasUpdates ? '<span class="phase-update-dot' + (phase.updateColor === 'amber' ? ' amber' : '') + '" title="New updates"></span>' : ''}</span>
+                            <span class="phase-progress">${completedInPhase}/${phase.tasks.length} tasks (${phasePercent}%)</span>
+                        </div>
+                        <i class="fas fa-chevron-down phase-toggle"></i>
+                    </div>
+                    <div class="phase-content">
+                        <div class="task-list">
+                            ${phase.tasks.map((task, taskIndex) => renderTask(task, phaseIndex, taskIndex)).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(phaseEl);
+            });
+
+            // Restore expanded task states
+            expandedTaskIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('expanded');
+            });
+
+            // Restore text box values
+            Object.keys(textBoxStates).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = textBoxStates[id];
+            });
+
+            updateProgress();
+        }
+
+        function renderTask(task, phaseIndex, taskIndex) {
+            return `
+                <div class="task ${task.completed ? 'completed' : ''}" id="task-${phaseIndex}-${taskIndex}">
+                    <div class="task-header" onclick="toggleTask(${phaseIndex}, ${taskIndex})">
+                        <div class="task-left">
+                            <div class="task-checkbox ${task.completed ? 'checked' : ''}">
+                                ${task.completed ? '<i class="fas fa-check"></i>' : ''}
+                            </div>
+                            <span class="task-title">${task.title}${task.titleBadge ? '<span class="task-new-badge" style="' + (task.titleBadgeColor === 'amber' ? 'background: var(--accent-amber);' : '') + '">' + task.titleBadge + '</span>' : ''}</span>
+                        </div>
+                        <i class="fas fa-chevron-down task-toggle"></i>
+                    </div>
+                    <div class="task-content">
+                        <div class="task-details">
+                            <div class="task-description">${task.description}</div>
+                            ${task.completionNote ? `<div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 0.5rem;"><i class="fas fa-check-circle" style="color: var(--accent-green); margin-top: 0.15rem;"></i><div><span style="color: var(--accent-green); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Completed</span><div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.15rem;">${task.completionNote}</div></div></div>` : ''}
+                            <div class="subtasks">
+                                ${task.subtasks.map(st => {
+                                    const isNewItem = st.startsWith('\u2014');
+                                    return `
+                                    <div class="subtask${isNewItem ? ' new-item' : ''}">
+                                        <i class="fas fa-circle"></i>
+                                        <span>${st}</span>
+                                    </div>
+                                `;
+                                }).join('')}
+                            </div>
+                            <div class="feedback-section">
+                                <div class="feedback-label">Feedback / Suggestions</div>
+                                <textarea id="feedback-text-${phaseIndex}-${taskIndex}" class="need-textarea" style="margin-bottom: 1rem;" placeholder="Add custom notes or simple details directly here..."></textarea>
+                            </div>
+                            <div class="task-actions">
+                                <button class="btn btn-primary" onclick="openEmailModal(${phaseIndex}, ${taskIndex})">
+                                    <i class="fas fa-envelope"></i> Email Dwayne
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function togglePhase(index) {
+            const phase = document.querySelectorAll('.phase')[index];
+            phase.classList.toggle('expanded');
+        }
+
+        function toggleTask(phaseIndex, taskIndex) {
+            const task = document.getElementById(`task-${phaseIndex}-${taskIndex}`);
+            if (task) task.classList.toggle('expanded');
+        }
+
+
+
+        function openEmailModal(phaseIndex, taskIndex) {
+            const task = phases[phaseIndex].tasks[taskIndex];
+            const phaseName = phases[phaseIndex].name;
+
+            const subject = encodeURIComponent(`Feedback on: ${task.title}`);
+            const body = encodeURIComponent(`Hi Dwayne,
+
+I have some feedback/suggestions for "${task.title}" (${phaseName}):
+
+Task: ${task.title}
+Status: ${task.completed ? 'Completed' : 'In Progress'}
+
+description: ${task.description}
+
+i'd like to suggest / add:
+${document.getElementById('feedback-text-'+phaseIndex+'-'+taskIndex)?.value || '[No text notes provided]'}
+
+please let me know if you have any questions.
+
+best,
+josh`);
+
+            const emailLink = `mailto:DwayneTillman@7HermeticLabs.Dev?subject=${subject}&body=${body}`;
+            document.getElementById('emailLink').href = emailLink;
+            document.getElementById('emailPreview').textContent = `To: DwayneTillman@7HermeticLabs.Dev\nSubject: ${decodeURIComponent(subject)}\n\n${decodeURIComponent(body)}`;
+            document.getElementById('emailModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('emailModal').classList.remove('active');
+        }
+
+        // Close modal on outside click
+        document.getElementById('emailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+
+
+        // Weekly Report toggle function
+        function toggleWeeklyReport() {
+            const section = document.getElementById('weeklyReport');
+            section.classList.toggle('expanded');
+        }
+
+        // Report viewer
+        function viewReport(weekNum) {
+            openReport(weekNum);
+        }
+
+        function openReport(weekNum) {
+            window.open(`report-display.html?week=${weekNum}`, '_blank');
+            closeReportViewer();
+        }
+
+        function closeReportViewer() {
+            document.getElementById('reportViewerOverlay').classList.remove('active');
+        }
+
+        // Initialize
+        renderPhases();
+        updateProgress();
+
+        // Update countdown every second
+        setInterval(() => updateProgress(), 1000);
+    </script>
+    <script src="runtime-config.js?v=3"></script>
+    <script src="auth.js"></script>
+</body>
+</html>
