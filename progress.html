@@ -1432,12 +1432,15 @@
                             <div class="timeline-header">
                                 <span class="timeline-week">Week 18</span>
                                 <span class="timeline-dates">Jul 13 - Jul 19, 2026</span>
-                                <span class="week-status pending">Pending</span>
+                                <a class="week-status report-ready" onclick="viewReport(18)" title="View Week 18 Report">
+                                    <i class="fas fa-file-alt"></i> Report Ready
+                                </a>
+                                <span class="task-new-badge" style="font-size: 0.6rem;">NEW</span>
                             </div>
                             <div class="timeline-body">
                                 <div class="timeline-row">
                                     <span class="timeline-label">Summary:</span>
-                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                    <span class="timeline-text">Massive milestones across Phase 2, 3, 4 and X. Delivery of Aviation Demo Field Guide.</span>
                                 </div>
                             </div>
                         </div>
@@ -1687,7 +1690,7 @@
             {
                 name: "Phase 2: Model Training + Evaluation (Month 3)",
                 hasUpdates: true,
-                updateColor: 'amber',
+                updateColor: 'green',
                 tasks: [
                     {
                         id: 5,
@@ -1732,7 +1735,8 @@
             },
             {
                 name: "Phase 3: Product Integration Layer (Month 4)",
-                hasUpdates: false,
+                hasUpdates: true,
+                updateColor: 'green',
                 tasks: [
                     {
                         id: 8,
@@ -1764,7 +1768,8 @@
             },
             {
                 name: "Phase 4: Apps + Platform Rollout (Month 5)",
-                hasUpdates: false,
+                hasUpdates: true,
+                updateColor: 'green',
                 tasks: [
                     {
                         id: 10,
@@ -1826,7 +1831,7 @@
             {
                 name: "Phase X: ASSIRT (Parallel Track)",
                 hasUpdates: true,
-                updateColor: 'blue',
+                updateColor: 'green',
                 tasks: [
                     {
                         id: 14,
