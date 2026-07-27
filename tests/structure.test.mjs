@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import { test } from 'node:test';
 
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
@@ -24,6 +24,9 @@ const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.ur
 const mcpGitAttributes = await readFile(new URL('../services/mcp/.gitattributes', import.meta.url), 'utf8');
 const liveProbe = await readFile(new URL('../scripts/live-field-probe.mjs', import.meta.url), 'utf8');
 const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+const reportDisplay = await readFile(new URL('../report-display.html', import.meta.url), 'utf8');
+const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
+const week19Report = await readFile(new URL('../Generated Reports/week-19/week-19-report.md', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -70,6 +73,69 @@ test('Pages release retains generated report content', () => {
     /cp -R --[^\n]*"Generated Reports"[^\n]*_site\//,
     'the Pages artifact must include the report scripts, images, and media referenced by report-display.html'
   );
+});
+
+test('report display preserves external image schemes and constrains report media', () => {
+  assert.match(
+    reportDisplay,
+    /externalSource = \/\^\(\?:https\?:\|data:\|blob:\)/,
+    'data and remote image sources must not have their URI schemes encoded'
+  );
+  assert.match(reportDisplay, /\.report-image\s*\{[\s\S]*max-height:\s*72vh/);
+});
+
+test('progress banner identifies the latest published report', () => {
+  assert.match(progress, />Week 19 Ready</);
+  assert.doesNotMatch(progress, />Week 20 Ready</);
+});
+
+test('week 19 screenshots stay paired with the sections they depict', () => {
+  const expectedPairs = [
+    ['Back end clean-up and service', 'image-4.png'],
+    ['map expansion', 'image-6.png'],
+    ['side panels', 'image-7.png'],
+    ['Rocky update', 'image-5.png'],
+    ['settings update', 'image-8.png'],
+    ['3d Viewer update', 'image-9.png'],
+    ['maintenance case deep-dive', 'image-10.png'],
+    ['landing page refresh', 'image-11.png'],
+    ['dashboard active cases', 'image-12.png'],
+    ['AI triage advisory', 'image-13.png'],
+    ['aircraft detail panel', 'image-14.png'],
+    ['the full picture', 'image-15.png']
+  ];
+
+  for (const [heading, image] of expectedPairs) {
+    const section = week19Report.split(`## ${heading}`)[1]?.split('\n## ')[0] ?? '';
+    assert.match(section, new RegExp(`\\(${image.replace('.', '\\.')}\\)`), `${heading} should use ${image}`);
+  }
+
+  assert.doesNotMatch(week19Report, /\(image-[23]\.png\)/, 'supporting expense screenshots should not leak into later sections');
+});
+
+test('generated report image references resolve to published files', async () => {
+  const reportsRoot = new URL('../Generated Reports/', import.meta.url);
+  const weeks = await readdir(reportsRoot, { withFileTypes: true });
+
+  for (const week of weeks.filter((entry) => entry.isDirectory())) {
+    const reportUrl = new URL(`${week.name}/${week.name}-report.md`, reportsRoot);
+    let markdown;
+    try {
+      markdown = await readFile(reportUrl, 'utf8');
+    } catch {
+      continue;
+    }
+    const references = [...markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)]
+      .map((match) => match[1])
+      .filter((source) => !/^(?:data:|https?:|blob:)/i.test(source));
+
+    for (const reference of references) {
+      await assert.doesNotReject(
+        access(new URL(`${week.name}/${reference}`, reportsRoot)),
+        `${week.name} image should exist: ${reference}`
+      );
+    }
+  }
 });
 
 test('technical evidence stays behind case and chat boundaries instead of a dead library tab', () => {

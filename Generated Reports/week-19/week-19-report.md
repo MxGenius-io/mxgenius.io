@@ -11,17 +11,17 @@
 
 ## Back end clean-up and service
 
-![The back end is now clean without the competing repos. The main source code lives at advancedAOG. Everything else lives at MX Genius. There's no longer a tracker that lives by itself. The tracker now lives inside of settings in the MX Genius app.](image-2.png)
+![The back end is now clean without the competing repos. The main source code lives at advancedAOG. Everything else lives at MX Genius. There's no longer a tracker that lives by itself. The tracker now lives inside of settings in the MX Genius app.](image-4.png)
 *The back end is now clean without the competing repos. The main source code lives at advancedAOG. Everything else lives at MX Genius. There's no longer a tracker that lives by itself. The tracker now lives inside of settings in the MX Genius app.*
 
 ## map expansion
 
-![Added an additional layer that gives you more details for roads, airport names, general map information for quality.](image-3.png)
+![Added an additional layer that gives you more details for roads, airport names, general map information for quality.](image-6.png)
 *Added an additional layer that gives you more details for roads, airport names, general map information for quality.*
 
 ## side panels
 
-![The map has also been normalized to a smooth left and right layout, with left being the map filters and VR, and right being the details that you click on.](image-4.png)
+![The map has also been normalized to a smooth left and right layout, with left being the map filters and VR, and right being the details that you click on.](image-7.png)
 *The map has also been normalized to a smooth left and right layout, with left being the map filters and VR, and right being the details that you click on.*
 
 ## Rocky update
@@ -31,17 +31,16 @@
 
 ## settings update
 
-![Okay, so there's actually a lot going on here. I'm still wiring it up, but you should be able to change your profile picture. We're gonna have that save on the server. The operations is the skills that the model actually have. Appearance is obvious, it changes the color scheme. The tracker is found right there, second to bottom card, just over beta access. And beta access is how you add additional people to the closed beta.](image-6.png)
+![Okay, so there's actually a lot going on here. I'm still wiring it up, but you should be able to change your profile picture. We're gonna have that save on the server. The operations is the skills that the model actually have. Appearance is obvious, it changes the color scheme. The tracker is found right there, second to bottom card, just over beta access. And beta access is how you add additional people to the closed beta.](image-8.png)
 *Okay, so there's actually a lot going on here. I'm still wiring it up, but you should be able to change your profile picture. We're gonna have that save on the server. The operations is the skills that the model actually have. Appearance is obvious, it changes the color scheme. The tracker is found right there, second to bottom card, just over beta access. And beta access is how you add additional people to the closed beta.*
 
 ## 3d Viewer update
 
-![We now have the ability to upload custom 3D models and have the viewer read whatever the parts are. So it doesn't matter where the model comes from. We have it connected to a NASA API just to pull different specs from things. I'm gonna mature that in the upcoming month just so we have some options to play with. But as of now, the direction is gonna be mesh agnostic, and I'm gonna try to get as many readable capabilities in there as I can.](image-7.png)
+![We now have the ability to upload custom 3D models and have the viewer read whatever the parts are. So it doesn't matter where the model comes from. We have it connected to a NASA API just to pull different specs from things. I'm gonna mature that in the upcoming month just so we have some options to play with. But as of now, the direction is gonna be mesh agnostic, and I'm gonna try to get as many readable capabilities in there as I can.](image-9.png)
 *We now have the ability to upload custom 3D models and have the viewer read whatever the parts are. So it doesn't matter where the model comes from. We have it connected to a NASA API just to pull different specs from things. I'm gonna mature that in the upcoming month just so we have some options to play with. But as of now, the direction is gonna be mesh agnostic, and I'm gonna try to get as many readable capabilities in there as I can.*
 
 ## cases
 
-![The case system is online, though I'm still working the bugs out of it. It has an approval system that you can have in chat. I'll keep you updated on it, but it is live.](image-8.png)
 *The case system is online, though I'm still working the bugs out of it. It has an approval system that you can have in chat. I'll keep you updated on it, but it is live.*
 
 ## Hold our beer!
@@ -51,7 +50,6 @@
 
 ## structured output buttons
 
-![This is still pretty new, so you'll have to press one of these buttons and then manually open the chat. In the next update, it'll do it automatically, but this is how you activate structured output.](image-9.png)
 *This is still pretty new, so you'll have to press one of these buttons and then manually open the chat. In the next update, it'll do it automatically, but this is how you activate structured output.*
 
 ## maintenance case deep-dive

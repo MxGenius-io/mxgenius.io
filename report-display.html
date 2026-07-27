@@ -103,6 +103,18 @@
             margin-bottom: 1rem;
         }
 
+        .report-image {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: 72vh;
+            object-fit: contain;
+            margin: 0 auto;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
         ul, ol {
             color: #94A3B8;
             margin-bottom: 0.75rem;
@@ -287,11 +299,14 @@
                 const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
                 if (imgMatch) {
                     let imgSrc = imgMatch[2];
-                    if (weekFolder && !imgSrc.startsWith('http') && !imgSrc.startsWith('data:')) {
+                    const externalSource = /^(?:https?:|data:|blob:)/i.test(imgSrc);
+                    if (weekFolder && !externalSource) {
                         imgSrc = `${weekFolder}/${imgSrc}`;
                     }
-                    const encodedSrc = imgSrc.split('/').map(s => encodeURIComponent(s)).join('/');
-                    output.push(`<div style="margin: 1rem 0; text-align: center;"><img src="${encodedSrc}" alt="${imgMatch[1]}" style="max-width: 100%; border-radius: 0.5rem; border: 1px solid #334155;"></div>`);
+                    const renderedSrc = externalSource
+                        ? imgSrc
+                        : imgSrc.split('/').map(s => encodeURIComponent(s)).join('/');
+                    output.push(`<div style="margin: 1rem 0; text-align: center;"><img class="report-image" src="${renderedSrc}" alt="${imgMatch[1]}"></div>`);
                     continue;
                 }
                 // Video references

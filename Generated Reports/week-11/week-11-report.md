@@ -19,22 +19,22 @@
 
 ## MxGenius Ai Chat and FAA directives
 
-![I have no aviation experience, but intuition tells me you can use something like this.  it connects straight to the FAA data base and pulls the data based on the plane chosen in 'aircrafts'.  pressing any of the buttons sends the card info to the model so you can dig into it... if you don't like it or it isn't useful just let me know and I can strip it out for the next update.](image-1.png)
+![I have no aviation experience, but intuition tells me you can use something like this.  it connects straight to the FAA data base and pulls the data based on the plane chosen in 'aircrafts'.  pressing any of the buttons sends the card info to the model so you can dig into it... if you don't like it or it isn't useful just let me know and I can strip it out for the next update.](image1.png)
 *I have no aviation experience, but intuition tells me you can use something like this.  it connects straight to the FAA data base and pulls the data based on the plane chosen in 'aircrafts'.  pressing any of the buttons sends the card info to the model so you can dig into it... if you don't like it or it isn't useful just let me know and I can strip it out for the next update.*
 
 ## Globe Filters
 
-![Not sure if you even noticed this one on the last update, but it's fixed.  The way I am approaching it is by speed of information display.  The filters now connect to pins, cards, and faa data correctly, as well as looping back to the model for context insertion](image-2.png)
+![Not sure if you even noticed this one on the last update, but it's fixed.  The way I am approaching it is by speed of information display.  The filters now connect to pins, cards, and faa data correctly, as well as looping back to the model for context insertion](image2.png)
 *Not sure if you even noticed this one on the last update, but it's fixed.  The way I am approaching it is by speed of information display.  The filters now connect to pins, cards, and faa data correctly, as well as looping back to the model for context insertion*
 
 ## Quality
 
-![here is where I fall a bit short, I have been working on methods of data delivery so I am ready for what ever direction you would like to take it in so you retain flexibility, but other than that, information transfer is ready to go.](image-3.png)
+![here is where I fall a bit short, I have been working on methods of data delivery so I am ready for what ever direction you would like to take it in so you retain flexibility, but other than that, information transfer is ready to go.](image3.png)
 *here is where I fall a bit short, I have been working on methods of data delivery so I am ready for what ever direction you would like to take it in so you retain flexibility, but other than that, information transfer is ready to go.*
 
 ## Example 2 - Different model approach
 
-![Different layouts, orders, even images if that would help (currently references, but does not display)](image-4.png)
+![Different layouts, orders, even images if that would help (currently references, but does not display)](image4.png)
 *Different layouts, orders, even images if that would help (currently references, but does not display)*
 
 ## This week
