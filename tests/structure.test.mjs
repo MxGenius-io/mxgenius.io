@@ -89,7 +89,7 @@ test('progress banner identifies the latest published report', () => {
   assert.doesNotMatch(progress, />Week 20 Ready</);
 });
 
-test('week 19 screenshots stay paired with the sections they depict', () => {
+test('week 19 screenshots stay paired with the sections they depict', async () => {
   const expectedPairs = [
     ['Back end clean-up and service', 'image-4.png'],
     ['map expansion', 'image-6.png'],
@@ -111,6 +111,14 @@ test('week 19 screenshots stay paired with the sections they depict', () => {
   }
 
   assert.doesNotMatch(week19Report, /\(image-[23]\.png\)/, 'supporting expense screenshots should not leak into later sections');
+
+  const referencedImages = [...week19Report.matchAll(/!\[[^\]]*\]\((image-\d+\.png)\)/g)]
+    .map((match) => match[1])
+    .sort();
+  const publishedImages = (await readdir(new URL('../Generated Reports/week-19/', import.meta.url)))
+    .filter((name) => /^image-\d+\.png$/.test(name))
+    .sort();
+  assert.deepEqual(publishedImages, referencedImages, 'Week 19 should not publish unreferenced image files');
 });
 
 test('generated report image references resolve to published files', async () => {
