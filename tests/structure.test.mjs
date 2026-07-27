@@ -22,6 +22,7 @@ const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.url), 'utf8');
 const mcpGitAttributes = await readFile(new URL('../services/mcp/.gitattributes', import.meta.url), 'utf8');
+const liveProbe = await readFile(new URL('../scripts/live-field-probe.mjs', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -378,4 +379,18 @@ test('public runtime configuration mounts the live core without embedding creden
 test('immutable SQLx migrations retain LF bytes in Windows deployment archives', () => {
   assert.match(gitAttributes, /^services\/mcp\/migrations\/\*\.sql text eol=lf$/m);
   assert.match(mcpGitAttributes, /^migrations\/\*\.sql text eol=lf$/m);
+});
+
+test('live field probe covers the deployed frontend, core, memory, MCP, and manual assets', () => {
+  for (const marker of [
+    'Dashboard release assets',
+    'Core readiness',
+    'MCP registry',
+    'Structured chat',
+    'Thread persistence',
+    'Manual retrieval and images',
+    'Realtime WebRTC'
+  ]) {
+    assert.match(liveProbe, new RegExp(marker));
+  }
 });

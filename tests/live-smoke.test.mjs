@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 const SITE = process.env.MXGENIUS_SITE_URL || 'https://mxgenius.io';
-const API = process.env.MXGENIUS_API_URL || 'https://mxg-api.kindbush-8fee3a17.centralus.azurecontainerapps.io';
+const API = process.env.MXGENIUS_API_URL || 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io';
 
 async function get(path, base = SITE) {
   return fetch(`${base}${path}`, {
@@ -11,11 +11,12 @@ async function get(path, base = SITE) {
   });
 }
 
-test('landing page is reachable and contains the deployed carousel copy', async () => {
+test('landing page is reachable and contains the deployed product shell', async () => {
   const response = await get('/?smoke=application-plane');
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Transform Your Operations<\/h1>/);
+  assert.match(html, /MXGenius - AI-Powered Aircraft Maintenance Platform/);
+  assert.match(html, /Request Access/);
 });
 
 test('dashboard shell and retained navigation are reachable', async () => {
@@ -30,6 +31,14 @@ test('dashboard shell and retained navigation are reachable', async () => {
 test('Azure application API health endpoint is reachable', async () => {
   const response = await get('/healthz', API);
   assert.equal(response.status, 200);
+});
+
+test('Azure application API is ready with production persistence', async () => {
+  const response = await get('/readyz', API);
+  assert.equal(response.status, 200);
+  const readiness = await response.json();
+  assert.equal(readiness.ready, true);
+  assert.equal(readiness.mode, 'production');
 });
 
 test('3D model catalog is reachable and non-empty', async () => {

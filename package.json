@@ -7,7 +7,8 @@
     "test": "node --test tests/structure.test.mjs tests/application-client.test.mjs tests/realtime-client.test.mjs tests/maintenance-advisory.test.mjs tests/xr-realtime-presence.test.mjs",
     "test:structure": "node --test tests/structure.test.mjs",
     "test:live": "node --test tests/live-smoke.test.mjs",
-    "test:all": "npm test && npm run test:live"
+    "test:all": "npm test && npm run test:live",
+    "probe:live": "node scripts/live-field-probe.mjs"
   },
   "engines": {
     "node": ">=20"
