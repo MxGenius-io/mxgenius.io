@@ -12,6 +12,18 @@
   let account = null;
   let accessToken = '';
 
+  function tokenRequest() {
+    return {
+      account: account || undefined,
+      scopes: ['openid', 'profile', apiScope]
+    };
+  }
+
+  function interactionRequired(error) {
+    return error instanceof globalThis.msal.InteractionRequiredAuthError
+      || ['interaction_required', 'consent_required', 'login_required'].includes(String(error?.errorCode || ''));
+  }
+
   function publishIdentity(identity) {
     const chip = document.getElementById('signedInAs');
     const name = document.getElementById('signedInAsName');
@@ -34,28 +46,38 @@
     });
     const response = await instance.handleRedirectPromise();
     account = response?.account || instance.getActiveAccount() || instance.getAllAccounts()[0] || null;
+    accessToken = response?.accessToken || '';
 
     if (account) instance.setActiveAccount(account);
     publishIdentity(account);
     globalThis.MXGENIUS_AUTH = {
       instance,
       account: () => account,
-      signIn: () => instance.loginRedirect({ scopes: ['openid', 'profile', apiScope] }),
+      signIn: () => instance.loginRedirect(tokenRequest()),
       signOut: () => instance.logoutRedirect(),
       getToken: async () => {
         if (!account) return '';
-        const token = await instance.acquireTokenSilent({ account, scopes: [apiScope] });
-        accessToken = token.accessToken || '';
-        return accessToken;
+        try {
+          const token = await instance.acquireTokenSilent({ account, scopes: [apiScope] });
+          accessToken = token.accessToken || '';
+          return accessToken;
+        } catch (error) {
+          if (isDashboard && interactionRequired(error)) {
+            await instance.acquireTokenRedirect(tokenRequest());
+            return '';
+          }
+          throw error;
+        }
       }
     };
     if (isDashboard && !account) {
-      await instance.loginRedirect({ scopes: ['openid', 'profile', apiScope] });
+      await instance.loginRedirect(tokenRequest());
       return null;
     }
-    if (account && !accessToken) {
+    if (account) {
       try {
-        await globalThis.MXGENIUS_AUTH.getToken();
+        if (!accessToken) await globalThis.MXGENIUS_AUTH.getToken();
+        if (!accessToken) return null;
         if (isDashboard) {
           const accessResponse = await fetch(`${config.mcpBase}/api/profile`, {
             headers: { Authorization: `Bearer ${accessToken}` },
@@ -63,16 +85,18 @@
           });
           if (accessResponse.status === 401 || accessResponse.status === 403) {
             const rejectedEmail = (account.username || '').toLowerCase().trim();
-            await instance.logoutPopup().catch(() => {});
             account = null;
             accessToken = '';
             localStorage.setItem('mx_beta_rejected', rejectedEmail);
-            location.replace('login.html?rejected=beta');
+            await instance.logoutRedirect({
+              postLogoutRedirectUri: `${location.origin}/login.html?rejected=beta`
+            });
             return null;
           }
           if (!accessResponse.ok) throw new Error(`MXGenius access verification failed (${accessResponse.status})`);
         }
       } catch (error) {
+        if (isLogin && interactionRequired(error)) return account;
         console.warn('Entra token or MXGenius access verification failed', error);
         throw error;
       }
@@ -92,13 +116,13 @@
   });
 
   if (isLogin) ready.then(() => {
-    if (account) {
+    if (account && accessToken) {
       const params = new URLSearchParams(location.search);
       location.replace(params.get('returnUrl') || 'dashboard.html');
       return;
     }
     const button = document.querySelector('[data-entra-signin]');
-    if (button && globalThis.MXGENIUS_AUTH && !account) {
+    if (button && globalThis.MXGENIUS_AUTH) {
       button.disabled = false;
       button.addEventListener('click', () => globalThis.MXGENIUS_AUTH.signIn(), { once: true });
     }
