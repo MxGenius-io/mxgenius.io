@@ -23,6 +23,7 @@ const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', i
 const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.url), 'utf8');
 const mcpGitAttributes = await readFile(new URL('../services/mcp/.gitattributes', import.meta.url), 'utf8');
 const liveProbe = await readFile(new URL('../scripts/live-field-probe.mjs', import.meta.url), 'utf8');
+const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -61,6 +62,14 @@ test('critical retained surfaces remain present', () => {
     assert.match(dashboard, new RegExp(`id="${id}"`), `${id} should remain present`);
   }
   assert.match(application, /function buildMROSignals\(/, 'fleet triage attributes should remain available');
+});
+
+test('Pages release retains generated report content', () => {
+  assert.match(
+    pagesWorkflow,
+    /cp -R --[^\n]*"Generated Reports"[^\n]*_site\//,
+    'the Pages artifact must include the report scripts, images, and media referenced by report-display.html'
+  );
 });
 
 test('technical evidence stays behind case and chat boundaries instead of a dead library tab', () => {
