@@ -726,7 +726,7 @@ function setupChatPanel() {
   const MAX_CHAT_IMAGES = 4;
   const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
   const CHAT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-  const CHAT_TEXT_MODELS = new Set(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5']);
+  const CHAT_TEXT_MODELS = new Set(['gpt-5.4-mini', 'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.5', 'gpt-5.6-sol']);
 
   if (!panel || !toggleBtn) return;
 
@@ -992,10 +992,31 @@ function setupChatPanel() {
   void refreshThreads(true);
   const initialChatSession = currentApplicationSession();
   if (initialChatSession.accessToken) {
-    void MXApplicationClient.profile.get(initialChatSession).then((profile) => {
-      const textModel = profile?.settings?.textModel;
-      if (CHAT_TEXT_MODELS.has(textModel)) localStorage.setItem('mx_textModel', textModel);
-    }).catch(() => {});
+    void MXApplicationClient.profile.get(initialChatSession)
+      .catch(() => null)
+      .then((profile) => {
+        const textModel = profile?.settings?.textModel;
+        if (CHAT_TEXT_MODELS.has(textModel)) localStorage.setItem('mx_textModel', textModel);
+        return MXApplicationClient.chatModels.list(initialChatSession);
+      })
+      .then((catalog) => {
+        const models = Array.isArray(catalog?.models) ? catalog.models : [];
+        if (!models.length) return;
+        const available = new Set(models.map((model) => model.id));
+        const selected = localStorage.getItem('mx_textModel');
+        const usable = available.has(selected)
+          ? selected
+          : (catalog.default || models[0].id);
+        localStorage.setItem('mx_textModel', usable);
+        const selector = document.getElementById('settingsTextModel');
+        if (selector) {
+          selector.replaceChildren(...models.map((model) => new Option(model.label, model.id)));
+          selector.value = usable;
+        }
+      })
+      .catch((error) => {
+        console.warn('[MXGenius] Text model availability could not be refreshed:', error.message);
+      });
   }
 
   window.addEventListener('mxg:case-selected', (event) => {
@@ -1648,7 +1669,7 @@ Rules:
       const response = await MXApplicationClient.chat({
         message: text,
         images,
-        textModel: localStorage.getItem('mx_textModel') || 'gpt-5.6-luna',
+        textModel: localStorage.getItem('mx_textModel') || 'gpt-5.4-mini',
         threadId: activeThreadId,
         history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
@@ -2576,7 +2597,7 @@ function initSettings() {
           textColor: localStorage.getItem('mx_textColor'),
           cardColor: localStorage.getItem('mx_cardColor'),
           theme: localStorage.getItem('mx_theme'),
-          textModel: localStorage.getItem('mx_textModel') || 'gpt-5.6-luna'
+          textModel: localStorage.getItem('mx_textModel') || 'gpt-5.4-mini'
         }
       }, serverSession).catch((error) => {
         console.warn('[MXGenius] Server profile save failed:', error.message);
@@ -2586,7 +2607,7 @@ function initSettings() {
   settingsTab.addEventListener('input', scheduleServerProfileSave);
   settingsTab.addEventListener('change', scheduleServerProfileSave);
   if (textModelSelect) {
-    const selectedTextModel = localStorage.getItem('mx_textModel') || 'gpt-5.6-luna';
+    const selectedTextModel = localStorage.getItem('mx_textModel') || 'gpt-5.4-mini';
     textModelSelect.value = selectedTextModel;
     textModelSelect.addEventListener('change', () => {
       localStorage.setItem('mx_textModel', textModelSelect.value);

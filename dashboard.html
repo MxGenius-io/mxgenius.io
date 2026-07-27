@@ -467,10 +467,11 @@
               <span class="settings-hint">Choose the cost and reasoning tier used for text and structured responses</span>
             </div>
             <select id="settingsTextModel" class="search-input" style="width:auto;min-width:190px;">
-              <option value="gpt-5.6-luna">GPT-5.6 Luna · Efficient</option>
+              <option value="gpt-5.4-mini">GPT-5.4 mini · Efficient</option>
+              <option value="gpt-5.6-luna">GPT-5.6 Luna · Cost optimized</option>
               <option value="gpt-5.6-terra">GPT-5.6 Terra · Balanced</option>
-              <option value="gpt-5.6-sol">GPT-5.6 Sol · Frontier</option>
-              <option value="gpt-5.5">GPT-5.5 · Previous Frontier</option>
+              <option value="gpt-5.5">GPT-5.5 · Frontier</option>
+              <option value="gpt-5.6-sol">GPT-5.6 Sol · Highest capability</option>
             </select>
           </div>
           <div class="settings-row"><div class="settings-label"><span>Cached Entries</span><span class="settings-hint" id="cacheStats">Loading...</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXCache.clearAll().then(()=>{document.getElementById('cacheStats').textContent='Cache cleared';})">Clear Cache</button></div>
@@ -590,12 +591,12 @@
   <script src="auth.js?v=5"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=14"></script>
+<script src="application-client.js?v=15"></script>
   <script src="realtime-client.js?v=4"></script>
   <script src="case-workspace.js?v=3"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=2"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
   <div id="onboardingRoot"></div>
 </body>
 

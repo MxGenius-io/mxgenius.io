@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Structured text chat model availability
+
+- Made the text-model picker reflect the models available to the configured OpenAI project instead of presenting inaccessible choices.
+- Added GPT-5.4 mini as the cost-conscious default while retaining GPT-5.5 and available GPT-5.6 tiers.
+- Added server-side accessible-model selection so a stale profile choice cannot strand structured chat on an unavailable model.
+- Prevented model-authored prose from claiming application or connection readiness.
+- Kept strict structured output, MCP tool orchestration, threads, images, and Realtime behavior intact.
+
 ### Fixed — Realtime and application shell
 
 - Restored the shared authenticated application request helpers used by profile, case, and digital-twin APIs.

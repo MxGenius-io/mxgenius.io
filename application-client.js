@@ -267,6 +267,10 @@ const MXApplicationClient = (() => {
     return applicationJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, { session });
   }
 
+  function listChatModels(session = {}) {
+    return applicationJson('/api/chat/models', { session });
+  }
+
   function persistThreadExchange({ threadId, caseId, userContent, assistantContent, session = {} }) {
     return applicationJson('/api/thread-exchanges', {
       session,
@@ -736,6 +740,9 @@ const MXApplicationClient = (() => {
     aircraftList,
     bulkAircraft,
     chat,
+    chatModels: Object.freeze({
+      list: listChatModels
+    }),
     cases: Object.freeze({
       list: listCases,
       get: getCase
