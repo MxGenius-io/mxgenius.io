@@ -191,7 +191,7 @@ const MXApplicationClient = (() => {
     return (await applicationRequest(path, options)).json();
   }
 
-  function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, displayContext, accessToken, organizationId, correlationId, signal }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -203,6 +203,7 @@ const MXApplicationClient = (() => {
       method: 'POST',
       headers,
       credentials: 'include',
+      signal,
       body: JSON.stringify({
         message,
         text_model: textModel || null,
@@ -214,7 +215,8 @@ const MXApplicationClient = (() => {
         thread_id: threadId || null,
         history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
-        case_context: caseContext || null
+        case_context: caseContext || null,
+        display_context: displayContext || null
       })
     });
   }

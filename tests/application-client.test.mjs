@@ -189,6 +189,7 @@ test('chat uses application identity and carries canonical case context without 
     threadId: 'thread-1',
     fleetSignals: [],
     caseContext: { case_id: 'case-1', version: 3 },
+    displayContext: { active_tab: 'case', visible_response: { advisory_title: 'Hydraulic review' } },
     accessToken: 'oidc-token',
     organizationId: 'org-1',
     correlationId: 'correlation-1'
@@ -197,6 +198,8 @@ test('chat uses application identity and carries canonical case context without 
   assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'org-1');
   assert.equal(requests[0].request.case_context.case_id, 'case-1');
   assert.equal(requests[0].request.case_context.version, 3);
+  assert.equal(requests[0].request.display_context.active_tab, 'case');
+  assert.equal(requests[0].request.display_context.visible_response.advisory_title, 'Hydraulic review');
   assert.equal(requests[0].request.thread_id, 'thread-1');
 });
 

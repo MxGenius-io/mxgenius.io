@@ -160,9 +160,9 @@ const MXRealtime = (() => {
       }
     }
 
-    configureTools(tools, { instructions } = {}) {
+    configureTools(tools, { instructions, clientTools = [], toolChoice = 'auto' } = {}) {
       this.toolSpecs.clear();
-      const realtimeTools = (tools || [])
+      const realtimeTools = [...(tools || []), ...(clientTools || [])]
         .filter((tool) => tool.meta?.callable !== false && tool.meta?.availability !== 'not_configured')
         .map((tool) => {
         const transportName = tool.name.replaceAll('.', '__');
@@ -179,13 +179,13 @@ const MXRealtime = (() => {
         session: {
           type: 'realtime',
           tools: realtimeTools,
-          tool_choice: 'auto',
+          tool_choice: toolChoice,
           ...(instructions ? { instructions } : {})
         }
       });
     }
 
-    sendToolOutput(callId, output) {
+    sendToolOutput(callId, output, { toolChoice = 'none', createResponse = true } = {}) {
       const sent = this.send({
         type: 'conversation.item.create',
         item: {
@@ -194,7 +194,12 @@ const MXRealtime = (() => {
           output: typeof output === 'string' ? output : JSON.stringify(output)
         }
       });
-      if (sent) this.send({ type: 'response.create' });
+      if (sent && createResponse) {
+        this.send({
+          type: 'response.create',
+          response: { tool_choice: toolChoice }
+        });
+      }
       return sent;
     }
 

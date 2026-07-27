@@ -4,7 +4,7 @@ Status: Validated for Field-Test Packaging
 
 ## Field-Test Release Delta — 2026-07-27
 
-Release commit: `9cbd9d4`
+Release baseline: `9cbd9d4`; Realtime companion release is the next local commit.
 
 This validation pass is limited to updating the existing `mxg-core` Container
 App and the existing static frontend. It adds:
@@ -15,7 +15,14 @@ App and the existing static frontend. It adds:
   orchestration across all selectable text models;
 - persistence of completed Realtime exchanges into tenant/user-scoped chat
   threads; and
-- frontend cache-version updates for the new selector and persistence client.
+- a single authoritative Realtime companion turn that renders structured chat,
+  citations, manual images, tables, and UI actions while returning only a
+  concise summary to the voice model;
+- bounded awareness of the active case, visible Market Intelligence, digital
+  twin selection/highlight, and prior displayed response for conversational
+  references; and
+- frontend cache-version updates for the new selector, persistence client, and
+  Realtime companion.
 
 No database migration, Azure resource, identity, secret, ingress, search index,
 or Realtime model change is included in this release.
@@ -24,9 +31,9 @@ or Realtime model change is included in this release.
 
 - JavaScript syntax checks passed for `app.js`, `application-client.js`, and
   `case-workspace.js`.
-- The complete frontend suite passed: 52/52 tests.
+- The complete frontend suite passed: 55/55 tests.
 - Rust formatting and strict clippy checks passed.
-- The complete Rust workspace suite passed: 65/65 tests.
+- The complete Rust workspace suite passed: 66/66 tests.
 - `cargo build --locked --release -p mxgenius-mcp` completed successfully.
 - `git diff --check` passed.
 - No migration differs from the deployed `0608040` baseline.

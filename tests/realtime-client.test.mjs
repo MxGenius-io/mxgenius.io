@@ -57,6 +57,35 @@ test('Realtime omits capabilities declared not configured by the MCP registry', 
   assert.equal(session.toolSpecs.has('mxg__weather__airport_now'), false);
 });
 
+test('Realtime mounts a client companion tool beside canonical MCP capabilities', () => {
+  const MXRealtime = loadClient();
+  const events = [];
+  const sent = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0' }),
+    mediaDevices: {},
+    onEvent: (event) => events.push(event)
+  });
+  session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
+  const companion = {
+    name: 'mxg.chat.structured_response',
+    description: 'Render one authoritative structured response',
+    inputSchema: { type: 'object', required: ['message'] },
+    meta: { availability: 'available', callable: true, client_handler: 'structured_chat' }
+  };
+  session.configureTools([], { clientTools: [companion] });
+  assert.deepEqual(sent[0].session.tools.map((tool) => tool.name), ['mxg__chat__structured_response']);
+  session.handleMessage(JSON.stringify({
+    type: 'response.function_call_arguments.done',
+    call_id: 'call-structured',
+    name: 'mxg__chat__structured_response',
+    arguments: '{"message":"Show the applicable manual evidence"}'
+  }));
+  const request = events.find((event) => event.type === 'tool-request');
+  assert.equal(request.name, companion.name);
+  assert.equal(request.spec.meta.client_handler, 'structured_chat');
+});
+
 test('Realtime tool output is correlated and followed by one response request', () => {
   const MXRealtime = loadClient();
   const sent = [];
@@ -68,6 +97,18 @@ test('Realtime tool output is correlated and followed by one response request', 
   assert.equal(sent[0].item.call_id, 'call-1');
   assert.equal(JSON.parse(sent[0].item.output).trace_id, 'trace-1');
   assert.equal(sent[1].type, 'response.create');
+  assert.equal(sent[1].response.tool_choice, 'none');
+});
+
+test('cancelled companion tools close their call without creating stale speech', () => {
+  const MXRealtime = loadClient();
+  const sent = [];
+  const session = new MXRealtime.RealtimeSession({ exchangeSdp: async () => ({ sdp: 'v=0' }), mediaDevices: {} });
+  session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
+  assert.equal(session.sendToolOutput('call-cancelled', { status: 'cancelled' }, { createResponse: false }), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].item.type, 'function_call_output');
+  assert.equal(JSON.parse(sent[0].item.output).status, 'cancelled');
 });
 
 test('server VAD owns barge-in while explicit interruption cancels only active output', () => {

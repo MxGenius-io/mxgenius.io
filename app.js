@@ -5,6 +5,7 @@
 let TOKEN = '';
 let BEARER = '';
 let cachedFleetSignals = [];
+let displayedMarketIntelContext = null;
 
 function escapeMarkup(value) {
   return String(value ?? '')
@@ -718,6 +719,8 @@ function setupChatPanel() {
   const imageInput = document.getElementById('chatImageInput');
   const attachmentPreview = document.getElementById('chatAttachmentPreview');
   let activeCaseContext = null;
+  let activeThreadId = localStorage.getItem('mxg_active_thread_id') || null;
+  let lastDisplayedResponseContext = null;
   const chatTurns = [];
   let pendingImages = [];
   const MAX_CHAT_IMAGES = 4;
@@ -767,6 +770,76 @@ function setupChatPanel() {
     bubble.replaceChildren();
     appendChatImages(bubble, images);
     if (text) bubble.appendChild(document.createTextNode(text));
+  };
+
+  const boundedDisplayText = (value, limit = 600) => {
+    const text = String(value || '').trim();
+    return text.length > limit ? `${text.slice(0, limit)}...` : text;
+  };
+
+  const collectApplicationDisplayContext = () => {
+    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'dashboard';
+    const marketMake = document.getElementById('mktMake')?.value?.trim() || '';
+    const marketModel = document.getElementById('mktModel')?.value?.trim() || '';
+    return {
+      active_tab: activeTab,
+      active_thread_id: activeThreadId,
+      active_case: activeCaseContext ? {
+        case_id: activeCaseContext.caseId,
+        version: activeCaseContext.case?.version ?? null,
+        status: activeCaseContext.case?.status || null,
+        aircraft_id: activeCaseContext.case?.aircraft_id || null,
+        discrepancy: boundedDisplayText(activeCaseContext.case?.raw_discrepancy, 800)
+      } : null,
+      market_selection: marketMake || marketModel
+        ? { make: boundedDisplayText(marketMake, 100), model: boundedDisplayText(marketModel, 100) }
+        : null,
+      market_intelligence: displayedMarketIntelContext,
+      digital_twin: {
+        context: MX3DViewer.context || null,
+        highlighted_part: MX3DViewer.pendingSelector || null,
+        tutorial: MX3DViewer.tutorial ? {
+          title: boundedDisplayText(MX3DViewer.tutorial.title || MX3DViewer.tutorial.name, 240)
+        } : null
+      },
+      visible_response: lastDisplayedResponseContext
+    };
+  };
+
+  const buildDisplayedResponseContext = (data) => {
+    const advisory = data?.advisory && typeof data.advisory === 'object' ? data.advisory : {};
+    const citedItems = (items, textField = 'text') => (Array.isArray(items) ? items : [])
+      .slice(0, 6)
+      .map((item) => ({
+        text: boundedDisplayText(item?.[textField] || item, 500),
+        citations: Array.isArray(item?.citations) ? item.citations.slice(0, 8) : []
+      }));
+    return {
+      response_kind: advisory.response_kind || 'conversation',
+      advisory_title: boundedDisplayText(advisory.advisory_title, 200),
+      conversation_answer: boundedDisplayText(advisory.conversation_answer, 1_200),
+      synthesis: boundedDisplayText(advisory.synthesis, 1_200),
+      verify_first: citedItems(advisory.verify_first),
+      what_worked: citedItems(advisory.what_worked),
+      limitations: (advisory.limitations || []).slice(0, 6).map((value) => boundedDisplayText(value, 500)),
+      follow_up_question: boundedDisplayText(advisory.follow_up_question, 500),
+      manual_records: (data?.manual_records || []).slice(0, 12).map((record) => ({
+        citation: record.citation || null,
+        title: boundedDisplayText(record.title, 240),
+        revision: record.revision || null,
+        match_percent: record.match_percent ?? null,
+        content_hash: record.content_hash || null,
+        images: (record.images || []).slice(0, 3).map((image) => ({
+          caption: boundedDisplayText(image.caption, 240),
+          page: image.page ?? null,
+          content_hash: image.content_hash || null
+        }))
+      })),
+      client_actions: (data?.client_actions || []).slice(0, 6).map((action) => ({
+        type: action?.type || null,
+        payload: action?.payload || null
+      }))
+    };
   };
 
   const renderAttachmentPreview = () => {
@@ -829,10 +902,30 @@ function setupChatPanel() {
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     const payload = message.payload || {};
-    const text = message.role === 'assistant'
-      ? (payload.conversation_answer || payload.synthesis || message.content)
-      : message.content;
-    setChatBubbleContent(bubble, text, payload.images || []);
+    const advisory = payload.advisory || payload;
+    const manualRecords = payload.manual_records || [];
+    const restoredStructured = message.role === 'assistant'
+      && advisory?.response_kind === 'maintenance_advisory'
+      && renderMaintenanceAdvisory(bubble, advisory, manualRecords);
+    if (restoredStructured) {
+      lastDisplayedResponseContext = buildDisplayedResponseContext({
+        advisory,
+        manual_records: manualRecords,
+        client_actions: payload.client_actions || []
+      });
+    } else {
+      const text = message.role === 'assistant'
+        ? (advisory.conversation_answer || advisory.synthesis || message.content)
+        : message.content;
+      setChatBubbleContent(bubble, text, payload.images || []);
+      if (message.role === 'assistant') {
+        lastDisplayedResponseContext = buildDisplayedResponseContext({
+          advisory,
+          manual_records: manualRecords,
+          client_actions: payload.client_actions || []
+        });
+      }
+    }
     turn.appendChild(bubble);
     history.appendChild(turn);
   };
@@ -841,6 +934,7 @@ function setupChatPanel() {
     if (!threadId) return;
     const result = await MXApplicationClient.threads.messages(threadId, currentApplicationSession());
     history.replaceChildren();
+    lastDisplayedResponseContext = null;
     (result.messages || []).forEach(renderThreadMessage);
     history.scrollTop = history.scrollHeight;
   };
@@ -920,6 +1014,9 @@ function setupChatPanel() {
     history.appendChild(notice);
     history.scrollTop = history.scrollHeight;
     void refreshThreads();
+    if (realtimeSession?.channel?.readyState === 'open') {
+      void configureRealtimeCompanion();
+    }
   });
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ On-Device LLM State Ã¢â€â‚¬Ã¢â€â‚¬
@@ -1488,25 +1585,37 @@ Rules:
     }
   });
 
-  async function sendMessage() {
-    const typedText = input.value.trim();
-    const images = pendingImages.slice();
+  async function sendMessage(options = {}) {
+    const fromComposer = options.text === undefined && options.images === undefined;
+    const typedText = String(options.text ?? input.value).trim();
+    const images = Array.isArray(options.images) ? options.images.slice() : pendingImages.slice();
+    const renderUser = options.renderUser !== false;
     if (!typedText && !images.length) return;
     const text = typedText || 'Please analyze the attached image(s).';
-    
-    const userMsg = document.createElement('div');
-    userMsg.className = 'chat-msg user-msg';
-    const userBubble = document.createElement('div');
-    userBubble.className = 'msg-bubble';
-    setChatBubbleContent(userBubble, text, images);
-    userMsg.appendChild(userBubble);
-    history.appendChild(userMsg);
-    input.value = '';
-    clearPendingImages();
+
+    if (renderUser) {
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-msg user-msg';
+      const userBubble = document.createElement('div');
+      userBubble.className = 'msg-bubble';
+      setChatBubbleContent(userBubble, text, images);
+      userMsg.appendChild(userBubble);
+      history.appendChild(userMsg);
+    }
+    if (fromComposer) {
+      input.value = '';
+      clearPendingImages();
+    }
     history.scrollTop = history.scrollHeight;
 
-    if (realtimeModeEnabled && images.length && realtimeSession?.sendUserMessage({ text: typedText, images })) {
-      return;
+    if (!options.forceStructured && realtimeModeEnabled && realtimeSession) {
+      cancelRealtimeStructuredTurn();
+      realtimeSession.interrupt();
+      if (realtimeSession.sendUserMessage({ text: typedText, images })) {
+        pendingRealtimeUserText = text;
+        pendingRealtimeImages = images;
+        return { routed: 'realtime' };
+      }
     }
 
     const aiMsg = document.createElement('div');
@@ -1548,9 +1657,11 @@ Rules:
           version: activeCaseContext.case?.version,
           capability_trace: activeCaseContext.trace
         },
+        displayContext: collectApplicationDisplayContext(),
         accessToken: applicationSession.accessToken,
         organizationId: applicationSession.organizationId,
-        correlationId: window.crypto?.randomUUID?.()
+        correlationId: window.crypto?.randomUUID?.(),
+        signal: options.signal
       });
       
       if (!response.ok) {
@@ -1577,6 +1688,7 @@ Rules:
       try {
         const rawData = JSON.parse(rawText);
         data = rawData.response || rawData;
+        lastDisplayedResponseContext = buildDisplayedResponseContext(data);
         (data?.client_actions || []).forEach((action) => {
           if (action?.type === 'digital_twin.highlight') {
             applyCapabilityUiEffect('mxg.digital_twin.highlight_zone', action.payload);
@@ -1622,8 +1734,22 @@ Rules:
       const assistantTurn = answerText || data?.advisory?.synthesis || data?.advisory?.conversation_answer || '';
       chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: assistantTurn });
       if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
+      return {
+        speechText: data?.advisory?.conversation_answer
+          || data?.advisory?.synthesis
+          || answerText
+          || assistantTurn,
+        responseKind: data?.advisory?.response_kind || 'conversation',
+        threadId: data?.thread_id || activeThreadId,
+        renderedStructured,
+        displayContext: lastDisplayedResponseContext
+      };
       
     } catch (e) {
+      if (e?.name === 'AbortError') {
+        aiMsg.remove();
+        return { cancelled: true };
+      }
       console.error('[MXGenius] Cloud chat error:', e.message);
       const recoverableCloudFailure = images.length === 0 && (!e.status || e.status === 429 || e.status >= 500);
       try {
@@ -1636,9 +1762,16 @@ Rules:
         RAG.renderImages(fallback.evidence.images, streamTarget);
         chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: fallback.answer });
         if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
+        return {
+          speechText: `Offline non-authoritative result. ${fallback.answer}`,
+          responseKind: 'offline_fallback',
+          threadId: activeThreadId,
+          renderedStructured: false
+        };
       } catch (fallbackError) {
         console.error('[MXGenius] On-device chat error:', fallbackError.message);
         streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(e.message) + '</span>';
+        return { error: e.message || 'Structured response failed' };
       }
     }
     history.scrollTop = history.scrollHeight;
@@ -1669,9 +1802,19 @@ Rules:
   let realtimeMicEnabled = true;
   let realtimeUserTranscriptClearTimer = null;
   let pendingRealtimeUserText = '';
+  let pendingRealtimeImages = [];
+  let suppressNextRealtimeAssistantBubble = false;
+  let realtimeStructuredController = null;
+  let realtimeStructuredGeneration = 0;
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
+
+  function cancelRealtimeStructuredTurn() {
+    realtimeStructuredGeneration += 1;
+    realtimeStructuredController?.abort();
+    realtimeStructuredController = null;
+  }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) Ã¢â€â‚¬Ã¢â€â‚¬
   let speechRecognition = null;
@@ -1805,6 +1948,10 @@ Rules:
           }
         } else {
           realtimeModeEnabled = false;
+          cancelRealtimeStructuredTurn();
+          pendingRealtimeUserText = '';
+          pendingRealtimeImages = [];
+          suppressNextRealtimeAssistantBubble = false;
           if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
             realtimeSession.disconnect();
           }
@@ -1876,9 +2023,51 @@ Rules:
     realtimeInterruptBtn.hidden = state !== 'speaking' && state !== 'thinking';
   }
 
+  async function configureRealtimeCompanion() {
+    const listed = await MXApplicationClient.capabilities.list(realtimeApplicationSession);
+    const caseDescription = activeCaseContext
+      ? `The active application case is ${activeCaseContext.caseId} at version ${activeCaseContext.case?.version}. Never select a different tenant or claim an action completed before its function result is returned.`
+      : 'No maintenance case is currently active. Ask the user to select or create a case before requesting a case-bound action.';
+    const confirmedMutationTools = (listed.tools || [])
+      .filter((tool) => tool.meta?.requires_human_approval === true);
+    realtimeSession.configureTools(confirmedMutationTools, {
+      toolChoice: 'required',
+      clientTools: [{
+        name: 'mxg.chat.structured_response',
+        description: 'Required companion display channel for every informational, analytical, image, or conversational answer. Call exactly once with the user request. It returns the authoritative persisted structured response already rendered in chat plus the only summary you may speak.',
+        inputSchema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            message: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 12_000,
+              description: 'The user request to answer through the structured MXGenius chat orchestration.'
+            }
+          },
+          required: ['message']
+        },
+        meta: {
+          callable: true,
+          availability: 'available',
+          client_handler: 'structured_chat',
+          requires_human_approval: false
+        }
+      }],
+      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
+    });
+  }
+
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
       if (event.state === 'failed') realtimeModeEnabled = false;
+      if (event.state === 'user-speaking') {
+        cancelRealtimeStructuredTurn();
+        pendingRealtimeUserText = '';
+        pendingRealtimeImages = [];
+        suppressNextRealtimeAssistantBubble = false;
+      }
       setRealtimeUiState(event.state, event.reason);
       return;
     }
@@ -1909,6 +2098,12 @@ Rules:
       const completedKey = `${event.role}:${event.itemId || event.text}`;
       if (event.final && event.text && !completedVoiceItems.has(completedKey)) {
         completedVoiceItems.add(completedKey);
+        if (event.role === 'assistant' && suppressNextRealtimeAssistantBubble) {
+          suppressNextRealtimeAssistantBubble = false;
+          pendingRealtimeUserText = '';
+          pendingRealtimeImages = [];
+          return;
+        }
         const turn = document.createElement('div');
         turn.className = `chat-msg ${event.role === 'user' ? 'user-msg' : 'ai-msg'}`;
         const bubble = document.createElement('div');
@@ -1941,13 +2136,7 @@ Rules:
     }
     if (event.type === 'channel-open') {
       try {
-        const listed = await MXApplicationClient.capabilities.list(realtimeApplicationSession);
-        const caseDescription = activeCaseContext
-          ? `The active application case is ${activeCaseContext.caseId} at version ${activeCaseContext.case?.version}. Never select a different tenant or claim an action completed before its function result is returned.`
-          : 'No maintenance case is currently active. Ask the user to select or create a case before requesting a case-bound action.';
-        realtimeSession.configureTools(listed.tools, {
-          instructions: `You are the MXGenius maintenance copilot. Use only the supplied typed capabilities for operational facts and actions. ${caseDescription} Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
-        });
+        await configureRealtimeCompanion();
       } catch (error) {
         setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
       }
@@ -1967,6 +2156,7 @@ Rules:
       return;
     }
     if (event.type === 'interrupted') {
+      suppressNextRealtimeAssistantBubble = false;
       setRealtimeUiState('interrupted', 'Response interrupted');
     }
   }
@@ -1983,6 +2173,10 @@ Rules:
       handledRealtimeCalls.add(event.callId);
       return;
     }
+    if (event.spec?.meta?.client_handler === 'structured_chat') {
+      await executeRealtimeStructuredResponse(event.callId, capabilityArguments);
+      return;
+    }
     if (!event.spec?.name || !/^mxg\.[a-z_]+\.[a-z_]+$/.test(event.spec.name)) {
       realtimeSession.sendToolOutput(event.callId, { status: 'failed', error: { code: 'UNKNOWN_CAPABILITY', message: 'Requested capability is not in the authenticated registry.' } });
       handledRealtimeCalls.add(event.callId);
@@ -1994,6 +2188,69 @@ Rules:
       return;
     }
     await executeRealtimeCapability(event.callId, event.spec.name, capabilityArguments);
+  }
+
+  async function executeRealtimeStructuredResponse(callId, capabilityArguments) {
+    const message = String(pendingRealtimeUserText || capabilityArguments?.message || '').trim();
+    const images = pendingRealtimeImages.slice();
+    if (!message && !images.length) {
+      realtimeSession.sendToolOutput(callId, {
+        status: 'failed',
+        error: { code: 'EMPTY_STRUCTURED_REQUEST', message: 'No user request was available for the structured response.' }
+      });
+      handledRealtimeCalls.add(callId);
+      return;
+    }
+    realtimeStructuredController?.abort();
+    const controller = new AbortController();
+    realtimeStructuredController = controller;
+    const generation = ++realtimeStructuredGeneration;
+    try {
+      const result = await sendMessage({
+        text: message,
+        images,
+        renderUser: false,
+        forceStructured: true,
+        signal: controller.signal
+      });
+      if (result?.cancelled || generation !== realtimeStructuredGeneration) {
+        realtimeSession.sendToolOutput(callId, { status: 'cancelled' }, { createResponse: false });
+        return;
+      }
+      if (!result?.speechText || result.error) {
+        throw new Error(result?.error || 'Structured chat returned no speakable summary.');
+      }
+      pendingRealtimeImages = [];
+      suppressNextRealtimeAssistantBubble = true;
+      const sent = realtimeSession.sendToolOutput(callId, {
+        status: 'completed',
+        turn_id: window.crypto?.randomUUID?.() || `mxg-turn-${Date.now()}`,
+        thread_id: result.threadId || null,
+        response_kind: result.responseKind,
+        spoken_summary: result.speechText,
+        display_context: result.displayContext || collectApplicationDisplayContext()
+      });
+      if (!sent) {
+        suppressNextRealtimeAssistantBubble = false;
+        throw new Error('Realtime event channel closed before the structured result could be spoken.');
+      }
+    } catch (error) {
+      suppressNextRealtimeAssistantBubble = false;
+      if (error?.name === 'AbortError' || generation !== realtimeStructuredGeneration) {
+        realtimeSession.sendToolOutput(callId, { status: 'cancelled' }, { createResponse: false });
+      } else {
+        realtimeSession.sendToolOutput(callId, {
+          status: 'failed',
+          error: {
+            code: error.code || 'STRUCTURED_RESPONSE_FAILED',
+            message: error.message || 'Structured chat orchestration failed.'
+          }
+        });
+      }
+    } finally {
+      if (realtimeStructuredController === controller) realtimeStructuredController = null;
+      handledRealtimeCalls.add(callId);
+    }
   }
 
   async function executeRealtimeCapability(callId, name, capabilityArguments, confirmationGrant) {
@@ -2549,7 +2806,11 @@ async function loadMarketIntel() {
   const model = document.getElementById('mktModel')?.value.trim();
   const results = document.getElementById('mktResults');
   if (!results) return;
-  if (!make || !model) { results.innerHTML = '<div class="empty-state">Enter both Make and Model to get market intelligence</div>'; return; }
+  if (!make || !model) {
+    displayedMarketIntelContext = null;
+    results.innerHTML = '<div class="empty-state">Enter both Make and Model to get market intelligence</div>';
+    return;
+  }
 
   results.innerHTML = '<div class="loading" style="grid-column:1/-1;">Loading market intelligence\u2026</div>';
 
@@ -2650,6 +2911,33 @@ async function loadMarketIntel() {
       `<div class="empty-state" style="grid-column:1/-1;">Partial result: ${failedSourceCount} market data source${failedSourceCount === 1 ? '' : 's'} did not return usable data.</div>`
     );
   }
+  const c = costs ? (costs.operationcosts || costs) : null;
+  const s = specs ? (specs.performancespecs || specs) : null;
+  const t = trends ? (trends.markettrends || trends) : null;
+  displayedMarketIntelContext = {
+    make,
+    model,
+    partial: failedSourceCount > 0,
+    unavailable_sources: failedSourceCount,
+    operating_costs: c ? {
+      fuel_cost_per_hour: c.fuelcostperhour ?? null,
+      maintenance_cost_per_hour: c.maintenancecostperhour ?? null,
+      total_cost_per_hour: c.totalcostperhour ?? null,
+      annual_budget: c.annualbudget ?? null
+    } : null,
+    performance: s ? {
+      range_nm: s.range ?? null,
+      max_speed_ktas: s.maxspeed ?? s.highspeed ?? null,
+      ceiling_ft: s.ceiling ?? null,
+      mtow_lbs: s.mtow ?? null
+    } : null,
+    market_trends: t ? {
+      average_asking_price: t.averageaskingprice ?? t.avgaskprice ?? null,
+      fleet_size: t.fleetsize ?? t.totalfleet ?? null,
+      for_sale: t.forsale ?? t.forsalecount ?? null,
+      days_on_market: t.daysonmarket ?? null
+    } : null
+  };
 }
 
 function mktRow(label, value, prefix, suffix) {

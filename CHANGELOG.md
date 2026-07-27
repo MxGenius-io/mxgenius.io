@@ -33,6 +33,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 - Injected tenant-scoped persisted thread history into model requests so conversational memory survives page reloads.
 - Persisted completed Realtime user/assistant exchanges into the same tenant-scoped threads used by text chat.
+- Added one Realtime companion-output lane that renders the authoritative structured response, citations, manual images, tables, and UI actions in chat before returning its concise summary for speech.
+- Routed typed text and images through the same companion lane while Realtime is active, preventing independent spoken and visual answers.
+- Prevented companion speech transcripts from creating duplicate chat bubbles or duplicate persisted thread exchanges while retaining the fallback persistence path for direct operational tool responses.
+- Supplied bounded active-case, Market Intelligence, digital-twin highlight, manual-image, and prior-response context so follow-up turns can discuss what the user is viewing without treating UI text as authoritative evidence.
+- Persisted the structured advisory envelope with its manual records and image lineage so reopening a thread restores the same visual answer and conversational context.
 - Added persisted-case reopening and automatic restoration so Active Case survives page reloads.
 - Filtered conversations by their bound case and resets the selected thread when Active Case changes.
 - Made finalized Realtime user transcription transient after five seconds while retaining the completed chat turn.
