@@ -20,6 +20,8 @@ const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
+const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.url), 'utf8');
+const mcpGitAttributes = await readFile(new URL('../services/mcp/.gitattributes', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -371,4 +373,9 @@ test('public runtime configuration mounts the live core without embedding creden
   assert.match(runtimeConfig, /https:\/\/mxg-fleet\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /allowInsecurePilot: false/);
   assert.doesNotMatch(runtimeConfig, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
+});
+
+test('immutable SQLx migrations retain LF bytes in Windows deployment archives', () => {
+  assert.match(gitAttributes, /^services\/mcp\/migrations\/\*\.sql text eol=lf$/m);
+  assert.match(mcpGitAttributes, /^migrations\/\*\.sql text eol=lf$/m);
 });
