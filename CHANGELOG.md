@@ -15,6 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Prevented model-authored prose from claiming application or connection readiness.
 - Kept strict structured output, MCP tool orchestration, threads, images, and Realtime behavior intact.
 
+### Fixed — FAA aircraft identity resolution
+
+- Restored the aircraft-card FAA flow by resolving the JetNet source record to its tenant-scoped canonical aircraft UUID before requesting candidate Airworthiness Directives.
+
 ### Fixed — Realtime and application shell
 
 - Restored the shared authenticated application request helpers used by profile, case, and digital-twin APIs.

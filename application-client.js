@@ -703,13 +703,18 @@ const MXApplicationClient = (() => {
     }, session);
   }
 
-  function applicableAds({ aircraftId, caseId, make, model, serial, session = {} }) {
+  function applicableAds({ aircraftId, caseId, session = {} }) {
     return callCapability('mxg.compliance.applicable_ads', {
       aircraft_id: String(aircraftId),
-      case_id: caseId || null,
-      make: make || null,
-      model: model || null,
-      serial: serial || null
+      case_id: caseId || null
+    }, { ...session, confirmationGrant: undefined });
+  }
+
+  function lookupAircraft({ registration, serial, sourceId, session = {} }) {
+    return callCapability('mxg.aircraft.lookup', {
+      registration: registration || null,
+      serial_number: serial || null,
+      source_id: sourceId == null ? null : String(sourceId)
     }, { ...session, confirmationGrant: undefined });
   }
 
@@ -738,6 +743,9 @@ const MXApplicationClient = (() => {
     aircraftBundle,
     aircraftImageUrl,
     aircraftList,
+    aircraft: Object.freeze({
+      lookup: lookupAircraft
+    }),
     bulkAircraft,
     chat,
     chatModels: Object.freeze({

@@ -388,21 +388,33 @@ test('digital-twin reads omit confirmation and marker mutation carries it', asyn
   assert.equal(calls[2].request.params.arguments.severity, 'high');
 });
 
-test('FAA candidate AD reads use the authenticated compliance capability', async () => {
+test('FAA candidate AD flow resolves a canonical aircraft before the compliance capability', async () => {
   const { client, requests } = harness({
+    'mxg.aircraft.lookup': { aircraft_id: '11111111-1111-1111-1111-111111111111', matches: [] },
     'mxg.compliance.applicable_ads': { ads: [] }
   });
-  await client.compliance.applicableAds({
-    aircraftId: 'aircraft-1',
-    caseId: 'case-1',
-    session: { accessToken: 'oidc-token', organizationId: 'org-1', confirmationGrant: 'must-not-leak' }
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1', confirmationGrant: 'must-not-leak' };
+  await client.aircraft.lookup({
+    registration: 'N12345',
+    serial: '750-0123',
+    sourceId: 987,
+    session
   });
-  const call = requests.find(({ request }) => request.method === 'tools/call');
-  assert.equal(call.request.params.name, 'mxg.compliance.applicable_ads');
-  assert.equal(call.request.params.arguments.aircraft_id, 'aircraft-1');
-  assert.equal(call.request.params.arguments.case_id, 'case-1');
-  assert.equal(call.options.headers.Authorization, 'Bearer oidc-token');
-  assert.equal(call.options.headers['X-MXG-Confirmation-Grant'], undefined);
+  await client.compliance.applicableAds({
+    aircraftId: '11111111-1111-1111-1111-111111111111',
+    caseId: 'case-1',
+    session
+  });
+  const calls = requests.filter(({ request }) => request.method === 'tools/call');
+  assert.equal(calls[0].request.params.name, 'mxg.aircraft.lookup');
+  assert.equal(calls[0].request.params.arguments.registration, 'N12345');
+  assert.equal(calls[0].request.params.arguments.serial_number, '750-0123');
+  assert.equal(calls[0].request.params.arguments.source_id, '987');
+  assert.equal(calls[1].request.params.name, 'mxg.compliance.applicable_ads');
+  assert.equal(calls[1].request.params.arguments.aircraft_id, '11111111-1111-1111-1111-111111111111');
+  assert.equal(calls[1].request.params.arguments.case_id, 'case-1');
+  assert.equal(calls[1].options.headers.Authorization, 'Bearer oidc-token');
+  assert.equal(calls[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
 });
 
 test('capability calls complete one MCP initialization lifecycle per application session', async () => {

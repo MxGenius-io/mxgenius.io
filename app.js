@@ -3466,12 +3466,25 @@ async function showAircraftDetail(id) {
         return;
       }
       try {
+        const lookupEnvelope = await MXApplicationClient.aircraft.lookup({
+          registration: ident.regnbr || ident.registration || null,
+          serial: ident.sernbr || ident.serial || ident.serialnumber || null,
+          sourceId: ident.aircraftid || id,
+          session
+        });
+        const lookup = MXApplicationClient.caseWorkspace.output(lookupEnvelope);
+        const canonicalAircraftId = lookup?.aircraft_id
+          || (Array.isArray(lookup?.matches) && lookup.matches.length === 1
+            ? lookup.matches[0].aircraft_id
+            : null);
+        if (!canonicalAircraftId) {
+          adContainer.textContent = lookupEnvelope.warnings?.[0]?.message
+            || 'This aircraft could not be resolved for FAA candidate matching.';
+          return;
+        }
         const envelope = await MXApplicationClient.compliance.applicableAds({
-          aircraftId: ident.aircraftid || id,
+          aircraftId: canonicalAircraftId,
           caseId: MXCaseState.active?.caseId || null,
-          make: ident.make,
-          model: ident.model,
-          serial: ident.serial || ident.serialnumber || null,
           session
         });
         const output = MXApplicationClient.caseWorkspace.output(envelope);

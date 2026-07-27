@@ -66,6 +66,7 @@ test('critical retained surfaces remain present', () => {
 test('technical evidence stays behind case and chat boundaries instead of a dead library tab', () => {
   assert.doesNotMatch(dashboard, /data-tab="docs"/);
   assert.doesNotMatch(dashboard, /id="tab-docs"/);
+  assert.match(application, /MXApplicationClient\.aircraft\.lookup/);
   assert.match(application, /MXApplicationClient\.compliance\.applicableAds/);
   assert.match(client, /mxg\.compliance\.applicable_ads/);
 });
