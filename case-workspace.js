@@ -55,6 +55,111 @@ const MXCaseWorkspace = (() => {
     target.hidden = false;
   }
 
+  function traceEntry(tool, envelope) {
+    return {
+      tool,
+      traceId: envelope?.trace_id || null,
+      requestId: envelope?.request_id || null,
+      status: envelope?.status || 'unknown',
+      warnings: envelope?.warnings || [],
+      confidence: envelope?.confidence || null
+    };
+  }
+
+  async function loadExistingCases({ restore = false } = {}) {
+    const select = byId('caseExistingSelect');
+    const openButton = byId('caseOpenButton');
+    if (!select || !openButton) return;
+    select.disabled = true;
+    openButton.disabled = true;
+    select.replaceChildren(new Option('Loading cases…', ''));
+    try {
+      await globalThis.MXGENIUS_CONFIG?.ready;
+      if (globalThis.MXGENIUS_AUTH?.getToken) {
+        try { await globalThis.MXGENIUS_AUTH.getToken(); } catch (_) {}
+      }
+      const result = await MXApplicationClient.cases.list(session());
+      const cases = result.cases || [];
+      select.replaceChildren(new Option(cases.length ? 'Select an existing case' : 'No cases available', ''));
+      cases.forEach((caseState) => {
+        const summary = text(caseState.raw_discrepancy, '').replace(/\s+/g, ' ').slice(0, 72);
+        const label = [
+          caseState.priority?.toUpperCase(),
+          caseState.status,
+          caseState.aircraft_id,
+          summary
+        ].filter(Boolean).join(' · ');
+        select.add(new Option(label, caseState.case_id));
+      });
+      select.disabled = cases.length === 0;
+      const storedCaseId = localStorage.getItem('mxg_active_case_id');
+      if (restore && storedCaseId && cases.some((caseState) => caseState.case_id === storedCaseId)) {
+        select.value = storedCaseId;
+        await openExistingCase(storedCaseId);
+      }
+    } catch (error) {
+      select.replaceChildren(new Option('Cases unavailable', ''));
+      setStatus(`${error.code || 'CASE_LIST_FAILED'}: ${error.message}`, 'error');
+    }
+  }
+
+  async function openExistingCase(caseId = byId('caseExistingSelect')?.value) {
+    if (!caseId) return;
+    const openButton = byId('caseOpenButton');
+    openButton.disabled = true;
+    setStatus(`Opening case ${caseId}…`, 'working');
+    try {
+      const current = await MXApplicationClient.cases.get(caseId, session());
+      const caseState = current.case;
+      const [contextEnvelope, profileEnvelope] = await Promise.all([
+        MXApplicationClient.capabilities.call('mxg.maintenance_case.build_context', {
+          case_id: caseId,
+          include: {
+            documents: true,
+            compliance: true,
+            weather: true,
+            parts: true,
+            facilities: true,
+            timeline: true
+          }
+        }, session()),
+        MXApplicationClient.capabilities.call('mxg.aircraft.profile', {
+          aircraft_id: caseState.aircraft_id
+        }, session())
+      ]);
+      const context = MXApplicationClient.caseWorkspace.output(contextEnvelope);
+      const profile = MXApplicationClient.caseWorkspace.output(profileEnvelope);
+      const result = {
+        caseId,
+        case: caseState,
+        context,
+        aircraft: {
+          aircraft_id: caseState.aircraft_id,
+          matches: [{
+            aircraft_id: caseState.aircraft_id,
+            registration: profile.registration,
+            serial_number: profile.serial_number,
+            make: profile.make,
+            model: profile.model
+          }]
+        },
+        trace: [
+          traceEntry('mxg.maintenance_case.build_context', contextEnvelope),
+          traceEntry('mxg.aircraft.profile', profileEnvelope)
+        ]
+      };
+      render(result);
+      activeCase = result;
+      localStorage.setItem('mxg_active_case_id', caseId);
+      setStatus(`Case ${caseId} is active.`, 'ready');
+      globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
+    } catch (error) {
+      setStatus(`${error.code || 'CASE_OPEN_FAILED'}: ${error.message}`, 'error');
+    } finally {
+      openButton.disabled = !byId('caseExistingSelect')?.value;
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -70,8 +175,11 @@ const MXCaseWorkspace = (() => {
       });
       render(result);
       activeCase = result;
+      localStorage.setItem('mxg_active_case_id', result.caseId);
       setStatus(`Case ${result.caseId} is live.`, 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
+      await loadExistingCases();
+      byId('caseExistingSelect').value = result.caseId;
     } catch (error) {
       setStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
     } finally {
@@ -81,6 +189,11 @@ const MXCaseWorkspace = (() => {
 
   function init() {
     byId('caseIntakeForm')?.addEventListener('submit', submit);
+    byId('caseExistingSelect')?.addEventListener('change', (event) => {
+      byId('caseOpenButton').disabled = !event.currentTarget.value;
+    });
+    byId('caseOpenButton')?.addEventListener('click', () => void openExistingCase());
+    byId('caseRefreshButton')?.addEventListener('click', () => void loadExistingCases());
     globalThis.addEventListener('mxgenius:part-selected', async (event) => {
       const selection = event.detail?.selection;
       const target = byId('casePartSelection');
@@ -151,6 +264,7 @@ const MXCaseWorkspace = (() => {
       setStatus('Sign in through the application identity provider to create a case.', 'idle');
     } else {
       setStatus('Ready to create an evidence-backed maintenance case.', 'idle');
+      void loadExistingCases({ restore: true });
     }
   }
 

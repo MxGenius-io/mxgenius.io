@@ -246,6 +246,12 @@ test('server persistence clients keep threads cases and profiles behind applicat
     timezone: 'America/New_York',
     settings: { compactMode: true }
   }, session);
+  await client.profile.putImage(new Blob(['image'], { type: 'image/png' }), session);
+  await client.digitalTwin.saveHighlight({
+    modelId: 'model-1',
+    meshId: 'mesh-1',
+    session
+  });
 
   assert.deepEqual(
     requests.map(({ url, options }) => [url, options.method]),
@@ -255,7 +261,9 @@ test('server persistence clients keep threads cases and profiles behind applicat
       ['/api/threads', 'POST'],
       ['/api/threads/thread-1', 'PATCH'],
       ['/api/threads/thread-1/messages', 'GET'],
-      ['/api/profile', 'PATCH']
+      ['/api/profile', 'PATCH'],
+      ['/api/profile/image', 'PUT'],
+      ['/api/digital-twin/highlight', 'PUT']
     ]
   );
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));

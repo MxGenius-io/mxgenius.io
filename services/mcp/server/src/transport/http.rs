@@ -520,18 +520,28 @@ async fn adapterz(State(state): State<AppState>) -> Response {
     match database_ready(&state.health).await {
         Ok(mode) => {
             let manual = state.manual.source_info().await;
+            let registry = state.dispatcher.registry();
+            let capability_state = |name: &str| {
+                registry
+                    .tool(name)
+                    .map(|tool| tool.spec().availability)
+                    .unwrap_or_else(|| "not_registered".into())
+            };
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "mode": mode,
                     "core": {"persistence": if mode == "local" { "in_memory" } else { "postgres" }},
                     "adapters": {
-                        "aircraft": if mode == "local" { "fixture" } else { "not_configured" },
+                        "aircraft": capability_state("mxg.aircraft.lookup"),
                         "manuals": manual.health,
                         "manual_source": manual.name,
-                        "faa": "not_configured", "weather": "not_configured",
-                        "parts": "not_configured", "mro": "not_configured",
-                        "scheduling": "not_configured", "digital_twin": "not_configured"
+                        "faa": capability_state("mxg.compliance.applicable_ads"),
+                        "weather": capability_state("mxg.weather.airport_now"),
+                        "parts": capability_state("mxg.parts.resolve"),
+                        "mro": capability_state("mxg.mro.search"),
+                        "scheduling": capability_state("mxg.scheduling.conflict_scan"),
+                        "digital_twin": capability_state("mxg.digital_twin.list_models")
                     }
                 })),
             )
@@ -2183,7 +2193,7 @@ struct ChatRequest {
     case_context: Option<Value>,
 }
 
-const ALLOWED_TEXT_MODELS: [&str; 3] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"];
+const ALLOWED_TEXT_MODELS: [&str; 4] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"];
 
 fn text_model(requested: Option<&str>) -> Result<String, &'static str> {
     let configured =
@@ -2192,7 +2202,7 @@ fn text_model(requested: Option<&str>) -> Result<String, &'static str> {
     ALLOWED_TEXT_MODELS
         .contains(&selected)
         .then(|| selected.to_owned())
-        .ok_or("text model must be GPT-5.6 Luna, Terra, or Sol")
+        .ok_or("text model must be GPT-5.6 Luna, Terra, Sol, or GPT-5.5")
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2940,7 +2950,30 @@ async fn chat(
         };
         let upstream_status = upstream.status();
         if !upstream_status.is_success() {
-            tracing::warn!(target: "mxgenius.openai", %upstream_status, correlation_id = %context.correlation_id, "OpenAI Responses request rejected");
+            let upstream_error: Value = upstream.json().await.unwrap_or(Value::Null);
+            let upstream_code = upstream_error
+                .pointer("/error/code")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let upstream_type = upstream_error
+                .pointer("/error/type")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let upstream_message = upstream_error
+                .pointer("/error/message")
+                .and_then(Value::as_str)
+                .map(|message| truncate_chars(message, 240))
+                .unwrap_or_else(|| "OpenAI request rejected without an error message".into());
+            tracing::warn!(
+                target: "mxgenius.openai",
+                %upstream_status,
+                upstream_code,
+                upstream_type,
+                upstream_message,
+                model = %model,
+                correlation_id = %context.correlation_id,
+                "OpenAI Responses request rejected"
+            );
             let status = if upstream_status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 StatusCode::TOO_MANY_REQUESTS
             } else {
@@ -3758,11 +3791,11 @@ mod structured_advisory_tests {
         }
         assert_eq!(
             text_model(Some("gpt-4o")),
-            Err("text model must be GPT-5.6 Luna, Terra, or Sol")
+            Err("text model must be GPT-5.6 Luna, Terra, Sol, or GPT-5.5")
         );
         assert_eq!(
             text_model(Some("gpt-4o-mini")),
-            Err("text model must be GPT-5.6 Luna, Terra, or Sol")
+            Err("text model must be GPT-5.6 Luna, Terra, Sol, or GPT-5.5")
         );
     }
 

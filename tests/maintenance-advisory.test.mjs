@@ -49,6 +49,7 @@ test('text model selection preserves orchestration and realtime exchanges persis
   assert.match(dashboard, /gpt-5\.6-luna/);
   assert.match(dashboard, /gpt-5\.6-terra/);
   assert.match(dashboard, /gpt-5\.6-sol/);
+  assert.match(dashboard, /gpt-5\.5/);
   assert.match(client, /text_model: textModel \|\| null/);
   assert.match(backend, /ALLOWED_TEXT_MODELS/);
   assert.match(backend, /route\("\/api\/thread-exchanges", post\(persist_realtime_exchange\)\)/);

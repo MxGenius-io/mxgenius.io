@@ -564,34 +564,6 @@ function debounce(fn, delay) {
   };
 }
 
-// Preserve the compatibility API's legacy method and bearer conventions.
-const _originalFetch = window.fetch;
-window.fetch = async function (url, options = {}) {
-  const method = (options.method || 'GET').toUpperCase();
-  const urlStr = typeof url === 'string' ? url : (url.url || url.toString());
-
-  const isApi = urlStr.includes('/api/');
-
-  // Translate PUT to POST natively and inject Bearer token
-  if (isApi) {
-    if (method === 'PUT') {
-      options.method = 'POST';
-    }
-    if (BEARER) {
-      options.headers = options.headers || {};
-      options.headers['Authorization'] = `Bearer ${BEARER}`;
-      options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
-      options.headers['Accept'] = options.headers['Accept'] || 'application/json';
-    }
-    // If empty body for POST, provide generic query to prevent 400 error (replicates server.js)
-    if (options.method === 'POST' && (!options.body || options.body === '{}')) {
-      options.body = JSON.stringify({ "pageSize": 50, "pageNumber": 1, "make": "Gulfstream" });
-    }
-  }
-
-  return _originalFetch(url, options);
-};
-
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  INITIALIZATION
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -751,7 +723,7 @@ function setupChatPanel() {
   const MAX_CHAT_IMAGES = 4;
   const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
   const CHAT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-  const CHAT_TEXT_MODELS = new Set(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']);
+  const CHAT_TEXT_MODELS = new Set(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5']);
 
   if (!panel || !toggleBtn) return;
 
@@ -878,7 +850,12 @@ function setupChatPanel() {
     if (!session.accessToken || !threadSelect) return;
     try {
       const result = await MXApplicationClient.threads.list(session);
-      const threads = (result.threads || []).filter(thread => thread.status === 'active');
+      const threads = (result.threads || []).filter((thread) => {
+        if (thread.status !== 'active') return false;
+        return activeCaseContext
+          ? thread.case_id === activeCaseContext.caseId
+          : !thread.case_id;
+      });
       threadSelect.replaceChildren(new Option('New conversation', ''));
       threads.forEach(thread => threadSelect.add(new Option(thread.title, thread.id)));
       if (activeThreadId && threads.some(thread => thread.id === activeThreadId)) {
@@ -930,6 +907,9 @@ function setupChatPanel() {
   window.addEventListener('mxg:case-selected', (event) => {
     chatTurns.length = 0;
     activeCaseContext = event.detail || null;
+    activeThreadId = null;
+    localStorage.removeItem('mxg_active_thread_id');
+    if (threadSelect) threadSelect.value = '';
     history.replaceChildren();
     const notice = document.createElement('div');
     notice.className = 'chat-msg ai-msg';
@@ -939,6 +919,7 @@ function setupChatPanel() {
     notice.appendChild(bubble);
     history.appendChild(notice);
     history.scrollTop = history.scrollHeight;
+    void refreshThreads();
   });
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ On-Device LLM State Ã¢â€â‚¬Ã¢â€â‚¬
@@ -1574,8 +1555,20 @@ Rules:
       
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        const responseError = new Error(`Server returned ${response.status}: ${errBody.substring(0, 200) || response.statusText}`);
+        let serverMessage = '';
+        let serverCode = '';
+        try {
+          const parsed = JSON.parse(errBody);
+          serverMessage = parsed?.error?.message || '';
+          serverCode = parsed?.error?.code || '';
+        } catch (_) {}
+        const responseError = new Error(
+          serverMessage
+            ? `${serverMessage}${serverCode ? ` (${serverCode})` : ''}`
+            : `Server returned ${response.status}: ${errBody.substring(0, 200) || response.statusText}`
+        );
         responseError.status = response.status;
+        responseError.code = serverCode || 'CHAT_REQUEST_FAILED';
         throw responseError;
       }
       
@@ -1645,7 +1638,7 @@ Rules:
         if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
       } catch (fallbackError) {
         console.error('[MXGenius] On-device chat error:', fallbackError.message);
-        streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(fallbackError.message) + '</span>';
+        streamTarget.innerHTML = '<span style="color:#f87171;font-size:12px;">&#9888; ' + escapeHtml(e.message) + '</span>';
       }
     }
     history.scrollTop = history.scrollHeight;
@@ -2560,19 +2553,28 @@ async function loadMarketIntel() {
 
   results.innerHTML = '<div class="loading" style="grid-column:1/-1;">Loading market intelligence\u2026</div>';
 
-  const safeCall = async (fn) => { try { return await fn(); } catch { return null; } };
-
-  const [costs, specs, trends] = await Promise.all([
-    safeCall(() => MXApplicationClient.modelOperationCosts({ token: TOKEN, bearer: BEARER, make, model })),
-    safeCall(() => MXApplicationClient.modelPerformanceSpecs({ token: TOKEN, bearer: BEARER, make, model })),
-    safeCall(() => MXApplicationClient.modelMarketTrends({ token: TOKEN, bearer: BEARER, make, model }))
+  const outcomes = await Promise.allSettled([
+    MXApplicationClient.modelOperationCosts({ token: TOKEN, bearer: BEARER, make, model }),
+    MXApplicationClient.modelPerformanceSpecs({ token: TOKEN, bearer: BEARER, make, model }),
+    MXApplicationClient.modelMarketTrends({ token: TOKEN, bearer: BEARER, make, model })
   ]);
+  const usablePayload = (outcome) => {
+    if (outcome.status !== 'fulfilled' || !outcome.value) return null;
+    const status = String(outcome.value.responsestatus || '').trim();
+    return /^error\b/i.test(status) ? null : outcome.value;
+  };
+  const [costs, specs, trends] = outcomes.map(usablePayload);
+  const failedSourceCount = outcomes.filter((outcome, index) => {
+    return outcome.status === 'rejected' || ![costs, specs, trends][index];
+  }).length;
 
   results.innerHTML = '';
+  let renderedCards = 0;
 
   // Operating Costs Card
-  if (costs && costs.responsestatus !== 'ERROR') {
+  if (costs) {
     const c = costs.operationcosts || costs;
+    renderedCards += 1;
     results.innerHTML += `
       <div class="card" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(30,41,59,0.6));border:1px solid rgba(16,185,129,0.2);">
         <h3 class="card-title" style="color:#10b981;">
@@ -2593,8 +2595,9 @@ async function loadMarketIntel() {
   }
 
   // Performance Specs Card
-  if (specs && specs.responsestatus !== 'ERROR') {
+  if (specs) {
     const s = specs.performancespecs || specs;
+    renderedCards += 1;
     results.innerHTML += `
       <div class="card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(30,41,59,0.6));border:1px solid rgba(99,102,241,0.2);">
         <h3 class="card-title" style="color:#818cf8;">
@@ -2617,8 +2620,9 @@ async function loadMarketIntel() {
   }
 
   // Market Trends Card
-  if (trends && trends.responsestatus !== 'ERROR') {
+  if (trends) {
     const t = trends.markettrends || trends;
+    renderedCards += 1;
     results.innerHTML += `
       <div class="card" style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(30,41,59,0.6));border:1px solid rgba(245,158,11,0.2);grid-column:1/-1;">
         <h3 class="card-title" style="color:#f59e0b;">
@@ -2636,15 +2640,22 @@ async function loadMarketIntel() {
       </div>`;
   }
 
-  if (!results.innerHTML) {
-    results.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No market data available for this make/model combination</div>';
+  if (!renderedCards) {
+    results.innerHTML = failedSourceCount === outcomes.length
+      ? '<div class="empty-state" style="grid-column:1/-1;">Market intelligence source unavailable or returned an error. Try again shortly.</div>'
+      : '<div class="empty-state" style="grid-column:1/-1;">No market data available for this make/model combination</div>';
+  } else if (failedSourceCount) {
+    results.insertAdjacentHTML(
+      'beforeend',
+      `<div class="empty-state" style="grid-column:1/-1;">Partial result: ${failedSourceCount} market data source${failedSourceCount === 1 ? '' : 's'} did not return usable data.</div>`
+    );
   }
 }
 
 function mktRow(label, value, prefix, suffix) {
   if (value === undefined || value === null || value === '') return '';
   const formatted = typeof value === 'number' ? (prefix === '$' ? '$' + value.toLocaleString() : value.toLocaleString()) + (suffix || '') : (prefix || '') + value + (suffix || '');
-  return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted);font-size:0.72rem;">${label}</span><br><span style="color:var(--text-primary);font-weight:600;">${formatted}</span></div>`;
+  return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted);font-size:0.72rem;">${escapeMarkup(label)}</span><br><span style="color:var(--text-primary);font-weight:600;">${escapeMarkup(formatted)}</span></div>`;
 }
 
 

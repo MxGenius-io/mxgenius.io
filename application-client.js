@@ -17,6 +17,11 @@ const MXApplicationClient = (() => {
   async function fleetRequestJson(path, options = {}) {
     const response = await fetch(`${FLEET_API_BASE}${path}`, options);
     const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data?.error?.message || data?.responsestatus || `Fleet source failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
     return { response, data };
   }
 
@@ -27,7 +32,10 @@ const MXApplicationClient = (() => {
   }
 
   async function jetNetJson(path, { bearer, method = 'GET', body } = {}) {
-    const options = { method, headers: jetNetHeaders(bearer) };
+    const options = {
+      method: method === 'PUT' ? 'POST' : method,
+      headers: jetNetHeaders(bearer)
+    };
     if (body !== undefined) options.body = JSON.stringify(body);
     return (await fleetRequestJson(`/api/${path}`, options)).data;
   }
@@ -36,7 +44,7 @@ const MXApplicationClient = (() => {
     const path = `/api/Aircraft/getBulkAircraftExportPaged/${token}/${pageSize}/${page}`;
     return MXCache.cachedFetch(
       `${FLEET_API_BASE}${path}`,
-      { method: 'PUT', headers: jetNetHeaders(bearer), body: JSON.stringify({ pageSize }) },
+      { method: 'POST', headers: jetNetHeaders(bearer), body: JSON.stringify({ pageSize }) },
       cacheTtl
     );
   }

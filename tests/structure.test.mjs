@@ -127,6 +127,19 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(caseWorkspace, /digitalTwin\.inspectSelection/);
   assert.match(caseWorkspace, /digitalTwin\.attachMarker/);
   assert.match(caseWorkspace, /component\?\.canonical/);
+  assert.match(dashboard, /id="caseExistingSelect"/);
+  assert.match(dashboard, /id="caseOpenButton"/);
+  assert.match(caseWorkspace, /MXApplicationClient\.cases\.list/);
+  assert.match(caseWorkspace, /mxg\.maintenance_case\.build_context/);
+  assert.match(caseWorkspace, /mxg_active_case_id/);
+});
+
+test('fleet compatibility translation is scoped and market intelligence fails visibly', () => {
+  assert.doesNotMatch(application, /window\.fetch\s*=/);
+  assert.match(client, /method: method === 'PUT' \? 'POST' : method/);
+  assert.match(application, /Promise\.allSettled/);
+  assert.match(application, /Market intelligence source unavailable or returned an error/);
+  assert.match(application, /escapeMarkup\(formatted\)/);
 });
 
 test('application script order preserves cache and client prerequisites', () => {

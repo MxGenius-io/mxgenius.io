@@ -2,8 +2,8 @@
 //! copied into evidence, logs, or browser-visible responses.
 
 use async_trait::async_trait;
-use reqwest::{Client, StatusCode, Url};
-use serde_json::Value;
+use reqwest::{Client, Method, StatusCode, Url};
+use serde_json::{json, Value};
 use std::time::Duration;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -65,14 +65,20 @@ impl JetNetHttpAdapter {
         Ok(url)
     }
 
-    async fn get_json(&self, url: Url) -> AdapterResult<Value> {
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(&self.bearer_token)
-            .send()
-            .await
-            .map_err(map_request_error)?;
+    async fn request_json(
+        &self,
+        method: Method,
+        url: Url,
+        body: Option<Value>,
+    ) -> AdapterResult<Value> {
+        let mut request = self.client.request(method, url);
+        if !self.bearer_token.is_empty() {
+            request = request.bearer_auth(&self.bearer_token);
+        }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        let response = request.send().await.map_err(map_request_error)?;
         let status = response.status();
         if status == StatusCode::TOO_MANY_REQUESTS {
             return Err(AdapterError::RateLimited(
@@ -93,6 +99,10 @@ impl JetNetHttpAdapter {
             .json()
             .await
             .map_err(|error| AdapterError::Internal(format!("invalid JetNet response: {error}")))
+    }
+
+    async fn get_json(&self, url: Url) -> AdapterResult<Value> {
+        self.request_json(Method::GET, url, None).await
     }
 }
 
@@ -117,7 +127,18 @@ impl JetNetAdapter for JetNetHttpAdapter {
             }
         }
         let url = self.endpoint(&["Aircraft", "getAircraftList"])?;
-        let value = self.get_json(url).await?;
+        let value = self
+            .request_json(
+                Method::POST,
+                url,
+                Some(json!({
+                    "regnbr": query.registration.as_deref(),
+                    "sernbr": query.serial_number.as_deref(),
+                    "pageSize": 50,
+                    "pageNumber": 1
+                })),
+            )
+            .await?;
         let mut rows = extract_records(&value)
             .into_iter()
             .filter_map(parse_aircraft)

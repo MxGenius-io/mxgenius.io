@@ -326,6 +326,14 @@
           <select id="caseMarkerSeverity"><option value="info">Info</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
           <button id="caseMarkerButton" type="button" disabled>Attach case marker</button>
         </div>
+        <div class="case-workspace__actions" id="caseExistingControls">
+          <label for="caseExistingSelect">Existing case</label>
+          <select id="caseExistingSelect">
+            <option value="">Loading cases…</option>
+          </select>
+          <button id="caseOpenButton" type="button" disabled>Open selected case</button>
+          <button id="caseRefreshButton" type="button">Refresh</button>
+        </div>
         <form id="caseIntakeForm" class="case-intake">
           <div class="case-workspace__grid">
             <div class="form-group"><label for="woReg">Aircraft registration</label><input name="registration" type="text" id="woReg" placeholder="e.g. N12345" required maxlength="32"></div>
@@ -462,6 +470,7 @@
               <option value="gpt-5.6-luna">GPT-5.6 Luna · Efficient</option>
               <option value="gpt-5.6-terra">GPT-5.6 Terra · Balanced</option>
               <option value="gpt-5.6-sol">GPT-5.6 Sol · Frontier</option>
+              <option value="gpt-5.5">GPT-5.5 · Previous Frontier</option>
             </select>
           </div>
           <div class="settings-row"><div class="settings-label"><span>Cached Entries</span><span class="settings-hint" id="cacheStats">Loading...</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXCache.clearAll().then(()=>{document.getElementById('cacheStats').textContent='Cache cleared';})">Clear Cache</button></div>
@@ -581,12 +590,12 @@
   <script src="auth.js?v=5"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=12"></script>
+<script src="application-client.js?v=13"></script>
   <script src="realtime-client.js?v=3"></script>
-  <script src="case-workspace.js?v=2"></script>
+  <script src="case-workspace.js?v=3"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=2"></script>
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
   <div id="onboardingRoot"></div>
 </body>
 

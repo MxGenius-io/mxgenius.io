@@ -1,6 +1,70 @@
 # MXGenius Azure Deployment Plan
 
-Status: In progress — corpus mounted; core cutover pending Azure control-plane recovery
+Status: Validated for Field-Test Packaging
+
+## Field-Test Release Delta — 2026-07-27
+
+Release commit: `9cbd9d4`
+
+This validation pass is limited to updating the existing `mxg-core` Container
+App and the existing static frontend. It adds:
+
+- a server-enforced GPT-5.6 Luna/Terra/Sol and GPT-5.5 selector for text and
+  structured responses, defaulting to Luna;
+- the existing strict structured-output and read-only MCP function
+  orchestration across all selectable text models;
+- persistence of completed Realtime exchanges into tenant/user-scoped chat
+  threads; and
+- frontend cache-version updates for the new selector and persistence client.
+
+No database migration, Azure resource, identity, secret, ingress, search index,
+or Realtime model change is included in this release.
+
+### Field-Test Validation Proof — 2026-07-27
+
+- JavaScript syntax checks passed for `app.js`, `application-client.js`, and
+  `case-workspace.js`.
+- The complete frontend suite passed: 52/52 tests.
+- Rust formatting and strict clippy checks passed.
+- The complete Rust workspace suite passed: 65/65 tests.
+- `cargo build --locked --release -p mxgenius-mcp` completed successfully.
+- `git diff --check` passed.
+- No migration differs from the deployed `0608040` baseline.
+- Live public health and readiness checks passed against the current core.
+- Live Gulfstream G650 Market Intelligence probes returned operation-cost and
+  performance data; the unavailable trends subscription is now represented as
+  a visible partial result instead of being silently swallowed.
+- Live fleet lookup returned 4,437 aircraft through the existing compatibility
+  source.
+- Static frontend and Container App promotion remain a paired deployment gate.
+
+The existing `mxg-core` revision must retain or receive these non-secret fleet
+proxy adapter settings so Active Case aircraft resolution uses the already-live
+server-side compatibility source:
+
+- `MXGENIUS_JETNET_BASE_URL=https://mxg-fleet.kindbush-8fee3a17.centralus.azurecontainerapps.io/api/`
+- `MXGENIUS_JETNET_API_TOKEN=LIVE_TOKEN`
+- `MXGENIUS_JETNET_BEARER_TOKEN=proxy`
+
+### Field-Test Validation Gates
+
+- The exact `services/mcp` archive expands with `Dockerfile`, locked Rust
+  dependencies, migrations, fixtures, shared crate, and server crate at its
+  root.
+- `cargo build --locked --release`, formatting, clippy, and all Rust tests pass.
+- JavaScript syntax checks and the complete frontend test suite pass.
+- No deployed migration file changed relative to commit `0608040`.
+- The text-model allowlist contains only models supporting Responses, function
+  calling, structured output, image input, and the configured reasoning level.
+- Text and Realtime exchanges both create or continue the same authenticated
+  thread and become available to later conversational memory.
+- Market Intelligence retains live compatibility-source routing, bounded cache
+  behavior, and explicit loading, empty, and provider-error states.
+- Active Case selection binds text chat, Realtime persistence, capability
+  context, and optimistic case versioning to the same canonical case.
+- The static frontend commit and Container App image are promoted together.
+- Existing revision `mxg-core--0000009` remains available for rollback until
+  field-test smoke checks pass.
 
 ## Objective
 
