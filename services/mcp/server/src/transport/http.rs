@@ -3090,7 +3090,7 @@ async fn chat(
     let mut answer = String::new();
     let mut model_tool_calls = 0usize;
     let mut client_actions = Vec::new();
-    for _ in 0..4 {
+    for attempt in 0..4 {
         let upstream = match state
             .realtime_client
             .post(OPENAI_RESPONSES_URL)
@@ -3116,6 +3116,11 @@ async fn chat(
         };
         let upstream_status = upstream.status();
         if !upstream_status.is_success() {
+            let upstream_request_id = upstream
+                .headers()
+                .get("x-request-id")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned);
             let upstream_error: Value = upstream.json().await.unwrap_or(Value::Null);
             let upstream_code = upstream_error
                 .pointer("/error/code")
@@ -3145,11 +3150,29 @@ async fn chat(
             } else {
                 StatusCode::BAD_GATEWAY
             };
-            return realtime_error(
+            return (
                 status,
-                "OPENAI_UPSTREAM_REJECTED",
-                "OpenAI service rejected the request",
-            );
+                Json(json!({
+                    "error": {
+                        "code": "OPENAI_UPSTREAM_REJECTED",
+                        "message": "OpenAI service rejected the request",
+                        "details": {
+                            "upstream_status": upstream_status.as_u16(),
+                            "upstream_code": upstream_code,
+                            "upstream_type": upstream_type,
+                            "upstream_message": upstream_message,
+                            "upstream_request_id": upstream_request_id,
+                            "correlation_id": context.correlation_id,
+                            "model": model,
+                            "attempt": attempt + 1,
+                            "input_items": request_body["input"].as_array().map(Vec::len).unwrap_or(0),
+                            "tool_count": model_tools.len(),
+                            "structured_output": true
+                        }
+                    }
+                })),
+            )
+                .into_response();
         }
         let payload: Value = match upstream.json().await {
             Ok(value) => value,

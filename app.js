@@ -1666,10 +1666,24 @@ Rules:
       if (!applicationSession.accessToken) {
         throw new Error('Sign in required - please refresh the page and sign in with your Entra account.');
       }
+      const chatCorrelationId = window.crypto?.randomUUID?.() || `chat-${Date.now()}`;
+      const chatStartedAt = performance.now();
+      const selectedTextModel = localStorage.getItem('mx_textModel') || 'gpt-5.4-mini';
+      const chatRequestSummary = {
+        correlationId: chatCorrelationId,
+        model: selectedTextModel,
+        messageCharacters: text.length,
+        imageCount: images.length,
+        historyTurns: chatTurns.length,
+        threadId: activeThreadId,
+        hasCaseContext: Boolean(activeCaseContext),
+        realtimeCompanion: options.forceStructured === true
+      };
+      console.info('[MXGenius][Chat] request', chatRequestSummary);
       const response = await MXApplicationClient.chat({
         message: text,
         images,
-        textModel: localStorage.getItem('mx_textModel') || 'gpt-5.4-mini',
+        textModel: selectedTextModel,
         threadId: activeThreadId,
         history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
@@ -1681,19 +1695,37 @@ Rules:
         displayContext: collectApplicationDisplayContext(),
         accessToken: applicationSession.accessToken,
         organizationId: applicationSession.organizationId,
-        correlationId: window.crypto?.randomUUID?.(),
+        correlationId: chatCorrelationId,
         signal: options.signal
+      });
+      console.info('[MXGenius][Chat] response', {
+        correlationId: chatCorrelationId,
+        status: response.status,
+        ok: response.ok,
+        elapsedMs: Math.round(performance.now() - chatStartedAt),
+        contentType: response.headers.get('content-type')
       });
       
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
         let serverMessage = '';
         let serverCode = '';
+        let serverDetails = null;
         try {
           const parsed = JSON.parse(errBody);
           serverMessage = parsed?.error?.message || '';
           serverCode = parsed?.error?.code || '';
+          serverDetails = parsed?.error?.details || null;
         } catch (_) {}
+        console.error('[MXGenius][Chat] rejected', {
+          ...chatRequestSummary,
+          httpStatus: response.status,
+          elapsedMs: Math.round(performance.now() - chatStartedAt),
+          code: serverCode || 'CHAT_REQUEST_FAILED',
+          message: serverMessage || response.statusText,
+          details: serverDetails,
+          rawBody: serverDetails ? undefined : errBody.substring(0, 1000)
+        });
         const responseError = new Error(
           serverMessage
             ? `${serverMessage}${serverCode ? ` (${serverCode})` : ''}`
@@ -1701,6 +1733,7 @@ Rules:
         );
         responseError.status = response.status;
         responseError.code = serverCode || 'CHAT_REQUEST_FAILED';
+        responseError.details = serverDetails;
         throw responseError;
       }
       
@@ -1709,6 +1742,17 @@ Rules:
       try {
         const rawData = JSON.parse(rawText);
         data = rawData.response || rawData;
+        console.info('[MXGenius][Chat] completed', {
+          correlationId: chatCorrelationId,
+          model: data?.model || selectedTextModel,
+          responseId: data?.response_id || null,
+          threadId: data?.thread_id || activeThreadId,
+          memoryPersisted: data?.memory_persisted === true,
+          retrieval: data?.retrieval || null,
+          usage: data?.usage || null,
+          capabilityCalls: Array.isArray(data?.capability_trace) ? data.capability_trace.length : 0,
+          elapsedMs: Math.round(performance.now() - chatStartedAt)
+        });
         lastDisplayedResponseContext = buildDisplayedResponseContext(data);
         (data?.client_actions || []).forEach((action) => {
           if (action?.type === 'digital_twin.highlight') {

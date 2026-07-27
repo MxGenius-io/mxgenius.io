@@ -66,6 +66,15 @@ test('model output cannot declare transport readiness', () => {
   assert.match(backend, /Do not claim that a connection, service, tool, data source, or application is healthy/);
 });
 
+test('chat rejection diagnostics reach the browser with correlation and upstream detail', () => {
+  assert.match(backend, /"upstream_message": upstream_message/);
+  assert.match(backend, /"upstream_request_id": upstream_request_id/);
+  assert.match(backend, /"tool_count": model_tools\.len\(\)/);
+  assert.match(app, /\[MXGenius\]\[Chat\] request/);
+  assert.match(app, /\[MXGenius\]\[Chat\] rejected/);
+  assert.match(app, /responseError\.details = serverDetails/);
+});
+
 test('Realtime delegates visual answers to one authoritative structured chat turn', () => {
   assert.match(app, /mxg\.chat\.structured_response/);
   assert.match(app, /client_handler: 'structured_chat'/);

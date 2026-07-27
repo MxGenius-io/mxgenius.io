@@ -7,6 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — End-to-end chat diagnostics
+
+- Added browser-console request, response, rejection, and completion records keyed by one correlation ID.
+- Returned OpenAI rejection status, code, type, message, request ID, selected model, tool count, and request iteration to the authenticated frontend.
+
 ### Fixed — Structured text chat model availability
 
 - Made the text-model picker reflect the models available to the configured OpenAI project instead of presenting inaccessible choices.
