@@ -2367,10 +2367,17 @@ fn chat_conversation_input(
     let mut input = history
         .iter()
         .map(|turn| {
-            json!({
-                "role": turn.role,
-                "content": [{"type": "input_text", "text": turn.content}]
-            })
+            if turn.role == "assistant" {
+                json!({
+                    "role": "assistant",
+                    "content": turn.content
+                })
+            } else {
+                json!({
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": turn.content}]
+                })
+            }
         })
         .collect::<Vec<_>>();
     let mut current_content = vec![json!({
@@ -3993,6 +4000,9 @@ mod structured_advisory_tests {
             input[0]["content"][0]["text"],
             "Remember this tail is N750MX"
         );
+        assert_eq!(input[0]["content"][0]["type"], "input_text");
+        assert_eq!(input[1]["role"], "assistant");
+        assert_eq!(input[1]["content"], "I will retain that in this thread.");
         assert_eq!(input[2]["role"], "user");
         assert_eq!(input[2]["content"][1]["type"], "input_image");
         assert_eq!(input[2]["content"][1]["detail"], "high");
