@@ -751,6 +751,7 @@ function setupChatPanel() {
   const MAX_CHAT_IMAGES = 4;
   const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
   const CHAT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  const CHAT_TEXT_MODELS = new Set(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']);
 
   if (!panel || !toggleBtn) return;
 
@@ -918,6 +919,13 @@ function setupChatPanel() {
   });
 
   void refreshThreads(true);
+  const initialChatSession = currentApplicationSession();
+  if (initialChatSession.accessToken) {
+    void MXApplicationClient.profile.get(initialChatSession).then((profile) => {
+      const textModel = profile?.settings?.textModel;
+      if (CHAT_TEXT_MODELS.has(textModel)) localStorage.setItem('mx_textModel', textModel);
+    }).catch(() => {});
+  }
 
   window.addEventListener('mxg:case-selected', (event) => {
     chatTurns.length = 0;
@@ -1550,6 +1558,7 @@ Rules:
       const response = await MXApplicationClient.chat({
         message: text,
         images,
+        textModel: localStorage.getItem('mx_textModel') || 'gpt-5.6-luna',
         threadId: activeThreadId,
         history: chatTurns,
         fleetSignals: typeof cachedFleetSignals !== 'undefined' ? cachedFleetSignals : [],
@@ -1666,6 +1675,7 @@ Rules:
   let realtimeModeEnabled = false;
   let realtimeMicEnabled = true;
   let realtimeUserTranscriptClearTimer = null;
+  let pendingRealtimeUserText = '';
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
@@ -1895,6 +1905,7 @@ Rules:
       target.dataset.final = String(event.final);
       if (event.role === 'user' && event.final) {
         const completedText = event.text || '';
+        pendingRealtimeUserText = completedText;
         realtimeUserTranscriptClearTimer = setTimeout(() => {
           if (realtimeUserTranscript.textContent === completedText) {
             realtimeUserTranscript.textContent = '';
@@ -1913,6 +1924,25 @@ Rules:
         turn.appendChild(bubble);
         history.appendChild(turn);
         history.scrollTop = history.scrollHeight;
+        if (event.role === 'assistant' && pendingRealtimeUserText) {
+          const userContent = pendingRealtimeUserText;
+          pendingRealtimeUserText = '';
+          try {
+            const persisted = await MXApplicationClient.threads.persistExchange({
+              threadId: activeThreadId,
+              caseId: activeCaseContext?.caseId || null,
+              userContent,
+              assistantContent: event.text,
+              session: realtimeApplicationSession || currentApplicationSession()
+            });
+            activeThreadId = persisted.thread_id;
+            localStorage.setItem('mxg_active_thread_id', activeThreadId);
+            await refreshThreads();
+          } catch (error) {
+            console.warn('[MXGenius] Realtime conversation could not be saved:', error.message);
+            pendingRealtimeUserText = userContent;
+          }
+        }
       }
       return;
     }
@@ -2133,6 +2163,7 @@ function initSettings() {
   const contentUploadInput = document.getElementById('settingsContentUploadInput');
   const contentUploadChoose = document.getElementById('settingsContentUploadChoose');
   const contentUploadStatus = document.getElementById('settingsContentUploadStatus');
+  const textModelSelect = document.getElementById('settingsTextModel');
   const serverSession = {
     accessToken: session.accessToken,
     organizationId: session.organizationId,
@@ -2186,7 +2217,8 @@ function initSettings() {
         mx_bgColor: settings.backgroundColor,
         mx_textColor: settings.textColor,
         mx_cardColor: settings.cardColor,
-        mx_theme: settings.theme
+        mx_theme: settings.theme,
+        mx_textModel: settings.textModel
       };
       Object.entries(serverValues).forEach(([key, value]) => {
         if (value !== undefined && value !== null) localStorage.setItem(key, String(value));
@@ -2219,6 +2251,9 @@ function initSettings() {
       if (settings.theme) {
         const element = document.getElementById('settingsTheme');
         if (element) element.value = settings.theme;
+      }
+      if (settings.textModel && textModelSelect) {
+        textModelSelect.value = settings.textModel;
       }
       if (profile.image_url) {
         try { applyProfileImage(await MXApplicationClient.profile.getImage(serverSession)); } catch (_) {}
@@ -2290,7 +2325,8 @@ function initSettings() {
           backgroundColor: localStorage.getItem('mx_bgColor'),
           textColor: localStorage.getItem('mx_textColor'),
           cardColor: localStorage.getItem('mx_cardColor'),
-          theme: localStorage.getItem('mx_theme')
+          theme: localStorage.getItem('mx_theme'),
+          textModel: localStorage.getItem('mx_textModel') || 'gpt-5.6-luna'
         }
       }, serverSession).catch((error) => {
         console.warn('[MXGenius] Server profile save failed:', error.message);
@@ -2299,6 +2335,13 @@ function initSettings() {
   };
   settingsTab.addEventListener('input', scheduleServerProfileSave);
   settingsTab.addEventListener('change', scheduleServerProfileSave);
+  if (textModelSelect) {
+    const selectedTextModel = localStorage.getItem('mx_textModel') || 'gpt-5.6-luna';
+    textModelSelect.value = selectedTextModel;
+    textModelSelect.addEventListener('change', () => {
+      localStorage.setItem('mx_textModel', textModelSelect.value);
+    });
+  }
 
   if (signOutBtn) {
     signOutBtn.addEventListener('click', () => {

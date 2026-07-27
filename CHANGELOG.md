@@ -32,8 +32,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed — Conversation continuity and manual evidence
 
 - Injected tenant-scoped persisted thread history into model requests so conversational memory survives page reloads.
+- Persisted completed Realtime user/assistant exchanges into the same tenant-scoped threads used by text chat.
 - Made finalized Realtime user transcription transient after five seconds while retaining the completed chat turn.
 - Kept retrieved manual diagrams visible through the controlled asset proxy and now shows an explicit unavailable state when an image cannot load.
+
+### Added — Text model selection
+
+- Added a server-persisted Settings selector for GPT-5.6 Luna, Terra, and Sol.
+- Defaulted text and structured output to cost-efficient GPT-5.6 Luna while preserving strict schema, image input, and MCP-backed function orchestration across every selectable tier.
+- Rejected arbitrary and incompatible model identifiers at the authenticated server boundary.
 
 ### Fixed — Closed-beta access
 

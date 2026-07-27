@@ -183,7 +183,7 @@ const MXApplicationClient = (() => {
     return (await applicationRequest(path, options)).json();
   }
 
-  function chat({ message, images = [], threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
+  function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, accessToken, organizationId, correlationId }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -197,6 +197,7 @@ const MXApplicationClient = (() => {
       credentials: 'include',
       body: JSON.stringify({
         message,
+        text_model: textModel || null,
         images: Array.isArray(images) ? images.slice(0, 4).map((image) => ({
           name: String(image.name || 'image').slice(0, 160),
           data_url: image.dataUrl || image.data_url,
@@ -254,6 +255,19 @@ const MXApplicationClient = (() => {
 
   function listThreadMessages(threadId, session = {}) {
     return applicationJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, { session });
+  }
+
+  function persistThreadExchange({ threadId, caseId, userContent, assistantContent, session = {} }) {
+    return applicationJson('/api/thread-exchanges', {
+      session,
+      method: 'POST',
+      body: {
+        thread_id: threadId || null,
+        case_id: caseId || null,
+        user_content: userContent,
+        assistant_content: assistantContent
+      }
+    });
   }
 
   function getProfile(session = {}) {
@@ -722,7 +736,8 @@ const MXApplicationClient = (() => {
       get: getThread,
       update: updateThread,
       archive: archiveThread,
-      messages: listThreadMessages
+      messages: listThreadMessages,
+      persistExchange: persistThreadExchange
     }),
     profile: Object.freeze({
       get: getProfile,

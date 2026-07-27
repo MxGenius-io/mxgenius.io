@@ -125,6 +125,7 @@ pub fn router_with_health_and_manual(
             "/api/threads/:thread_id/messages",
             get(list_thread_messages),
         )
+        .route("/api/thread-exchanges", post(persist_realtime_exchange))
         .route("/api/profile", get(get_profile).patch(update_profile))
         .route(
             "/api/beta-access",
@@ -1400,6 +1401,74 @@ async fn list_thread_messages(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct PersistThreadExchangeRequest {
+    #[serde(default)]
+    thread_id: Option<Uuid>,
+    #[serde(default)]
+    case_id: Option<Uuid>,
+    user_content: String,
+    assistant_content: String,
+}
+
+async fn persist_realtime_exchange(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<PersistThreadExchangeRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let user_content = input.user_content.trim();
+    let assistant_content = input.assistant_content.trim();
+    if user_content.is_empty()
+        || assistant_content.is_empty()
+        || user_content.len() > MAX_CHAT_MESSAGE_BYTES
+        || assistant_content.len() > MAX_CHAT_MESSAGE_BYTES
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_THREAD_EXCHANGE",
+            "thread exchanges require bounded user and assistant content",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let (thread_id, _) =
+        match prepare_chat_memory(pool, &context, input.thread_id, input.case_id, user_content)
+            .await
+        {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let payload = json!({
+        "response_kind": "conversation",
+        "conversation_answer": assistant_content,
+        "source": "realtime"
+    });
+    match persist_chat_exchange(
+        pool,
+        &context,
+        thread_id,
+        user_content,
+        assistant_content,
+        None,
+        &payload,
+    )
+    .await
+    {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(json!({"thread_id": thread_id, "persisted": true})),
+        )
+            .into_response(),
+        Err(error) => persistence_error("chat.realtime.persist", error),
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct ProfileResponse {
     display_name: Option<String>,
@@ -2101,6 +2170,8 @@ async fn get_twin_highlight(State(state): State<AppState>, headers: HeaderMap) -
 struct ChatRequest {
     message: String,
     #[serde(default)]
+    text_model: Option<String>,
+    #[serde(default)]
     images: Vec<ChatImage>,
     #[serde(default)]
     thread_id: Option<Uuid>,
@@ -2110,6 +2181,18 @@ struct ChatRequest {
     fleet_signals: Value,
     #[serde(default)]
     case_context: Option<Value>,
+}
+
+const ALLOWED_TEXT_MODELS: [&str; 3] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"];
+
+fn text_model(requested: Option<&str>) -> Result<String, &'static str> {
+    let configured =
+        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-luna".into());
+    let selected = requested.unwrap_or(&configured);
+    ALLOWED_TEXT_MODELS
+        .contains(&selected)
+        .then(|| selected.to_owned())
+        .ok_or("text model must be GPT-5.6 Luna, Terra, or Sol")
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2778,8 +2861,12 @@ async fn chat(
         "authoritative_manual_records": manual_model_context,
         "manual_retrieval_warning": manual_warning.clone()
     });
-    let model =
-        std::env::var("MXGENIUS_OPENAI_TEXT_MODEL").unwrap_or_else(|_| "gpt-5.6-sol".into());
+    let model = match text_model(input.text_model.as_deref()) {
+        Ok(model) => model,
+        Err(message) => {
+            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_TEXT_MODEL", message)
+        }
+    };
     let conversation_input = chat_conversation_input(
         &conversation_history,
         message,
@@ -3661,6 +3748,21 @@ mod structured_advisory_tests {
         assert_eq!(
             maintenance_advisory_schema()["properties"]["response_kind"]["enum"],
             json!(["maintenance_advisory", "conversation"])
+        );
+    }
+
+    #[test]
+    fn text_model_selector_only_allows_orchestration_capable_gpt_5_6_tiers() {
+        for model in ALLOWED_TEXT_MODELS {
+            assert_eq!(text_model(Some(model)), Ok(model.to_owned()));
+        }
+        assert_eq!(
+            text_model(Some("gpt-4o")),
+            Err("text model must be GPT-5.6 Luna, Terra, or Sol")
+        );
+        assert_eq!(
+            text_model(Some("gpt-4o-mini")),
+            Err("text model must be GPT-5.6 Luna, Terra, or Sol")
         );
     }
 
