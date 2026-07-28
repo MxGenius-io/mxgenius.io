@@ -416,29 +416,45 @@ impl MembershipResolver for PostgresMembershipResolver {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AuthError::Internal(format!("membership lookup failed: {e}")))?;
-        if rows.len() != 1 {
-            let email = identity.email.as_deref().map(str::to_lowercase);
-            let access_rules: Vec<(Uuid, String)> = if let Some(email) = &email {
-                sqlx::query_as(
-                    r#"SELECT DISTINCT ON (organization_id) organization_id, member_role
-                       FROM beta_access_rules
-                       WHERE ($2::uuid IS NULL OR organization_id=$2)
-                         AND (
-                           (rule_type='email' AND rule=$1)
-                           OR
-                           (rule_type='domain' AND right($1, char_length(rule))=rule)
-                         )
-                       ORDER BY organization_id, CASE rule_type WHEN 'email' THEN 0 ELSE 1 END
-                       LIMIT 2"#,
-                )
-                .bind(email)
-                .bind(selected_organization_id.map(|id| id.0))
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AuthError::Internal(format!("beta access lookup failed: {e}")))?
-            } else {
-                vec![]
-            };
+        let email = identity.email.as_deref().and_then(normalize_identity_email);
+        let access_rules: Vec<(Uuid, String)> = if let Some(email) = &email {
+            sqlx::query_as(
+                r#"SELECT DISTINCT ON (organization_id) organization_id, member_role
+                   FROM beta_access_rules
+                   WHERE ($2::uuid IS NULL OR organization_id=$2)
+                     AND (
+                       (rule_type='email' AND rule=$1)
+                       OR
+                       (rule_type='domain' AND rule=('@' || split_part($1,'@',2)))
+                     )
+                   ORDER BY organization_id, CASE rule_type WHEN 'email' THEN 0 ELSE 1 END
+                   LIMIT 2"#,
+            )
+            .bind(email)
+            .bind(selected_organization_id.map(|id| id.0))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AuthError::Internal(format!("beta access lookup failed: {e}")))?
+        } else {
+            vec![]
+        };
+        if rows.len() == 1 {
+            let (user_id, organization_id, role) = &rows[0];
+            let parsed_role = parse_role(role)?;
+            let owner_recovery = matches!(parsed_role, Role::Manager | Role::Administrator);
+            let still_allowed = access_rules
+                .iter()
+                .any(|(allowed_organization_id, _)| allowed_organization_id == organization_id);
+            if !owner_recovery && !still_allowed {
+                return Err(AuthError::TenantMismatch);
+            }
+            return Ok(ResolvedMembership {
+                organization_id: OrganizationId(*organization_id),
+                user_id: UserId(*user_id),
+                role: parsed_role,
+            });
+        }
+        if rows.is_empty() {
             if access_rules.len() == 1 {
                 let (organization_id, member_role) = &access_rules[0];
                 let new_user_id = Uuid::new_v4();
@@ -482,13 +498,21 @@ impl MembershipResolver for PostgresMembershipResolver {
 
             return Err(AuthError::TenantMismatch);
         }
-        let (user_id, organization_id, role) = &rows[0];
-        Ok(ResolvedMembership {
-            organization_id: OrganizationId(*organization_id),
-            user_id: UserId(*user_id),
-            role: parse_role(role)?,
-        })
+        Err(AuthError::TenantMismatch)
     }
+}
+
+fn normalize_identity_email(value: &str) -> Option<String> {
+    let email = value.trim().to_ascii_lowercase();
+    let (local, domain) = email.split_once('@')?;
+    if local.is_empty()
+        || domain.is_empty()
+        || email.matches('@').count() != 1
+        || email.chars().any(char::is_whitespace)
+    {
+        return None;
+    }
+    Some(email)
 }
 
 fn parse_role(value: &str) -> Result<Role, AuthError> {
@@ -610,6 +634,20 @@ impl ExecutionContextProvider for OidcProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whitelist_identity_email_is_case_normalized_and_domain_bounded() {
+        assert_eq!(
+            normalize_identity_email(" Sameera.Tillman@AdvancedAOG.com "),
+            Some("sameera.tillman@advancedaog.com".into())
+        );
+        assert_eq!(normalize_identity_email("@advancedaog.com"), None);
+        assert_eq!(
+            normalize_identity_email("user@eviladvancedaog.com"),
+            Some("user@eviladvancedaog.com".into())
+        );
+        assert_eq!(normalize_identity_email("user@@advancedaog.com"), None);
+    }
 
     struct AcceptedToken;
 
