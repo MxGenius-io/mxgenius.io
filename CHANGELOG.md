@@ -7,6 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Rocky parts handoff
+
+- Refreshed the guided onboarding wizard with a dedicated seven-step Parts & Procurement path.
+- Added a nontechnical Rocky build report, send-ready email, and production walkthrough for sign-in, receiving, OCR review, FAA candidates, and QR labels.
+
 ### Added — End-to-end chat diagnostics
 
 - Added browser-console request, response, rejection, and completion records keyed by one correlation ID.
