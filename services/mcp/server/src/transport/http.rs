@@ -1995,7 +1995,9 @@ async fn seed_beta_access_rules(
 ) -> Result<(), sqlx::Error> {
     for (rule, rule_type, member_role) in [
         ("@advancedaog.com", "domain", "viewer"),
+        ("@mxgenius.io", "domain", "viewer"),
         ("hagy2392@gmail.com", "email", "viewer"),
+        ("rocky@mxgenius.io", "email", "viewer"),
         ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
     ] {
         sqlx::query(
@@ -2037,8 +2039,8 @@ async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> 
     }
     match sqlx::query_as::<_, BetaAccessRuleRow>(
         r#"SELECT id,rule,rule_type,member_role,created_at,
-                  rule IN ('@advancedaog.com','hagy2392@gmail.com',
-                           'dwaynetillman@7hermeticlabs.dev') AS locked
+                  rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
+                           'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1
            ORDER BY rule_type DESC, rule ASC"#,
@@ -2138,8 +2140,8 @@ async fn add_beta_access(
     };
     match sqlx::query_as::<_, BetaAccessRuleRow>(
         r#"SELECT id,rule,rule_type,member_role,created_at,
-                  rule IN ('@advancedaog.com','hagy2392@gmail.com',
-                           'dwaynetillman@7hermeticlabs.dev') AS locked
+                  rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
+                           'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1 AND rule=$2"#,
     )
@@ -2178,8 +2180,8 @@ async fn add_beta_access(
            (id,organization_id,rule,rule_type,member_role,created_by,created_at)
            VALUES ($1,$2,$3,$4,'viewer',$5,now())
            RETURNING id,rule,rule_type,member_role,created_at,
-                     rule IN ('@advancedaog.com','hagy2392@gmail.com',
-                              'dwaynetillman@7hermeticlabs.dev') AS locked"#,
+                     rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
+                              'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked"#,
     )
     .bind(Uuid::new_v4())
     .bind(context.organization_id.0)
@@ -2222,8 +2224,8 @@ async fn delete_beta_access(
         r#"SELECT EXISTS(
              SELECT 1 FROM beta_access_rules
              WHERE id=$1 AND organization_id=$2
-               AND rule IN ('@advancedaog.com','hagy2392@gmail.com',
-                            'dwaynetillman@7hermeticlabs.dev')
+               AND rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
+                            'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev')
            )"#,
     )
     .bind(rule_id)
@@ -5314,6 +5316,10 @@ mod structured_advisory_tests {
         assert_eq!(
             normalize_beta_access_rule("@AdvancedAOG.com"),
             Some(("@advancedaog.com".into(), "domain"))
+        );
+        assert_eq!(
+            normalize_beta_access_rule("@MxGenius.io"),
+            Some(("@mxgenius.io".into(), "domain"))
         );
         assert_eq!(
             normalize_beta_access_rule("Sameera.Tillman@AdvancedAOG.com"),

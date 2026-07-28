@@ -1,6 +1,46 @@
 # MXGenius Azure Deployment Plan
 
-Status: Deployed — Rocky Acceptance Pending
+Status: Validated
+
+## Closed-Beta Invitation Baseline Delta — 2026-07-28
+
+This release preserves the existing real-time Settings invitation flow and adds
+`@mxgenius.io` plus `rocky@mxgenius.io` as protected organization-scoped access
+rules. Exact email entries continue to request an Entra B2B invitation through
+Microsoft Graph before the access rule is committed. Domain rules authorize
+matching, successfully authenticated identities and do not attempt to invite an
+entire domain.
+
+### Deployment scope
+
+- Build the existing `services/mcp` Container App image from the exact committed
+  source archive.
+- Promote only `mxg-core`; no database migration, frontend behavior change,
+  secret, or new Azure resource is required.
+- Preserve the current environment settings and system-assigned managed
+  identity.
+- Keep the current ready revision available for rollback.
+
+### Validation proof
+
+- 2026-07-28: frontend application suite passed, 80/80 tests.
+- 2026-07-28: Rust workspace suite passed, 70/70 tests.
+- 2026-07-28: `cargo fmt --all -- --check` and strict workspace clippy passed.
+- 2026-07-28: locked optimized workspace release build passed.
+- 2026-07-28: `git diff --check` passed.
+- 2026-07-28: ACR provisioning state is `Succeeded`.
+- 2026-07-28: `mxg-core` provisioning state is `Succeeded`, running status is
+  `Running`, and revision `mxg-core--0000015` remains ready.
+- 2026-07-28: production health and readiness endpoints returned HTTP 200.
+- 2026-07-28: the `mxg-core` system identity
+  `f690814f-1f55-4394-adaa-8120d5d433c7` was confirmed to hold Microsoft Graph
+  application permission `User.Invite.All`.
+
+### Rollback
+
+Shift traffic to `mxg-core--0000015`. The new baseline rule is inserted
+idempotently when Settings reads the organization access list; rollback does
+not delete existing rules or guest identities.
 
 ## Rocky Parts Release Delta — 2026-07-28
 
