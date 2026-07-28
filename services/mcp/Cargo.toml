@@ -64,6 +64,7 @@ schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 
 # Regex
 regex = "1"
+qrcodegen = "1.8"
 
 # Concurrent collections
 parking_lot = "0.12"

@@ -4,5 +4,6 @@
 pub mod aircraft_catalog;
 pub mod case_service;
 pub mod evidence_service;
+pub mod parts_inventory;
 pub mod policy_enforce;
 pub mod postgres_case_service;

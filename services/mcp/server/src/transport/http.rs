@@ -22,6 +22,10 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+use crate::application::parts_inventory::{
+    ConfirmReceivingInput, CreateReceivingDraftInput, ExtractionProposal, PartsInventoryError,
+    PartsInventoryRepository, RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery,
+};
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
@@ -54,6 +58,7 @@ struct AppState {
     realtime_client: reqwest::Client,
     confirmation_issuer: Option<Arc<PostgresConfirmationGrantIssuer>>,
     manual: Arc<dyn ManualCorpusAdapter>,
+    parts_enabled: bool,
 }
 
 #[derive(Clone)]
@@ -107,6 +112,14 @@ pub fn router_with_health_and_manual(
         realtime_client,
         confirmation_issuer,
         manual,
+        parts_enabled: std::env::var("MXGENIUS_PARTS_ENABLED")
+            .map(|value| {
+                matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes"
+                )
+            })
+            .unwrap_or(false),
     };
     Router::new()
         .route("/healthz", get(healthz))
@@ -118,6 +131,45 @@ pub fn router_with_health_and_manual(
         .route("/api/content/uploads", post(upload_content))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
+        .route("/api/parts", get(search_parts))
+        .route(
+            "/api/parts/receiving-drafts",
+            post(create_parts_receiving_draft),
+        )
+        .route(
+            "/api/parts/receiving-drafts/:draft_id/assets",
+            post(register_parts_asset),
+        )
+        .route(
+            "/api/parts/assets/:asset_id/content",
+            get(get_parts_asset_content).put(put_parts_asset_content),
+        )
+        .route(
+            "/api/parts/assets/:asset_id/extractions",
+            post(request_parts_extraction),
+        )
+        .route(
+            "/api/parts/extractions/:run_id/reviews",
+            post(review_parts_extraction),
+        )
+        .route(
+            "/api/parts/receiving-drafts/:draft_id/confirm",
+            post(confirm_parts_receiving),
+        )
+        .route("/api/parts/units/:unit_id", get(get_parts_unit))
+        .route(
+            "/api/parts/units/:unit_id/assets",
+            get(list_parts_unit_assets),
+        )
+        .route(
+            "/api/parts/units/:unit_id/events",
+            get(list_parts_unit_events),
+        )
+        .route(
+            "/api/parts/units/:unit_id/faa-candidates",
+            get(get_parts_faa_candidates),
+        )
+        .route("/api/parts/units/:unit_id/label", get(get_parts_unit_label))
         .route("/api/threads", get(list_threads).post(create_thread))
         .route(
             "/api/threads/:thread_id",
@@ -190,6 +242,8 @@ fn cors_layer() -> CorsLayer {
             header::CONTENT_TYPE,
             HeaderName::from_static("mcp-protocol-version"),
             HeaderName::from_static("x-correlation-id"),
+            HeaderName::from_static("idempotency-key"),
+            header::IF_MATCH,
             HeaderName::from_static("x-mxg-confirmation-grant"),
             HeaderName::from_static("x-mxg-organization-id"),
         ])
@@ -623,19 +677,20 @@ async fn issue_confirmation(
             )
         }
     };
-    let Some(spec) = state
+    let spec = state
         .dispatcher
         .registry()
         .tool(&input.tool_name)
-        .map(|tool| tool.spec())
-    else {
+        .map(|tool| tool.spec());
+    let is_parts_receiving = input.tool_name == "mxg.parts.receive";
+    if spec.is_none() && !is_parts_receiving {
         return realtime_error(
             StatusCode::BAD_REQUEST,
             "UNKNOWN_CAPABILITY",
             "capability is not in the locked registry",
         );
-    };
-    if !spec.requires_human_approval {
+    }
+    if !is_parts_receiving && !spec.is_some_and(|value| value.requires_human_approval) {
         return realtime_error(
             StatusCode::BAD_REQUEST,
             "CONFIRMATION_NOT_REQUIRED",
@@ -647,6 +702,7 @@ async fn issue_confirmation(
         .get("case_id")
         .or_else(|| input.arguments.get("aircraft_id"))
         .or_else(|| input.arguments.get("part_id"))
+        .or_else(|| input.arguments.get("draft_id"))
         .and_then(Value::as_str);
     let Some(object_id) = object_id else {
         return realtime_error(
@@ -750,6 +806,68 @@ async fn application_context(
     }
 }
 
+async fn application_context_with_confirmation(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ExecutionContext, Response> {
+    if !origin_allowed(headers) {
+        return Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        ));
+    }
+    let auth = auth_request(headers)
+        .map_err(|message| realtime_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", message))?;
+    match state.dispatcher.authenticate(&auth).await {
+        Ok(value) => Ok(value),
+        Err(AuthError::Required | AuthError::InvalidToken(_)) => Err(realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "AUTH_OR_CONFIRMATION_REQUIRED",
+            "authentication and a valid confirmation grant are required",
+        )),
+        Err(AuthError::TenantMismatch) => Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "TENANT_MISMATCH",
+            "tenant access denied",
+        )),
+        Err(AuthError::Internal(_)) => Err(realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "AUTH_UNAVAILABLE",
+            "authentication service unavailable",
+        )),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+fn ensure_parts_enabled(state: &AppState) -> Result<(), Response> {
+    if state.parts_enabled {
+        Ok(())
+    } else {
+        Err(realtime_error(
+            StatusCode::NOT_FOUND,
+            "PARTS_NOT_ENABLED",
+            "parts workspace is not enabled",
+        ))
+    }
+}
+
+async fn parts_application_context(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ExecutionContext, Response> {
+    ensure_parts_enabled(state)?;
+    application_context(state, headers).await
+}
+
+async fn parts_application_context_with_confirmation(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ExecutionContext, Response> {
+    ensure_parts_enabled(state)?;
+    application_context_with_confirmation(state, headers).await
+}
+
 fn persistence_error(operation: &'static str, error: impl std::fmt::Display) -> Response {
     tracing::error!(
         target: "mxgenius.persistence",
@@ -770,6 +888,1066 @@ fn beta_admin_allowed(context: &ExecutionContext) -> bool {
         mxgenius_shared::application::policy::Role::Manager
             | mxgenius_shared::application::policy::Role::Administrator
     )
+}
+
+fn parts_write_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Technician
+            | mxgenius_shared::application::policy::Role::Procurement
+            | mxgenius_shared::application::policy::Role::Quality
+            | mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn parts_error(error: PartsInventoryError, operation: &'static str) -> Response {
+    match error {
+        PartsInventoryError::NotFound => realtime_error(
+            StatusCode::NOT_FOUND,
+            "PARTS_RECORD_NOT_FOUND",
+            "parts record not found",
+        ),
+        PartsInventoryError::Conflict(message) => {
+            realtime_error(StatusCode::CONFLICT, "PARTS_CONFLICT", &message)
+        }
+        PartsInventoryError::Invalid(message) => {
+            realtime_error(StatusCode::BAD_REQUEST, "INVALID_PARTS_REQUEST", &message)
+        }
+        PartsInventoryError::Persistence(error) => persistence_error(operation, error),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+fn required_header(headers: &HeaderMap, name: &'static str) -> Result<String, Response> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            let message = format!("{name} is required");
+            realtime_error(
+                StatusCode::PRECONDITION_REQUIRED,
+                "REQUIRED_HEADER_MISSING",
+                &message,
+            )
+        })
+}
+
+#[allow(clippy::result_large_err)]
+fn expected_version(headers: &HeaderMap) -> Result<i64, Response> {
+    let raw = required_header(headers, "If-Match")?;
+    raw.trim_start_matches("W/")
+        .trim_matches('"')
+        .parse::<i64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| {
+            realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_IF_MATCH",
+                "If-Match must contain a positive numeric version",
+            )
+        })
+}
+
+async fn search_parts(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<SearchPartsQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .search(&context, &query)
+        .await
+    {
+        Ok(units) => (
+            StatusCode::OK,
+            Json(json!({"units": units, "nextCursor": null})),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.search"),
+    }
+}
+
+async fn get_parts_unit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let repository = PartsInventoryRepository::new(pool);
+    let unit = match repository.get_unit(&context, unit_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.get"),
+    };
+    let assets = match repository.list_assets(&context, unit_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.assets.list"),
+    };
+    let events = match repository.list_events(&context, unit_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.events.list"),
+    };
+    (
+        StatusCode::OK,
+        Json(json!({"unit": unit, "assets": assets, "events": events})),
+    )
+        .into_response()
+}
+
+async fn create_parts_receiving_draft(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateReceivingDraftInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot receive parts",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .create_draft(&context, &input)
+        .await
+    {
+        Ok(draft) => (StatusCode::CREATED, Json(json!({"draft": draft}))).into_response(),
+        Err(error) => parts_error(error, "parts.draft.create"),
+    }
+}
+
+async fn register_parts_asset(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(draft_id): Path<Uuid>,
+    Json(input): Json<RegisterAssetInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot upload parts evidence",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .register_asset(&context, draft_id, &input)
+        .await
+    {
+        Ok((asset, _storage_key)) => (
+            StatusCode::CREATED,
+            Json(json!({
+                "asset": asset,
+                "upload": {
+                    "method": "PUT",
+                    "url": format!("/api/parts/assets/{}/content", asset.id)
+                }
+            })),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.asset.register"),
+    }
+}
+
+struct PartsBlobAccess {
+    url: String,
+    bearer_token: Option<String>,
+}
+
+async fn parts_blob_access(
+    client: &reqwest::Client,
+    storage_key: &str,
+) -> Result<PartsBlobAccess, Response> {
+    let sas = std::env::var("MXGENIUS_PARTS_UPLOAD_SAS")
+        .or_else(|_| std::env::var("MXGENIUS_CONTENT_UPLOAD_SAS"))
+        .ok()
+        .map(|value| value.replace("%26", "&"))
+        .filter(|value| !value.trim().is_empty());
+    let origin = std::env::var("MXGENIUS_PARTS_UPLOAD_ORIGIN")
+        .or_else(|_| std::env::var("MXGENIUS_CONTENT_UPLOAD_ORIGIN"))
+        .or_else(|_| std::env::var("MXGENIUS_MANUAL_ASSET_ORIGIN"))
+        .unwrap_or_else(|_| "https://mxgstorage50106.blob.core.windows.net".into());
+    let base_url = format!(
+        "{}/{}",
+        origin.trim_end_matches('/'),
+        storage_key.trim_start_matches('/')
+    );
+    if let Some(sas) = sas {
+        return Ok(PartsBlobAccess {
+            url: format!("{}?{}", base_url, sas.trim_start_matches('?')),
+            bearer_token: None,
+        });
+    }
+    let bearer_token = managed_identity_token(client, "https://storage.azure.com/")
+        .await
+        .map_err(|error| {
+            tracing::warn!(target: "mxgenius.parts.storage", %error, "storage token acquisition failed");
+            realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "PARTS_STORAGE_NOT_CONFIGURED",
+                "private parts storage identity is not configured",
+            )
+        })?;
+    Ok(PartsBlobAccess {
+        url: base_url,
+        bearer_token: Some(bearer_token),
+    })
+}
+
+async fn put_parts_asset_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(asset_id): Path<Uuid>,
+    body: Bytes,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot upload parts evidence",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let repository = PartsInventoryRepository::new(pool);
+    let asset = match repository.asset_storage(&context, asset_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.asset.get"),
+    };
+    if asset.processing_state != "pending_upload" {
+        return realtime_error(
+            StatusCode::CONFLICT,
+            "PARTS_ASSET_STATE_CONFLICT",
+            "asset is not awaiting upload",
+        );
+    }
+    if body.len() as i64 != asset.byte_size {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "PARTS_ASSET_SIZE_MISMATCH",
+            "uploaded byte length does not match the registered asset",
+        );
+    }
+    let media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    if media_type != asset.media_type {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "PARTS_ASSET_TYPE_MISMATCH",
+            "uploaded media type does not match the registered asset",
+        );
+    }
+    let digest = hex::encode(sha2::Sha256::digest(&body));
+    if digest != asset.sha256 {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "PARTS_ASSET_HASH_MISMATCH",
+            "uploaded content hash does not match the registered asset",
+        );
+    }
+    let access = match parts_blob_access(&state.realtime_client, &asset.storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state
+        .realtime_client
+        .put(access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, &asset.media_type)
+        .body(body);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts", %error, %asset_id, "parts asset upload failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_ASSET_UPLOAD_FAILED",
+                "parts asset could not be stored",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        tracing::warn!(target: "mxgenius.parts", status=%upstream.status(), %asset_id, "parts storage rejected asset");
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "PARTS_ASSET_UPLOAD_REJECTED",
+            "private parts storage rejected the upload",
+        );
+    }
+    match repository.mark_asset_uploaded(&context, asset_id).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(json!({"assetId": asset_id, "state": "uploaded"})),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.asset.mark_uploaded"),
+    }
+}
+
+async fn get_parts_asset_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(asset_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let asset = match PartsInventoryRepository::new(pool)
+        .asset_storage(&context, asset_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.asset.get"),
+    };
+    if asset.processing_state == "pending_upload" || asset.processing_state == "quarantined" {
+        return realtime_error(
+            StatusCode::CONFLICT,
+            "PARTS_ASSET_NOT_AVAILABLE",
+            "asset content is not available",
+        );
+    }
+    let access = match parts_blob_access(&state.realtime_client, &asset.storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state
+        .realtime_client
+        .get(access.url)
+        .header("x-ms-version", "2023-11-03");
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts", %error, %asset_id, "parts asset download failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_ASSET_DOWNLOAD_FAILED",
+                "parts asset could not be retrieved",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "PARTS_ASSET_DOWNLOAD_REJECTED",
+            "private parts storage rejected the download",
+        );
+    }
+    let bytes = match upstream.bytes().await {
+        Ok(value) if value.len() as i64 == asset.byte_size => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_ASSET_CONTENT_INVALID",
+                "stored parts asset failed size validation",
+            )
+        }
+    };
+    let mut response_headers = HeaderMap::new();
+    if let Ok(value) = HeaderValue::from_str(&asset.media_type) {
+        response_headers.insert(header::CONTENT_TYPE, value);
+    }
+    response_headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    (StatusCode::OK, response_headers, bytes).into_response()
+}
+
+fn aviation_extraction_proposals(content: &str) -> Vec<ExtractionProposal> {
+    let definitions = [
+        (
+            "partNumber",
+            r"(?i)\b(?:part\s*(?:number|no\.?)|p/?n)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
+        ),
+        (
+            "serialNumber",
+            r"(?i)\b(?:serial\s*(?:number|no\.?)|s/?n)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
+        ),
+        (
+            "certificateNumber",
+            r"(?i)\b(?:certificate|cert)\s*(?:number|no\.?)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
+        ),
+        (
+            "manufacturer",
+            r"(?i)\b(?:manufacturer|mfr)\s*[:#-]?\s*([A-Z][A-Z0-9 &'().-]{2,48})",
+        ),
+        (
+            "description",
+            r"(?i)\b(?:description|nomenclature)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 &'().,/-]{2,80})",
+        ),
+    ];
+    definitions
+        .into_iter()
+        .filter_map(|(field_name, pattern)| {
+            let capture = regex::Regex::new(pattern).ok()?.captures(content)?;
+            let value = capture.get(1)?.as_str().trim().to_owned();
+            let normalized = if matches!(
+                field_name,
+                "partNumber" | "serialNumber" | "certificateNumber"
+            ) {
+                Some(value.to_ascii_uppercase())
+            } else {
+                None
+            };
+            Some(ExtractionProposal {
+                field_name: field_name.into(),
+                proposed_value: value,
+                normalized_value: normalized,
+                confidence: Some(0.75),
+                source_region: None,
+            })
+        })
+        .collect()
+}
+
+async fn request_parts_extraction(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(asset_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot process parts evidence",
+        );
+    }
+    let endpoint = match std::env::var("MXGENIUS_DOCUMENT_INTELLIGENCE_ENDPOINT") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "PARTS_OCR_NOT_CONFIGURED",
+                "Azure Document Intelligence is not configured",
+            )
+        }
+    };
+    let key = std::env::var("MXGENIUS_DOCUMENT_INTELLIGENCE_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let cognitive_token = if key.is_none() {
+        match managed_identity_token(
+            &state.realtime_client,
+            "https://cognitiveservices.azure.com/",
+        )
+        .await
+        {
+            Ok(value) => Some(value),
+            Err(error) => {
+                tracing::warn!(target: "mxgenius.parts.ocr", %error, "Document Intelligence token acquisition failed");
+                return realtime_error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "PARTS_OCR_NOT_CONFIGURED",
+                    "Azure Document Intelligence identity is not configured",
+                );
+            }
+        }
+    } else {
+        None
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let repository = PartsInventoryRepository::new(pool);
+    let asset = match repository.asset_storage(&context, asset_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.extraction.asset"),
+    };
+    let run = match repository.start_extraction(&context, asset_id).await {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.extraction.start"),
+    };
+    if run.state != "processing" {
+        let candidates = repository
+            .list_extraction_candidates(&context, run.id)
+            .await
+            .unwrap_or_default();
+        return (
+            StatusCode::OK,
+            Json(json!({"run": run, "candidates": candidates})),
+        )
+            .into_response();
+    }
+    let blob_access = match parts_blob_access(&state.realtime_client, &asset.storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut blob_request = state
+        .realtime_client
+        .get(blob_access.url)
+        .header("x-ms-version", "2023-11-03");
+    if let Some(token) = blob_access.bearer_token {
+        blob_request = blob_request.bearer_auth(token);
+    }
+    let bytes = match blob_request.send().await {
+        Ok(response) if response.status().is_success() => match response.bytes().await {
+            Ok(value) => value,
+            Err(_) => {
+                let _ = repository
+                    .fail_extraction(&context, run.id, "ASSET_READ_FAILED")
+                    .await;
+                return realtime_error(
+                    StatusCode::BAD_GATEWAY,
+                    "PARTS_ASSET_DOWNLOAD_FAILED",
+                    "parts asset could not be read for extraction",
+                );
+            }
+        },
+        _ => {
+            let _ = repository
+                .fail_extraction(&context, run.id, "ASSET_READ_FAILED")
+                .await;
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_ASSET_DOWNLOAD_FAILED",
+                "parts asset could not be read for extraction",
+            );
+        }
+    };
+    let analyze_url = format!(
+        "{}/documentintelligence/documentModels/prebuilt-layout:analyze?_overload=analyzeDocument&api-version=2024-11-30",
+        endpoint.trim_end_matches('/')
+    );
+    let mut analyze_request = state
+        .realtime_client
+        .post(analyze_url)
+        .header(header::CONTENT_TYPE, &asset.media_type)
+        .body(bytes);
+    if let Some(key) = key.as_deref() {
+        analyze_request = analyze_request.header("Ocp-Apim-Subscription-Key", key);
+    } else if let Some(token) = cognitive_token.as_deref() {
+        analyze_request = analyze_request.bearer_auth(token);
+    }
+    let analyze = match analyze_request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts.ocr", %error, %asset_id, "Document Intelligence request failed");
+            let _ = repository
+                .fail_extraction(&context, run.id, "OCR_REQUEST_FAILED")
+                .await;
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_OCR_UNAVAILABLE",
+                "document extraction request failed",
+            );
+        }
+    };
+    if analyze.status() != reqwest::StatusCode::ACCEPTED {
+        tracing::warn!(target: "mxgenius.parts.ocr", status=%analyze.status(), %asset_id, "Document Intelligence rejected request");
+        let _ = repository
+            .fail_extraction(&context, run.id, "OCR_REQUEST_REJECTED")
+            .await;
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "PARTS_OCR_REJECTED",
+            "document extraction service rejected the asset",
+        );
+    }
+    let Some(operation_url) = analyze
+        .headers()
+        .get("operation-location")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+    else {
+        let _ = repository
+            .fail_extraction(&context, run.id, "OCR_OPERATION_MISSING")
+            .await;
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "PARTS_OCR_INVALID_RESPONSE",
+            "document extraction returned no operation reference",
+        );
+    };
+    let mut result = None;
+    for _ in 0..20 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let mut poll_request = state.realtime_client.get(&operation_url);
+        if let Some(key) = key.as_deref() {
+            poll_request = poll_request.header("Ocp-Apim-Subscription-Key", key);
+        } else if let Some(token) = cognitive_token.as_deref() {
+            poll_request = poll_request.bearer_auth(token);
+        }
+        let poll = match poll_request.send().await {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let payload = match poll.json::<Value>().await {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        match payload.get("status").and_then(Value::as_str) {
+            Some("succeeded") => {
+                result = Some(payload);
+                break;
+            }
+            Some("failed") => break,
+            _ => {}
+        }
+    }
+    let Some(result) = result else {
+        let _ = repository
+            .fail_extraction(&context, run.id, "OCR_INCOMPLETE")
+            .await;
+        return realtime_error(
+            StatusCode::GATEWAY_TIMEOUT,
+            "PARTS_OCR_INCOMPLETE",
+            "document extraction did not complete",
+        );
+    };
+    let content = result
+        .pointer("/analyzeResult/content")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let proposals = aviation_extraction_proposals(content);
+    match repository
+        .complete_extraction(&context, run.id, &operation_url, &proposals)
+        .await
+    {
+        Ok(candidates) => (
+            StatusCode::OK,
+            Json(json!({
+                "run": {"id": run.id, "assetId": asset_id, "state": "review_ready"},
+                "candidates": candidates,
+                "notice": "OCR suggestions require human review and do not establish identity, condition, trace, or airworthiness."
+            })),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.extraction.complete"),
+    }
+}
+
+async fn review_parts_extraction(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(run_id): Path<Uuid>,
+    Json(input): Json<ReviewExtractionInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot review parts extraction",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .review_extraction(&context, run_id, &input)
+        .await
+    {
+        Ok(candidates) => (StatusCode::OK, Json(json!({"candidates": candidates}))).into_response(),
+        Err(error) => parts_error(error, "parts.extraction.review"),
+    }
+}
+
+async fn confirm_parts_receiving(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(draft_id): Path<Uuid>,
+    Json(input): Json<ConfirmReceivingInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let idempotency_key = match required_header(&headers, "Idempotency-Key") {
+        Ok(value) if value.len() <= 200 => value,
+        Ok(_) => {
+            return realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_IDEMPOTENCY_KEY",
+                "Idempotency-Key is too long",
+            )
+        }
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot receive parts",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.receive"
+            && grant.object_id == draft_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this draft and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let request_bytes = serde_json::to_vec(&input).unwrap_or_default();
+    let request_hash = hex::encode(sha2::Sha256::digest(request_bytes));
+    match PartsInventoryRepository::new(pool)
+        .confirm_receiving(
+            &context,
+            draft_id,
+            version,
+            &idempotency_key,
+            &request_hash,
+            &input,
+        )
+        .await
+    {
+        Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.receiving.confirm"),
+    }
+}
+
+async fn list_parts_unit_assets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .list_assets(&context, unit_id)
+        .await
+    {
+        Ok(assets) => (StatusCode::OK, Json(json!({"assets": assets}))).into_response(),
+        Err(error) => parts_error(error, "parts.assets.list"),
+    }
+}
+
+async fn list_parts_unit_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .list_events(&context, unit_id)
+        .await
+    {
+        Ok(events) => (StatusCode::OK, Json(json!({"events": events}))).into_response(),
+        Err(error) => parts_error(error, "parts.events.list"),
+    }
+}
+
+async fn get_parts_faa_candidates(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let unit = match PartsInventoryRepository::new(pool)
+        .get_unit(&context, unit_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.faa.unit"),
+    };
+    let normalized = json!({
+        "aircraftId": unit.metadata.get("aircraftId").and_then(Value::as_str),
+        "partNumber": unit.part_number,
+        "manufacturer": unit.manufacturer
+    });
+    let Some(aircraft_id) = unit
+        .metadata
+        .get("aircraftId")
+        .and_then(Value::as_str)
+        .filter(|value| Uuid::parse_str(value).is_ok())
+    else {
+        return (
+            StatusCode::OK,
+            Json(json!({
+                "state": "identifiers_incomplete",
+                "normalizedIdentifiers": normalized,
+                "source": {
+                    "name": "FAA Dynamic Regulatory System",
+                    "url": "https://drs.faa.gov/",
+                    "retrievedAt": null
+                },
+                "candidates": [],
+                "advisory": "No automated applicability determination was made. A canonical aircraft association is required before querying FAA AD candidates."
+            })),
+        )
+            .into_response();
+    };
+    let envelope = match state
+        .dispatcher
+        .call_tool_with_context(
+            &context,
+            "mxg.compliance.applicable_ads",
+            json!({"aircraft_id": aircraft_id, "case_id": null}),
+        )
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts.faa", %error, %unit_id, "FAA capability call failed");
+            return (
+                StatusCode::OK,
+                Json(json!({
+                    "state": "source_unavailable",
+                    "normalizedIdentifiers": normalized,
+                    "source": {
+                        "name": "FAA Dynamic Regulatory System",
+                        "url": "https://drs.faa.gov/",
+                        "retrievedAt": null
+                    },
+                    "candidates": [],
+                    "advisory": "The FAA candidate source could not be queried. This is not evidence that no AD applies."
+                })),
+            )
+                .into_response();
+        }
+    };
+    let codes = envelope
+        .get("warnings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .chain(
+            envelope
+                .get("errors")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten(),
+        )
+        .filter_map(|value| value.get("code").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    let candidates = envelope
+        .pointer("/output/ads")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|ad| {
+            json!({
+                "adNumber": ad.get("ad_number"),
+                "title": ad.get("title"),
+                "effectiveAt": ad.get("effective_at"),
+                "url": ad.get("source_reference"),
+                "applicability": ad.get("applicability")
+            })
+        })
+        .collect::<Vec<_>>();
+    let source_state = if codes.contains(&"NOT_CONFIGURED") {
+        "source_not_configured"
+    } else if codes.contains(&"SOURCE_NOT_LICENSED") {
+        "source_rejected"
+    } else if codes.iter().any(|code| {
+        matches!(
+            *code,
+            "SOURCE_UNAVAILABLE" | "SOURCE_TIMEOUT" | "SOURCE_RATE_LIMITED" | "INTERNAL_ERROR"
+        )
+    }) {
+        "source_unavailable"
+    } else if codes
+        .iter()
+        .any(|code| matches!(*code, "APPLICABILITY_UNKNOWN" | "INVALID_INPUT"))
+    {
+        "identifiers_incomplete"
+    } else if candidates.is_empty() {
+        "no_candidates"
+    } else {
+        "candidates_found"
+    };
+    let retrieved_at = envelope.get("completed_at").cloned().unwrap_or(Value::Null);
+    let result = json!({
+        "state": source_state,
+        "normalizedIdentifiers": normalized,
+        "source": {
+            "name": "FAA Dynamic Regulatory System",
+            "url": "https://drs.faa.gov/",
+            "retrievedAt": retrieved_at
+        },
+        "candidates": candidates,
+        "advisory": "FAA results are metadata candidates for qualified review. Final effectivity and serial applicability must be verified in the authoritative record."
+    });
+    let retrieved = envelope
+        .get("completed_at")
+        .and_then(Value::as_str)
+        .and_then(|value| {
+            OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()
+        })
+        .unwrap_or_else(OffsetDateTime::now_utc);
+    if let Err(error) = sqlx::query(
+        r#"INSERT INTO faa_candidate_queries
+           (id,organization_id,stock_unit_id,state,source_name,source_url,
+            normalized_identifiers,candidates,retrieved_at,correlation_id,created_at)
+           VALUES ($1,$2,$3,$4,'FAA Dynamic Regulatory System','https://drs.faa.gov/',
+                   $5,$6,$7,$8,now())"#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(context.organization_id.0)
+    .bind(unit_id)
+    .bind(source_state)
+    .bind(
+        result
+            .get("normalizedIdentifiers")
+            .cloned()
+            .unwrap_or(json!({})),
+    )
+    .bind(result.get("candidates").cloned().unwrap_or(json!([])))
+    .bind(retrieved)
+    .bind(context.correlation_id.0)
+    .execute(pool)
+    .await
+    {
+        tracing::warn!(target: "mxgenius.parts.faa", %error, %unit_id, "FAA provenance cache write failed");
+    }
+    (StatusCode::OK, Json(result)).into_response()
+}
+
+fn qr_svg_data_url(value: &str) -> Result<String, &'static str> {
+    let code = qrcodegen::QrCode::encode_text(value, qrcodegen::QrCodeEcc::Medium)
+        .map_err(|_| "canonical URL is too long for a QR code")?;
+    let border = 4;
+    let size = code.size();
+    let dimension = size + border * 2;
+    let mut path = String::new();
+    for y in 0..size {
+        for x in 0..size {
+            if code.get_module(x, y) {
+                path.push_str(&format!("M{} {}h1v1h-1z", x + border, y + border));
+            }
+        }
+    }
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {dimension} {dimension}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="{path}" fill="#000"/></svg>"##
+    );
+    Ok(format!(
+        "data:image/svg+xml;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(svg)
+    ))
+}
+
+async fn get_parts_unit_label(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let unit = match PartsInventoryRepository::new(pool)
+        .get_unit(&context, unit_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return parts_error(error, "parts.label.unit"),
+    };
+    let origin = std::env::var("MXGENIUS_PUBLIC_APP_ORIGIN")
+        .unwrap_or_else(|_| "https://mxgenius.io".into());
+    let canonical_url = format!(
+        "{}/dashboard.html#parts/unit/{}",
+        origin.trim_end_matches('/'),
+        unit.id
+    );
+    let qr_data_url = match qr_svg_data_url(&canonical_url) {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "PARTS_LABEL_GENERATION_FAILED",
+                message,
+            )
+        }
+    };
+    (
+        StatusCode::OK,
+        Json(json!({
+            "canonicalUrl": canonical_url,
+            "qrDataUrl": qr_data_url,
+            "partNumber": unit.part_number,
+            "serialNumber": unit.serial_number,
+            "description": unit.description,
+            "humanReadableId": format!("MXG-{}", unit.id.simple().to_string()[..8].to_ascii_uppercase())
+        })),
+    )
+        .into_response()
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -871,17 +2049,17 @@ async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> 
     }
 }
 
-async fn managed_identity_graph_token(client: &reqwest::Client) -> Result<String, String> {
+async fn managed_identity_token(
+    client: &reqwest::Client,
+    resource: &str,
+) -> Result<String, String> {
     let endpoint = std::env::var("IDENTITY_ENDPOINT")
         .map_err(|_| "Container App managed identity is not configured".to_string())?;
     let identity_header = std::env::var("IDENTITY_HEADER")
         .map_err(|_| "Container App managed identity is not configured".to_string())?;
     let response = client
         .get(endpoint)
-        .query(&[
-            ("resource", "https://graph.microsoft.com"),
-            ("api-version", "2019-08-01"),
-        ])
+        .query(&[("resource", resource), ("api-version", "2019-08-01")])
         .header("X-IDENTITY-HEADER", identity_header)
         .send()
         .await
@@ -900,6 +2078,10 @@ async fn managed_identity_graph_token(client: &reqwest::Client) -> Result<String
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or_else(|| "managed identity token response omitted access_token".to_string())
+}
+
+async fn managed_identity_graph_token(client: &reqwest::Client) -> Result<String, String> {
+    managed_identity_token(client, "https://graph.microsoft.com").await
 }
 
 async fn invite_beta_user(client: &reqwest::Client, email: &str) -> Result<(), String> {
@@ -4065,6 +5247,36 @@ mod structured_advisory_tests {
             content_upload_media_type("application/octet-stream", "payload.exe"),
             None
         );
+    }
+
+    #[test]
+    fn aviation_ocr_remains_bounded_proposed_metadata() {
+        let proposals = aviation_extraction_proposals(
+            "PART NUMBER: 23091234\nSERIAL NO: SN-9001\nMANUFACTURER: Collins Aerospace\n",
+        );
+        assert_eq!(proposals.len(), 3);
+        assert!(proposals
+            .iter()
+            .any(|value| value.field_name == "partNumber"
+                && value.normalized_value.as_deref() == Some("23091234")));
+        assert!(proposals
+            .iter()
+            .any(|value| value.field_name == "serialNumber" && value.proposed_value == "SN-9001"));
+        assert!(proposals
+            .iter()
+            .all(|value| value.confidence.is_some_and(|score| score <= 1.0)));
+    }
+
+    #[test]
+    fn parts_label_qr_is_self_contained_and_contains_no_blob_reference() {
+        let canonical = format!(
+            "https://mxgenius.io/dashboard.html#parts/unit/{}",
+            Uuid::nil()
+        );
+        let data_url = qr_svg_data_url(&canonical).expect("QR should encode");
+        assert!(data_url.starts_with("data:image/svg+xml;base64,"));
+        assert!(!data_url.contains("blob.core.windows.net"));
+        assert!(!canonical.contains('?'));
     }
 
     #[test]

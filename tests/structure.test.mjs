@@ -40,7 +40,7 @@ test('dashboard element IDs are unique', () => {
 
 test('every navigation tab resolves to exactly one panel', () => {
   const tabs = matches(/\bdata-tab="([^"]+)"/g);
-  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'settings']);
+  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'parts', 'settings']);
 
   for (const tab of tabs) {
     const escaped = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

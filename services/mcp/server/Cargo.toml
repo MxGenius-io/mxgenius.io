@@ -28,6 +28,8 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 hyper = { workspace = true }
 reqwest = { workspace = true }
+regex = { workspace = true }
+qrcodegen = { workspace = true }
 jsonwebtoken = { workspace = true }
 sqlx = { workspace = true }
 anyhow = { workspace = true }

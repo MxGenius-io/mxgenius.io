@@ -736,8 +736,104 @@ const MXApplicationClient = (() => {
     });
   }
 
+  const parts = Object.freeze({
+    search: async ({ query, status, location, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (query) params.set('query', query);
+      if (status) params.set('status', status);
+      if (location) params.set('location', location);
+      const payload = await applicationJson(`/api/parts?${params}`, { session });
+      return payload.units || [];
+    },
+    getUnit: async ({ unitId, session = {} }) => {
+      return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}`, { session });
+    },
+    createReceivingDraft: async ({ partId = null, session = {} } = {}) => {
+      const payload = await applicationJson('/api/parts/receiving-drafts', {
+        session,
+        method: 'POST',
+        body: { partId }
+      });
+      return payload.draft;
+    },
+    registerAssetUpload: async ({ draftId, kind, file, sha256, session = {} }) => {
+      return applicationJson(`/api/parts/receiving-drafts/${encodeURIComponent(draftId)}/assets`, {
+        session,
+        method: 'POST',
+        body: {
+          kind,
+          originalFilename: file.name,
+          mediaType: file.type,
+          byteSize: file.size,
+          sha256
+        }
+      });
+    },
+    uploadAsset: async ({ assetId, file, session = {} }) => {
+      return applicationJson(`/api/parts/assets/${encodeURIComponent(assetId)}/content`, {
+        session,
+        method: 'PUT',
+        body: file,
+        contentType: file.type
+      });
+    },
+    downloadAsset: async ({ assetId, session = {} }) => {
+      return (await applicationRequest(`/api/parts/assets/${encodeURIComponent(assetId)}/content`, {
+        session,
+        contentType: null
+      })).blob();
+    },
+    requestExtraction: async ({ assetId, session = {} }) => {
+      return applicationJson(`/api/parts/assets/${encodeURIComponent(assetId)}/extractions`, {
+        session,
+        method: 'POST',
+        body: {}
+      });
+    },
+    reviewExtraction: async ({ runId, decisions, session = {} }) => {
+      return applicationJson(`/api/parts/extractions/${encodeURIComponent(runId)}/reviews`, {
+        session,
+        method: 'POST',
+        body: { decisions }
+      });
+    },
+    confirmReceiving: async ({ draftId, version, values, idempotencyKey, session = {} }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.receive',
+        arguments: { draft_id: draftId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(`/api/parts/receiving-drafts/${encodeURIComponent(draftId)}/confirm`, {
+        session,
+        method: 'POST',
+        body: values,
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+          'If-Match': `"${version}"`,
+          'X-MXG-Confirmation-Grant': confirmation.token
+        }
+      });
+      return payload.unit;
+    },
+    listDocuments: async ({ unitId, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/assets`, { session });
+      return payload.assets || [];
+    },
+    listTransactions: async ({ unitId, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/events`, { session });
+      return payload.events || [];
+    },
+    getFaaCandidates: async ({ unitId, session = {} }) => {
+      return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/faa-candidates`, { session });
+    },
+    getLabel: async ({ unitId, session = {} }) => {
+      return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
+    },
+  });
+
   return Object.freeze({
 
+    parts,
     MCP_BASE,
     MCP_PROTOCOL_VERSION,
     aircraftBundle,

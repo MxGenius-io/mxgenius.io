@@ -154,6 +154,18 @@ impl Dispatcher {
         })
     }
 
+    /// Invoke a registered tool from an authenticated application route while
+    /// preserving the already-resolved tenant and actor context.
+    pub async fn call_tool_with_context(
+        &self,
+        context: &ExecutionContext,
+        tool_name: &str,
+        arguments: Value,
+    ) -> Result<Value, ServerError> {
+        self.call_tool(context, json!({"name": tool_name, "arguments": arguments}))
+            .await
+    }
+
     fn auth_error_to_rpc(&self, err: AuthError) -> JsonRpcError {
         use AuthError::*;
         let code = match err {

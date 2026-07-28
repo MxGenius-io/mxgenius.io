@@ -1,6 +1,91 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated for Field-Test Packaging
+Status: Validated for Deployment
+
+## Rocky Parts Release Delta — 2026-07-28
+
+This release closes the Rocky parts vertical slice on the existing application
+plane. The user authorized top-to-bottom execution on 2026-07-28 and asked that
+work stop only for a genuine credential blocker. Azure CLI authentication,
+subscription selection, Container Apps access, ACR access, and GitHub access
+have been verified. No credential blocker is present.
+
+### Scope
+
+- Deploy the current static frontend with passive landing-page session
+  detection and the production Parts workspace.
+- Deploy a new `mxg-core` image containing migration
+  `0015_parts_inventory.sql` and the authenticated Parts API.
+- Enable the backend with `MXGENIUS_PARTS_ENABLED=true` only in the promoted
+  revision.
+- Reuse the existing private `documents` Blob container and store Parts assets
+  below `documents/parts/{organization}/{draft}/{asset}`.
+- Create one Azure AI Document Intelligence account in `centralus`, using the
+  available free `F0` SKU, for proposed OCR metadata.
+- Grant the existing `mxg-core` system-managed identity:
+  - `Storage Blob Data Contributor`, scoped only to the existing private
+    `documents` container; and
+  - `Cognitive Services User`, scoped only to the new Document Intelligence
+    account.
+- Configure only the non-secret Document Intelligence endpoint and Blob origin
+  on `mxg-core`. Blob and OCR calls use managed identity; no new long-lived SAS
+  or service key is introduced.
+
+### Safety and data boundaries
+
+- The migration is additive and tenant-scoped. The server applies SQLx
+  migrations before accepting traffic.
+- Catalog definitions remain separate from serialized stock units.
+- Uploaded assets remain private and flow only through the authenticated
+  application API.
+- OCR output is a proposal. A human must accept, edit, or reject candidates
+  before the signed receiving confirmation.
+- FAA results preserve explicit source and identifier states and never imply
+  airworthiness.
+- QR labels contain only the stable public unit route, never Blob references,
+  tokens, or sensitive metadata.
+- Parts endpoints return `404 PARTS_NOT_ENABLED` unless the release flag is on.
+
+### Validation gates
+
+- Complete JavaScript and Rust suites pass.
+- The non-interactive Rocky gate probe passes gates 0–7 locally.
+- `cargo build --locked --release -p mxgenius-mcp`, formatting, clippy, and
+  `git diff --check` pass against the exact release tree.
+- The free Document Intelligence SKU remains available in `centralus`.
+- ACR builds the exact backend source state and the new Container App revision
+  becomes ready before traffic is accepted.
+- Migration `0015` is present in the promoted image and the ready endpoint
+  remains healthy after startup.
+- Live unauthenticated probes prove the frontend, health, readiness, and
+  fail-closed Parts boundary.
+- Final whitelisted-user acceptance proves upload, OCR review, signed receive,
+  unit detail, private asset retrieval, QR label, history, and the FAA
+  no-result/error distinctions.
+
+### Rollback
+
+- Keep the current ready `mxg-core` revision available.
+- Disable `MXGENIUS_PARTS_ENABLED` or shift traffic to the prior revision if a
+  smoke gate fails.
+- The additive tables may remain dormant; rollback does not delete inventory,
+  Blob data, role assignments, or the OCR account.
+- Revert the static frontend to the preceding GitHub Pages commit if its paired
+  deployment gate fails.
+
+### Local proof
+
+- 2026-07-28: complete frontend/application suite passed (80 tests).
+- 2026-07-28: complete Rust workspace suite passed (69 tests).
+- 2026-07-28: Rocky local gate probe passed all 9 checks through gate 7.
+- 2026-07-28: `FormRecognizer` F0 and S0 SKUs were confirmed available in
+  `centralus`.
+- 2026-07-28: the existing `documents` container was confirmed private and the
+  current core identity was confirmed to have no pre-existing storage role.
+- 2026-07-28: locked formatting, strict clippy, complete tests, and the optimized
+  `mxgenius-mcp` release build passed against the exact release tree.
+- 2026-07-28: `git diff --check` passed and the signed-in Azure principal was
+  confirmed as subscription Owner with role-assignment authority.
 
 ## Field-Test Release Delta — 2026-07-27
 

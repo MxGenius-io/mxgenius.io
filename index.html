@@ -88,6 +88,22 @@
             color: var(--primary-blue);
         }
 
+        .landing-identity {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-gray);
+            font-size: 0.78rem;
+        }
+
+        .landing-identity strong {
+            color: #fff;
+            max-width: 15rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .nav-links a.nav-gpt {
             display: flex;
             align-items: center;
@@ -983,7 +999,7 @@
         }
     </style>
 </head>
-<body>
+<body data-auth-state="initializing">
     <!-- Navigation -->
     <nav>
         <div class="nav-container">
@@ -992,7 +1008,8 @@
                 <span>MXGenius</span>
             </a>
             <ul class="nav-links">
-                  <li><a href="login.html" class="nav-special">Login</a></li>
+                  <li id="signedInAs" class="landing-identity" hidden><span>Signed in as</span> <strong id="signedInAsName"></strong></li>
+                  <li><a id="landingAuthLink" href="login.html" class="nav-special">Sign In</a></li>
             </ul>
             <div class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('active')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -1515,5 +1532,8 @@
             if (touchEndX > touchStartX + 50) moveCarousel(-1); // Swipe right
         }
     </script>
+    <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+    <script src="runtime-config.js?v=5"></script>
+    <script src="auth.js?v=7"></script>
 </body>
 </html>
