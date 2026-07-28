@@ -14,8 +14,8 @@ test('Parts Frontend Shell requirements', async (t) => {
   });
 
   await t.test('dashboard.html includes parts CSS and JS', () => {
-    assert.match(html, /href="parts-workspace\.css"/);
-    assert.match(html, /src="parts-workspace\.js"/);
+    assert.match(html, /href="parts-workspace\.css\?v=\d+"/);
+    assert.match(html, /src="parts-workspace\.js\?v=\d+"/);
   });
 
   await t.test('application-client.js exposes the production parts namespace', () => {
