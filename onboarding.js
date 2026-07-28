@@ -1,13 +1,13 @@
 /**
  * MXGenius Onboarding Module
  *
- * Self-contained first-run experience: welcome modal with role selection,
- * role-adapted guided tour with tab switching, persistent hotspot pulses,
- * and improved empty-state CTAs for chart containers.
+ * Versioned first-run experience for the current authenticated application:
+ * role selection, guided tab switching, persistent hotspot pulses, and
+ * improved empty-state CTAs for chart containers.
  */
 const MXOnboarding = (() => {
   /* ── Constants ────────────────────────────────────────────────────── */
-  const LS_COMPLETE = 'mxg_onboarding_complete';
+  const LS_COMPLETE = 'mxg_onboarding_complete_v3';
   const LS_ROLE     = 'mxg_role';
   const PORTAL_ID   = 'onboardingRoot';
 
@@ -29,41 +29,40 @@ const MXOnboarding = (() => {
       title: 'Aircraft Owner',
       desc: 'Look up your aircraft, ask maintenance questions, and review records.',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+    },
+    {
+      id: 'procurement',
+      title: 'Parts & Procurement',
+      desc: 'Receive parts, review document scans, track inventory, and print QR labels.',
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9 5-9-5"/><path d="M3 8l9-5 9 5v8l-9 5-9-5V8z"/><path d="M12 13v8"/></svg>`
     }
   ];
 
   /* ── Shared Tour Steps (all roles) ────────────────────────────────── */
   const SHARED_STEPS = [
     {
+      target: '#signedInAs',
+      title: 'Your Account and Access',
+      body: 'MXGenius reads your signed-in email and organization access before showing protected workspaces. Select your name here to review account and access settings.',
+      position: 'bottom'
+    },
+    {
       target: '#mainNav',
       title: 'Navigation',
-      body: 'Switch between Dashboard, Case, Operations, 3D Viewer, and Settings. Each tab is a workspace for a different part of your operation.',
+      body: 'Move between Dashboard, Case Workspace, Parts Management, 3D Inspection, and Settings. The workspaces shown here follow your assigned role.',
       position: 'bottom'
-    },
-    {
-      target: '#activeCaseCard, .active-case-card',
-      title: 'Active Maintenance Case',
-      body: 'Your current maintenance case lives here. All operations, evidence, and 3D findings anchor to it. Create one from the Case tab to get started.',
-      position: 'bottom'
-    },
-    {
-      target: '#chatToggleNav',
-      title: 'AI Copilot',
-      body: 'Ask questions about aircraft, triage maintenance issues, or use voice mode. Operational changes always require your explicit confirmation.',
-      position: 'bottom-left'
     },
     {
       target: '#apiStatus',
       title: 'Connection Status',
-      body: 'This indicator shows whether MXGenius is connected to fleet data and the capability service. Green means all systems ready.',
+      body: 'This indicator confirms when live fleet data and MXGenius services are ready. Wait for Fleet proxy ready before starting a lookup or receiving workflow.',
       position: 'bottom-left'
     },
     {
-      target: '#globeVrButton',
-      title: 'Fleet View in XR',
-      body: 'On Meta Quest, open MXGenius in the native Quest Browser, load Fleet Context, then choose View in XR. The passthrough globe supports controller selection and fingertip contact with its fleet markers.',
-      position: 'bottom-left',
-      onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
+      target: '#chatToggleNav',
+      title: 'AI Copilot',
+      body: 'Ask about an aircraft, part, maintenance issue, or source record. MXGenius can organize the answer, but any operational change still requires your confirmation.',
+      position: 'bottom-left'
     }
   ];
 
@@ -71,18 +70,25 @@ const MXOnboarding = (() => {
   const ROLE_STEPS = {
     mro: [
       {
-        target: '[data-tab="case"]',
+        target: '#caseNav',
         title: 'Create a Maintenance Case',
-        body: 'Start every maintenance event here. Enter the aircraft registration and describe the discrepancy — MXGenius builds the evidence context, finds similar cases, and checks compliance.',
+        body: 'Start a maintenance event here. Enter the aircraft registration and discrepancy so evidence, findings, approvals, and follow-up work stay connected.',
         position: 'bottom',
         onEnter: () => switchTabSafe('case')
       },
       {
-        target: '[data-tab="operations"]',
-        title: 'Operational Tools',
-        body: '50 tools organized by job: assess aircraft, plan maintenance, source parts, check weather, verify compliance, and review analytics. Start with "Plan and execute maintenance" for your daily workflow.',
+        target: '#activeCaseCard, .active-case-card',
+        title: 'Active Maintenance Case',
+        body: 'The selected case stays visible across the application. Copilot responses, evidence, approvals, and 3D findings use this case as their working context.',
         position: 'bottom',
-        onEnter: () => switchTabSafe('operations')
+        onEnter: () => switchTabSafe('dashboard')
+      },
+      {
+        target: '#partsNav',
+        title: 'Parts Management',
+        body: 'Use Parts Management when a maintenance event needs receiving evidence, serialized inventory, trace review, or a scannable unit label.',
+        position: 'bottom',
+        onEnter: () => switchTabSafe('parts')
       }
     ],
     fleet: [
@@ -99,13 +105,20 @@ const MXOnboarding = (() => {
         body: 'Filter by manufacturer, type, or status to drill into your fleet data. The charts below update in real time as you apply filters.',
         position: 'bottom',
         onEnter: () => switchTabSafe('dashboard')
+      },
+      {
+        target: '#globeVrButton',
+        title: 'Fleet View in XR',
+        body: 'On Meta Quest, open MXGenius in the native Quest Browser, load Fleet Context, then choose View in XR. The passthrough globe supports controller selection and fingertip contact with its fleet markers.',
+        position: 'bottom-left',
+        onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
       }
     ],
     owner: [
       {
         target: '.fleet-section, details:has(#globeViz), [id*="fleet"]',
         title: 'Find Your Aircraft',
-        body: 'Open Fleet Context and search by your registration number (e.g., N12345) to find your aircraft. Click on it for full details — maintenance history, specifications, and current status.',
+        body: 'Open Fleet Context and search by registration number. Select an aircraft to review its details and candidate FAA Airworthiness Directives from the live FAA source.',
         position: 'bottom',
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
       },
@@ -115,6 +128,29 @@ const MXOnboarding = (() => {
         body: 'Type a question about your aircraft to get maintenance guidance, AD applicability, or general aviation knowledge. Try the suggestion pills for common queries.',
         position: 'bottom-left',
         onEnter: () => switchTabSafe('dashboard')
+      }
+    ],
+    procurement: [
+      {
+        target: '#partsNav',
+        title: 'Parts Management',
+        body: 'This is the working inventory. Search by part number, description, or serial number, then select a unit to open its complete record.',
+        position: 'bottom',
+        onEnter: () => switchTabSafe('parts')
+      },
+      {
+        target: '#btnReceivePart',
+        title: 'Receive a Part',
+        body: 'Receiving follows four steps: upload a document or photo, review OCR suggestions, complete the inventory details, and confirm the new unit. OCR never approves a part for you.',
+        position: 'bottom',
+        onEnter: () => switchTabSafe('parts')
+      },
+      {
+        target: '#partsInventoryGrid',
+        title: 'Open the Unit Record',
+        body: 'Select a unit to review its overview, documents, inventory history, FAA references, and QR label. The QR code returns to the same controlled record.',
+        position: 'top',
+        onEnter: () => switchTabSafe('parts')
       }
     ]
   };
@@ -418,17 +454,22 @@ const MXOnboarding = (() => {
   function endTour() {
     markComplete();
     clearPortal();
-    switchTabSafe('dashboard');
+    switchTabSafe(selectedRole === 'procurement' ? 'parts' : 'dashboard');
     setTimeout(placeHotspots, 300);
   }
 
   function placeHotspots() {
     removeHotspots();
 
-    const spots = [
-      { target: '#chatToggleNav', dismissEvent: 'click' },
-      { target: '#activeCaseCard, .active-case-card', dismissEvent: 'click' }
-    ];
+    const spots = selectedRole === 'procurement'
+      ? [
+          { target: '#partsNav', dismissEvent: 'click' },
+          { target: '#btnReceivePart', dismissEvent: 'click' }
+        ]
+      : [
+          { target: '#chatToggleNav', dismissEvent: 'click' },
+          { target: '#activeCaseCard, .active-case-card', dismissEvent: 'click' }
+        ];
 
     spots.forEach(spot => {
       const el = findTarget(spot.target);

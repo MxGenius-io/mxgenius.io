@@ -393,15 +393,24 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=2"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=3"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
-  assert.match(dashboard, /onboarding\.css\?v=1/);
+  assert.match(dashboard, /onboarding\.css\?v=2/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /restart/);
   assert.match(onboarding, /injectEmptyCta/);
-  assert.match(onboarding, /mxg_onboarding_complete/);
+  assert.match(onboarding, /mxg_onboarding_complete_v3/);
+  assert.match(onboarding, /id: 'procurement'/);
+  assert.match(onboarding, /title: 'Parts & Procurement'/);
+  assert.match(onboarding, /target: '#signedInAs'/);
+  assert.match(onboarding, /target: '#partsNav'/);
+  assert.match(onboarding, /target: '#btnReceivePart'/);
+  assert.match(onboarding, /target: '#partsInventoryGrid'/);
+  assert.match(onboarding, /review OCR suggestions/);
+  assert.match(onboarding, /FAA references, and QR label/);
+  assert.doesNotMatch(onboarding, /data-tab="operations"/);
   assert.match(onboarding, /target: '#globeVrButton'/);
   assert.match(onboarding, /native Quest Browser/);
   assert.match(onboarding, /controller selection and fingertip contact/);
