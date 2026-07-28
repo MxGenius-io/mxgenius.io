@@ -872,6 +872,10 @@ function setupChatPanel() {
     renderAttachmentPreview();
   };
 
+  const syncAdvisoryPanelState = () => {
+    panel.classList.toggle('advisory-open', Boolean(history.querySelector('.mx-advisory')));
+  };
+
   attachBtn?.addEventListener('click', () => imageInput?.click());
   imageInput?.addEventListener('change', async () => {
     const available = Math.max(0, MAX_CHAT_IMAGES - pendingImages.length);
@@ -928,6 +932,7 @@ function setupChatPanel() {
     }
     turn.appendChild(bubble);
     history.appendChild(turn);
+    syncAdvisoryPanelState();
   };
 
   const loadThreadMessages = async (threadId) => {
@@ -936,6 +941,7 @@ function setupChatPanel() {
     history.replaceChildren();
     lastDisplayedResponseContext = null;
     (result.messages || []).forEach(renderThreadMessage);
+    syncAdvisoryPanelState();
     history.scrollTop = history.scrollHeight;
   };
 
@@ -976,6 +982,7 @@ function setupChatPanel() {
     } else {
       localStorage.removeItem('mxg_active_thread_id');
       history.replaceChildren();
+      syncAdvisoryPanelState();
     }
   });
 
@@ -986,6 +993,7 @@ function setupChatPanel() {
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
     history.replaceChildren();
+    syncAdvisoryPanelState();
     input.focus();
   });
 
@@ -1026,6 +1034,7 @@ function setupChatPanel() {
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
     history.replaceChildren();
+    syncAdvisoryPanelState();
     const notice = document.createElement('div');
     notice.className = 'chat-msg ai-msg';
     const bubble = document.createElement('div');
@@ -1767,7 +1776,7 @@ Rules:
         // Try multiple response fields from the structured backend response
         if (data && data.advisory && typeof data.advisory === 'object') {
           renderedStructured = renderMaintenanceAdvisory(streamTarget, data.advisory, data.manual_records || []);
-          panel.classList.toggle('advisory-open', renderedStructured);
+          syncAdvisoryPanelState();
           if (!renderedStructured) answerText = data.advisory.conversation_answer || '';
         }
         else if (data && data.advisory) answerText = data.advisory;

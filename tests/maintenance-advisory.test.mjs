@@ -28,6 +28,13 @@ test('structured advisory keeps chat and labels retrieval relevance without diag
   assert.match(app, /What Worked in Retrieved Records/);
 });
 
+test('first structured advisory immediately activates the expanded advisory layout', () => {
+  assert.match(app, /const syncAdvisoryPanelState = \(\) =>/);
+  assert.match(app, /history\.querySelector\('\.mx-advisory'\)/);
+  assert.match(app, /history\.appendChild\(turn\);\s+syncAdvisoryPanelState\(\);/);
+  assert.match(app, /renderMaintenanceAdvisory\(streamTarget, data\.advisory, data\.manual_records \|\| \[\]\);\s+syncAdvisoryPanelState\(\);/);
+});
+
 test('manual images stay behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);

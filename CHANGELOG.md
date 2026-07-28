@@ -19,6 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Added server-side accessible-model selection so a stale profile choice cannot strand structured chat on an unavailable model.
 - Prevented model-authored prose from claiming application or connection readiness.
 - Kept strict structured output, MCP tool orchestration, threads, images, and Realtime behavior intact.
+- Applied the expanded structured-advisory layout on the first rendered or restored advisory instead of waiting for a later response.
 
 ### Fixed — FAA aircraft identity resolution
 
