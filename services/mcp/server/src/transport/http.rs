@@ -1996,15 +1996,16 @@ async fn seed_beta_access_rules(
     for (rule, rule_type, member_role) in [
         ("@advancedaog.com", "domain", "viewer"),
         ("@mxgenius.io", "domain", "viewer"),
-        ("hagy2392@gmail.com", "email", "viewer"),
-        ("rocky@mxgenius.io", "email", "viewer"),
+        ("hagy2392@gmail.com", "email", "procurement"),
+        ("rocky@mxgenius.io", "email", "procurement"),
         ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
     ] {
         sqlx::query(
             r#"INSERT INTO beta_access_rules
                (id,organization_id,rule,rule_type,member_role,created_by,created_at)
                VALUES ($1,$2,$3,$4,$5,$6,now())
-               ON CONFLICT (organization_id,rule) DO NOTHING"#,
+               ON CONFLICT (organization_id,rule)
+               DO UPDATE SET member_role=EXCLUDED.member_role"#,
         )
         .bind(Uuid::new_v4())
         .bind(context.organization_id.0)
@@ -2014,6 +2015,21 @@ async fn seed_beta_access_rules(
         .bind(context.user_id.0)
         .execute(pool)
         .await?;
+        if member_role == "procurement" {
+            sqlx::query(
+                r#"UPDATE organization_memberships AS membership
+                   SET role='procurement'
+                   FROM users AS app_user
+                   WHERE membership.user_id=app_user.id
+                     AND membership.organization_id=$1
+                     AND lower(app_user.email)=$2
+                     AND membership.role='viewer'"#,
+            )
+            .bind(context.organization_id.0)
+            .bind(rule)
+            .execute(pool)
+            .await?;
+        }
     }
     Ok(())
 }

@@ -77,6 +77,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Replaced the browser-local whitelist with organization-scoped server persistence.
 - Corrected the incomplete `@advancedaog` rule to `@advancedaog.com`.
 - Added `@mxgenius.io` and `rocky@mxgenius.io` as protected organization access rules.
+- Assigned Rocky's protected identities the procurement role required to exercise the Parts receiving workflow.
 - Added managed-identity Microsoft Graph invitations for exact email additions.
 - Made the application API verify membership after Entra sign-in and enroll matching invited guests as viewers.
 

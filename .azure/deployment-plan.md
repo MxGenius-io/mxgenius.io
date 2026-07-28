@@ -9,7 +9,9 @@ This release preserves the existing real-time Settings invitation flow and adds
 rules. Exact email entries continue to request an Entra B2B invitation through
 Microsoft Graph before the access rule is committed. Domain rules authorize
 matching, successfully authenticated identities and do not attempt to invite an
-entire domain.
+entire domain. Rocky's two protected identities receive the `procurement` role
+needed for Parts receiving; an existing viewer membership is upgraded
+idempotently when an administrator opens the access list.
 
 ### Deployment scope
 
