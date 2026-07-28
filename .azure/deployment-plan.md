@@ -1,6 +1,6 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated for Deployment
+Status: Deployed — Rocky Acceptance Pending
 
 ## Rocky Parts Release Delta — 2026-07-28
 
@@ -86,6 +86,21 @@ have been verified. No credential blocker is present.
   `mxgenius-mcp` release build passed against the exact release tree.
 - 2026-07-28: `git diff --check` passed and the signed-in Azure principal was
   confirmed as subscription Owner with role-assignment authority.
+- 2026-07-28: ACR run `cj1e` built commit `66114b2` as
+  `mxg-core:rocky-parts-66114b2` with digest
+  `sha256:2a7b59e32094ece0b9015eb11ccb7bc3e58a7f47b08c8a21b1f4946dce503da8`.
+- 2026-07-28: Container App revision `mxg-core--0000015` became the latest
+  ready revision with the Parts feature flag, private Blob origin, and
+  Document Intelligence endpoint configured.
+- 2026-07-28: production `/healthz` and `/readyz` returned `200`; readiness
+  reported the database ready in production mode after the startup migration
+  step.
+- 2026-07-28: unauthenticated Parts access failed closed with `401`, the
+  deployed dashboard exposed the Parts bundle, and GitHub Pages completed
+  successfully at commit `66114b2`.
+- 2026-07-28: Rocky's Entra B2B invitation was sent to `hagy2392@gmail.com` and
+  is pending acceptance. The final authenticated receiving/OCR/QR/FAA pass
+  remains the only acceptance gate.
 
 ## Field-Test Release Delta — 2026-07-27
 
