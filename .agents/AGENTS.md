@@ -1,11 +1,12 @@
-# MxGenius Repo Rules
+# MXGenius Repository Rules
 
-## Git Push — CORRECT REMOTE
-**DO NOT push to `origin`.** The `origin` remote (`Advanced-aog/mxgenius.git`) is the OLD repo.
+The authoritative repository instructions are in `../AGENTS.md`.
 
-**Always push to `mxgenius`:**
-```
-git push mxgenius main
-```
+Do not create branches, worktrees, forks, or pull requests unless the user
+explicitly requests that workflow. Work directly on the active shared branch,
+make scoped commits, push its configured upstream, and leave the repository
+clean and synchronized.
 
-The live site at `mxgenius.io` deploys from `MxGenius-io/mxgenius.io.git` which is the `mxgenius` remote.
+The live repository URL is
+`https://github.com/MxGenius-io/mxgenius.io.git`. Verify the URL instead of
+assuming a particular remote alias.
