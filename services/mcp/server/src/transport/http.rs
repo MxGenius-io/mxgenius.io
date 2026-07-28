@@ -1957,6 +1957,7 @@ struct BetaAccessRuleRow {
     rule_type: String,
     member_role: String,
     created_at: OffsetDateTime,
+    locked: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2035,7 +2036,9 @@ async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> 
         return persistence_error("beta_access.seed", error);
     }
     match sqlx::query_as::<_, BetaAccessRuleRow>(
-        r#"SELECT id,rule,rule_type,member_role,created_at
+        r#"SELECT id,rule,rule_type,member_role,created_at,
+                  rule IN ('@advancedaog.com','hagy2392@gmail.com',
+                           'dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1
            ORDER BY rule_type DESC, rule ASC"#,
@@ -2134,7 +2137,9 @@ async fn add_beta_access(
         None => return persistence_not_configured(),
     };
     match sqlx::query_as::<_, BetaAccessRuleRow>(
-        r#"SELECT id,rule,rule_type,member_role,created_at
+        r#"SELECT id,rule,rule_type,member_role,created_at,
+                  rule IN ('@advancedaog.com','hagy2392@gmail.com',
+                           'dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1 AND rule=$2"#,
     )
@@ -2172,7 +2177,9 @@ async fn add_beta_access(
         r#"INSERT INTO beta_access_rules
            (id,organization_id,rule,rule_type,member_role,created_by,created_at)
            VALUES ($1,$2,$3,$4,'viewer',$5,now())
-           RETURNING id,rule,rule_type,member_role,created_at"#,
+           RETURNING id,rule,rule_type,member_role,created_at,
+                     rule IN ('@advancedaog.com','hagy2392@gmail.com',
+                              'dwaynetillman@7hermeticlabs.dev') AS locked"#,
     )
     .bind(Uuid::new_v4())
     .bind(context.organization_id.0)
@@ -2211,6 +2218,29 @@ async fn delete_beta_access(
         Some(value) => value,
         None => return persistence_not_configured(),
     };
+    match sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(
+             SELECT 1 FROM beta_access_rules
+             WHERE id=$1 AND organization_id=$2
+               AND rule IN ('@advancedaog.com','hagy2392@gmail.com',
+                            'dwaynetillman@7hermeticlabs.dev')
+           )"#,
+    )
+    .bind(rule_id)
+    .bind(context.organization_id.0)
+    .fetch_one(pool)
+    .await
+    {
+        Ok(true) => {
+            return realtime_error(
+                StatusCode::CONFLICT,
+                "PROTECTED_BETA_ACCESS_RULE",
+                "baseline beta access rules cannot be removed",
+            )
+        }
+        Ok(false) => {}
+        Err(error) => return persistence_error("beta_access.protected", error),
+    }
     match sqlx::query("DELETE FROM beta_access_rules WHERE id=$1 AND organization_id=$2")
         .bind(rule_id)
         .bind(context.organization_id.0)

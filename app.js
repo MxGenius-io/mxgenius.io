@@ -2773,7 +2773,11 @@ function initSettings() {
             if (betaStatus) betaStatus.textContent = error.message;
           }
         };
-        el.appendChild(rmBtn);
+        if (rule.locked) {
+          el.title = 'Baseline access rule';
+        } else {
+          el.appendChild(rmBtn);
+        }
         betaTags.appendChild(el);
       });
     };
