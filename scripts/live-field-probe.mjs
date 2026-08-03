@@ -109,7 +109,7 @@ await check('Dashboard release assets', 'frontend', async () => {
   for (const marker of [
     'application-client.js?v=16',
     'realtime-client.js?v=4',
-    'app.js?v=20',
+    'app.js?v=25',
     'id="chatAttachBtn"',
     'value="gpt-5.5"'
   ]) {
