@@ -7,6 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — Structured response panel release
+
+- Replaced the chat panel's independent class toggles with one explicit open/close state, preventing a structured response from leaving the close control unable to dismiss the panel.
+- Added regression coverage for first-response advisory styling and deterministic panel closure.
+- Updated the live field probe to check the deployed `application-client.js?v=16` asset instead of the retired v14 marker.
+- Release commit: `3dd6195`; frontend rollback baseline: `660311c`.
+
+### Deferred — JetNet Flight Data
+
+- Confirmed that the working JetNet Customer API login still succeeds.
+- Confirmed that its real session `apiToken` receives HTTP 403 from the separate Flight Data API when supplied as `X-Api-Key`.
+- No Flight Operations frontend, backend route, Azure setting, or mock data is included in this release. Integration remains deferred until JetNet confirms account entitlement and provides a successful key/test flow.
+
 ### Added — Rocky parts handoff
 
 - Refreshed the guided onboarding wizard with a dedicated seven-step Parts & Procurement path.
