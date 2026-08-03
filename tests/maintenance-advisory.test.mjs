@@ -35,6 +35,13 @@ test('first structured advisory immediately activates the expanded advisory layo
   assert.match(app, /renderMaintenanceAdvisory\(streamTarget, data\.advisory, data\.manual_records \|\| \[\]\);\s+syncAdvisoryPanelState\(\);/);
 });
 
+test('chat close uses explicit state and cannot reopen the panel after a response', () => {
+  assert.match(app, /function setPanelOpen\(open\)/);
+  assert.match(app, /closeBtn\?\.addEventListener\('click',[\s\S]*setPanelOpen\(false\)/);
+  assert.match(app, /panel\.classList\.remove\('open'\);\s+panel\.classList\.add\('hidden'\)/);
+  assert.doesNotMatch(app, /closeBtn\.addEventListener\('click', togglePanel\)/);
+});
+
 test('manual images stay behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);

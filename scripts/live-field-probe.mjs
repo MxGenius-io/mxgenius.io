@@ -107,7 +107,7 @@ await check('Dashboard release assets', 'frontend', async () => {
   requireCondition(response.status === 200, `Dashboard returned ${response.status}`);
   deployedDashboard = await response.text();
   for (const marker of [
-    'application-client.js?v=14',
+    'application-client.js?v=16',
     'realtime-client.js?v=4',
     'app.js?v=20',
     'id="chatAttachBtn"',

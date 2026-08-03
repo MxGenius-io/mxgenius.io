@@ -1587,31 +1587,36 @@ Rules:
 
   window.openChatWith = (text) => {
     if (!panel.classList.contains('open')) {
-      togglePanel();
+      setPanelOpen(true);
     }
     input.value = text;
     sendMessage();
   };
 
-  function togglePanel() {
-    panel.classList.toggle('hidden');
-    void panel.offsetWidth;
-    panel.classList.toggle('open');
-    if (panel.classList.contains('open')) {
+  function setPanelOpen(open) {
+    if (open) {
+      panel.classList.remove('hidden');
+      void panel.offsetWidth;
+      panel.classList.add('open');
       toggleBtn.classList.add('hidden');
       input.focus();
-    } else {
-      toggleBtn.classList.remove('hidden');
+      return;
     }
+    panel.classList.remove('open');
+    panel.classList.add('hidden');
+    toggleBtn.classList.remove('hidden');
   }
 
-  toggleBtn.addEventListener('click', togglePanel);
-  closeBtn.addEventListener('click', togglePanel);
+  toggleBtn.addEventListener('click', () => setPanelOpen(true));
+  closeBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setPanelOpen(false);
+  });
 
   // Click outside to close
   document.addEventListener('click', (e) => {
     if (panel.classList.contains('open') && !panel.contains(e.target) && !toggleBtn.contains(e.target)) {
-      togglePanel();
+      setPanelOpen(false);
     }
   });
 
