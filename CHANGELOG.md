@@ -13,10 +13,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Updated the release check for the current frontend assets.
 - Confirmed the deployed release against the public frontend, core health and readiness, authentication boundary, and browser CORS checks.
 
-### Deferred — JetNet Flight Data
-
-- Flight Operations remains deferred until JetNet confirms account access and provides a working Flight Data connection; no disconnected frontend section was released.
-
 ### Added — Rocky parts handoff
 
 - Refreshed the guided onboarding wizard with a dedicated seven-step Parts & Procurement path.
