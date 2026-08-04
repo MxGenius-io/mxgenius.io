@@ -155,6 +155,28 @@ function invalidSession(result) {
   return /(?:INVALID|EXPIRED) SECURITY TOKEN/i.test(String(result?.body?.responsestatus || ''));
 }
 
+function normalizeFleetSnapshot(result) {
+  if (!Array.isArray(result?.body?.aircraft)) return result;
+  return {
+    ...result,
+    body: {
+      ...result.body,
+      aircraft: result.body.aircraft.map((aircraft) => ({
+        ...aircraft,
+        baseiata: aircraft.baseiata || aircraft.acbaseiata || '',
+        baseicao: aircraft.baseicao || aircraft.acbaseicao || '',
+        basecity: aircraft.basecity || aircraft.acbasecity || '',
+        basestate: aircraft.basestate || aircraft.acbasestate || '',
+        basecountry: aircraft.basecountry || aircraft.acbasecountry || '',
+        baseairport: aircraft.baseairport || aircraft.acbasename || '',
+        owner: aircraft.owner || aircraft.owrcompanyname || aircraft.owrregisteredas || '',
+        operator: aircraft.operator || aircraft.oprcompanyname || '',
+        yearmfg: aircraft.yearmfg || aircraft.yearmfr || aircraft.yeardelivered || null
+      }))
+    }
+  };
+}
+
 async function forward(method, path, body) {
   if (!session.bearer || !session.apiToken) await authenticate();
   if (path.includes('/Aircraft/getAircraftList/')) {
@@ -186,11 +208,12 @@ async function forward(method, path, body) {
   if (!isFleetSnapshot) return execute();
   fleetSnapshot.inFlight = execute()
     .then((result) => {
-      if (result.status >= 200 && result.status < 300 && Array.isArray(result.body?.aircraft)) {
-        fleetSnapshot.result = result;
+      const normalizedResult = normalizeFleetSnapshot(result);
+      if (normalizedResult.status >= 200 && normalizedResult.status < 300 && Array.isArray(normalizedResult.body?.aircraft)) {
+        fleetSnapshot.result = normalizedResult;
         fleetSnapshot.loadedAt = Date.now();
       }
-      return result;
+      return normalizedResult;
     })
     .finally(() => { fleetSnapshot.inFlight = null; });
   return fleetSnapshot.inFlight;

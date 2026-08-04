@@ -13,6 +13,15 @@ test('aircraft list requests use the bounded shared fleet snapshot for every HTT
   assert.doesNotMatch(fleetProxySource, /method === 'GET' && path\.includes\('\/Aircraft\/getAircraftList\/'\)/);
 });
 
+test('bulk aircraft records preserve the application aircraft-list contract', () => {
+  assert.match(fleetProxySource, /baseicao: aircraft\.baseicao \|\| aircraft\.acbaseicao \|\| ''/);
+  assert.match(fleetProxySource, /basecity: aircraft\.basecity \|\| aircraft\.acbasecity \|\| ''/);
+  assert.match(fleetProxySource, /basecountry: aircraft\.basecountry \|\| aircraft\.acbasecountry \|\| ''/);
+  assert.match(fleetProxySource, /owner: aircraft\.owner \|\| aircraft\.owrcompanyname \|\| aircraft\.owrregisteredas \|\| ''/);
+  assert.match(fleetProxySource, /operator: aircraft\.operator \|\| aircraft\.oprcompanyname \|\| ''/);
+  assert.match(fleetProxySource, /fleetSnapshot\.result = normalizedResult/);
+});
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
