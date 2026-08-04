@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
+
+const fleetProxySource = readFileSync(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
+
+test('aircraft list requests use the bounded shared fleet snapshot for every HTTP method', () => {
+  assert.match(fleetProxySource, /if \(path\.includes\('\/Aircraft\/getAircraftList\/'\)\)/);
+  assert.match(fleetProxySource, /getBulkAircraftExportPaged\/.*\/50\/1/);
+  assert.doesNotMatch(fleetProxySource, /method === 'GET' && path\.includes\('\/Aircraft\/getAircraftList\/'\)/);
+});
 
 function listen(server) {
   return new Promise((resolve, reject) => {

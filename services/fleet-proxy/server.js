@@ -157,8 +157,8 @@ function invalidSession(result) {
 
 async function forward(method, path, body) {
   if (!session.bearer || !session.apiToken) await authenticate();
-  if (method === 'GET' && path.includes('/Aircraft/getAircraftList/')) {
-    path = `${path.replace('/Aircraft/getAircraftList/', '/Aircraft/getBulkAircraftExportPaged/')}/5000/1`;
+  if (path.includes('/Aircraft/getAircraftList/')) {
+    path = `${path.replace('/Aircraft/getAircraftList/', '/Aircraft/getBulkAircraftExportPaged/')}/50/1`;
     method = 'POST';
     body = { pageSize: 50, pageNumber: 1, make: 'Gulfstream' };
   }
