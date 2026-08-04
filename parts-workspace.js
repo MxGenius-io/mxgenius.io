@@ -525,7 +525,9 @@ const MXPartsWorkspace = (() => {
     }
   }
 
-  return Object.freeze({ init });
+  globalThis.addEventListener?.('mxg:demo-data-loaded', () => void performSearch());
+
+  return Object.freeze({ init, refresh: performSearch });
 })();
 
 if (document.readyState === 'loading') {

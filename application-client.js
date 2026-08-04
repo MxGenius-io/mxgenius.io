@@ -374,6 +374,14 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function loadDemoData(session = {}) {
+    return applicationJson('/api/demo-data', {
+      session,
+      method: 'POST',
+      body: { confirm: 'LOAD_DEMO_DATA' }
+    });
+  }
+
   async function exchangeRealtimeSdp({ sdp, session = {} }) {
     if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     if (typeof sdp !== 'string' || !sdp.startsWith('v=0')) {
@@ -881,6 +889,9 @@ const MXApplicationClient = (() => {
     }),
     content: Object.freeze({
       upload: uploadContent
+    }),
+    demoData: Object.freeze({
+      load: loadDemoData
     }),
     betaAccess: Object.freeze({
       list: listBetaAccess,

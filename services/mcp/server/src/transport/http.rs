@@ -129,6 +129,7 @@ pub fn router_with_health_and_manual(
         .route("/chat", post(chat))
         .route("/api/chat/models", get(list_chat_models))
         .route("/api/content/uploads", post(upload_content))
+        .route("/api/demo-data", post(load_demo_data))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
@@ -888,6 +889,55 @@ fn beta_admin_allowed(context: &ExecutionContext) -> bool {
         mxgenius_shared::application::policy::Role::Manager
             | mxgenius_shared::application::policy::Role::Administrator
     )
+}
+
+#[derive(Debug, Deserialize)]
+struct LoadDemoDataRequest {
+    confirm: String,
+}
+
+async fn load_demo_data(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request: LoadDemoDataRequest = match serde_json::from_slice(&body) {
+        Ok(value) => value,
+        Err(_) => {
+            return realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_DEMO_DATA_REQUEST",
+                "request body must be valid JSON",
+            );
+        }
+    };
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !beta_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "DEMO_DATA_ADMIN_REQUIRED",
+            "administrator or manager access is required",
+        );
+    }
+    if request.confirm != "LOAD_DEMO_DATA" {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "DEMO_DATA_CONFIRMATION_REQUIRED",
+            "confirm must be LOAD_DEMO_DATA",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match crate::demo_seed::seed_demo_data(pool, context.organization_id.0, context.user_id.0).await
+    {
+        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
+        Err(error) => persistence_error("demo_data.load", error),
+    }
 }
 
 fn parts_write_allowed(context: &ExecutionContext) -> bool {

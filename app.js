@@ -2493,6 +2493,8 @@ function initSettings() {
   const contentUploadInput = document.getElementById('settingsContentUploadInput');
   const contentUploadChoose = document.getElementById('settingsContentUploadChoose');
   const contentUploadStatus = document.getElementById('settingsContentUploadStatus');
+  const loadDemoDataButton = document.getElementById('settingsLoadDemoData');
+  const demoDataStatus = document.getElementById('settingsDemoDataStatus');
   const textModelSelect = document.getElementById('settingsTextModel');
   const serverSession = {
     accessToken: session.accessToken,
@@ -2891,6 +2893,25 @@ function setupMarketIntel() {
   makeSelect.addEventListener('change', updateMarketModelOptions);
   panel.addEventListener('toggle', () => {
     if (panel.open) loadMarketIntelCatalog();
+  });
+  loadDemoDataButton?.addEventListener('click', async () => {
+    const approved = window.confirm(
+      'Load the complete fictional demo dataset into this organization? Rerunning updates the same demo records.'
+    );
+    if (!approved) return;
+    loadDemoDataButton.disabled = true;
+    if (demoDataStatus) demoDataStatus.textContent = 'Loading the demo workspace...';
+    try {
+      const result = await MXApplicationClient.demoData.load(serverSession);
+      if (demoDataStatus) {
+        demoDataStatus.textContent = `Loaded ${result.aircraft} aircraft, ${result.cases} cases, ${result.stock_units} stock units, ${result.facilities} facilities, and ${result.evidence} evidence records`;
+      }
+      window.dispatchEvent(new CustomEvent('mxg:demo-data-loaded', { detail: result }));
+    } catch (error) {
+      if (demoDataStatus) demoDataStatus.textContent = error.message;
+    } finally {
+      loadDemoDataButton.disabled = false;
+    }
   });
   if (panel.open) loadMarketIntelCatalog();
 }

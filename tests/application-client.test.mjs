@@ -207,6 +207,22 @@ test('model intelligence uses the subscribed catalog endpoint and array filters'
   });
 });
 
+test('demo workspace loader uses the authenticated tenant endpoint and exact confirmation', async () => {
+  const { client, requests } = harness({});
+  await client.demoData.load({
+    accessToken: 'admin-token',
+    organizationId: 'demo-org',
+    correlationId: 'demo-correlation'
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/demo-data');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer admin-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'demo-org');
+  assert.deepEqual(requests[0].request, { confirm: 'LOAD_DEMO_DATA' });
+});
+
 test('chat uses application identity and carries canonical case context without a browser API key', async () => {
   const { client, requests } = harness({});
   assert.throws(

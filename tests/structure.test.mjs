@@ -236,6 +236,14 @@ test('fleet compatibility translation is scoped and market intelligence uses sub
   assert.match(application, /escapeMarkup\(formatted\)/);
 });
 
+test('complete demo data is explicit, tenant-authenticated, and user initiated', () => {
+  assert.match(dashboard, /id="settingsLoadDemoData"/);
+  assert.match(dashboard, /Complete Demo Workspace/);
+  assert.match(application, /MXApplicationClient\.demoData\.load\(serverSession\)/);
+  assert.match(client, /\/api\/demo-data/);
+  assert.match(client, /LOAD_DEMO_DATA/);
+});
+
 test('application script order preserves cache and client prerequisites', () => {
   const cacheIndex = dashboard.indexOf('<script src="cache.js"></script>');
   const clientIndex = dashboard.search(/<script src="application-client\.js\?v=\d+"><\/script>/);

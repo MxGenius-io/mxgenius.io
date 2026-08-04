@@ -26,3 +26,4 @@ release gates.
 | `0014_beta_access_rules.sql`              | server-owned closed-beta email/domain access rules |
 | `0013_digital_twin_models.sql`            | uploaded GLB models, mesh manifests, and model/user highlight state |
 | `0015_parts_inventory.sql`                | tenant-owned stock units, receiving, assets, extraction review, ledger, and FAA provenance |
+| `0016_mro_tenant_scope.sql`               | tenant ownership and indexes for the MCP MRO directory |

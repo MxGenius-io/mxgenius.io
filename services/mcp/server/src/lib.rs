@@ -15,6 +15,7 @@ pub mod adapters;
 pub mod application;
 pub mod confirmation;
 pub mod context;
+pub mod demo_seed;
 pub mod dispatcher;
 pub mod error;
 pub mod handlers;

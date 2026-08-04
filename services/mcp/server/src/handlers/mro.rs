@@ -161,12 +161,14 @@ impl Tool for MroSearchTool {
                    FROM mro_facilities f
                    JOIN facility_capabilities c
                      ON c.facility_id=f.id
-                   WHERE ($1::text IS NULL OR f.city ILIKE '%' || $1 || '%' OR f.country ILIKE '%' || $1 || '%' OR f.icao=$1)
-                     AND ($2::text IS NULL OR f.icao=$2)
-                     AND c.task_code=$3
+                   WHERE f.organization_id=$1
+                     AND ($2::text IS NULL OR f.city ILIKE '%' || $2 || '%' OR f.country ILIKE '%' || $2 || '%' OR f.icao=$2)
+                     AND ($3::text IS NULL OR f.icao=$3)
+                     AND c.task_code=$4
                    ORDER BY f.name
                    LIMIT 50"#,
             )
+            .bind(ctx.organization_id.0)
             .bind(location)
             .bind(icao)
             .bind(task)
@@ -176,11 +178,13 @@ impl Tool for MroSearchTool {
             sqlx::query_as(
                 r#"SELECT f.id, f.name, f.source_reference, f.icao, f.city
                    FROM mro_facilities f
-                   WHERE ($1::text IS NULL OR f.city ILIKE '%' || $1 || '%' OR f.country ILIKE '%' || $1 || '%' OR f.icao=$1)
-                     AND ($2::text IS NULL OR f.icao=$2)
+                   WHERE f.organization_id=$1
+                     AND ($2::text IS NULL OR f.city ILIKE '%' || $2 || '%' OR f.country ILIKE '%' || $2 || '%' OR f.icao=$2)
+                     AND ($3::text IS NULL OR f.icao=$3)
                    ORDER BY f.name
                    LIMIT 50"#,
             )
+            .bind(ctx.organization_id.0)
             .bind(location)
             .bind(icao)
             .fetch_all(&self.pool)
@@ -275,11 +279,13 @@ impl Tool for MroCapabilityMatchTool {
             });
         }
         let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
-            r#"SELECT task_code, rating, evidence_reference
-               FROM facility_capabilities
-               WHERE facility_id=$1"#,
+            r#"SELECT c.task_code, c.rating, c.evidence_reference
+               FROM facility_capabilities c
+               JOIN mro_facilities f ON f.id=c.facility_id
+               WHERE c.facility_id=$1 AND f.organization_id=$2"#,
         )
         .bind(input.facility_id.0)
+        .bind(ctx.organization_id.0)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| EnvelopeError {
@@ -394,10 +400,12 @@ impl Tool for MroRankTool {
             r#"SELECT f.id, f.name, count(c.id) AS capability_count
                FROM mro_facilities f
                LEFT JOIN facility_capabilities c ON c.facility_id=f.id
+               WHERE f.organization_id=$1
                GROUP BY f.id, f.name
                ORDER BY capability_count DESC, f.name ASC
                LIMIT 25"#,
         )
+        .bind(ctx.organization_id.0)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| EnvelopeError {
