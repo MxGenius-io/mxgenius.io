@@ -92,11 +92,10 @@ impl FaaDrsHttpAdapter {
                 .client
                 .post(url.clone())
                 .header(header.clone(), &self.api_key)
-                .json(&json!({
-                    "offset": page * DRS_PAGE_SIZE,
-                    "sortOrder": "DESC",
-                    "documentFilters": document_filters
-                }))
+                .json(&drs_filtered_request_body(
+                    page * DRS_PAGE_SIZE,
+                    document_filters.clone(),
+                ))
                 .send()
                 .await
                 .map_err(map_request_error)?;
@@ -296,15 +295,37 @@ fn ad_filters(document_type: &str, make: &str, model: &str) -> Map<String, Value
         format!("drs:{prefix}Make"),
         json!(faa_make_candidates(make)),
     );
-    if let Some(models) = faa_model_candidates(model) {
-        filters.insert(format!("drs:{prefix}Model"), json!(models));
-    }
+    filters.insert(
+        format!("drs:{prefix}Model"),
+        json!(faa_model_candidates(model)),
+    );
     filters
+}
+
+/// Returns the exact JSON body sent to the FAA DRS filtered metadata endpoint.
+///
+/// This intentionally contains no API key and is safe to use in request-shape
+/// diagnostics and regression tests.
+pub fn drs_filtered_request_preview(
+    document_type: &str,
+    make: &str,
+    model: &str,
+    offset: usize,
+) -> Value {
+    drs_filtered_request_body(offset, ad_filters(document_type, make, model))
+}
+
+fn drs_filtered_request_body(offset: usize, document_filters: Map<String, Value>) -> Value {
+    json!({
+        "offset": offset,
+        "sortOrder": "DESC",
+        "documentFilters": document_filters
+    })
 }
 
 fn faa_make_candidates(make: &str) -> Vec<String> {
     let normalized = make.to_ascii_lowercase();
-    let candidates: &[&str] = if normalized.contains("bombardier") {
+    let aliases: &[&str] = if normalized.contains("bombardier") {
         &["Bombardier Inc."]
     } else if normalized.contains("gulfstream") {
         &[
@@ -325,25 +346,74 @@ fn faa_make_candidates(make: &str) -> Vec<String> {
     } else if normalized.contains("airbus") {
         &["Airbus SAS", "Airbus Canada Limited Partnership"]
     } else {
-        return vec![make.to_owned()];
+        &[]
     };
-    candidates.iter().map(|value| (*value).to_owned()).collect()
+    unique_candidates(make, aliases)
 }
 
-fn faa_model_candidates(model: &str) -> Option<Vec<String>> {
+fn faa_model_candidates(model: &str) -> Vec<String> {
     let normalized = model.to_ascii_lowercase().replace(['-', ' '], "");
-    let values: &[&str] = if normalized.contains("global7500") {
+    let aliases: &[&str] = if normalized.contains("global7500") {
         &["BD-700-2A12"]
     } else if normalized.contains("global6500") {
         &["BD-700-1A11"]
     } else if normalized.contains("global5500") {
         &["BD-700-1A10"]
-    } else if normalized.contains("challenger300") || normalized.contains("challenger350") {
+    } else if normalized.contains("challenger300")
+        || normalized.contains("challenger350")
+        || normalized.contains("challenger3500")
+    {
         &["BD-100-1A10"]
+    } else if normalized.contains("gulfstream100") || normalized == "g100" {
+        &["Gulfstream 100", "Astra SPX"]
+    } else if normalized.contains("gulfstream150") || normalized == "g150" {
+        &["Gulfstream G150", "G150"]
+    } else if normalized.contains("gulfstream200") || normalized == "g200" {
+        &["Gulfstream 200", "Galaxy"]
+    } else if normalized.contains("gulfstream280") || normalized == "g280" {
+        &["Gulfstream G280"]
+    } else if normalized.contains("gulfstream350")
+        || normalized.contains("gulfstream450")
+        || normalized == "g350"
+        || normalized == "g450"
+    {
+        &["GIV-X"]
+    } else if normalized.contains("gulfstream500") || normalized == "g500" {
+        &["GVII-G500"]
+    } else if normalized.contains("gulfstream550") || normalized == "g550" {
+        &["GV-SP"]
+    } else if normalized.contains("gulfstream600") || normalized == "g600" {
+        &["GVII-G600"]
+    } else if normalized.contains("gulfstream650") || normalized == "g650" || normalized == "g650er"
+    {
+        &["GVI"]
+    } else if normalized.contains("gulfstream700") || normalized == "g700" {
+        &["GVIII-G700"]
+    } else if normalized.contains("gulfstream800") || normalized == "g800" {
+        &["GVIII-G800"]
+    } else if normalized.contains("gulfstreamiv") || normalized == "giv" {
+        &["G-IV"]
+    } else if normalized.contains("gulfstreamv") || normalized == "gv" {
+        &["GV"]
     } else {
-        return None;
+        &[]
     };
-    Some(values.iter().map(|value| (*value).to_owned()).collect())
+    unique_candidates(model, aliases)
+}
+
+fn unique_candidates(original: &str, aliases: &[&str]) -> Vec<String> {
+    let mut candidates = Vec::with_capacity(aliases.len() + 1);
+    for value in std::iter::once(original).chain(aliases.iter().copied()) {
+        let value = value.trim();
+        if !value.is_empty()
+            && !candidates
+                .iter()
+                .any(|candidate: &String| candidate.eq_ignore_ascii_case(value))
+        {
+            candidates.push(value.to_owned());
+        }
+    }
+    candidates
 }
 
 fn filter_documents(documents: Vec<DrsDocument>, query: &str) -> Vec<DrsDocument> {
@@ -448,7 +518,41 @@ mod tests {
     fn maps_global_7500_to_faa_type_model() {
         assert_eq!(
             faa_model_candidates("Global 7500"),
-            Some(vec!["BD-700-2A12".into()])
+            vec![String::from("Global 7500"), String::from("BD-700-2A12")]
+        );
+    }
+
+    #[test]
+    fn emits_exact_gulfstream_g550_final_rule_request() {
+        assert_eq!(
+            drs_filtered_request_preview("ADFRAWD", "Gulfstream", "G550", 0),
+            json!({
+                "offset": 0,
+                "sortOrder": "DESC",
+                "documentFilters": {
+                    "drs:adfrawdMake": [
+                        "Gulfstream",
+                        "Gulfstream Aerospace LP",
+                        "Gulfstream American Corporation",
+                        "Gulfstream Aerospace Corporation"
+                    ],
+                    "drs:adfrawdModel": ["G550", "GV-SP"]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn never_drops_an_unmapped_model_from_the_request() {
+        let payload = drs_filtered_request_preview("ADFREAD", "Example Aircraft", "Model 42", 750);
+        assert_eq!(payload["offset"], 750);
+        assert_eq!(
+            payload["documentFilters"]["drs:adfreadMake"],
+            json!(["Example Aircraft"])
+        );
+        assert_eq!(
+            payload["documentFilters"]["drs:adfreadModel"],
+            json!(["Model 42"])
         );
     }
 }
