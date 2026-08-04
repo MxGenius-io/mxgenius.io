@@ -242,6 +242,19 @@ test('complete demo data is explicit, tenant-authenticated, and user initiated',
   assert.match(application, /MXApplicationClient\.demoData\.load\(serverSession\)/);
   assert.match(client, /\/api\/demo-data/);
   assert.match(client, /LOAD_DEMO_DATA/);
+
+  const settingsStart = application.indexOf('function initSettings()');
+  const settingsEnd = application.indexOf('function closeModal', settingsStart);
+  const demoHandler = application.indexOf("loadDemoDataButton?.addEventListener('click'", settingsStart);
+  const marketIntelStart = application.indexOf('function setupMarketIntel()');
+  const marketIntelEnd = application.indexOf('async function loadMarketIntelCatalog', marketIntelStart);
+
+  assert.ok(demoHandler > settingsStart && demoHandler < settingsEnd, 'demo handler must stay inside initSettings scope');
+  assert.equal(
+    application.slice(marketIntelStart, marketIntelEnd).includes('loadDemoDataButton'),
+    false,
+    'market intelligence startup must not reference settings-local demo controls'
+  );
 });
 
 test('application script order preserves cache and client prerequisites', () => {
