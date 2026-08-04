@@ -1,6 +1,36 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated
+Status: Azure Promoted; Frontend Acceptance Pending
+
+## Market-Readiness Delta — 2026-08-04
+
+### Release scope
+
+- Remount the reviewed MCP implementation in `services/mcp` without changing
+  the existing migration history.
+- Surface backend-derived capability readiness in Operations and the aircraft
+  FAA panel.
+- Require a whitelisted Entra identity for browser fleet requests while
+  preserving the core-to-fleet lane through a shared Container Apps secret.
+- Publish the paired frontend only after core and fleet acceptance passes.
+
+### Validated artifacts
+
+- Core: `mxg-core:market-ready-lf-20260804-083609`, digest
+  `sha256:2a9536c07e17db66b8acae40c702c6bcbad18b71bcefb368ff83091d1398caaf`.
+- Fleet: `mxg-fleet:market-ready-20260804-073721`, digest
+  `sha256:326ee2b3d8f2d69184978311ab9550f2d8900cf644e8181797293bc2e248a1e0`.
+- JavaScript suite: 84/84. Rust formatting, strict Clippy, workspace tests, and
+  locked release build passed.
+- Production is healthy on `mxg-core--0000024` and `mxg-fleet--0000007`.
+  FAA reports `available` and the fleet internal-auth boundary is configured.
+
+### Remaining gate
+
+Run the existing `scripts/live-field-probe.mjs` against the promoted pair. It
+must prove whitelisted fleet access, core-to-fleet lookup, FAA completion, and
+the fail-closed unauthenticated fleet boundary. If it fails, retain the current
+rollback revisions and inspect the failed revision logs before making changes.
 
 ## Closed-Beta Invitation Baseline Delta — 2026-07-28
 

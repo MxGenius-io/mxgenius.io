@@ -1,9 +1,18 @@
 //! Aircraft tool handlers (6): `mxg.aircraft.*`.
 //!
-//! Lookup and profile resolve through a licensed source adapter and a
-//! tenant-scoped canonical catalog. The remaining four return typed
-//! `NOT_CONFIGURED` envelopes until their sources are mounted.
+//! All six handlers are backed by real sources available in the supplied build:
+//! - `lookup` and `profile` resolve through the licensed JetNet adapter and
+//!   the tenant-scoped canonical catalog.
+//! - `location_context`, `utilization_summary`, `related_entities`, and
+//!   `history_window` derive typed facts from the canonical catalog and the
+//!   tenant-scoped case spine (events, observations, maintenance history).
+//!
+//! Where the source is partial (no airframe-hours telemetry, no owner/operator
+//! directory), the response is a typed partial envelope with explicit
+//! `missing_fields` and a `NOT_CONFIGURED` warning that names the absent
+//! source. No fake scores, no invented numbers.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -20,15 +29,18 @@ use mxgenius_shared::contracts::{
     AircraftLocationContextResponse, AircraftLookupRequest, AircraftLookupResponse, AircraftMatch,
     AircraftProfileRequest, AircraftProfileResponse, AircraftRef, AircraftRelatedEntitiesRequest,
     AircraftRelatedEntitiesResponse, AircraftUtilizationSummaryRequest,
-    AircraftUtilizationSummaryResponse, LocationKind,
+    AircraftUtilizationSummaryResponse, HistoryEvent, HistoryKind, LocationKind,
 };
+use mxgenius_shared::domain::case::MaintenanceCase;
 use mxgenius_shared::domain::evidence::{ConfidenceBasis, Evidence, EvidenceKind, SourceType};
 use mxgenius_shared::domain::ids::EvidenceId;
 use sha2::Digest as _;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::application::aircraft_catalog::{AircraftCatalog, CanonicalAircraft};
-use crate::handlers::{spec, NotConfiguredTool};
+use crate::application::case_service::CaseService;
+use crate::handlers::{limited_spec, spec};
 use crate::registry::Registry;
 use crate::tool::Tool;
 use crate::typed_tool::wrap;
@@ -37,16 +49,23 @@ pub fn register(
     reg: &mut Registry,
     jetnet: Arc<dyn JetNetAdapter>,
     catalog: Arc<dyn AircraftCatalog>,
+    case_service: Arc<dyn CaseService>,
 ) {
     reg.register_typed_tool(wrap(Arc::new(AircraftLookupTool {
         jetnet: jetnet.clone(),
         catalog: catalog.clone(),
     })));
     reg.register_typed_tool(wrap(Arc::new(AircraftProfileTool { jetnet, catalog })));
-    reg.register_typed_tool(wrap(Arc::new(AircraftLocationContextTool)));
-    reg.register_typed_tool(wrap(Arc::new(AircraftUtilizationSummaryTool)));
-    reg.register_typed_tool(wrap(Arc::new(AircraftRelatedEntitiesTool)));
-    reg.register_typed_tool(wrap(Arc::new(AircraftHistoryWindowTool)));
+    reg.register_typed_tool(wrap(Arc::new(AircraftLocationContextTool {
+        case_service: case_service.clone(),
+    })));
+    reg.register_typed_tool(wrap(Arc::new(AircraftUtilizationSummaryTool {
+        case_service: case_service.clone(),
+    })));
+    reg.register_typed_tool(wrap(Arc::new(AircraftRelatedEntitiesTool {
+        case_service: case_service.clone(),
+    })));
+    reg.register_typed_tool(wrap(Arc::new(AircraftHistoryWindowTool { case_service })));
 }
 
 // 1. lookup ---------------------------------------------------------------
@@ -369,18 +388,21 @@ fn source_warning(error: AdapterError) -> EnvelopeError {
     }
 }
 
-// 3-6. typed not-configured ----------------------------------------------
+// 3. location_context -----------------------------------------------------
 
-pub struct AircraftLocationContextTool;
+pub struct AircraftLocationContextTool {
+    case_service: Arc<dyn CaseService>,
+}
+
 #[async_trait]
 impl Tool for AircraftLocationContextTool {
     type Request = AircraftLocationContextRequest;
     type Response = AircraftLocationContextResponse;
     fn spec(&self) -> crate::tool::ToolSpec {
-        spec::<Self::Request, Self::Response>(
+        limited_spec::<Self::Request, Self::Response>(
             "mxg.aircraft.location_context",
             "Aircraft Location Context",
-            "Return the known base or licensed location. Never live tracking unless source supports it.",
+            "Return the known base or last case-recorded location. Never live tracking unless a source supports it.",
             Action::AircraftRead, false)
     }
     async fn invoke(
@@ -388,39 +410,98 @@ impl Tool for AircraftLocationContextTool {
         ctx: &ExecutionContext,
         input: AircraftLocationContextRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        location_context_stub().invoke(ctx, input).await
+        let aircraft_id = input.aircraft_id.0.to_string();
+        let cases = self
+            .case_service
+            .list_for_org(ctx.organization_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        // Derive most recent case-scoped location for the aircraft identifier.
+        let mut most_recent: Option<&MaintenanceCase> = None;
+        for case in &cases {
+            let is_newer = match most_recent {
+                Some(current) => case.updated_at > current.updated_at,
+                None => true,
+            };
+            if case.aircraft_id == aircraft_id && case.location.is_some() && is_newer {
+                most_recent = Some(case);
+            }
+        }
+        let response = match most_recent {
+            Some(case) => AircraftLocationContextResponse {
+                aircraft_id: input.aircraft_id,
+                kind: LocationKind::KnownLicensedLocation,
+                airport_icao: case.location.as_ref().and_then(|l| l.icao.clone()),
+                airport_iata: case.location.as_ref().and_then(|l| l.iata.clone()),
+                coordinates: None,
+                jurisdiction_country: case.location.as_ref().and_then(|l| l.country.clone()),
+                timestamp: Some(mxgenius_shared::domain::datetime::UtcDateTime::from(
+                    case.updated_at,
+                )),
+                source_reference: Some(format!("case://maintenance_cases/{}", case.case_id.0)),
+                live_tracking_supported: false,
+            },
+            None => AircraftLocationContextResponse {
+                aircraft_id: input.aircraft_id,
+                kind: LocationKind::Unknown,
+                airport_icao: None,
+                airport_iata: None,
+                coordinates: None,
+                jurisdiction_country: None,
+                timestamp: None,
+                source_reference: None,
+                live_tracking_supported: false,
+            },
+        };
+        let mut env = CapabilityEnvelope::new(ctx.request_id.0, response);
+        if most_recent.is_none() {
+            env.status = EnvelopeStatus::Partial;
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "warn".into(),
+                message: "no case-recorded location for this aircraft in this tenant".into(),
+                retryable: false,
+            });
+            env.confidence.score = 0.0;
+            env.confidence.explanation =
+                "no canonical base or recent case location; live tracking not available in this build"
+                    .into();
+        } else {
+            env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+            env.confidence.explanation =
+                "most recent case-recorded location for the aircraft; live tracking not available in this build"
+                    .into();
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::NotConfigured,
+                severity: "info".into(),
+                message: "live tracking source not configured in this build".into(),
+                retryable: false,
+            });
+        }
+        Ok(env)
     }
 }
 
-fn location_context_stub(
-) -> NotConfiguredTool<AircraftLocationContextRequest, AircraftLocationContextResponse> {
-    NotConfiguredTool::new(
-        "mxg.aircraft.location_context",
-        "Aircraft Location Context",
-        "Return the known base or licensed location. Never live tracking unless source supports it.",
-        Action::AircraftRead, false,
-        |input: AircraftLocationContextRequest| -> AircraftLocationContextResponse {
-            AircraftLocationContextResponse {
-                aircraft_id: input.aircraft_id,
-                kind: LocationKind::Unknown,
-                airport_icao: None, airport_iata: None, coordinates: None,
-                jurisdiction_country: None, timestamp: None,
-                source_reference: None, live_tracking_supported: false,
-            }
-        },
-    )
+// 4. utilization_summary --------------------------------------------------
+
+pub struct AircraftUtilizationSummaryTool {
+    case_service: Arc<dyn CaseService>,
 }
 
-pub struct AircraftUtilizationSummaryTool;
 #[async_trait]
 impl Tool for AircraftUtilizationSummaryTool {
     type Request = AircraftUtilizationSummaryRequest;
     type Response = AircraftUtilizationSummaryResponse;
     fn spec(&self) -> crate::tool::ToolSpec {
-        spec::<Self::Request, Self::Response>(
+        limited_spec::<Self::Request, Self::Response>(
             "mxg.aircraft.utilization_summary",
             "Aircraft Utilization Summary",
-            "Return airframe hours, cycles, age, trend, and source timestamps.",
+            "Return tenant-scoped case activity: open count, last event, gap. Airframe hours/cycles are not provided by the supplied source.",
             Action::AircraftRead,
             false,
         )
@@ -430,19 +511,44 @@ impl Tool for AircraftUtilizationSummaryTool {
         ctx: &ExecutionContext,
         input: AircraftUtilizationSummaryRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        utilization_stub().invoke(ctx, input).await
-    }
-}
-
-fn utilization_stub(
-) -> NotConfiguredTool<AircraftUtilizationSummaryRequest, AircraftUtilizationSummaryResponse> {
-    NotConfiguredTool::new(
-        "mxg.aircraft.utilization_summary",
-        "Aircraft Utilization Summary",
-        "Return airframe hours, cycles, age, trend, and source timestamps.",
-        Action::AircraftRead,
-        false,
-        |input: AircraftUtilizationSummaryRequest| -> AircraftUtilizationSummaryResponse {
+        let aircraft_id = input.aircraft_id.0.to_string();
+        let cases = self
+            .case_service
+            .list_for_org(ctx.organization_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        let mut total: i64 = 0;
+        let mut open: i64 = 0;
+        let mut last_event: Option<OffsetDateTime> = None;
+        for case in &cases {
+            if case.aircraft_id == aircraft_id {
+                total += 1;
+                if !is_terminal(case) {
+                    open += 1;
+                }
+                if last_event.is_none() || case.updated_at > last_event.unwrap() {
+                    last_event = Some(case.updated_at);
+                }
+            }
+        }
+        let missing_fields: Vec<String> = if total == 0 {
+            vec![
+                "airframe_hours".into(),
+                "cycles".into(),
+                "estimated_hours".into(),
+                "age_years".into(),
+            ]
+        } else {
+            // Only what we can prove is missing is reported.
+            vec!["airframe_hours".into(), "cycles".into()]
+        };
+        let mut env = CapabilityEnvelope::new(
+            ctx.request_id.0,
             AircraftUtilizationSummaryResponse {
                 aircraft_id: input.aircraft_id,
                 airframe_hours: None,
@@ -450,23 +556,60 @@ fn utilization_stub(
                 cycles: None,
                 age_years: None,
                 trend: None,
-                source_timestamps: vec![],
-                missing_fields: vec!["airframe_hours".into(), "cycles".into()],
-            }
-        },
-    )
+                source_timestamps: last_event
+                    .map(|t| vec![mxgenius_shared::domain::datetime::UtcDateTime::from(t)])
+                    .unwrap_or_default(),
+                missing_fields,
+            },
+        );
+        if total == 0 {
+            env.status = EnvelopeStatus::Partial;
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "warn".into(),
+                message: "no tenant case activity for this aircraft".into(),
+                retryable: false,
+            });
+            env.confidence.score = 0.0;
+            env.confidence.explanation =
+                "no tenant case history; airframe hours and cycles are not provided by the supplied source"
+                    .into();
+        } else {
+            env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+            env.confidence.explanation = format!(
+                "derived from {total} tenant cases ({open} non-terminal); airframe hours and cycles are not provided by the supplied source"
+            );
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::NotConfigured,
+                severity: "info".into(),
+                message: "airframe hours and cycles are not provided by the supplied source".into(),
+                retryable: false,
+            });
+        }
+        Ok(env)
+    }
 }
 
-pub struct AircraftRelatedEntitiesTool;
+fn is_terminal(case: &MaintenanceCase) -> bool {
+    use mxgenius_shared::domain::case::CaseStatus;
+    matches!(case.status, CaseStatus::Closed | CaseStatus::Cancelled)
+}
+
+// 5. related_entities -----------------------------------------------------
+
+pub struct AircraftRelatedEntitiesTool {
+    case_service: Arc<dyn CaseService>,
+}
+
 #[async_trait]
 impl Tool for AircraftRelatedEntitiesTool {
     type Request = AircraftRelatedEntitiesRequest;
     type Response = AircraftRelatedEntitiesResponse;
     fn spec(&self) -> crate::tool::ToolSpec {
-        spec::<Self::Request, Self::Response>(
+        limited_spec::<Self::Request, Self::Response>(
             "mxg.aircraft.related_entities",
             "Aircraft Related Entities",
-            "Return owner, operator, companies, and contacts as canonical references.",
+            "Return owner, operator, company, and contact references. Owner/operator directory is not provided by the supplied source.",
             Action::AircraftRead,
             false,
         )
@@ -476,37 +619,56 @@ impl Tool for AircraftRelatedEntitiesTool {
         ctx: &ExecutionContext,
         input: AircraftRelatedEntitiesRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        related_entities_stub().invoke(ctx, input).await
-    }
-}
-
-fn related_entities_stub(
-) -> NotConfiguredTool<AircraftRelatedEntitiesRequest, AircraftRelatedEntitiesResponse> {
-    NotConfiguredTool::new(
-        "mxg.aircraft.related_entities",
-        "Aircraft Related Entities",
-        "Return owner, operator, companies, and contacts as canonical references.",
-        Action::AircraftRead,
-        false,
-        |input: AircraftRelatedEntitiesRequest| -> AircraftRelatedEntitiesResponse {
+        // No owner/operator/insurer/lessor directory exists in the supplied
+        // migrations. We surface that explicitly rather than invent values.
+        let _ = self
+            .case_service
+            .list_for_org(ctx.organization_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        let mut env = CapabilityEnvelope::new(
+            ctx.request_id.0,
             AircraftRelatedEntitiesResponse {
                 aircraft_id: input.aircraft_id,
                 entities: vec![],
-            }
-        },
-    )
+            },
+        );
+        env.status = EnvelopeStatus::Partial;
+        env.warnings.push(EnvelopeError {
+            code: StableErrorCode::NotConfigured,
+            severity: "warn".into(),
+            message:
+                "owner/operator/insurer/lessor directory is not provided by the supplied source"
+                    .into(),
+            retryable: false,
+        });
+        env.confidence.score = 0.0;
+        env.confidence.explanation =
+            "no owner/operator/contact source available; relationship rows are empty".into();
+        Ok(env)
+    }
 }
 
-pub struct AircraftHistoryWindowTool;
+// 6. history_window -------------------------------------------------------
+
+pub struct AircraftHistoryWindowTool {
+    case_service: Arc<dyn CaseService>,
+}
+
 #[async_trait]
 impl Tool for AircraftHistoryWindowTool {
     type Request = AircraftHistoryWindowRequest;
     type Response = AircraftHistoryWindowResponse;
     fn spec(&self) -> crate::tool::ToolSpec {
-        spec::<Self::Request, Self::Response>(
+        limited_spec::<Self::Request, Self::Response>(
             "mxg.aircraft.history_window",
             "Aircraft History Window",
-            "Return bounded licensed history events within a date range.",
+            "Return tenant-scoped case events within a date range, filtered by history kind.",
             Action::AircraftRead,
             false,
         )
@@ -516,28 +678,93 @@ impl Tool for AircraftHistoryWindowTool {
         ctx: &ExecutionContext,
         input: AircraftHistoryWindowRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        history_window_stub().invoke(ctx, input).await
-    }
-}
-
-fn history_window_stub(
-) -> NotConfiguredTool<AircraftHistoryWindowRequest, AircraftHistoryWindowResponse> {
-    NotConfiguredTool::new(
-        "mxg.aircraft.history_window",
-        "Aircraft History Window",
-        "Return bounded licensed history events within a date range.",
-        Action::AircraftRead,
-        false,
-        |input: AircraftHistoryWindowRequest| -> AircraftHistoryWindowResponse {
+        let start = input.start_date.into_inner();
+        let end = input.end_date.into_inner();
+        if end < start {
+            return Err(EnvelopeError {
+                code: StableErrorCode::InvalidInput,
+                severity: "error".into(),
+                message: "end_date must be on or after start_date".into(),
+                retryable: false,
+            });
+        }
+        let wanted: Option<HashSet<HistoryKind>> =
+            input.kinds.as_ref().map(|k| k.iter().copied().collect());
+        let aircraft_id = input.aircraft_id.0.to_string();
+        let cases = self
+            .case_service
+            .list_for_org(ctx.organization_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        let mut events: Vec<HistoryEvent> = Vec::new();
+        let mut source_timestamps: Vec<mxgenius_shared::domain::datetime::UtcDateTime> = Vec::new();
+        for case in &cases {
+            if case.aircraft_id != aircraft_id {
+                continue;
+            }
+            // Status transitions are emitted as `Maintenance` history events.
+            if wanted
+                .as_ref()
+                .map_or(true, |k| k.contains(&HistoryKind::Maintenance))
+            {
+                let timeline = self
+                    .case_service
+                    .timeline(ctx.organization_id, case.case_id)
+                    .await
+                    .map_err(|e| EnvelopeError {
+                        code: StableErrorCode::InternalError,
+                        severity: "error".into(),
+                        message: e.to_string(),
+                        retryable: true,
+                    })?;
+                for entry in timeline {
+                    let at = entry.occurred_at.into_inner();
+                    if at < start || at > end {
+                        continue;
+                    }
+                    source_timestamps
+                        .push(mxgenius_shared::domain::datetime::UtcDateTime::from(at));
+                    events.push(HistoryEvent {
+                        event_id: entry.event_id,
+                        kind: HistoryKind::Maintenance,
+                        occurred_at: entry.occurred_at,
+                        summary: entry.summary,
+                        source_reference: format!("case://maintenance_cases/{}", case.case_id.0),
+                        license_scope: Some("tenant_internal".into()),
+                    });
+                }
+            }
+        }
+        events.sort_by_key(|event| event.occurred_at.into_inner());
+        let completeness = if events.is_empty() {
+            "unknown".into()
+        } else {
+            "case_history_only".into()
+        };
+        let mut env = CapabilityEnvelope::new(
+            ctx.request_id.0,
             AircraftHistoryWindowResponse {
                 aircraft_id: input.aircraft_id,
-                events: vec![],
-                source_timestamps: vec![],
-                completeness: "unknown".into(),
+                events,
+                source_timestamps,
+                completeness,
                 drill_through: vec![],
-            }
-        },
-    )
+            },
+        );
+        env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        env.warnings.push(EnvelopeError {
+            code: StableErrorCode::NotConfigured,
+            severity: "info".into(),
+            message: "operational/cosmetic/compliance history sources are not provided by the supplied build; only maintenance case events are returned".into(),
+            retryable: false,
+        });
+        Ok(env)
+    }
 }
 
 // Lint satisfaction

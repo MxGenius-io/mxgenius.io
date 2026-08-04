@@ -47,10 +47,11 @@ const MXCapabilityWorkbench = (() => {
     name,
     description: 'This operation will be available when the capability service reconnects.',
     inputSchema: { type: 'object', properties: {} },
-    mounted: false
+    mounted: false,
+    meta: { availability: 'degraded', callable: false }
   }));
 
-  const state = { tools: [], selected: null, caseContext: null, rawDirty: false };
+  const state = { tools: [], selected: null, caseContext: null, rawDirty: false, showPlanned: false };
   const byId = (id) => document.getElementById(id);
 
   function session() {
@@ -74,6 +75,25 @@ const MXCapabilityWorkbench = (() => {
   function humanize(value) { return String(value || '').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
   function labelOf(name) { return FIELD_LABELS[name] || humanize(name); }
 
+  function readinessOf(tool) {
+    const explicit = String(tool.meta?.implementation_state || tool.meta?.readiness || '').toLowerCase();
+    const availability = String(tool.meta?.availability || (tool.mounted === false ? 'degraded' : 'available')).toLowerCase();
+    if (explicit === 'live') return { id: 'live', label: 'Live', runnable: true };
+    if (['limited', 'partial'].includes(explicit) || ['limited', 'partial'].includes(availability)) return { id: 'limited', label: 'Limited', runnable: tool.meta?.callable !== false };
+    if (['preview', 'contract_only'].includes(explicit)) return { id: 'preview', label: 'Preview', runnable: false };
+    if (['degraded', 'error', 'unavailable_now'].includes(explicit) || availability === 'degraded') return { id: 'degraded', label: 'Degraded', runnable: false };
+    if (availability === 'not_configured' || availability === 'unavailable' || tool.meta?.callable === false) return { id: 'unavailable', label: 'Unavailable', runnable: false };
+    return { id: 'live', label: 'Live', runnable: true };
+  }
+
+  function readinessCounts(tools) {
+    return tools.reduce((counts, tool) => {
+      const status = readinessOf(tool).id;
+      counts[status] = (counts[status] || 0) + 1;
+      return counts;
+    }, {});
+  }
+
   function defaultArguments(tool) {
     const properties = tool.inputSchema?.properties || {};
     const values = {};
@@ -93,18 +113,27 @@ const MXCapabilityWorkbench = (() => {
   function renderCatalog(filter = '') {
     const target = byId('capabilityCatalog');
     const normalized = filter.trim().toLowerCase();
-    const tools = state.tools.filter((tool) => `${titleOf(tool.name)} ${tool.name} ${tool.description || ''} ${jobFor(tool).title}`.toLowerCase().includes(normalized));
+    const tools = state.tools.filter((tool) => {
+      const readiness = readinessOf(tool);
+      const planned = readiness.id === 'preview' || readiness.id === 'unavailable';
+      return (state.showPlanned || !planned)
+        && `${titleOf(tool.name)} ${tool.name} ${tool.description || ''} ${jobFor(tool).title}`.toLowerCase().includes(normalized);
+    });
     const groups = JOBS.map((job) => ({ job, entries: tools.filter((tool) => job.domains.includes(domainOf(tool.name))) })).filter(({ entries }) => entries.length);
     target.innerHTML = groups.map(({ job, entries }) => `
       <section class="capability-domain" aria-labelledby="capability-job-${job.id}">
         <header class="capability-domain__header">
           <div><h2 id="capability-job-${job.id}">${escapeHtml(job.title)} <span>${entries.length}</span></h2><p>${escapeHtml(job.description)}</p></div>
         </header>
-        <div class="capability-grid">${entries.map((tool) => `
-          <button type="button" class="capability-card${tool.name === state.selected?.name ? ' is-selected' : ''}" data-capability="${escapeHtml(tool.name)}">
+        <div class="capability-grid">${entries.map((tool) => {
+          const readiness = readinessOf(tool);
+          return `
+          <button type="button" class="capability-card${tool.name === state.selected?.name ? ' is-selected' : ''}" data-capability="${escapeHtml(tool.name)}" data-readiness="${readiness.id}" ${readiness.runnable ? '' : 'disabled aria-disabled="true"'}>
+            <span class="capability-readiness" data-state="${readiness.id}">${readiness.label}</span>
             <strong>${escapeHtml(titleOf(tool.name))}</strong>
             <span>${escapeHtml(tool.description || 'Open this operation')}</span>
-          </button>`).join('')}</div>
+          </button>`;
+        }).join('')}</div>
       </section>`).join('') || '<p class="capability-empty">No matching operations.</p>';
     target.querySelectorAll('[data-capability]').forEach((button) => button.addEventListener('click', () => select(button.dataset.capability)));
   }
@@ -297,7 +326,15 @@ const MXCapabilityWorkbench = (() => {
     try {
       const response = await MXApplicationClient.capabilities.list(session());
       state.tools = response?.tools || [];
-      status.textContent = `${state.tools.length} operations ready`;
+      const counts = readinessCounts(state.tools);
+      const summary = [
+        counts.live ? `${counts.live} live` : '',
+        counts.limited ? `${counts.limited} limited` : '',
+        counts.preview ? `${counts.preview} preview` : '',
+        counts.unavailable ? `${counts.unavailable} unavailable` : '',
+        counts.degraded ? `${counts.degraded} degraded` : ''
+      ].filter(Boolean);
+      status.textContent = summary.join(' · ') || 'No operations reported';
       status.dataset.state = state.tools.length ? 'ready' : 'empty';
     } catch (error) {
       state.tools = FALLBACK_TOOLS;
@@ -316,6 +353,10 @@ const MXCapabilityWorkbench = (() => {
   function init() {
     byId('capabilityRefresh')?.addEventListener('click', load);
     byId('capabilitySearch')?.addEventListener('input', (event) => renderCatalog(event.target.value));
+    byId('capabilityShowPlanned')?.addEventListener('change', (event) => {
+      state.showPlanned = event.target.checked;
+      renderCatalog(byId('capabilitySearch').value);
+    });
     byId('capabilityRunnerClose')?.addEventListener('click', closeRunner);
     byId('capabilityArguments')?.addEventListener('input', () => { state.rawDirty = true; });
     byId('capabilityRunnerForm')?.addEventListener('submit', execute);

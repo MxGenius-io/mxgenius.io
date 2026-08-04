@@ -14,6 +14,15 @@ function harness(outputs, orchestration = null) {
     TypeError,
     Error,
     Blob,
+    URL,
+    MXGENIUS_CONFIG: {
+      mcpBase: '',
+      fleetBase: '',
+      getSession: () => ({
+        accessToken: 'fleet-access-token',
+        organizationId: 'fleet-org'
+      })
+    },
     globalThis: null,
     fetch: async (url, options) => {
       if (url.endsWith('/realtime/calls')) {
@@ -190,6 +199,8 @@ test('model intelligence uses the subscribed catalog endpoint and array filters'
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, '/api/Model/getModelIntelligence/LIVE_TOKEN');
   assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer fleet-access-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'fleet-org');
   assert.deepEqual(requests[0].request, {
     make: ['GULFSTREAM'],
     model: ['G550']

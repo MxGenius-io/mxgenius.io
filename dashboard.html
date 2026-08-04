@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="parts-workspace.css?v=1">
   <link rel="stylesheet" href="realtime.css">
-  <link rel="stylesheet" href="production-ui.css?v=5">
+  <link rel="stylesheet" href="production-ui.css?v=6">
   <link rel="stylesheet" href="onboarding.css?v=2">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -429,6 +429,7 @@
             <div class="capability-toolbar">
               <div id="capabilityStatus" class="capability-status" role="status" aria-live="polite">Loading mounted capabilities…</div>
               <label class="capability-search">Find an operation<input id="capabilitySearch" type="search" placeholder="Aircraft, parts, weather…"></label>
+              <label class="capability-planned-toggle"><input id="capabilityShowPlanned" type="checkbox">Show planned operations</label>
               <button id="capabilityRefresh" class="btn-primary" type="button">Refresh</button>
             </div>
             <div id="capabilityCatalog"></div>
@@ -495,8 +496,8 @@
           <div class="settings-row"><div class="settings-label"><span>Cached Entries</span><span class="settings-hint" id="cacheStats">Loading...</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXCache.clearAll().then(()=>{document.getElementById('cacheStats').textContent='Cache cleared';})">Clear Cache</button></div>
           <div class="settings-row">
             <div class="settings-label">
-              <span>Content Expansion</span>
-              <span class="settings-hint" id="settingsContentUploadStatus">Store additional RAG source content for later ingestion</span>
+              <span>Content Expansion <span class="source-readiness" data-state="limited">Preview</span></span>
+              <span class="settings-hint" id="settingsContentUploadStatus">Stores approved source files for later ingestion; uploads are not searchable until the ingestion pipeline promotes them</span>
             </div>
             <div>
               <input id="settingsContentUploadInput" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.htm,.jpg,.jpeg,.png,.webp" hidden>
@@ -609,13 +610,13 @@
   <script src="auth.js?v=6"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=17"></script>
+<script src="application-client.js?v=18"></script>
   <script src="realtime-client.js?v=4"></script>
   <script src="case-workspace.js?v=3"></script>
   <script src="parts-workspace.js?v=1"></script>
-  <script src="capability-workbench.js?v=3"></script>
-  <script src="onboarding.js?v=3"></script>
-  <script src="app.js?v=26"></script>
+    <script src="capability-workbench.js?v=5"></script>
+  <script src="onboarding.js?v=4"></script>
+  <script src="app.js?v=27"></script>
   <div id="onboardingRoot"></div>
 </body>
 

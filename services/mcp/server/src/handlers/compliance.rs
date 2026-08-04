@@ -1,4 +1,16 @@
 //! Compliance tool handlers (5): `mxg.compliance.*`.
+//!
+//! - `applicable_ads` and `saib_search` continue to use the FAA DRS adapter
+//!   (already wired by `register`).
+//! - `manual_currency`, `record_audit`, and `return_to_service_pack` are
+//!   remounted on the case spine, the evidence store, and the existing
+//!   `approvals` / `audit_events` tables. When the application pool is
+//!   absent they remain typed `not_configured` so the `tools/list`
+//!   metadata agrees with the runtime envelope.
+//!
+//! No compliance tool invents facts. Missing approvals, missing evidence,
+//!   and missing fields are surfaced as typed partial envelopes with the
+//!   appropriate warning and `missing_*` collections.
 
 use std::sync::Arc;
 
@@ -19,7 +31,8 @@ use mxgenius_shared::contracts::{
     ComplianceApplicableAdsResponse, ComplianceManualCurrencyRequest,
     ComplianceManualCurrencyResponse, ComplianceRecordAuditRequest, ComplianceRecordAuditResponse,
     ComplianceReturnToServicePackRequest, ComplianceReturnToServicePackResponse,
-    ComplianceSaibSearchRequest, ComplianceSaibSearchResponse, SaibResult,
+    ComplianceSaibSearchRequest, ComplianceSaibSearchResponse, RecordAuditFinding, SaibResult,
+    Severity,
 };
 use mxgenius_shared::domain::compliance::ApplicabilityState;
 use mxgenius_shared::domain::datetime::{IsoDate, UtcDateTime};
@@ -27,7 +40,8 @@ use mxgenius_shared::domain::evidence::{ConfidenceBasis, Evidence, EvidenceKind,
 use mxgenius_shared::domain::ids::{AircraftId, EvidenceId};
 
 use crate::application::aircraft_catalog::AircraftCatalog;
-use crate::handlers::{not_configured, spec};
+use crate::application::case_service::CaseService;
+use crate::handlers::{limited_spec, not_configured, spec};
 use crate::registry::Registry;
 use crate::tool::Tool;
 use crate::typed_tool::wrap;
@@ -37,65 +51,89 @@ pub fn register(
     aircraft_catalog: Arc<dyn AircraftCatalog>,
     faa_ad: Arc<dyn FaaAdAdapter>,
     saib: Arc<dyn SaibAdapter>,
+    pool: Option<sqlx::PgPool>,
+    case_service: Arc<dyn CaseService>,
 ) {
     reg.register_typed_tool(wrap(Arc::new(ApplicableAdsTool {
         aircraft_catalog,
         faa_ad,
     })));
     reg.register_typed_tool(wrap(Arc::new(SaibSearchTool { saib })));
-    reg.register_typed_tool(wrap(not_configured::<
-        ComplianceManualCurrencyRequest,
-        ComplianceManualCurrencyResponse,
-        _,
-    >(
-        "mxg.compliance.manual_currency",
-        "Manual Currency",
-        "Return known revision, effective date, supersession state, and warnings for a document.",
-        Action::ComplianceRead,
-        |input| ComplianceManualCurrencyResponse {
-            document_id: input.document_id,
-            known_revision: None,
-            effective_date: None,
-            supersession_state: "unknown".into(),
-            currency_state: "unknown".into(),
-            source: "not_configured".into(),
-            warnings: vec![],
-        },
-    )));
-    reg.register_typed_tool(wrap(not_configured::<ComplianceRecordAuditRequest, ComplianceRecordAuditResponse, _>(
-        "mxg.compliance.record_audit",
-        "Record Audit",
-        "Return missing fields, missing evidence, signatures/approvals, completeness checks for a case.",
-        Action::ComplianceRead,
-        |input| ComplianceRecordAuditResponse {
-            case_id: input.case_id,
-            missing_fields: vec![], missing_evidence: vec![],
-            missing_signatures: vec![], missing_approvals: vec![],
-            part_documentation_gaps: vec![], unresolved_warnings: vec![],
-            completeness: "unknown".into(),
-        },
-    )));
-    reg.register_typed_tool(wrap(not_configured::<
-        ComplianceReturnToServicePackRequest,
-        ComplianceReturnToServicePackResponse,
-        _,
-    >(
-        "mxg.compliance.return_to_service_pack",
-        "Return-to-Service Review Pack",
-        "Assemble the case return-to-service review pack. Review only, never approval.",
-        Action::ComplianceReturnToService,
-        |input| ComplianceReturnToServicePackResponse {
-            case_id: input.case_id,
-            assembled_documents: vec![],
-            evidence: vec![],
-            approvals_present: vec![],
-            approvals_needed: vec![],
-            record_gaps: vec![],
-            warnings: vec![],
-            review_metadata: None,
-            authorized: false,
-        },
-    )));
+    if let Some(pool) = pool {
+        reg.register_typed_tool(wrap(Arc::new(ManualCurrencyTool {
+            pool: pool.clone(),
+            case_service: case_service.clone(),
+        })));
+        reg.register_typed_tool(wrap(Arc::new(RecordAuditTool {
+            pool: pool.clone(),
+            case_service: case_service.clone(),
+        })));
+        reg.register_typed_tool(wrap(Arc::new(ReturnToServicePackTool {
+            pool,
+            case_service,
+        })));
+    } else {
+        reg.register_typed_tool(wrap(not_configured::<
+            ComplianceManualCurrencyRequest,
+            ComplianceManualCurrencyResponse,
+            _,
+        >(
+            "mxg.compliance.manual_currency",
+            "Manual Currency",
+            "Return known revision, effective date, supersession state, and warnings for a document.",
+            Action::ComplianceRead,
+            |input| ComplianceManualCurrencyResponse {
+                document_id: input.document_id,
+                known_revision: None,
+                effective_date: None,
+                supersession_state: "unknown".into(),
+                currency_state: "unknown".into(),
+                source: "not_configured".into(),
+                warnings: vec![],
+            },
+        )));
+        reg.register_typed_tool(wrap(not_configured::<
+            ComplianceRecordAuditRequest,
+            ComplianceRecordAuditResponse,
+            _,
+        >(
+            "mxg.compliance.record_audit",
+            "Record Audit",
+            "Return missing fields, missing evidence, signatures/approvals, completeness checks for a case.",
+            Action::ComplianceRead,
+            |input| ComplianceRecordAuditResponse {
+                case_id: input.case_id,
+                missing_fields: vec![],
+                missing_evidence: vec![],
+                missing_signatures: vec![],
+                missing_approvals: vec![],
+                part_documentation_gaps: vec![],
+                unresolved_warnings: vec![],
+                completeness: "unknown".into(),
+            },
+        )));
+        reg.register_typed_tool(wrap(not_configured::<
+            ComplianceReturnToServicePackRequest,
+            ComplianceReturnToServicePackResponse,
+            _,
+        >(
+            "mxg.compliance.return_to_service_pack",
+            "Return-to-Service Review Pack",
+            "Assemble the case return-to-service review pack. Review only, never approval.",
+            Action::ComplianceReturnToService,
+            |input| ComplianceReturnToServicePackResponse {
+                case_id: input.case_id,
+                assembled_documents: vec![],
+                evidence: vec![],
+                approvals_present: vec![],
+                approvals_needed: vec![],
+                record_gaps: vec![],
+                warnings: vec![],
+                review_metadata: None,
+                authorized: false,
+            },
+        )));
+    }
 }
 
 struct ApplicableAdsTool {
@@ -121,7 +159,7 @@ impl Tool for ApplicableAdsTool {
     async fn invoke(
         &self,
         ctx: &ExecutionContext,
-        input: Self::Request,
+        input: ComplianceApplicableAdsRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
         let aircraft_id = input
             .aircraft_id
@@ -219,7 +257,7 @@ impl Tool for SaibSearchTool {
     async fn invoke(
         &self,
         ctx: &ExecutionContext,
-        input: Self::Request,
+        input: ComplianceSaibSearchRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
         let query = [
             input.aircraft_type.as_deref(),
@@ -281,6 +319,417 @@ impl Tool for SaibSearchTool {
             CapabilityEnvelope::new(ctx.request_id.0, ComplianceSaibSearchResponse { results });
         envelope.evidence = evidence;
         envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        Ok(envelope)
+    }
+}
+
+// 30. manual_currency ------------------------------------------------------
+
+struct ManualCurrencyTool {
+    pool: sqlx::PgPool,
+    case_service: Arc<dyn CaseService>,
+}
+
+#[async_trait]
+impl Tool for ManualCurrencyTool {
+    type Request = ComplianceManualCurrencyRequest;
+    type Response = ComplianceManualCurrencyResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        spec::<Self::Request, Self::Response>(
+            "mxg.compliance.manual_currency",
+            "Manual Currency",
+            "Return known revision, effective date, supersession state, and warnings for a document.",
+            Action::ComplianceRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: ComplianceManualCurrencyRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let document_id = input.document_id;
+        let _ = self.case_service.list_for_org(ctx.organization_id).await;
+        let row: Option<(Option<String>, Option<time::Date>, Option<Uuid>)> = sqlx::query_as(
+            r#"SELECT r.revision, r.effective_date, r.supersedes
+               FROM document_revisions r
+               JOIN technical_documents d ON d.id=r.document_id
+               WHERE d.organization_id=$1 AND r.document_id=$2
+               ORDER BY r.created_at DESC
+               LIMIT 1"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(document_id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("document_revisions lookup", error.to_string()))?;
+        let mut warnings: Vec<String> = Vec::new();
+        let mut supersession_state = "unknown".to_string();
+        let mut currency_state = "unknown".to_string();
+        let mut known_revision: Option<String> = None;
+        let mut effective_date: Option<IsoDate> = None;
+        let mut source = "document_revisions".to_string();
+        match row {
+            Some((revision, effective, supersedes)) => {
+                known_revision = revision.clone();
+                effective_date = effective.map(IsoDate);
+                supersession_state = if supersedes.is_some() {
+                    "superseded".into()
+                } else if revision.is_some() {
+                    "current".into()
+                } else {
+                    "unknown".into()
+                };
+                currency_state = if effective.is_some() {
+                    "effective_date_known".into()
+                } else {
+                    "effective_date_unknown".into()
+                };
+            }
+            None => {
+                warnings.push("no document_revisions row found for this document_id".into());
+                source = "fallback_evidence".into();
+                // Fall back to the case-linked evidence with kind=manual_excerpt.
+                let fallback: Option<(String, Option<time::Date>, Option<String>)> = sqlx::query_as(
+                    r#"SELECT e.title, e.effective_at::date, e.revision
+                       FROM evidence e
+                       WHERE e.organization_id=$1
+                         AND e.kind='manual_excerpt'
+                         AND (e.source_reference LIKE '%' || $2::text || '%' OR e.title LIKE '%' || $2::text || '%')
+                       ORDER BY e.retrieved_at DESC
+                       LIMIT 1"#,
+                )
+                .bind(ctx.organization_id.0)
+                .bind(document_id.to_string())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|error| envelope_internal("evidence fallback", error.to_string()))?;
+                if let Some((_title, effective, revision)) = fallback {
+                    effective_date = effective.map(IsoDate);
+                    known_revision = revision;
+                    currency_state = "fallback_evidence".into();
+                } else {
+                    warnings.push("no manual_excerpt evidence references this document".into());
+                }
+            }
+        }
+        let mut envelope = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            ComplianceManualCurrencyResponse {
+                document_id,
+                known_revision,
+                effective_date,
+                supersession_state,
+                currency_state,
+                source,
+                warnings: warnings.clone(),
+            },
+        );
+        envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        if !warnings.is_empty() {
+            envelope.status = EnvelopeStatus::Partial;
+            envelope.warnings.push(EnvelopeError {
+                code: StableErrorCode::NotConfigured,
+                severity: "warn".into(),
+                message: warnings.join("; "),
+                retryable: false,
+            });
+            envelope.confidence.score = 0.0;
+        }
+        Ok(envelope)
+    }
+}
+
+// 31. record_audit ---------------------------------------------------------
+
+struct RecordAuditTool {
+    pool: sqlx::PgPool,
+    case_service: Arc<dyn CaseService>,
+}
+
+#[async_trait]
+impl Tool for RecordAuditTool {
+    type Request = ComplianceRecordAuditRequest;
+    type Response = ComplianceRecordAuditResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        limited_spec::<Self::Request, Self::Response>(
+            "mxg.compliance.record_audit",
+            "Record Audit",
+            "Return missing fields, missing evidence, signatures/approvals, completeness checks for a case.",
+            Action::ComplianceRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: ComplianceRecordAuditRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let case_resp = self
+            .case_service
+            .get(ctx.organization_id, input.case_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: false,
+            })?;
+        let case = case_resp.case;
+        let mut missing_fields: Vec<String> = Vec::new();
+        if case.raw_discrepancy.trim().is_empty() {
+            missing_fields.push("raw_discrepancy".into());
+        }
+        if case.location.is_none() {
+            missing_fields.push("location".into());
+        }
+        if case.evidence_ids.is_empty() {
+            missing_fields.push("evidence_ids".into());
+        }
+        let evidence_count: i64 = sqlx::query_scalar(
+            r#"SELECT count(*) FROM evidence_links
+               WHERE organization_id=$1 AND case_id=$2"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(input.case_id.0)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("evidence_links count", error.to_string()))?;
+        let missing_evidence: Vec<String> = if evidence_count == 0 {
+            vec!["at least one evidence row".into()]
+        } else {
+            Vec::new()
+        };
+        // Part documentation gaps: certificate_records linked to this case
+        // that are not validated.
+        let part_gaps: Vec<String> = sqlx::query_scalar(
+            r#"SELECT certificate_type FROM certificate_records
+               WHERE case_id=$1 AND validated=false"#,
+        )
+        .bind(input.case_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("certificate_records scan", error.to_string()))?;
+        // Missing approvals: open approval rows that have not been decided.
+        let missing_approvals: Vec<String> = sqlx::query_scalar(
+            r#"SELECT action FROM approvals
+               WHERE organization_id=$1 AND case_id=$2 AND decision IS NULL"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(input.case_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("approvals scan", error.to_string()))?;
+        // Missing signatures: there is no signatures table in the supplied
+        // migrations; surface the gap explicitly.
+        let missing_signatures: Vec<String> =
+            vec!["signatures table is not provided by the supplied build".into()];
+        let unresolved_warnings: Vec<RecordAuditFinding> = case_resp
+            .unresolved_conflicts
+            .iter()
+            .map(|c| RecordAuditFinding {
+                kind: c.kind.clone(),
+                severity: match c.severity.to_ascii_lowercase().as_str() {
+                    "critical" => Severity::Critical,
+                    "high" => Severity::High,
+                    "medium" => Severity::Medium,
+                    "low" => Severity::Low,
+                    _ => Severity::Info,
+                },
+                description: c.description.clone(),
+                evidence_id: c.evidence_ids.first().cloned(),
+            })
+            .collect();
+        let completeness = match (
+            missing_fields.is_empty(),
+            missing_evidence.is_empty(),
+            part_gaps.is_empty(),
+            missing_approvals.is_empty(),
+        ) {
+            (true, true, true, true) => "complete".to_string(),
+            (false, _, _, _) | (_, false, _, _) | (_, _, false, _) | (_, _, _, false) => {
+                "incomplete".to_string()
+            }
+        };
+        let mut envelope = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            ComplianceRecordAuditResponse {
+                case_id: input.case_id,
+                missing_fields,
+                missing_evidence,
+                missing_signatures,
+                missing_approvals,
+                part_documentation_gaps: part_gaps,
+                unresolved_warnings,
+                completeness: completeness.clone(),
+            },
+        );
+        envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        envelope.confidence.explanation = format!("case audit completeness: {completeness}");
+        if completeness != "complete" {
+            envelope.status = EnvelopeStatus::Partial;
+        }
+        Ok(envelope)
+    }
+}
+
+// 32. return_to_service_pack -----------------------------------------------
+
+struct ReturnToServicePackTool {
+    pool: sqlx::PgPool,
+    case_service: Arc<dyn CaseService>,
+}
+
+#[async_trait]
+impl Tool for ReturnToServicePackTool {
+    type Request = ComplianceReturnToServicePackRequest;
+    type Response = ComplianceReturnToServicePackResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        limited_spec::<Self::Request, Self::Response>(
+            "mxg.compliance.return_to_service_pack",
+            "Return-to-Service Review Pack",
+            "Assemble the case return-to-service review pack. Review only, never approval.",
+            Action::ComplianceReturnToService,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: ComplianceReturnToServicePackRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let case_resp = self
+            .case_service
+            .get(ctx.organization_id, input.case_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: false,
+            })?;
+        let case = case_resp.case;
+        let timeline = self
+            .case_service
+            .timeline(ctx.organization_id, input.case_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        let evidence_rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(
+            r#"SELECT e.id, e.title, e.source_reference, e.source_type
+               FROM evidence e
+               JOIN evidence_links l
+                 ON l.organization_id=e.organization_id AND l.evidence_id=e.id
+               WHERE e.organization_id=$1 AND l.case_id=$2
+               ORDER BY e.retrieved_at DESC"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(input.case_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("evidence pack query", error.to_string()))?;
+        let evidence: Vec<String> = evidence_rows
+            .iter()
+            .map(|(id, _, _, _)| id.to_string())
+            .collect();
+        let assembled_documents: Vec<mxgenius_shared::contracts::DocumentRefRts> = evidence_rows
+            .iter()
+            .map(|(id, title, _source_reference, _source_type)| {
+                mxgenius_shared::contracts::DocumentRefRts {
+                    document_id: id.to_string(),
+                    title: title.clone(),
+                    revision: None,
+                    effective_date: None,
+                }
+            })
+            .collect();
+        let approvals_present: Vec<String> = sqlx::query_scalar(
+            r#"SELECT action FROM approvals
+               WHERE organization_id=$1 AND case_id=$2 AND decision IS NOT NULL"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(input.case_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("approvals query", error.to_string()))?;
+        let approvals_needed: Vec<String> = sqlx::query_scalar(
+            r#"SELECT action FROM approvals
+               WHERE organization_id=$1 AND case_id=$2 AND decision IS NULL"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(input.case_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| envelope_internal("approvals needed query", error.to_string()))?;
+        let mut record_gaps: Vec<String> = Vec::new();
+        if case.raw_discrepancy.trim().is_empty() {
+            record_gaps.push("raw_discrepancy is empty".into());
+        }
+        if case.evidence_ids.is_empty() {
+            record_gaps.push("case has no evidence rows".into());
+        }
+        let mut warnings: Vec<String> = Vec::new();
+        if !approvals_needed.is_empty() {
+            warnings.push(format!(
+                "{} approval(s) are still open and must be granted before return-to-service",
+                approvals_needed.len()
+            ));
+        }
+        if !record_gaps.is_empty() {
+            warnings.push("case has open record gaps; review required".into());
+        }
+        let review_metadata = Some(mxgenius_shared::contracts::RtsReviewMetadata {
+            generated_at: mxgenius_shared::domain::datetime::UtcDateTime::now(),
+            generated_by_user_id: ctx.user_id.0.to_string(),
+            scope: if timeline.is_empty() {
+                "case_only".to_string()
+            } else {
+                format!("case_with_{}_timeline_events", timeline.len())
+            },
+        });
+        let authorized = approvals_needed.is_empty() && record_gaps.is_empty();
+        let mut envelope = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            ComplianceReturnToServicePackResponse {
+                case_id: input.case_id,
+                assembled_documents,
+                evidence,
+                approvals_present,
+                approvals_needed,
+                record_gaps,
+                warnings,
+                review_metadata,
+                authorized,
+            },
+        );
+        envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        envelope.confidence.explanation = if authorized {
+            "all approvals granted and no record gaps detected; the pack is review-only, never an approval".into()
+        } else {
+            "review-only pack; authorized=false because approvals or record gaps remain".into()
+        };
+        if !authorized {
+            envelope.status = EnvelopeStatus::Partial;
+            envelope.warnings.push(EnvelopeError {
+                code: StableErrorCode::HumanApprovalRequired,
+                severity: "warn".into(),
+                message: "return-to-service requires qualified approval; this pack is review-only"
+                    .into(),
+                retryable: false,
+            });
+        }
+        // Suppress unused-variable warnings on parameters we intentionally ignore.
+        let _ = &case;
         Ok(envelope)
     }
 }
@@ -390,6 +839,15 @@ fn adapter_error(error: AdapterError) -> EnvelopeError {
         severity: "error".into(),
         message: error.to_string(),
         retryable,
+    }
+}
+
+fn envelope_internal(context: &'static str, message: String) -> EnvelopeError {
+    EnvelopeError {
+        code: StableErrorCode::InternalError,
+        severity: "error".into(),
+        message: format!("{context}: {message}"),
+        retryable: true,
     }
 }
 

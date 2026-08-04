@@ -6,6 +6,7 @@ let TOKEN = '';
 let BEARER = '';
 let cachedFleetSignals = [];
 let displayedMarketIntelContext = null;
+let aircraftGalleryObjectUrls = [];
 
 function escapeMarkup(value) {
   return String(value ?? '')
@@ -24,7 +25,7 @@ function safeRecordId(value) {
 function safeImageUrl(value) {
   try {
     const url = new URL(String(value || ''), window.location.href);
-    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : '';
   } catch {
     return '';
   }
@@ -699,7 +700,7 @@ function setupNavigation() {
   document.getElementById('acDetailClose')?.addEventListener('click', () => closeModal('acDetailModal'));
   document.getElementById('compDetailClose')?.addEventListener('click', () => closeModal('compDetailModal'));
   document.querySelectorAll('.modal-backdrop').forEach(bd => {
-    bd.addEventListener('click', () => bd.closest('.modal').classList.add('hidden'));
+    bd.addEventListener('click', () => closeModal(bd.closest('.modal').id));
   });
 
   setupMarketIntel();
@@ -2844,6 +2845,10 @@ function initSettings() {
 
 function closeModal(id) {
   document.getElementById(id).classList.add('hidden');
+  if (id === 'acDetailModal') {
+    aircraftGalleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    aircraftGalleryObjectUrls = [];
+  }
 }
 
 function setOutreachMode(mode) {
@@ -3364,14 +3369,18 @@ async function showAircraftDetail(id) {
     const metarHtml = '';
 
     const pictures = picData.pictures || [];
+    aircraftGalleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    aircraftGalleryObjectUrls = (await Promise.all(pictures.slice(0, 20).map((picture) => (
+      MXApplicationClient.aircraftImageBlobUrl(picture.pictureurl).catch(() => '')
+    )))).filter(Boolean);
     const detailedEngines = engData.engines || [];
     const activeCase = MXCaseState.matchesAircraft({ aircraftid: ident.aircraftid, regnbr: ident.regnbr }) ? MXCaseState.active : null;
     const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case - ${escapeMarkup(activeCase.case.status)} - version ${escapeMarkup(activeCase.case.version)}</div>` : '';
     const faaRegistrationSuffix = String(ident.regnbr || '').replace(/^N/i, '').replace(/[^a-z0-9]/gi, '');
 
-    const galleryHtml = pictures.length > 0 ? `
+    const galleryHtml = aircraftGalleryObjectUrls.length > 0 ? `
       <div class="photo-gallery" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:15px; margin-bottom:15px; border-bottom:1px solid var(--border);">
-        ${pictures.map(p => safeImageUrl(p.pictureurl)).filter(Boolean).map(url => `<img src="${escapeMarkup(url)}" alt="Aircraft" class="aircraft-gallery-image" style="height:200px; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer;">`).join('')}
+        ${aircraftGalleryObjectUrls.map(url => `<img src="${escapeMarkup(url)}" alt="Aircraft" class="aircraft-gallery-image" style="height:200px; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer;">`).join('')}
       </div>
     ` : '';
 
@@ -3564,7 +3573,7 @@ async function showAircraftDetail(id) {
 
 
         <div class="detail-section full-width" id="acDetailADs">
-          <div class="detail-section-title">FAA Airworthiness Directives</div>
+          <div class="detail-section-title">FAA Airworthiness Directives <span id="acDetailADStatus" class="source-readiness" data-state="checking">Checking</span></div>
           <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capability...</div>
         </div>
       </div>
@@ -3585,13 +3594,20 @@ async function showAircraftDetail(id) {
     // Populate the compliance section through the authenticated MCP boundary.
     (async () => {
       const adContainer = document.getElementById('acDetailADList');
+      const adStatus = document.getElementById('acDetailADStatus');
       if (!adContainer) return;
+      const setAdState = (state, label) => {
+        if (!adStatus) return;
+        adStatus.dataset.state = state;
+        adStatus.textContent = label;
+      };
       // Refresh token before compliance call
       if (window.MXGENIUS_AUTH?.getToken) {
         try { await window.MXGENIUS_AUTH.getToken(); } catch (_) {}
       }
       const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
       if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecureLocal && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
+        setAdState('unavailable', 'Sign-in required');
         adContainer.textContent = 'Sign in to retrieve regulatory evidence.';
         return;
       }
@@ -3608,6 +3624,7 @@ async function showAircraftDetail(id) {
             ? lookup.matches[0].aircraft_id
             : null);
         if (!canonicalAircraftId) {
+          setAdState('limited', 'Identity needed');
           adContainer.textContent = lookupEnvelope.warnings?.[0]?.message
             || 'This aircraft could not be resolved for FAA candidate matching.';
           return;
@@ -3620,9 +3637,13 @@ async function showAircraftDetail(id) {
         const output = MXApplicationClient.caseWorkspace.output(envelope);
         const ads = output?.ads || [];
         if (!ads.length) {
-          adContainer.textContent = envelope.warnings?.[0]?.message || 'No candidate ADs were returned by the configured source.';
+          const partial = ['partial', 'not_configured'].includes(String(envelope.status || '').toLowerCase());
+          setAdState(partial ? 'limited' : 'live', partial ? 'Limited' : 'Live');
+          adContainer.textContent = envelope.warnings?.[0]?.message
+            || 'FAA source checked successfully. No candidate ADs matched this aircraft profile.';
           return;
         }
+        setAdState('live', 'Live');
         adContainer.replaceChildren(...ads.slice(0, 15).map((ad) => {
           const row = document.createElement('div');
           row.className = 'compliance-result';
@@ -3636,6 +3657,7 @@ async function showAircraftDetail(id) {
           return row;
         }));
       } catch (error) {
+        setAdState('degraded', 'Degraded');
         const friendly = error.code === 'TENANT_MISMATCH'
           ? 'Organization configuration pending - AD retrieval will be available once tenant enrollment completes.'
           : error.message || 'Compliance service unavailable';

@@ -164,7 +164,9 @@ test('all mounted typed capabilities are surfaced through the settings operation
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.list/);
   assert.match(capabilityWorkbench, /MXApplicationClient\.capabilities\.call/);
   assert.match(capabilityWorkbench, /mxg:case-selected/);
-  assert.match(capabilityWorkbench, /operations ready/);
+  assert.match(capabilityWorkbench, /readinessOf/);
+  assert.match(capabilityWorkbench, /capability-readiness/);
+  assert.match(dashboard, /id="capabilityShowPlanned"/);
 });
 
 test('known POC-only data and loaders are absent', () => {
@@ -398,7 +400,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=3"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=4"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
   assert.match(dashboard, /onboarding\.css\?v=2/);
@@ -464,6 +466,12 @@ test('fleet access uses the server-side proxy marker without browser credentials
   assert.match(application, /BEARER = ''/);
   assert.doesNotMatch(application, /MXGENIUS_CONFIG\.getCompatibilitySession/);
   assert.doesNotMatch(application, /EmailAddress\s*:/);
+  assert.match(client, /Authenticated application session required/);
+  assert.match(client, /X-MXG-Organization-ID/);
+  assert.match(fleetProxy, /MXGENIUS_AUTHZ_URL/);
+  assert.match(fleetProxy, /MXGENIUS_INTERNAL_BEARER_TOKEN/);
+  assert.match(fleetProxy, /await authorize\(request\)/);
+  assert.match(fleetProxy, /FLEET_RATE_LIMIT_PER_MINUTE/);
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {
@@ -484,6 +492,8 @@ test('live field probe covers the deployed frontend, core, memory, MCP, and manu
     'Dashboard release assets',
     'Core readiness',
     'MCP registry',
+    'Fleet authentication boundary',
+    'FAA candidate retrieval',
     'Structured chat',
     'Thread persistence',
     'Manual retrieval and images',

@@ -13,6 +13,9 @@ const MXApplicationClient = (() => {
   const FLEET_API_BASE = String(runtimeConfig.fleetBase || '').replace(/\/$/, '');
   let rpcSequence = 0;
 
+  function compatibilitySession() {
+    return globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+  }
 
   async function fleetRequestJson(path, options = {}) {
     const response = await fetch(`${FLEET_API_BASE}${path}`, options);
@@ -26,8 +29,15 @@ const MXApplicationClient = (() => {
   }
 
   function jetNetHeaders(bearer) {
-    const headers = { 'Content-Type': 'application/json' };
-    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const session = compatibilitySession();
+    const accessToken = bearer || session.accessToken;
+    if (!accessToken) throw new Error('Authenticated application session required');
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    };
+    if (session.organizationId) headers['X-MXG-Organization-ID'] = session.organizationId;
+    headers['X-Correlation-ID'] = session.correlationId || globalThis.crypto?.randomUUID?.() || `fleet-${Date.now()}`;
     return headers;
   }
 
@@ -80,6 +90,14 @@ const MXApplicationClient = (() => {
     try { parsed = new URL(String(sourceUrl || '')); } catch { return ''; }
     if (parsed.protocol !== 'https:') return '';
     return `${FLEET_API_BASE}/api/image?url=${encodeURIComponent(parsed.href)}`;
+  }
+
+  async function aircraftImageBlobUrl(sourceUrl, { bearer } = {}) {
+    const path = aircraftImageUrl(sourceUrl);
+    if (!path) return '';
+    const response = await fetch(path, { headers: jetNetHeaders(bearer) });
+    if (!response.ok) throw new Error(`Fleet image failed (${response.status})`);
+    return URL.createObjectURL(await response.blob());
   }
 
   function companyList({ token, bearer, filters }) {
@@ -830,6 +848,7 @@ const MXApplicationClient = (() => {
     MCP_BASE,
     MCP_PROTOCOL_VERSION,
     aircraftBundle,
+    aircraftImageBlobUrl,
     aircraftImageUrl,
     aircraftList,
     aircraft: Object.freeze({

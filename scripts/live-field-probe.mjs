@@ -6,6 +6,10 @@ const CORE = String(
   process.env.MXGENIUS_API_URL
     || 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io'
 ).replace(/\/$/, '');
+const FLEET = String(
+  process.env.MXGENIUS_FLEET_URL
+    || 'https://mxg-fleet.kindbush-8fee3a17.centralus.azurecontainerapps.io'
+).replace(/\/$/, '');
 const ACCESS_TOKEN = process.env.MXGENIUS_ACCESS_TOKEN || '';
 const ORGANIZATION_ID = process.env.MXGENIUS_ORGANIZATION_ID || '';
 const PROTOCOL_VERSION = '2025-11-25';
@@ -101,15 +105,16 @@ async function mcp(method, params = {}, { notification = false } = {}) {
 let deployedDashboard = '';
 let createdThreadId = null;
 let structuredResponse = null;
+let probeAircraft = null;
 
 await check('Dashboard release assets', 'frontend', async () => {
   const response = await request(`${SITE}/dashboard.html?probe=${encodeURIComponent(runId)}`);
   requireCondition(response.status === 200, `Dashboard returned ${response.status}`);
   deployedDashboard = await response.text();
   for (const marker of [
-    'application-client.js?v=17',
+    'application-client.js?v=18',
     'realtime-client.js?v=4',
-    'app.js?v=26',
+    'app.js?v=27',
     'id="chatAttachBtn"',
     'value="gpt-5.5"'
   ]) {
@@ -119,7 +124,7 @@ await check('Dashboard release assets', 'frontend', async () => {
 });
 
 await check('Realtime companion bundle', 'frontend', async () => {
-  const response = await request(`${SITE}/app.js?v=26&probe=${encodeURIComponent(runId)}`);
+  const response = await request(`${SITE}/app.js?v=27&probe=${encodeURIComponent(runId)}`);
   requireCondition(response.status === 200, `app.js returned ${response.status}`);
   const source = await response.text();
   for (const marker of [
@@ -164,6 +169,19 @@ await check('Authentication boundary', 'security', async () => {
   return { detail: `Unauthenticated tenant data fails closed (${response.status}).` };
 });
 
+await check('Fleet authentication boundary', 'security', async () => {
+  const response = await request(`${FLEET}/api/Model/getModelIntelligence/LIVE_TOKEN`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ make: ['GULFSTREAM'], model: ['G550'] })
+  });
+  requireCondition(
+    response.status === 401 || response.status === 403,
+    `Unauthenticated fleet request unexpectedly returned ${response.status}`
+  );
+  return { detail: `Licensed fleet data fails closed without MXGenius identity (${response.status}).` };
+});
+
 await check('Browser CORS contract', 'security', async () => {
   const response = await request(`${CORE}/chat`, {
     method: 'OPTIONS',
@@ -182,6 +200,8 @@ await check('Browser CORS contract', 'security', async () => {
 if (!ACCESS_TOKEN) {
   for (const [name, detail] of [
     ['MCP registry', 'Set MXGENIUS_ACCESS_TOKEN to verify the authenticated 50-tool registry.'],
+    ['Authenticated fleet source', 'Set MXGENIUS_ACCESS_TOKEN to verify JetNet through the protected fleet proxy.'],
+    ['FAA candidate retrieval', 'Set MXGENIUS_ACCESS_TOKEN to resolve a fleet aircraft and verify the live FAA adapter.'],
     ['Structured chat', 'Set MXGENIUS_ACCESS_TOKEN to create a probe thread and call the selected model.'],
     ['Thread persistence', 'Set MXGENIUS_ACCESS_TOKEN to reopen the structured probe response.'],
     ['Manual retrieval and images', 'Set MXGENIUS_ACCESS_TOKEN to query the RAG corpus and verify returned image assets.'],
@@ -190,6 +210,21 @@ if (!ACCESS_TOKEN) {
     skip(name, 'authenticated', detail);
   }
 } else {
+  await check('Authenticated fleet source', 'authenticated', async () => {
+    const response = await request(`${FLEET}/api/Aircraft/getBulkAircraftExportPaged/LIVE_TOKEN/50/1`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ pageSize: 50, pageNumber: 1, make: 'Gulfstream' })
+    });
+    const payload = await responseBody(response);
+    requireCondition(response.ok, `Fleet request failed (${response.status}): ${bounded(payload)}`);
+    const aircraft = Array.isArray(payload?.aircraft) ? payload.aircraft : [];
+    requireCondition(aircraft.length > 0, `Fleet source returned no aircraft: ${bounded(payload)}`);
+    probeAircraft = aircraft.find((item) => item?.regnbr && item?.aircraftid) || aircraft.find((item) => item?.aircraftid) || aircraft[0];
+    requireCondition(probeAircraft?.aircraftid || probeAircraft?.regnbr, 'Fleet source returned no usable aircraft identity');
+    return { detail: `Protected JetNet proxy returned ${aircraft.length} aircraft for acceptance sampling.` };
+  });
+
   await check('MCP registry', 'authenticated', async () => {
     const initialized = await mcp('initialize', {
       protocolVersion: PROTOCOL_VERSION,
@@ -201,7 +236,36 @@ if (!ACCESS_TOKEN) {
     const listed = await mcp('tools/list');
     requireCondition(Array.isArray(listed?.tools), 'MCP tools/list returned no tools');
     requireCondition(listed.tools.length === 50, `Expected 50 MCP tools; received ${listed.tools.length}`);
-    return { detail: 'Authenticated MCP initialized and returned all 50 typed tools.' };
+    const counts = listed.tools.reduce((summary, tool) => {
+      const availability = String(tool.meta?.availability || 'unknown');
+      summary[availability] = (summary[availability] || 0) + 1;
+      return summary;
+    }, {});
+    return { detail: `Authenticated MCP returned all 50 typed tools: ${Object.entries(counts).map(([key, value]) => `${key} ${value}`).join(', ')}.` };
+  });
+
+  await check('FAA candidate retrieval', 'authenticated', async () => {
+    requireCondition(probeAircraft, 'Authenticated fleet sampling did not return an aircraft');
+    const lookup = await mcp('tools/call', {
+      name: 'mxg.aircraft.lookup',
+      arguments: {
+        registration: probeAircraft.regnbr || null,
+        serial_number: probeAircraft.sernbr || null,
+        source_id: probeAircraft.aircraftid == null ? null : String(probeAircraft.aircraftid)
+      }
+    });
+    const aircraftId = lookup?.output?.aircraft_id
+      || (Array.isArray(lookup?.output?.matches) && lookup.output.matches.length === 1
+        ? lookup.output.matches[0].aircraft_id
+        : null);
+    requireCondition(aircraftId, `Fleet sample could not be resolved canonically: ${bounded(lookup)}`);
+    const faa = await mcp('tools/call', {
+      name: 'mxg.compliance.applicable_ads',
+      arguments: { aircraft_id: aircraftId, case_id: null }
+    });
+    requireCondition(!['partial', 'not_configured', 'failed'].includes(String(faa?.status || '').toLowerCase()), `FAA adapter did not complete: ${bounded(faa, 1_200)}`);
+    const ads = Array.isArray(faa?.output?.ads) ? faa.output.ads : [];
+    return { detail: `FAA DRS completed for ${probeAircraft.regnbr || aircraftId}; ${ads.length} candidate ADs returned.` };
   });
 
   await check('Structured chat', 'authenticated', async () => {
@@ -316,6 +380,7 @@ const report = {
   completed_at: completedAt.toISOString(),
   site: SITE,
   core: CORE,
+  fleet: FLEET,
   authenticated: Boolean(ACCESS_TOKEN),
   summary: counts,
   results
@@ -332,6 +397,7 @@ const markdown = `# MXGenius Live Field Probe
 - Run: \`${runId}\`
 - Site: ${SITE}
 - Core: ${CORE}
+- Fleet: ${FLEET}
 - Authenticated: ${Boolean(ACCESS_TOKEN)}
 - Summary: ${Object.entries(counts).map(([status, count]) => `${status} ${count}`).join(', ')}
 

@@ -1,28 +1,38 @@
 //! Digital twin tool handlers (5): `mxg.digital_twin.*`.
+//!
+//! - `list_models` and `highlight_zone` are backed by the tenant-scoped
+//!   `digital_twin_models` / `digital_twin_highlight_state` tables when a
+//!   pool is configured; otherwise they remain `not_configured`.
+//! - `component_state` is always backed by the case service.
+//! - `link_documents` is backed by the evidence + evidence_links tables when
+//!   a pool is configured, and returns a typed `not_configured` partial
+//!   envelope in local mode.
+//! - `attach_case_marker` already persists via the case service.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use mxgenius_shared::application::context::ExecutionContext;
-use mxgenius_shared::application::envelope::{CapabilityEnvelope, EnvelopeError};
+use mxgenius_shared::application::envelope::{CapabilityEnvelope, EnvelopeError, EnvelopeStatus};
 use mxgenius_shared::application::errors::StableErrorCode;
 use mxgenius_shared::application::policy::Action;
 use mxgenius_shared::contracts::{
-    DigitalTwinAttachCaseMarkerRequest, DigitalTwinAttachCaseMarkerResponse,
+    ComponentStateDto, DigitalTwinAttachCaseMarkerRequest, DigitalTwinAttachCaseMarkerResponse,
     DigitalTwinComponentStateRequest, DigitalTwinComponentStateResponse,
     DigitalTwinHighlightZoneRequest, DigitalTwinHighlightZoneResponse,
     DigitalTwinLinkDocumentsRequest, DigitalTwinLinkDocumentsResponse,
-    DigitalTwinListModelsRequest, DigitalTwinListModelsResponse, TwinMeshDto, TwinModelDto,
+    DigitalTwinListModelsRequest, DigitalTwinListModelsResponse, LinkedDocument, TwinMeshDto,
+    TwinModelDto,
 };
 use mxgenius_shared::domain::datetime::UtcDateTime;
 use mxgenius_shared::domain::evidence::ConfidenceBasis;
-use mxgenius_shared::domain::ids::{ModelId, TwinModelId};
+use mxgenius_shared::domain::ids::{CaseId, ModelId, TwinModelId};
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::application::case_service::CaseService;
-use crate::handlers::{not_configured, spec};
+use crate::handlers::{limited_spec, not_configured, spec};
 use crate::registry::Registry;
 use crate::tool::Tool;
 use crate::typed_tool::wrap;
@@ -39,6 +49,7 @@ pub fn register(
         reg.register_typed_tool(wrap(Arc::new(DigitalTwinHighlightZoneTool {
             pool: pool.clone(),
         })));
+        reg.register_typed_tool(wrap(Arc::new(DigitalTwinLinkDocumentsTool { pool })));
     } else {
         reg.register_typed_tool(wrap(not_configured::<
             DigitalTwinListModelsRequest,
@@ -72,39 +83,21 @@ pub fn register(
                 updated_at: None,
             },
         )));
+        reg.register_typed_tool(wrap(not_configured::<
+            DigitalTwinLinkDocumentsRequest,
+            DigitalTwinLinkDocumentsResponse,
+            _,
+        >(
+            "mxg.digital_twin.link_documents",
+            "Link Documents",
+            "Return applicable document sections, diagrams, evidence references, mapping confidence.",
+            Action::TwinRead,
+            |_input| DigitalTwinLinkDocumentsResponse { documents: vec![] },
+        )));
     }
-    reg.register_typed_tool(wrap(not_configured::<
-        DigitalTwinComponentStateRequest,
-        DigitalTwinComponentStateResponse,
-        _,
-    >(
-        "mxg.digital_twin.component_state",
-        "Component State",
-        "Return canonical component, status, installation, observations, prior cases, evidence.",
-        Action::TwinRead,
-        |input| DigitalTwinComponentStateResponse {
-            component: mxgenius_shared::contracts::ComponentStateDto {
-                component_id: input.component_id,
-                canonical: false,
-                status: "unknown".into(),
-                installation_zone: None,
-                observations: vec![],
-                prior_case_ids: vec![],
-                evidence_ids: vec![],
-            },
-        },
-    )));
-    reg.register_typed_tool(wrap(not_configured::<
-        DigitalTwinLinkDocumentsRequest,
-        DigitalTwinLinkDocumentsResponse,
-        _,
-    >(
-        "mxg.digital_twin.link_documents",
-        "Link Documents",
-        "Return applicable document sections, diagrams, evidence references, mapping confidence.",
-        Action::TwinRead,
-        |_input| DigitalTwinLinkDocumentsResponse { documents: vec![] },
-    )));
+    reg.register_typed_tool(wrap(Arc::new(DigitalTwinComponentStateTool {
+        case_service: case_service.clone(),
+    })));
     reg.register_typed_tool(wrap(Arc::new(DigitalTwinAttachCaseMarkerTool {
         service: case_service,
     })));
@@ -238,7 +231,7 @@ impl Tool for DigitalTwinHighlightZoneTool {
     async fn invoke(
         &self,
         ctx: &ExecutionContext,
-        input: Self::Request,
+        input: DigitalTwinHighlightZoneRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
         if input.read_current {
             let row: Option<(
@@ -385,7 +378,7 @@ impl Tool for DigitalTwinAttachCaseMarkerTool {
     async fn invoke(
         &self,
         ctx: &ExecutionContext,
-        input: Self::Request,
+        input: DigitalTwinAttachCaseMarkerRequest,
     ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
         input.validate().map_err(|message| EnvelopeError {
             code: StableErrorCode::InvalidInput,
@@ -403,6 +396,176 @@ impl Tool for DigitalTwinAttachCaseMarkerTool {
         envelope.confidence.basis =
             mxgenius_shared::domain::evidence::ConfidenceBasis::HumanConfirmed;
         envelope.requires_human_approval = true;
+        Ok(envelope)
+    }
+}
+
+// 34. component_state ------------------------------------------------------
+
+struct DigitalTwinComponentStateTool {
+    case_service: Arc<dyn CaseService>,
+}
+
+#[async_trait]
+impl Tool for DigitalTwinComponentStateTool {
+    type Request = DigitalTwinComponentStateRequest;
+    type Response = DigitalTwinComponentStateResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        limited_spec::<Self::Request, Self::Response>(
+            "mxg.digital_twin.component_state",
+            "Component State",
+            "Return canonical component, status, installation, observations, prior cases, evidence.",
+            Action::TwinRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: DigitalTwinComponentStateRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let cases = self
+            .case_service
+            .list_for_org(ctx.organization_id)
+            .await
+            .map_err(|e| EnvelopeError {
+                code: StableErrorCode::InternalError,
+                severity: "error".into(),
+                message: e.to_string(),
+                retryable: true,
+            })?;
+        let mut prior_case_ids: Vec<CaseId> = Vec::new();
+        let observations: Vec<String> = Vec::new();
+        let mut evidence_ids: Vec<String> = Vec::new();
+        for case in &cases {
+            if case.aircraft_id != input.aircraft_id {
+                continue;
+            }
+            for evidence_id in &case.evidence_ids {
+                evidence_ids.push(evidence_id.0.to_string());
+            }
+            if !prior_case_ids.contains(&case.case_id) {
+                prior_case_ids.push(case.case_id);
+            }
+        }
+        let mut envelope = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            DigitalTwinComponentStateResponse {
+                component: ComponentStateDto {
+                    component_id: input.component_id,
+                    canonical: false,
+                    status: if prior_case_ids.is_empty() {
+                        "no_tenant_history".into()
+                    } else {
+                        "candidate".into()
+                    },
+                    installation_zone: None,
+                    observations,
+                    prior_case_ids,
+                    evidence_ids,
+                },
+            },
+        );
+        envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        envelope.warnings.push(EnvelopeError {
+            code: StableErrorCode::NotConfigured,
+            severity: "warn".into(),
+            message: "no canonical component / installation source is provided by the supplied build; the response only enumerates tenant case history"
+                .into(),
+            retryable: false,
+        });
+        if envelope.output.component.prior_case_ids.is_empty() {
+            envelope.status = EnvelopeStatus::Partial;
+            envelope.confidence.score = 0.0;
+        }
+        Ok(envelope)
+    }
+}
+
+// 36. link_documents -------------------------------------------------------
+
+struct DigitalTwinLinkDocumentsTool {
+    pool: sqlx::PgPool,
+}
+
+#[async_trait]
+impl Tool for DigitalTwinLinkDocumentsTool {
+    type Request = DigitalTwinLinkDocumentsRequest;
+    type Response = DigitalTwinLinkDocumentsResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        limited_spec::<Self::Request, Self::Response>(
+            "mxg.digital_twin.link_documents",
+            "Link Documents",
+            "Return applicable document sections, diagrams, evidence references, mapping confidence.",
+            Action::TwinRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: DigitalTwinLinkDocumentsRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let aircraft_id = input.aircraft_id.as_deref();
+        let model_id = input.model_id.map(|m| m.0.to_string());
+        let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
+            r#"SELECT e.id, e.source_reference, e.source_type
+               FROM evidence e
+               LEFT JOIN evidence_links l
+                 ON l.organization_id=e.organization_id AND l.evidence_id=e.id
+               WHERE e.organization_id=$1
+                 AND (
+                   ($2::text IS NOT NULL AND l.aircraft_id=$2)
+                   OR ($3::text IS NOT NULL AND l.document_id::text=$3)
+                   OR ($2::text IS NULL AND $3::text IS NULL)
+                 )
+               ORDER BY e.retrieved_at DESC
+               LIMIT 50"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(aircraft_id)
+        .bind(model_id.as_deref())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| internal_error(format!("link_documents query failed: {error}")))?;
+        let documents: Vec<LinkedDocument> = rows
+            .into_iter()
+            .map(|(id, source_reference, source_type)| {
+                let confidence = if source_type == "manual" { 0.6 } else { 0.4 };
+                LinkedDocument {
+                    document_id: id.to_string(),
+                    section: None,
+                    diagram_reference: None,
+                    confidence,
+                    evidence_reference: source_reference,
+                }
+            })
+            .collect();
+        let mut envelope = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            DigitalTwinLinkDocumentsResponse { documents },
+        );
+        envelope.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        envelope.warnings.push(EnvelopeError {
+            code: StableErrorCode::NotConfigured,
+            severity: "info".into(),
+            message: "diagram-to-mesh mapping and section resolution are not provided by the supplied build".into(),
+            retryable: false,
+        });
+        if envelope.output.documents.is_empty() {
+            envelope.status = EnvelopeStatus::Partial;
+            envelope.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "warn".into(),
+                message: "no evidence rows link this aircraft or model to a document".into(),
+                retryable: false,
+            });
+            envelope.confidence.score = 0.0;
+        }
         Ok(envelope)
     }
 }

@@ -100,11 +100,11 @@ const MXOnboarding = (() => {
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
       },
       {
-        target: '.dashboard-filters, .filter-row',
-        title: 'Fleet Analytics',
-        body: 'Filter by manufacturer, type, or status to drill into your fleet data. The charts below update in real time as you apply filters.',
+        target: '#aircraftExplorerCollapsible',
+        title: 'Aircraft Explorer',
+        body: 'Expand Aircraft Explorer to search by registration, manufacturer, aircraft type, or reported operating context. Select an aircraft to open its source-backed details and FAA candidate check.',
         position: 'bottom',
-        onEnter: () => switchTabSafe('dashboard')
+        onEnter: () => { switchTabSafe('dashboard'); document.getElementById('aircraftExplorerCollapsible')?.setAttribute('open', ''); }
       },
       {
         target: '#globeVrButton',

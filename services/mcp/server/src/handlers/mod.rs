@@ -1,11 +1,12 @@
 //! Tool handler module: registers all 50 v1 tools. Each tool has its own
 //! request and response contract from `mxgenius-shared::contracts::*`.
 //!
-//! The first vertical slice (aircraft.lookup, aircraft.profile,
-//! maintenance_case.create, maintenance_case.get,
-//! maintenance_case.build_context, evidence.collect) is backed by fixture
-//! data and an in-memory case repository. Every other tool returns a
-//! typed `NOT_CONFIGURED` envelope with no invented operational facts.
+//! Tools that need a Postgres-backed source (parts inventory, parts
+//! certificate persistence, compliance return-to-service pack, MRO search
+//! and ranking) register a `NotConfiguredTool` when the application pool
+//! is absent, so the `tools/list` metadata reports `not_configured` while
+//! the runtime envelope emits a typed partial response with a
+//! `NOT_CONFIGURED` warning.
 
 use std::sync::Arc;
 
@@ -43,26 +44,33 @@ pub fn register_all(
     evidence_service: std::sync::Arc<dyn crate::application::evidence_service::EvidenceStore>,
     adapters: crate::registry::RegistryAdapters,
 ) {
-    aircraft::register(reg, adapters.jetnet, adapters.aircraft_catalog.clone());
+    aircraft::register(
+        reg,
+        adapters.jetnet,
+        adapters.aircraft_catalog.clone(),
+        case_service.clone(),
+    );
     case::register(
         reg,
         case_service.clone(),
-        adapters.manual,
+        adapters.manual.clone(),
         adapters.allow_fixture_compliance,
     );
-    parts::register(reg);
-    mro::register(reg);
+    parts::register(reg, adapters.pool.clone());
+    mro::register(reg, adapters.pool.clone());
     weather::register(reg);
     compliance::register(
         reg,
-        adapters.aircraft_catalog,
+        adapters.aircraft_catalog.clone(),
         adapters.faa_ad,
         adapters.saib,
+        adapters.pool.clone(),
+        case_service.clone(),
     );
-    digital_twin::register(reg, case_service, adapters.pool.clone());
-    scheduling::register(reg);
-    evidence::register(reg, evidence_service);
-    analytics::register(reg);
+    digital_twin::register(reg, case_service.clone(), adapters.pool.clone());
+    evidence::register(reg, evidence_service, case_service.clone());
+    scheduling::register(reg, adapters.pool.clone(), case_service.clone());
+    analytics::register(reg, case_service, adapters.pool.clone());
 }
 
 fn schema_generator() -> SchemaGenerator {
@@ -108,6 +116,20 @@ pub fn spec<I: JsonSchema, O: JsonSchema>(
         requires_human_approval,
         availability: "available".into(),
     }
+}
+
+/// A callable implementation whose authoritative inputs are incomplete.
+/// Clients may run it, but must present the result as limited rather than live.
+pub fn limited_spec<I: JsonSchema, O: JsonSchema>(
+    name: &str,
+    title: &str,
+    description: &str,
+    action: Action,
+    requires_human_approval: bool,
+) -> ToolSpec {
+    let mut tool_spec = spec::<I, O>(name, title, description, action, requires_human_approval);
+    tool_spec.availability = "limited".into();
+    tool_spec
 }
 
 /// A typed handler that always returns a `NOT_CONFIGURED` envelope. The

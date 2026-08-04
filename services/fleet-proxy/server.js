@@ -2,11 +2,17 @@
 
 const http = require('node:http');
 const https = require('node:https');
+const crypto = require('node:crypto');
 
 const port = Number(process.env.PORT || 8080);
 const providerHost = 'customer.jetnetconnect.com';
 const providerIdentity = process.env.JETNET_IDENTITY || '';
 const providerCredential = process.env.JETNET_CREDENTIAL || '';
+const authzUrl = process.env.MXGENIUS_AUTHZ_URL
+  || 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io/api/profile';
+const authzCacheTtlMs = Math.max(0, Number(process.env.MXGENIUS_AUTHZ_CACHE_SECONDS || 10)) * 1000;
+const rateLimitPerMinute = Math.max(10, Number(process.env.FLEET_RATE_LIMIT_PER_MINUTE || 180));
+const internalBearerToken = process.env.MXGENIUS_INTERNAL_BEARER_TOKEN || '';
 const allowedOrigins = new Set([
   'https://mxgenius.io',
   'https://www.mxgenius.io'
@@ -17,6 +23,84 @@ const fleetSnapshot = { result: null, loadedAt: 0, inFlight: null };
 const fleetSnapshotTtlMs = 30 * 60 * 1000;
 const imageHosts = new Set(['evo-assets-3wl.s3.us-west-2.amazonaws.com']);
 const maxImageBytes = 15 * 1024 * 1024;
+const authzCache = new Map();
+const rateWindows = new Map();
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function requestBearer(request) {
+  const value = String(request.headers.authorization || '');
+  const match = /^Bearer\s+([^\s]+)$/i.exec(value);
+  if (!match) throw new HttpError(401, 'MXGenius sign-in required');
+  return match[1];
+}
+
+function tokenFingerprint(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function isInternalBearer(token) {
+  if (!internalBearerToken) return false;
+  const supplied = Buffer.from(token);
+  const expected = Buffer.from(internalBearerToken);
+  return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+}
+
+async function authorize(request) {
+  const token = requestBearer(request);
+  const fingerprint = tokenFingerprint(token);
+  if (isInternalBearer(token)) return `internal:${fingerprint}`;
+  const cached = authzCache.get(fingerprint);
+  if (cached?.expiresAt > Date.now()) {
+    if (cached.promise) await cached.promise;
+    return fingerprint;
+  }
+
+  const promise = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let result;
+    try {
+      const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+      const organizationId = String(request.headers['x-mxg-organization-id'] || '').trim();
+      if (organizationId) headers['X-MXG-Organization-ID'] = organizationId;
+      result = await fetch(authzUrl, { headers, signal: controller.signal });
+    } catch {
+      throw new HttpError(503, 'MXGenius access verification is temporarily unavailable');
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (result.status === 401) throw new HttpError(401, 'MXGenius sign-in required');
+    if (result.status === 403) throw new HttpError(403, 'MXGenius access is not approved');
+    if (!result.ok) throw new HttpError(503, 'MXGenius access verification is temporarily unavailable');
+  })();
+
+  authzCache.set(fingerprint, { expiresAt: Date.now() + authzCacheTtlMs, promise });
+  try {
+    await promise;
+    authzCache.set(fingerprint, { expiresAt: Date.now() + authzCacheTtlMs, promise: null });
+    return fingerprint;
+  } catch (error) {
+    authzCache.delete(fingerprint);
+    throw error;
+  }
+}
+
+function consumeRateLimit(key) {
+  const now = Date.now();
+  const current = rateWindows.get(key);
+  if (!current || current.resetAt <= now) {
+    rateWindows.set(key, { count: 1, resetAt: now + 60000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= rateLimitPerMinute;
+}
 
 function providerRequest(method, path, body, bearer) {
   return new Promise((resolve, reject) => {
@@ -116,15 +200,16 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': allowedOrigins.has(origin) ? origin : 'https://mxgenius.io',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Correlation-ID',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Correlation-ID,X-MXG-Organization-ID',
+    'Access-Control-Expose-Headers': 'X-Correlation-ID',
     Vary: 'Origin',
     'Cache-Control': 'no-store',
     'Content-Type': 'application/json; charset=utf-8'
   };
 }
 
-function respond(response, status, body, origin = '') {
-  response.writeHead(status, corsHeaders(origin));
+function respond(response, status, body, origin = '', extraHeaders = {}) {
+  response.writeHead(status, { ...corsHeaders(origin), ...extraHeaders });
   response.end(JSON.stringify(body));
 }
 
@@ -184,34 +269,67 @@ async function proxyImage(request, response, origin) {
   response.end(image.body);
 }
 
-const server = http.createServer((request, response) => {
+const server = http.createServer(async (request, response) => {
+  const requestStartedAt = Date.now();
+  const correlationId = String(request.headers['x-correlation-id'] || '').trim() || crypto.randomUUID();
+  response.setHeader('X-Correlation-ID', correlationId);
+  response.once('finish', () => {
+    const pathname = String(request.url || '/').split('?', 1)[0].replace(/\/\d+(?=\/|$)/g, '/:id');
+    console.log(JSON.stringify({
+      event: 'fleet_request',
+      correlation_id: correlationId,
+      method: request.method,
+      path: pathname,
+      status: response.statusCode,
+      duration_ms: Date.now() - requestStartedAt
+    }));
+  });
   const origin = String(request.headers.origin || '');
-  if (request.method === 'OPTIONS') return respond(response, 204, {}, origin);
+  if (request.method === 'OPTIONS') {
+    if (origin && !allowedOrigins.has(origin)) return respond(response, 403, { error: 'Origin denied' }, origin);
+    return respond(response, 204, {}, origin);
+  }
   if (request.url === '/healthz') return respond(response, 200, { status: 'ok' }, origin);
   if (request.url === '/api/status') return respond(response, 200, {
     ready: Boolean(session.bearer && session.apiToken),
+    internalAccessConfigured: Boolean(internalBearerToken),
     fleetSnapshotReady: Boolean(fleetSnapshot.result),
     fleetSnapshotAgeSeconds: fleetSnapshot.result ? Math.floor((Date.now() - fleetSnapshot.loadedAt) / 1000) : null
   }, origin);
-  if (request.url?.startsWith('/api/image?')) {
-    if (origin && !allowedOrigins.has(origin)) return respond(response, 403, { error: 'Origin denied' }, origin);
+  if (!request.url?.startsWith('/api/')) return respond(response, 404, { error: 'Not found' }, origin);
+  if (origin && !allowedOrigins.has(origin)) return respond(response, 403, { error: 'Origin denied' }, origin);
+
+  let requester;
+  try {
+    requester = await authorize(request);
+  } catch (error) {
+    return respond(response, error.status || 503, { error: error.message || 'Access verification failed' }, origin);
+  }
+  if (!consumeRateLimit(requester)) {
+    return respond(response, 429, { error: 'Fleet request limit reached; retry shortly' }, origin, { 'Retry-After': '60' });
+  }
+
+  if (request.url.startsWith('/api/image?')) {
     return proxyImage(request, response, origin).catch((error) => {
       console.error('Fleet image proxy failed:', error.message);
       if (!response.headersSent) respond(response, 502, { error: 'Image temporarily unavailable' }, origin);
       else response.destroy();
     });
   }
-  if (!request.url?.startsWith('/api/')) return respond(response, 404, { error: 'Not found' }, origin);
-  if (origin && !allowedOrigins.has(origin)) return respond(response, 403, { error: 'Origin denied' }, origin);
-
   let raw = '';
+  let tooLarge = false;
   request.setEncoding('utf8');
   request.on('data', (chunk) => {
+    if (tooLarge) return;
     raw += chunk;
-    if (raw.length > 2_000_000) request.destroy();
+    if (raw.length > 2_000_000) {
+      tooLarge = true;
+      raw = '';
+    }
   });
   request.on('end', async () => {
     try {
+      if (tooLarge) return respond(response, 413, { error: 'Request body is too large' }, origin);
       let body = raw ? JSON.parse(raw) : null;
       if (request.url.includes('/Aircraft/getBulkAircraftExportPaged/') && (!body || Object.keys(body).length === 0)) {
         body = { pageSize: 50, pageNumber: 1, make: 'Gulfstream' };
