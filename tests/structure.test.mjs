@@ -221,11 +221,16 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(caseWorkspace, /mxg_active_case_id/);
 });
 
-test('fleet compatibility translation is scoped and market intelligence fails visibly', () => {
+test('fleet compatibility translation is scoped and market intelligence uses subscribed dropdown options', () => {
   assert.doesNotMatch(application, /window\.fetch\s*=/);
   assert.match(client, /method: method === 'PUT' \? 'POST' : method/);
-  assert.match(application, /Promise\.allSettled/);
-  assert.match(application, /Market intelligence source unavailable or returned an error/);
+  assert.match(client, /Model\/getModelIntelligence/);
+  assert.match(application, /loadMarketIntelCatalog/);
+  assert.match(application, /updateMarketModelOptions/);
+  assert.match(application, /Array\.isArray\(payload\?\.modelIntelligence\)/);
+  assert.doesNotMatch(application, /modelOperationCosts|modelPerformanceSpecs|modelMarketTrends/);
+  assert.match(dashboard, /<select id="mktMake"/);
+  assert.match(dashboard, /<select id="mktModel"/);
   assert.match(application, /escapeMarkup\(formatted\)/);
 });
 

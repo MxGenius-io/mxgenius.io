@@ -2874,14 +2874,82 @@ function setOutreachMode(mode) {
 //  MARKET INTELLIGENCE
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
+let marketIntelCatalog = [];
+let marketIntelCatalogPromise = null;
+
 function setupMarketIntel() {
   const btn = document.getElementById('mktSearchBtn');
-  if (!btn) return;
+  const panel = document.getElementById('marketIntelCollapsible');
+  const makeSelect = document.getElementById('mktMake');
+  if (!btn || !panel || !makeSelect) return;
   btn.addEventListener('click', loadMarketIntel);
-  // Also enter key
-  ['mktMake', 'mktModel'].forEach(id => {
-    document.getElementById(id)?.addEventListener('keyup', (e) => { if (e.key === 'Enter') loadMarketIntel(); });
+  makeSelect.addEventListener('change', updateMarketModelOptions);
+  panel.addEventListener('toggle', () => {
+    if (panel.open) loadMarketIntelCatalog();
   });
+  if (panel.open) loadMarketIntelCatalog();
+}
+
+async function loadMarketIntelCatalog() {
+  if (marketIntelCatalog.length) return marketIntelCatalog;
+  if (marketIntelCatalogPromise) return marketIntelCatalogPromise;
+
+  const makeSelect = document.getElementById('mktMake');
+  const modelSelect = document.getElementById('mktModel');
+  const button = document.getElementById('mktSearchBtn');
+  const results = document.getElementById('mktResults');
+  if (!makeSelect || !modelSelect || !button || !results) return [];
+
+  results.innerHTML = '<div class="loading">Loading available aircraft models…</div>';
+  marketIntelCatalogPromise = MXApplicationClient.modelIntelligence({
+    token: TOKEN,
+    bearer: BEARER
+  }).then((payload) => {
+    const status = String(payload?.responsestatus || '').trim();
+    const records = Array.isArray(payload?.modelIntelligence) ? payload.modelIntelligence : [];
+    if (/^error\b/i.test(status) || !records.length) {
+      throw new Error(status || 'No subscribed models were returned');
+    }
+    marketIntelCatalog = records.filter((record) => record?.model_make && record?.model_name);
+    populateMarketMakeOptions();
+    results.innerHTML = '<div class="empty-state">Choose an available make and model, then view its intelligence.</div>';
+    return marketIntelCatalog;
+  }).catch((error) => {
+    console.error('Market intelligence catalog failed:', error);
+    makeSelect.innerHTML = '<option value="">Models unavailable</option>';
+    modelSelect.innerHTML = '<option value="">Models unavailable</option>';
+    results.innerHTML = '<div class="empty-state">Market intelligence is temporarily unavailable. Try reopening this section shortly.</div>';
+    return [];
+  }).finally(() => {
+    marketIntelCatalogPromise = null;
+  });
+  return marketIntelCatalogPromise;
+}
+
+function populateMarketMakeOptions() {
+  const makeSelect = document.getElementById('mktMake');
+  if (!makeSelect) return;
+  const makes = [...new Set(marketIntelCatalog.map((record) => record.model_make))]
+    .sort((left, right) => left.localeCompare(right));
+  makeSelect.innerHTML = makes.map((make) => `<option value="${escapeMarkup(make)}">${escapeMarkup(make)}</option>`).join('');
+  makeSelect.disabled = !makes.length;
+  makeSelect.value = makes.includes('GULFSTREAM') ? 'GULFSTREAM' : (makes[0] || '');
+  updateMarketModelOptions('G550');
+}
+
+function updateMarketModelOptions(preferredModel = '') {
+  const make = document.getElementById('mktMake')?.value || '';
+  const modelSelect = document.getElementById('mktModel');
+  const button = document.getElementById('mktSearchBtn');
+  if (!modelSelect || !button) return;
+  const models = [...new Set(marketIntelCatalog
+    .filter((record) => record.model_make === make)
+    .map((record) => record.model_name))]
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  modelSelect.innerHTML = models.map((model) => `<option value="${escapeMarkup(model)}">${escapeMarkup(model)}</option>`).join('');
+  modelSelect.disabled = !models.length;
+  modelSelect.value = models.includes(preferredModel) ? preferredModel : (models[0] || '');
+  button.disabled = !models.length;
 }
 
 async function loadMarketIntel() {
@@ -2897,20 +2965,30 @@ async function loadMarketIntel() {
 
   results.innerHTML = '<div class="loading" style="grid-column:1/-1;">Loading market intelligence\u2026</div>';
 
-  const outcomes = await Promise.allSettled([
-    MXApplicationClient.modelOperationCosts({ token: TOKEN, bearer: BEARER, make, model }),
-    MXApplicationClient.modelPerformanceSpecs({ token: TOKEN, bearer: BEARER, make, model }),
-    MXApplicationClient.modelMarketTrends({ token: TOKEN, bearer: BEARER, make, model })
-  ]);
-  const usablePayload = (outcome) => {
-    if (outcome.status !== 'fulfilled' || !outcome.value) return null;
-    const status = String(outcome.value.responsestatus || '').trim();
-    return /^error\b/i.test(status) ? null : outcome.value;
-  };
-  const [costs, specs, trends] = outcomes.map(usablePayload);
-  const failedSourceCount = outcomes.filter((outcome, index) => {
-    return outcome.status === 'rejected' || ![costs, specs, trends][index];
-  }).length;
+  if (!marketIntelCatalog.length) await loadMarketIntelCatalog();
+  const record = marketIntelCatalog.find((candidate) => {
+    return candidate.model_make === make && candidate.model_name === model;
+  });
+  const costs = record ? { operationcosts: {
+    totaldirectcosts: record.model_total_costs,
+    averageaskingprice: record.average_total_asking_price,
+    daysonmarket: record.average_total_days_on_market,
+    averageairframetime: record.average_total_airframe_time,
+    averageenginetime: record.average_total_engine_time
+  } } : null;
+  const specs = record ? { performancespecs: {
+    range: record.model_max_range,
+    maxspeed: record.model_max_speed,
+    normalcruisespeed: record.model_cruise_speed,
+    takeoffdistance: record.model_field_length,
+    passengers: record.model_pax,
+    cabinlength: record.model_cabinsize_length,
+    cabinwidth: record.model_cabinsize_width,
+    cabinheight: record.model_cabinsize_height,
+    wingspan: record.model_fuselage_wing_span
+  } } : null;
+  const trends = record ? { markettrends: record } : null;
+  const failedSourceCount = record ? 0 : 1;
 
   results.innerHTML = '';
   let renderedCards = 0;
@@ -2923,17 +3001,14 @@ async function loadMarketIntel() {
       <div class="card" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(30,41,59,0.6));border:1px solid rgba(16,185,129,0.2);">
         <h3 class="card-title" style="color:#10b981;">
           <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
-          Operating Costs
+          Cost &amp; Market
         </h3>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
-          ${mktRow('Fuel/hr', c.fuelcostperhour, '$')}
-          ${mktRow('Crew/yr', c.crewcostperyear, '$')}
-          ${mktRow('Maint/hr', c.maintenancecostperhour, '$')}
-          ${mktRow('Hangar/yr', c.hangarcostperyear, '$')}
-          ${mktRow('Insurance/yr', c.insurancecostperyear, '$')}
-          ${mktRow('Total/hr', c.totalcostperhour, '$')}
-          ${mktRow('Fuel Burn', c.fuelburnrate, '', ' gal/hr')}
-          ${mktRow('Annual Budget', c.annualbudget, '$')}
+          ${mktRow('Total Direct Costs', c.totaldirectcosts, '$')}
+          ${mktRow('Average Asking Price', c.averageaskingprice, '$')}
+          ${mktRow('Days on Market', c.daysonmarket, '', ' days')}
+          ${mktRow('Average Airframe Time', c.averageairframetime, '', ' hr')}
+          ${mktRow('Average Engine Time', c.averageenginetime, '', ' hr')}
         </div>
       </div>`;
   }
@@ -2950,15 +3025,14 @@ async function loadMarketIntel() {
         </h3>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
           ${mktRow('Range', s.range, '', ' nm')}
-          ${mktRow('Max Speed', s.maxspeed || s.highspeed, '', ' ktas')}
+          ${mktRow('Max Operating Speed', s.maxspeed || s.highspeed, '', ' kt IAS')}
           ${mktRow('Cruise Speed', s.normalcruisespeed, '', ' ktas')}
-          ${mktRow('Ceiling', s.ceiling, '', ' ft')}
-          ${mktRow('Takeoff Dist', s.takeoffdistance, '', ' ft')}
-          ${mktRow('Landing Dist', s.landingdistance, '', ' ft')}
-          ${mktRow('Passengers', s.passengers || s.maxpassengers)}
+          ${mktRow('Field Length', s.takeoffdistance, '', ' ft')}
+          ${mktRow('Passengers', s.passengers)}
           ${mktRow('Cabin Length', s.cabinlength, '', ' ft')}
+          ${mktRow('Cabin Width', s.cabinwidth, '', ' ft')}
+          ${mktRow('Cabin Height', s.cabinheight, '', ' ft')}
           ${mktRow('Wingspan', s.wingspan, '', ' ft')}
-          ${mktRow('MTOW', s.mtow, '', ' lbs')}
         </div>
       </div>`;
   }
@@ -2971,28 +3045,25 @@ async function loadMarketIntel() {
       <div class="card" style="background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(30,41,59,0.6));border:1px solid rgba(245,158,11,0.2);grid-column:1/-1;">
         <h3 class="card-title" style="color:#f59e0b;">
           <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/></svg>
-          Market Trends
+          Model Profile
         </h3>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.82rem;">
-          ${mktRow('Avg Ask Price', t.averageaskingprice || t.avgaskprice, '$')}
-          ${mktRow('Avg Sold Price', t.averagesoldprice || t.avgsoldprice, '$')}
-          ${mktRow('Fleet Size', t.fleetsize || t.totalfleet)}
-          ${mktRow('For Sale', t.forsale || t.forsalecount)}
-          ${mktRow('Absorption Rate', t.absorptionrate, '', '%')}
-          ${mktRow('Days on Market', t.daysonmarket)}
+          ${mktRow('Make', t.model_make)}
+          ${mktRow('Model', t.model_name)}
+          ${mktRow('Manufacturer', t.model_manufacturer)}
+          ${mktRow('ICAO Type', t.model_icao)}
+          ${mktRow('Category', t.model_category_size_name)}
+          ${mktRow('Weight Class', t.model_weight_class_name)}
+          ${mktRow('Production Start', t.model_mfr_start_year)}
+          ${mktRow('Production End', t.model_mfr_end_year)}
+          ${mktRow('Cabin Volume', t.model_cabin_volume, '', ' cu ft')}
+          ${mktRow('Baggage Volume', t.model_baggage_volume, '', ' cu ft')}
         </div>
       </div>`;
   }
 
   if (!renderedCards) {
-    results.innerHTML = failedSourceCount === outcomes.length
-      ? '<div class="empty-state" style="grid-column:1/-1;">Market intelligence source unavailable or returned an error. Try again shortly.</div>'
-      : '<div class="empty-state" style="grid-column:1/-1;">No market data available for this make/model combination</div>';
-  } else if (failedSourceCount) {
-    results.insertAdjacentHTML(
-      'beforeend',
-      `<div class="empty-state" style="grid-column:1/-1;">Partial result: ${failedSourceCount} market data source${failedSourceCount === 1 ? '' : 's'} did not return usable data.</div>`
-    );
+    results.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No market data is available for this make and model.</div>';
   }
   const c = costs ? (costs.operationcosts || costs) : null;
   const s = specs ? (specs.performancespecs || specs) : null;
@@ -3003,22 +3074,19 @@ async function loadMarketIntel() {
     partial: failedSourceCount > 0,
     unavailable_sources: failedSourceCount,
     operating_costs: c ? {
-      fuel_cost_per_hour: c.fuelcostperhour ?? null,
-      maintenance_cost_per_hour: c.maintenancecostperhour ?? null,
-      total_cost_per_hour: c.totalcostperhour ?? null,
-      annual_budget: c.annualbudget ?? null
+      total_direct_costs: c.totaldirectcosts ?? null,
+      average_asking_price: c.averageaskingprice ?? null,
+      average_days_on_market: c.daysonmarket ?? null
     } : null,
     performance: s ? {
       range_nm: s.range ?? null,
       max_speed_ktas: s.maxspeed ?? s.highspeed ?? null,
-      ceiling_ft: s.ceiling ?? null,
-      mtow_lbs: s.mtow ?? null
+      cruise_speed_ktas: s.normalcruisespeed ?? null,
+      field_length_ft: s.takeoffdistance ?? null
     } : null,
     market_trends: t ? {
-      average_asking_price: t.averageaskingprice ?? t.avgaskprice ?? null,
-      fleet_size: t.fleetsize ?? t.totalfleet ?? null,
-      for_sale: t.forsale ?? t.forsalecount ?? null,
-      days_on_market: t.daysonmarket ?? null
+      average_asking_price: t.average_total_asking_price ?? null,
+      days_on_market: t.average_total_days_on_market ?? null
     } : null
   };
 }

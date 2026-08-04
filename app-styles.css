@@ -949,6 +949,18 @@ main {
   width: 100%;
 }
 
+.market-intel-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.market-intel-results > .empty-state,
+.market-intel-results > .loading {
+  grid-column: 1 / -1;
+}
+
 .search-field-check {
   justify-content: flex-end;
   max-width: 100px;

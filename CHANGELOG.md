@@ -7,6 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Improved — Market Intelligence selection
+
+- Replaced free-form make and model fields with cascading dropdowns populated from the models available to the JetNet Customer API subscription.
+- Corrected the card to use JetNet's Model Intelligence contract and display the selected model's cost, market, performance, cabin, and profile data.
+
 ### Fixed — Structured response panel release
 
 - Corrected the chat panel so it closes normally after a structured response.

@@ -718,21 +718,14 @@ const MXApplicationClient = (() => {
     }, { ...session, confirmationGrant: undefined });
   }
 
-  function modelOperationCosts({ token, bearer, make, model }) {
-    return jetNetJson(`Model/getModelOperationCosts/${token}`, {
-      bearer, method: 'PUT', body: { make, model }
-    });
-  }
-
-  function modelPerformanceSpecs({ token, bearer, make, model }) {
-    return jetNetJson(`Model/getModelPerformanceSpecs/${token}`, {
-      bearer, method: 'PUT', body: { make, model }
-    });
-  }
-
-  function modelMarketTrends({ token, bearer, make, model }) {
-    return jetNetJson(`Model/getModelMarketTrends/${token}`, {
-      bearer, method: 'PUT', body: { make, model }
+  function modelIntelligence({ token, bearer, make = [], model = [] }) {
+    return jetNetJson(`Model/getModelIntelligence/${token}`, {
+      bearer,
+      method: 'PUT',
+      body: {
+        make: Array.isArray(make) ? make : [make],
+        model: Array.isArray(model) ? model : [model]
+      }
     });
   }
 
@@ -878,9 +871,7 @@ const MXApplicationClient = (() => {
     companyDetail,
     companyList,
     contactList,
-    modelMarketTrends,
-    modelOperationCosts,
-    modelPerformanceSpecs,
+    modelIntelligence,
     staticJson,
     caseWorkspace: Object.freeze({
       runFirstSlice: runFirstCaseSlice,

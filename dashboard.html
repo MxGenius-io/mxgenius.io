@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=2">
+  <link rel="stylesheet" href="app-styles.css?v=3">
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="parts-workspace.css?v=1">
   <link rel="stylesheet" href="realtime.css">
@@ -295,16 +295,22 @@
           </div>
           <div class="search-bar search-bar-multi">
             <div class="search-field">
-              <label>Make</label>
-              <input type="text" id="mktMake" placeholder="e.g. Bombardier" class="search-input" value="Bombardier">
+              <label for="mktMake">Make</label>
+              <select id="mktMake" class="search-select" disabled>
+                <option value="">Loading available makes…</option>
+              </select>
             </div>
             <div class="search-field">
-              <label>Model</label>
-              <input type="text" id="mktModel" placeholder="e.g. Challenger 350" class="search-input" value="Challenger 350">
+              <label for="mktModel">Model</label>
+              <select id="mktModel" class="search-select" disabled>
+                <option value="">Select a make first</option>
+              </select>
             </div>
-            <button id="mktSearchBtn" class="btn-primary">Get Intelligence</button>
+            <button id="mktSearchBtn" class="btn-primary" disabled>View Intelligence</button>
           </div>
-          <div id="mktResults" class="market-intel-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:16px;"></div>
+          <div id="mktResults" class="market-intel-results" role="status" aria-live="polite">
+            <div class="empty-state">Open this section to load the aircraft models available to your account.</div>
+          </div>
         </div>
       </details>
       <button type="button" class="case-focus" id="activeCaseCard" data-state="empty" style="margin-top: 16px;">
@@ -603,13 +609,13 @@
   <script src="auth.js?v=6"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=16"></script>
+<script src="application-client.js?v=17"></script>
   <script src="realtime-client.js?v=4"></script>
   <script src="case-workspace.js?v=3"></script>
   <script src="parts-workspace.js?v=1"></script>
   <script src="capability-workbench.js?v=3"></script>
   <script src="onboarding.js?v=3"></script>
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
   <div id="onboardingRoot"></div>
 </body>
 

@@ -178,6 +178,24 @@ test('first case slice stops before mutation when aircraft resolution is ambiguo
   assert.equal(requests.length, 1);
 });
 
+test('model intelligence uses the subscribed catalog endpoint and array filters', async () => {
+  const { client, requests } = harness({});
+
+  await client.modelIntelligence({
+    token: 'LIVE_TOKEN',
+    make: 'GULFSTREAM',
+    model: 'G550'
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/Model/getModelIntelligence/LIVE_TOKEN');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.deepEqual(requests[0].request, {
+    make: ['GULFSTREAM'],
+    model: ['G550']
+  });
+});
+
 test('chat uses application identity and carries canonical case context without a browser API key', async () => {
   const { client, requests } = harness({});
   assert.throws(
