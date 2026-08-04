@@ -42,6 +42,11 @@ test('chat close uses explicit state and cannot reopen the panel after a respons
   assert.doesNotMatch(app, /closeBtn\.addEventListener\('click', togglePanel\)/);
 });
 
+test('aircraft prompt opens chat without the originating click closing it again', () => {
+  assert.match(app, /button\.addEventListener\('click', \(event\) => \{\s+event\.stopPropagation\(\);\s+closeModal\('acDetailModal'\);\s+window\.openChatWith/);
+  assert.match(app, /window\.openChatWith = \(text\) => \{[\s\S]*setPanelOpen\(true\);[\s\S]*sendMessage\(\);/);
+});
+
 test('manual images stay behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);

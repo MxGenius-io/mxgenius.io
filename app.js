@@ -3603,7 +3603,8 @@ async function showAircraftDetail(id) {
     });
     const aircraftPromptPrefix = [ident.make, ident.model].filter(Boolean).join(' ');
     body.querySelectorAll('.aircraft-chat-prompt').forEach((button) => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
         closeModal('acDetailModal');
         window.openChatWith(`${aircraftPromptPrefix} ${button.dataset.promptSuffix || ''}`.trim());
       });
