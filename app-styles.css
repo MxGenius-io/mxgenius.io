@@ -1836,9 +1836,19 @@ body.live-mode .api-status.connected .status-dot {
 }
 .globe-sheet-divider { color: var(--text-muted); }
 
+.fleet-map-anchor {
+  position: relative;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .fleet-map-marker {
   --fleet-marker-color: #10b981;
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
   display: grid;
   grid-template-columns: 34px auto;
   grid-template-rows: 20px 14px;
@@ -1849,6 +1859,7 @@ body.live-mode .api-status.connected .status-dot {
   background: transparent;
   color: #fff;
   cursor: pointer;
+  pointer-events: auto;
   font-family: var(--font);
   filter: drop-shadow(0 5px 10px rgba(2, 6, 23, 0.42));
   transform: translate(-17px, -17px);

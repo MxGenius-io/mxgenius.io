@@ -4101,9 +4101,11 @@ function aggregateGlobeClusters(clusters, altitude) {
 }
 
 function createGlobeClusterMarker(cluster) {
+  const anchor = document.createElement('div');
   const marker = document.createElement('button');
   const status = cluster.hasActiveCase ? 'active' : cluster.hasAog ? 'aog' : cluster.hasVeryHighTime ? 'critical' : cluster.hasHighTime ? 'warning' : 'normal';
   const label = cluster.airportCount === 1 ? cluster.icao : `${cluster.airportCount} airports`;
+  anchor.className = 'fleet-map-anchor';
   marker.type = 'button';
   marker.className = `fleet-map-marker fleet-map-marker--${status}${cluster.airportCount > 1 ? ' fleet-map-marker--stacked' : ''}`;
   marker.style.pointerEvents = 'auto';
@@ -4129,7 +4131,8 @@ function createGlobeClusterMarker(cluster) {
     }
     handleGlobeClick(cluster);
   });
-  return marker;
+  anchor.appendChild(marker);
+  return anchor;
 }
 
 function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
@@ -4404,7 +4407,7 @@ async function loadGlobe() {
       .htmlElementsData(aggregateGlobeClusters(allClusters, globeZoomAltitude))
       .htmlLat(d => d.lat)
       .htmlLng(d => d.lng)
-      .htmlAltitude(0.012)
+      .htmlAltitude(0.0015)
       .htmlElement(createGlobeClusterMarker)
       .htmlTransitionDuration(220)
       .ringsData(attentionClusters(aggregateGlobeClusters(allClusters, globeZoomAltitude)))

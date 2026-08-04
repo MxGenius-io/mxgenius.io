@@ -514,9 +514,12 @@ test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => 
   assert.match(application, /function aggregateGlobeClusters\(/);
   assert.match(application, /\.htmlElementsData\(aggregateGlobeClusters\(allClusters, globeZoomAltitude\)\)/);
   assert.match(application, /\.htmlElement\(createGlobeClusterMarker\)/);
+  assert.match(application, /anchor\.className = 'fleet-map-anchor'/);
+  assert.match(application, /\.htmlAltitude\(0\.0015\)/);
   assert.match(application, /\.onZoom\(handleGlobeZoom\)/);
   assert.match(application, /cluster\.airportCount > 1/);
   assert.match(applicationStyles, /\.fleet-map-marker__beacon/);
+  assert.match(applicationStyles, /\.fleet-map-anchor/);
   assert.match(applicationStyles, /\.fleet-map-marker__count/);
   assert.match(applicationStyles, /\.fleet-map-marker--stacked/);
 });
