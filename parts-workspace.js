@@ -43,24 +43,26 @@ const MXPartsWorkspace = (() => {
     if (!root || !client) return;
     root.innerHTML = `
       <div class="parts-workspace">
-        <header class="parts-header">
-          <div>
-            <h1>Parts Management</h1>
-            <p class="parts-subtitle">Traceable receiving, documents, and inventory history</p>
+        <main class="parts-main">
+          <header class="parts-header">
+            <div>
+              <h1>Parts Management</h1>
+              <p class="parts-subtitle">Traceable receiving, documents, and inventory history</p>
+            </div>
+            <div class="parts-toolbar">
+              <button class="btn-primary" id="btnReceivePart">Receive Part</button>
+            </div>
+          </header>
+          <div class="parts-search-bar">
+            <input type="search" id="partsSearchInput" class="search-input" placeholder="Part number, description, or serial number" aria-label="Search parts">
+            <button id="btnPartsSearch" class="btn-primary">Search</button>
           </div>
-          <div class="parts-toolbar">
-            <button class="btn-primary" id="btnReceivePart">Receive Part</button>
+          <div class="parts-content">
+            <div id="partsStatus" class="parts-inline-status" aria-live="polite"></div>
+            <div id="partsInventoryGrid" class="inventory-grid"></div>
           </div>
-        </header>
-        <div class="parts-search-bar">
-          <input type="search" id="partsSearchInput" class="search-input" placeholder="Part number, description, or serial number" aria-label="Search parts">
-          <button id="btnPartsSearch" class="btn-primary">Search</button>
-        </div>
-        <div class="parts-content">
-          <div id="partsStatus" class="parts-inline-status" aria-live="polite"></div>
-          <div id="partsInventoryGrid" class="inventory-grid"></div>
-        </div>
-        <aside id="partsDrawer" class="parts-drawer" aria-label="Part unit details">
+        </main>
+        <aside id="partsDrawer" class="parts-drawer" aria-label="Part unit details" aria-hidden="true">
           <div class="drawer-header">
             <h2 id="drawerTitle">Unit Details</h2>
             <button class="modal-close" id="btnCloseDrawer" aria-label="Close drawer">&times;</button>
@@ -213,6 +215,7 @@ const MXPartsWorkspace = (() => {
     const drawer = byId('partsDrawer');
     if (!drawer) return;
     drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
     byId('drawerContent').innerHTML = '<div class="empty-state">Loading unit…</div>';
     if (updateRoute) history.replaceState(null, '', `#parts/unit/${unitId}`);
     try {
@@ -225,7 +228,9 @@ const MXPartsWorkspace = (() => {
   }
 
   function closeDrawer() {
-    byId('partsDrawer')?.classList.remove('open');
+    const drawer = byId('partsDrawer');
+    drawer?.classList.remove('open');
+    drawer?.setAttribute('aria-hidden', 'true');
     state.currentUnit = null;
     history.replaceState(null, '', '#parts');
   }

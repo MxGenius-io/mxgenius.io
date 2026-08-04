@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync('dashboard.html', 'utf8');
 const js = readFileSync('parts-workspace.js', 'utf8');
 const client = readFileSync('application-client.js', 'utf8');
+const css = readFileSync('parts-workspace.css', 'utf8');
 
 test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html contains parts navigation', () => {
@@ -59,5 +60,14 @@ test('Parts Frontend Shell requirements', async (t) => {
   await t.test('parts workspace has no simulated success or mock rendering path', () => {
     assert.doesNotMatch(js, /mock content|simulate async/i);
     assert.doesNotMatch(client, /mock/i);
+  });
+
+  await t.test('part details dock beside inventory on desktop and become a drawer on narrow screens', () => {
+    assert.match(js, /<main class="parts-main">/);
+    assert.match(js, /drawer\.setAttribute\('aria-hidden', 'false'\)/);
+    assert.match(js, /drawer\?\.setAttribute\('aria-hidden', 'true'\)/);
+    assert.match(css, /\.parts-workspace\s*\{[\s\S]*flex-direction:\s*row;/);
+    assert.match(css, /\.parts-drawer\.open\s*\{[\s\S]*flex-basis:\s*var\(--parts-drawer-width\);/);
+    assert.match(css, /@media \(max-width: 860px\)[\s\S]*\.parts-drawer\.open[\s\S]*transform:\s*translateX\(0\);/);
   });
 });
