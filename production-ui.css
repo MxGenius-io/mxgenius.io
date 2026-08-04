@@ -150,7 +150,13 @@ summary:focus-visible {
   box-shadow: -16px 0 40px rgba(0, 0, 0, 0.3);
 }
 
-.chat-panel.advisory-open {
+.chat-panel.hidden {
+  right: -100vw;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.chat-panel.open.advisory-open {
   right: 0;
   width: min(680px, 100vw);
 }

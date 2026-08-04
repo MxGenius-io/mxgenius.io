@@ -1197,7 +1197,7 @@ Rules:
     });
 
     // Convert dash-lists to styled bullets
-    html = html.replace(/^\s*-\s+/gm, 'â€¢ ');
+    html = html.replace(/^\s*-\s+/gm, '&bull; ');
 
     // Convert line breaks to proper spacing
     html = html.replace(/\n\n+/g, '</p><p style="margin:6px 0;">');
@@ -1585,9 +1585,7 @@ Rules:
 
 
   window.openChatWith = (text) => {
-    if (!panel.classList.contains('open')) {
-      setPanelOpen(true);
-    }
+    setPanelOpen(true);
     input.value = text;
     sendMessage();
   };
@@ -1595,15 +1593,19 @@ Rules:
   function setPanelOpen(open) {
     if (open) {
       panel.classList.remove('hidden');
+      panel.setAttribute('aria-hidden', 'false');
       void panel.offsetWidth;
       panel.classList.add('open');
       toggleBtn.classList.add('hidden');
+      toggleBtn.setAttribute('aria-expanded', 'true');
       input.focus();
       return;
     }
     panel.classList.remove('open');
     panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
     toggleBtn.classList.remove('hidden');
+    toggleBtn.setAttribute('aria-expanded', 'false');
   }
 
   toggleBtn.addEventListener('click', () => setPanelOpen(true));

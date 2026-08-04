@@ -5,6 +5,7 @@ import { test } from 'node:test';
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const productionStyles = await readFile(new URL('../production-ui.css', import.meta.url), 'utf8');
 const backend = await readFile(new URL('../services/mcp/server/src/transport/http.rs', import.meta.url), 'utf8');
 const manualAdapter = await readFile(new URL('../services/mcp/server/src/adapters/manual.rs', import.meta.url), 'utf8');
 
@@ -40,11 +41,15 @@ test('chat close uses explicit state and cannot reopen the panel after a respons
   assert.match(app, /closeBtn\?\.addEventListener\('click',[\s\S]*setPanelOpen\(false\)/);
   assert.match(app, /panel\.classList\.remove\('open'\);\s+panel\.classList\.add\('hidden'\)/);
   assert.doesNotMatch(app, /closeBtn\.addEventListener\('click', togglePanel\)/);
+  assert.match(productionStyles, /\.chat-panel\.hidden\s*\{[\s\S]*right:\s*-100vw;[\s\S]*visibility:\s*hidden;/);
+  assert.match(productionStyles, /\.chat-panel\.open\.advisory-open\s*\{/);
+  assert.doesNotMatch(productionStyles, /\.chat-panel\.advisory-open\s*\{\s*right:/);
 });
 
 test('aircraft prompt opens chat without the originating click closing it again', () => {
   assert.match(app, /button\.addEventListener\('click', \(event\) => \{\s+event\.stopPropagation\(\);\s+closeModal\('acDetailModal'\);\s+window\.openChatWith/);
-  assert.match(app, /window\.openChatWith = \(text\) => \{[\s\S]*setPanelOpen\(true\);[\s\S]*sendMessage\(\);/);
+  assert.match(app, /window\.openChatWith = \(text\) => \{\s+setPanelOpen\(true\);\s+input\.value = text;\s+sendMessage\(\);/);
+  assert.match(app, /html = html\.replace\(\/\^\\s\*-\\s\+\/gm, '&bull; '\);/);
 });
 
 test('manual images stay behind the application API boundary', () => {
