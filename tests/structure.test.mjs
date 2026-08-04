@@ -236,6 +236,20 @@ test('fleet compatibility translation is scoped and market intelligence uses sub
   assert.match(application, /escapeMarkup\(formatted\)/);
 });
 
+test('detailed JetNet success statuses remain renderable and cacheable', () => {
+  const detailedStatusGuard = /\^success\\b\/i\.test\(String\(data\.responsestatus\)\.trim\(\)\)/g;
+  assert.equal(
+    (application.match(detailedStatusGuard) || []).length,
+    2,
+    'both aircraft views should accept JetNet SUCCESS: detail summaries'
+  );
+  assert.match(
+    cache,
+    /\^success\\b\/i\.test\(String\(data\.responsestatus\)\.trim\(\)\)/,
+    'successful detailed JetNet pages should be cached'
+  );
+});
+
 test('complete demo data is explicit, tenant-authenticated, and user initiated', () => {
   assert.match(dashboard, /id="settingsLoadDemoData"/);
   assert.match(dashboard, /Complete Demo Workspace/);

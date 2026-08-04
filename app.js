@@ -3205,7 +3205,7 @@ async function loadAircraft() {
   try {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
 
-    if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') {
+    if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) {
       grid.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`;
       return;
     }
@@ -4246,7 +4246,7 @@ async function loadGlobe() {
   const body = {};
   try {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
-    if (data.responsestatus && data.responsestatus !== 'Success' && data.responsestatus !== 'SUCCESS') { container.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`; return; }
+    if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) { container.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`; return; }
     const aircraft = data.aircraft || [];
     const { clusters, counts } = clusterByAirport(aircraft);
     clusters.forEach((cluster) => {

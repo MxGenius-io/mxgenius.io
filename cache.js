@@ -127,7 +127,7 @@ const MXCache = (() => {
 
     // Only cache successful responses (not 400/500 errors)
     if (data && !data.errors && res.ok &&
-        (!data.responsestatus || data.responsestatus === 'SUCCESS' || data.responsestatus === 'Success')) {
+        (!data.responsestatus || /^success\b/i.test(String(data.responsestatus).trim()))) {
       await put(key, data, ttlMs);
     }
 
