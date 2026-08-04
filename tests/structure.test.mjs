@@ -18,6 +18,7 @@ const xrAnimationScrubber = await readFile(new URL('../3d-viewer/xr-animation-sc
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
+const applicationStyles = await readFile(new URL('../app-styles.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.url), 'utf8');
@@ -386,7 +387,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
   assert.match(application, /function attentionClusters/);
-  assert.match(application, /\.ringsData\(attentionClusters\(allClusters\)\)/);
+  assert.match(application, /\.ringsData\(attentionClusters\(aggregateGlobeClusters\(allClusters, globeZoomAltitude\)\)\)/);
   assert.match(application, /\.ringColor\(clusterRingColor\)/);
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
@@ -507,6 +508,17 @@ test('fleet access uses the server-side proxy marker without browser credentials
   assert.match(fleetProxy, /MXGENIUS_INTERNAL_BEARER_TOKEN/);
   assert.match(fleetProxy, /await authorize\(request\)/);
   assert.match(fleetProxy, /FLEET_RATE_LIMIT_PER_MINUTE/);
+});
+
+test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => {
+  assert.match(application, /function aggregateGlobeClusters\(/);
+  assert.match(application, /\.htmlElementsData\(aggregateGlobeClusters\(allClusters, globeZoomAltitude\)\)/);
+  assert.match(application, /\.htmlElement\(createGlobeClusterMarker\)/);
+  assert.match(application, /\.onZoom\(handleGlobeZoom\)/);
+  assert.match(application, /cluster\.airportCount > 1/);
+  assert.match(applicationStyles, /\.fleet-map-marker__beacon/);
+  assert.match(applicationStyles, /\.fleet-map-marker__count/);
+  assert.match(applicationStyles, /\.fleet-map-marker--stacked/);
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {

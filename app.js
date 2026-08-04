@@ -138,9 +138,7 @@ const MXCaseState = {
         cluster.hasActiveCase = cluster.aircraft.some((aircraft) => this.matchesAircraft(aircraft));
       });
       if (globeInstance) {
-        globeInstance
-          .pointsData(allClusters)
-          .ringsData(attentionClusters(allClusters));
+        renderGlobeClusters(allClusters);
         const cluster = allClusters.find((item) => item.hasActiveCase);
         if (cluster) globeInstance.pointOfView({ lat: cluster.lat, lng: cluster.lng, altitude: 1.1 }, 700);
       }
@@ -3941,6 +3939,10 @@ async function loadContacts() {
 let globeInstance = null;
 let globeData = null;
 let allClusters = [];
+let filteredGlobeClusters = [];
+let globeZoomAltitude = 2.2;
+let globeZoomFrame = null;
+let globeRenderedGridSize = null;
 let activeUrgencyFilter = null;
 
 // ICAO airport coordinates for plotting aircraft base locations on globe
@@ -4032,6 +4034,126 @@ function clusterByAirport(aircraft) {
   return { clusters: Object.values(clusters), counts };
 }
 
+function globeGridSize(altitude) {
+  if (altitude > 1.8) return 12;
+  if (altitude > 1.05) return 7;
+  if (altitude > 0.6) return 3;
+  return 0;
+}
+
+function aggregateGlobeClusters(clusters, altitude) {
+  const gridSize = globeGridSize(altitude);
+  if (!gridSize) {
+    return clusters.map((cluster) => ({
+      ...cluster,
+      airportCount: 1,
+      airportCodes: [cluster.icao]
+    }));
+  }
+
+  const groups = new Map();
+  clusters.forEach((cluster) => {
+    const latCell = Math.floor((cluster.lat + 90) / gridSize);
+    const lngCell = Math.floor((cluster.lng + 180) / gridSize);
+    const key = `${latCell}:${lngCell}`;
+    const weight = Math.max(1, cluster.aircraft.length);
+    const group = groups.get(key) || {
+      latWeight: 0,
+      lngWeight: 0,
+      totalWeight: 0,
+      aircraft: [],
+      airports: [],
+      hasActiveCase: false,
+      hasAog: false,
+      hasVeryHighTime: false,
+      hasHighTime: false
+    };
+    group.latWeight += cluster.lat * weight;
+    group.lngWeight += cluster.lng * weight;
+    group.totalWeight += weight;
+    group.aircraft.push(...cluster.aircraft);
+    group.airports.push(cluster);
+    group.hasActiveCase ||= cluster.hasActiveCase;
+    group.hasAog ||= cluster.hasAog;
+    group.hasVeryHighTime ||= cluster.hasVeryHighTime;
+    group.hasHighTime ||= cluster.hasHighTime;
+    groups.set(key, group);
+  });
+
+  return [...groups.values()].map((group) => {
+    const airportCodes = group.airports.map((airport) => airport.icao).sort();
+    const singleAirport = group.airports.length === 1 ? group.airports[0] : null;
+    return {
+      icao: singleAirport?.icao || `${group.airports.length} AIRPORTS`,
+      lat: group.latWeight / group.totalWeight,
+      lng: group.lngWeight / group.totalWeight,
+      aircraft: group.aircraft,
+      airportCount: group.airports.length,
+      airportCodes,
+      city: singleAirport?.city || '',
+      country: singleAirport?.country || '',
+      hasActiveCase: group.hasActiveCase,
+      hasAog: group.hasAog,
+      hasVeryHighTime: group.hasVeryHighTime,
+      hasHighTime: group.hasHighTime
+    };
+  });
+}
+
+function createGlobeClusterMarker(cluster) {
+  const marker = document.createElement('button');
+  const status = cluster.hasActiveCase ? 'active' : cluster.hasAog ? 'aog' : cluster.hasVeryHighTime ? 'critical' : cluster.hasHighTime ? 'warning' : 'normal';
+  const label = cluster.airportCount === 1 ? cluster.icao : `${cluster.airportCount} airports`;
+  marker.type = 'button';
+  marker.className = `fleet-map-marker fleet-map-marker--${status}${cluster.airportCount > 1 ? ' fleet-map-marker--stacked' : ''}`;
+  marker.style.pointerEvents = 'auto';
+  marker.title = `${label}: ${cluster.aircraft.length} aircraft`;
+  marker.setAttribute('aria-label', marker.title);
+  marker.innerHTML = `
+    <span class="fleet-map-marker__beacon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V18l-2.5 2v1.5L11.5 20l4 1.5V20L13 18v-4.5z"/></svg>
+    </span>
+    <span class="fleet-map-marker__count">${cluster.aircraft.length.toLocaleString()}</span>
+    <span class="fleet-map-marker__label">${escapeMarkup(label)}</span>`;
+  marker.addEventListener('mouseenter', () => handleGlobeHover(cluster));
+  marker.addEventListener('mouseleave', () => handleGlobeHover(null));
+  marker.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (cluster.airportCount > 1) {
+      globeInstance?.pointOfView({
+        lat: cluster.lat,
+        lng: cluster.lng,
+        altitude: Math.max(0.38, globeZoomAltitude * 0.48)
+      }, 650);
+      return;
+    }
+    handleGlobeClick(cluster);
+  });
+  return marker;
+}
+
+function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
+  filteredGlobeClusters = clusters;
+  if (!globeInstance) return;
+  const gridSize = globeGridSize(globeZoomAltitude);
+  if (!force && gridSize === globeRenderedGridSize) return;
+  globeRenderedGridSize = gridSize;
+  const displayClusters = aggregateGlobeClusters(clusters, globeZoomAltitude);
+  globeInstance
+    .htmlElementsData(displayClusters)
+    .ringsData(attentionClusters(displayClusters));
+}
+
+function handleGlobeZoom(view) {
+  globeZoomAltitude = Number(view?.altitude) || globeZoomAltitude;
+  if (globeGridSize(globeZoomAltitude) === globeRenderedGridSize) return;
+  if (globeZoomFrame) cancelAnimationFrame(globeZoomFrame);
+  globeZoomFrame = requestAnimationFrame(() => {
+    globeZoomFrame = null;
+    renderGlobeClusters(filteredGlobeClusters, false);
+  });
+}
+
 function clusterColor(d) {
   if (d.hasActiveCase) return '#00d4ff';
   if (d.hasAog) return '#ff4444';
@@ -4072,9 +4194,7 @@ function applyGlobeFilters() {
     );
     if (filtered.length === 1) globeInstance.pointOfView({ lat: filtered[0].lat, lng: filtered[0].lng, altitude: 1.2 }, 600);
   }
-  globeInstance
-    .pointsData(filtered)
-    .ringsData(attentionClusters(filtered));
+  renderGlobeClusters(filtered);
 }
 
 function setupGlobeSheet() {
@@ -4253,6 +4373,7 @@ async function loadGlobe() {
       cluster.hasActiveCase = cluster.aircraft.some((item) => MXCaseState.matchesAircraft(item));
     });
     allClusters = clusters;
+    filteredGlobeClusters = clusters;
     globeData = { totalAircraft: aircraft.length, mappedAircraft: clusters.reduce((s, c) => s + c.aircraft.length, 0), byCountry: {}, counts };
     clusters.forEach(c => { if (c.country) globeData.byCountry[c.country] = true; });
   } catch (e) { console.error('Globe data fetch failed:', e); container.innerHTML = '<div class="empty-state" style="color:var(--text-danger);">Could not load aircraft registry data.</div>'; return; }
@@ -4275,17 +4396,18 @@ async function loadGlobe() {
 
   if (!globeInstance) {
     container.innerHTML = '';
+    globeRenderedGridSize = globeGridSize(globeZoomAltitude);
     globeInstance = Globe()
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
-      .pointsData(allClusters)
-      .pointLat(d => d.lat)
-      .pointLng(d => d.lng)
-      .pointAltitude(clusterAltitude)
-      .pointRadius(clusterRadius)
-      .pointColor(clusterColor)
-      .pointResolution(32)
-      .ringsData(attentionClusters(allClusters))
+      .pointsData([])
+      .htmlElementsData(aggregateGlobeClusters(allClusters, globeZoomAltitude))
+      .htmlLat(d => d.lat)
+      .htmlLng(d => d.lng)
+      .htmlAltitude(0.012)
+      .htmlElement(createGlobeClusterMarker)
+      .htmlTransitionDuration(220)
+      .ringsData(attentionClusters(aggregateGlobeClusters(allClusters, globeZoomAltitude)))
       .ringLat(d => d.lat)
       .ringLng(d => d.lng)
       .ringAltitude(clusterAltitude)
@@ -4293,8 +4415,7 @@ async function loadGlobe() {
       .ringMaxRadius(clusterRingRadius)
       .ringPropagationSpeed(1.5)
       .ringRepeatPeriod(800)
-      .onPointHover(handleGlobeHover)
-      .onPointClick(handleGlobeClick)
+      .onZoom(handleGlobeZoom)
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);
     globeInstance.controls().autoRotate = false; globeInstance.controls().autoRotateSpeed = 0.4;
@@ -4307,8 +4428,6 @@ async function loadGlobe() {
     if (!gw._globeClickBound) { gw._globeClickBound = true; gw.addEventListener('click', (e) => { if (e.target.closest('.globe-sheet') || e.target.closest('.globe-tooltip')) return; if (window._lastGlobePoint?.icao) handleGlobeClick(window._lastGlobePoint); }); }
     setupGlobeSheet();
   } else {
-    globeInstance
-      .pointsData(allClusters)
-      .ringsData(attentionClusters(allClusters));
+    renderGlobeClusters(allClusters);
   }
 }

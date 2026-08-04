@@ -20,6 +20,7 @@ const allowedOrigins = new Set([
 
 const session = { bearer: '', apiToken: '', authenticating: null };
 const fleetSnapshot = { result: null, loadedAt: 0, inFlight: null };
+const aircraftListSnapshot = { result: null, loadedAt: 0, inFlight: null };
 const fleetSnapshotTtlMs = 30 * 60 * 1000;
 const imageHosts = new Set(['evo-assets-3wl.s3.us-west-2.amazonaws.com']);
 const maxImageBytes = 15 * 1024 * 1024;
@@ -179,17 +180,9 @@ function normalizeFleetSnapshot(result) {
 
 async function forward(method, path, body) {
   if (!session.bearer || !session.apiToken) await authenticate();
-  if (path.includes('/Aircraft/getAircraftList/')) {
-    path = `${path.replace('/Aircraft/getAircraftList/', '/Aircraft/getBulkAircraftExportPaged/')}/50/1`;
-    method = 'POST';
-    body = { pageSize: 50, pageNumber: 1, make: 'Gulfstream' };
-  }
-
+  const isAircraftList = path.includes('/Aircraft/getAircraftList/');
+  const isSharedAircraftList = isAircraftList && (!body || Object.keys(body).length === 0);
   const isFleetSnapshot = path.includes('/Aircraft/getBulkAircraftExportPaged/');
-  if (isFleetSnapshot && fleetSnapshot.result && Date.now() - fleetSnapshot.loadedAt < fleetSnapshotTtlMs) {
-    return fleetSnapshot.result;
-  }
-  if (isFleetSnapshot && fleetSnapshot.inFlight) return fleetSnapshot.inFlight;
 
   const execute = async () => {
     const providerPath = `/api${path.split('/').map((part) => part === 'LIVE_TOKEN' ? session.apiToken : part).join('/')}`;
@@ -204,6 +197,49 @@ async function forward(method, path, body) {
     }
     return result;
   };
+
+  if (isSharedAircraftList) {
+    const snapshotAge = Date.now() - aircraftListSnapshot.loadedAt;
+    if (aircraftListSnapshot.result && snapshotAge < fleetSnapshotTtlMs) {
+      return aircraftListSnapshot.result;
+    }
+    if (aircraftListSnapshot.result) {
+      if (!aircraftListSnapshot.inFlight) {
+        aircraftListSnapshot.inFlight = execute()
+          .then((result) => {
+            if (result.status >= 200 && result.status < 300 && Array.isArray(result.body?.aircraft)) {
+              aircraftListSnapshot.result = result;
+              aircraftListSnapshot.loadedAt = Date.now();
+            }
+            return result;
+          })
+          .catch((error) => {
+            console.error('Fleet map snapshot refresh failed:', error.message);
+            return aircraftListSnapshot.result;
+          })
+          .finally(() => { aircraftListSnapshot.inFlight = null; });
+      }
+      return aircraftListSnapshot.result;
+    }
+    if (!aircraftListSnapshot.inFlight) {
+      aircraftListSnapshot.inFlight = execute()
+        .then((result) => {
+          if (result.status >= 200 && result.status < 300 && Array.isArray(result.body?.aircraft)) {
+            aircraftListSnapshot.result = result;
+            aircraftListSnapshot.loadedAt = Date.now();
+          }
+          return result;
+        })
+        .finally(() => { aircraftListSnapshot.inFlight = null; });
+    }
+    return aircraftListSnapshot.inFlight;
+  }
+
+  if (isAircraftList) return execute();
+  if (isFleetSnapshot && fleetSnapshot.result && Date.now() - fleetSnapshot.loadedAt < fleetSnapshotTtlMs) {
+    return fleetSnapshot.result;
+  }
+  if (isFleetSnapshot && fleetSnapshot.inFlight) return fleetSnapshot.inFlight;
 
   if (!isFleetSnapshot) return execute();
   fleetSnapshot.inFlight = execute()
@@ -316,6 +352,8 @@ const server = http.createServer(async (request, response) => {
   if (request.url === '/api/status') return respond(response, 200, {
     ready: Boolean(session.bearer && session.apiToken),
     internalAccessConfigured: Boolean(internalBearerToken),
+    aircraftListReady: Boolean(aircraftListSnapshot.result),
+    aircraftListAgeSeconds: aircraftListSnapshot.result ? Math.floor((Date.now() - aircraftListSnapshot.loadedAt) / 1000) : null,
     fleetSnapshotReady: Boolean(fleetSnapshot.result),
     fleetSnapshotAgeSeconds: fleetSnapshot.result ? Math.floor((Date.now() - fleetSnapshot.loadedAt) / 1000) : null
   }, origin);

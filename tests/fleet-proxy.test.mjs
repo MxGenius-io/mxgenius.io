@@ -8,9 +8,11 @@ import { test } from 'node:test';
 const fleetProxySource = readFileSync(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 
 test('aircraft list requests use the bounded shared fleet snapshot for every HTTP method', () => {
-  assert.match(fleetProxySource, /if \(path\.includes\('\/Aircraft\/getAircraftList\/'\)\)/);
-  assert.match(fleetProxySource, /getBulkAircraftExportPaged\/.*\/50\/1/);
-  assert.doesNotMatch(fleetProxySource, /method === 'GET' && path\.includes\('\/Aircraft\/getAircraftList\/'\)/);
+  assert.match(fleetProxySource, /const isAircraftList = path\.includes\('\/Aircraft\/getAircraftList\/'\)/);
+  assert.match(fleetProxySource, /const aircraftListSnapshot = \{ result: null, loadedAt: 0, inFlight: null \}/);
+  assert.match(fleetProxySource, /snapshotAge < fleetSnapshotTtlMs/);
+  assert.match(fleetProxySource, /return aircraftListSnapshot\.result/);
+  assert.doesNotMatch(fleetProxySource, /replace\('\/Aircraft\/getAircraftList\/', '\/Aircraft\/getBulkAircraftExportPaged\/'\)/);
 });
 
 test('bulk aircraft records preserve the application aircraft-list contract', () => {
