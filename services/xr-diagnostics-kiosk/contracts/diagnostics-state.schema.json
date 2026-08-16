@@ -2,6 +2,33 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mxgenius.io/schemas/edge-diagnostics-1.0.0.json",
   "title": "MXG live edge diagnostics",
+  "x-mxg-xr-layout": {
+    "version": 1,
+    "surface": "sensor-diagnostics",
+    "panel": {
+      "title": "PI EDGE DIAGNOSTICS",
+      "emptyMessage": "Awaiting normalized Pi state",
+      "rows": [
+        { "id": "node", "label": "PI NODE", "kind": "value", "path": "/nodeId", "fallback": "not connected" },
+        { "id": "posture", "label": "POSTURE", "kind": "value", "path": "/posture", "fallback": "unknown" },
+        {
+          "id": "cpu",
+          "label": "CPU",
+          "kind": "metric-pair",
+          "separator": " · ",
+          "items": [
+            { "path": "/metrics/cpu.utilization", "format": "percent", "decimals": 1 },
+            { "path": "/metrics/cpu.temperature", "format": "celsius", "decimals": 1 }
+          ]
+        },
+        { "id": "memory", "label": "MEMORY", "kind": "metric", "path": "/metrics/memory.utilization", "format": "percent", "decimals": 1 },
+        { "id": "storage", "label": "STORAGE", "kind": "metric", "path": "/metrics/storage.utilization", "format": "percent", "decimals": 1 },
+        { "id": "load", "label": "LOAD 1M", "kind": "metric", "path": "/metrics/system.load.1m", "format": "ratio", "decimals": 2 },
+        { "id": "transports", "label": "TRANSPORTS", "kind": "collection-status", "path": "/transports", "statusProperty": "status", "onlineValue": "online", "suffix": "online", "fallback": "none detected" },
+        { "id": "findings", "label": "FINDINGS", "kind": "collection-count", "path": "/findings", "activeOnly": true, "suffix": "active" }
+      ]
+    }
+  },
   "oneOf": [
     { "$ref": "#/$defs/state" },
     { "$ref": "#/$defs/delta" }

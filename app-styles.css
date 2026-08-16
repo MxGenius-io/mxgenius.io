@@ -3452,6 +3452,26 @@ body.live-mode .api-status.connected .status-dot {
   border-color: var(--accent-cyan);
   box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
 }
+.sensor-scene-tab {
+  padding: 2px;
+  overflow: hidden;
+  text-decoration: none;
+  border-color: rgba(251, 146, 60, 0.42);
+  background: rgba(8, 24, 38, 0.94);
+}
+.sensor-scene-tab img {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.sensor-scene-tab:hover,
+.sensor-scene-tab:focus-visible {
+  border-color: #fb923c;
+  box-shadow: 0 0 12px rgba(251, 146, 60, 0.32);
+  outline: none;
+}
 
 /* ── Globe Filter Hamburger Panel ── */
 .globe-filter-hamburger {

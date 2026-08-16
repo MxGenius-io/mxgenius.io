@@ -18,7 +18,7 @@ This record is the reference boundary between the existing browser VR/AR applica
 | External-provider credential behavior | `services/mcp/server/src/adapters/provider_auth.rs` | PartsBase and future provider adapters; never browser tool arguments |
 | XR session negotiation wire format | `services/xr-diagnostics-kiosk/contracts/xr-session-gateway.schema.json` | Browser session client, future authenticated gateway, Quest companion |
 | Quest sensor activation and presence | `services/xr-diagnostics-kiosk/contracts/sensor-companion.schema.json` | Browser deep link, Android companion announce, FLIR source status |
-| Pi diagnostic state/delta format | `services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json` | Pi bridge, kiosk, XR sensor orb |
+| Pi diagnostic state/delta format and XR panel map | `services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json` | Pi bridge, kiosk, `xr-diagnostics-layout.js`, XR sensor orb |
 | Scanner observation format | `services/xr-diagnostics-kiosk/contracts/scan-observation.schema.json` | Serial/SPP producer, Pi normalizer, kiosk, XR sensor orb |
 | Offline provider-shape registry | `services/xr-diagnostics-kiosk/contracts/integration-fixtures.schema.json` | Pi kiosk, headset UI, orchestration tests; never presented as live provider evidence |
 | Promoted diagnostic evidence format | `services/xr-diagnostics-kiosk/contracts/diagnostic-evidence.schema.json` | Future append-only ingest and bounded MCP projections |

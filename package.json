@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Contract-independent characterization checks for the MXGenius web application.",
   "scripts": {
-    "test": "node --test tests/structure.test.mjs tests/auth.test.mjs tests/application-client.test.mjs tests/fleet-proxy.test.mjs tests/realtime-client.test.mjs tests/maintenance-advisory.test.mjs tests/manual-corpus-contract.test.mjs tests/xr-realtime-presence.test.mjs tests/xr-session-client.test.mjs tests/pivot-contract.test.mjs tests/parts-workspace.test.mjs",
+    "test": "node --test tests/structure.test.mjs tests/auth.test.mjs tests/application-client.test.mjs tests/fleet-proxy.test.mjs tests/realtime-client.test.mjs tests/maintenance-advisory.test.mjs tests/manual-corpus-contract.test.mjs tests/xr-realtime-presence.test.mjs tests/xr-session-client.test.mjs tests/xr-diagnostics-layout.test.mjs tests/pivot-contract.test.mjs tests/parts-workspace.test.mjs",
     "test:structure": "node --test tests/structure.test.mjs",
     "test:live": "node --test tests/live-smoke.test.mjs",
     "test:all": "npm test && npm run test:live",

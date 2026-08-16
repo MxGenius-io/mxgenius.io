@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added — XR edge hardware pivot
 
+- Added a square, text-free thermal aircraft tab to the fleet-globe rail that opens a dedicated FLIR and Pi diagnostics scene; the scene skips cached JetNet fleet data and reserves its XR surface for thermal, diagnostic, scanner, and evidence streams.
 - Established [`MXG-PIVOT-2026-08-14-XR-EDGE-V1`](docs/PIVOT_2026-08-14_XR_EDGE.md) as the audited reference boundary for browser VR/AR, the Quest FLIR companion seam, Raspberry Pi diagnostics, scanners, Remote Witness, external providers, and future MCP sensor projections.
 - Added the standalone Raspberry Pi kiosk and exact release payload with local preview, cold SD-card staging, SSH updates, diagnostics state/deltas, Bluetooth summary, scanner observations, and synthetic `MXGS/1` thermal testing.
 - Added the fleet-globe thermal/diagnostics orb with controller and hand interaction, session binding, Pi metrics, scanner observations, and fail-closed companion setup states.

@@ -135,6 +135,8 @@ Bluetooth carries the normalized `diagnostics.state`, never raw port/device read
 
 The live path is richer than the persistence summary. A client receives one keyed `diagnostics.state` and then sequenced `diagnostics.delta` messages containing RFC 6901 pointer operations for changed fields only. Stable transport and metric IDs let the VR UI update specific widgets without receiving a rendered screen or repeatedly downloading the full snapshot. If a sequence gap is detected, the client sends `diagnostics.resync` and receives a fresh state.
 
+The same canonical schema owns the sensor-scene panel map through its `x-mxg-xr-layout` extension. `xr-diagnostics-layout.js` resolves those JSON Pointer paths after each state or delta, so the globe's existing canvas-panel treatment can render Pi data without embedding a second display stream. To add a POC tool, normalize its output under a stable metric, transport, or finding ID; add a layout row only when that value belongs in the default XR summary. The browser fetches the deployed contract at `/schemas/edge-diagnostics-1.0.0.json`.
+
 ## Quest transport boundary
 
 A remotely hosted HTTPS WebXR page must use a trusted `wss://` bridge. Plain LAN `ws://` is suitable for kiosk/local development but is normally blocked as mixed content by an HTTPS page. Put this service behind a trusted TLS reverse proxy or VPN hostname before headset field testing.

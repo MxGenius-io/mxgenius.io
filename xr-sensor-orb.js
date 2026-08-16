@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+import {
+  applyDiagnosticsDelta,
+  DEFAULT_SCHEMA_URL,
+  formatDiagnosticsLayout,
+  loadDiagnosticsLayout
+} from './xr-diagnostics-layout.js';
 
 const BRIDGE_STORAGE_KEY = 'mxg_sensor_bridge_url';
 const TOKEN_STORAGE_KEY = 'mxg_sensor_bridge_token';
@@ -26,15 +32,16 @@ function configuredBridge() {
   }
 }
 
-function formatBytes(value = 0) {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let amount = Number(value) || 0;
-  let index = 0;
-  while (amount >= 1024 && index < units.length - 1) {
-    amount /= 1024;
-    index += 1;
+function configuredDiagnosticsSchemas() {
+  const query = new URLSearchParams(location.search);
+  const configured = query.get('sensorSchema')
+    || globalThis.MXGENIUS_CONFIG?.sensorDiagnosticsSchemaUrl
+    || DEFAULT_SCHEMA_URL;
+  const urls = [configured];
+  if (['localhost', '127.0.0.1'].includes(location.hostname) && configured === DEFAULT_SCHEMA_URL) {
+    urls.push('services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json');
   }
-  return `${amount.toFixed(index > 2 ? 1 : 0)} ${units[index]}`;
+  return urls;
 }
 
 function ironColor(normalized) {
@@ -45,30 +52,10 @@ function ironColor(normalized) {
   return [255, 240 + Math.round((value - 0.82) * 83), Math.round((value - 0.82) * 5.55 * 230)];
 }
 
-function applyDiagnosticsDelta(state, delta) {
-  if (!state || state.sequence !== delta.baseSequence) return null;
-  const next = structuredClone(state);
-  for (const operation of delta.operations || []) {
-    const parts = String(operation.path || '').split('/').slice(1).map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'));
-    if (!parts.length) continue;
-    let target = next;
-    for (const part of parts.slice(0, -1)) {
-      if (!target[part] || typeof target[part] !== 'object') target[part] = {};
-      target = target[part];
-    }
-    const key = parts.at(-1);
-    if (operation.op === 'remove') delete target[key];
-    else target[key] = operation.value;
-  }
-  next.sequence = delta.sequence;
-  next.observedAtMs = delta.observedAtMs;
-  next.sessionId = delta.sessionId;
-  return next;
-}
-
 export class XRSensorOrb {
-  constructor({ sessionId = null, onAction = () => {}, onStatus = () => {} } = {}) {
+  constructor({ sessionId = null, surface = 'fleet-globe', onAction = () => {}, onStatus = () => {} } = {}) {
     this.sessionId = clean(sessionId) || null;
+    this.surface = clean(surface, 'fleet-globe');
     this.onAction = onAction;
     this.onStatus = onStatus;
     this.presenting = false;
@@ -92,6 +79,9 @@ export class XRSensorOrb {
     this.hitPosition = new THREE.Vector3();
     this.fallbackOffset = new THREE.Vector3(0.42, -0.2, -0.66);
     this.bridge = configuredBridge();
+    this.diagnosticsSchemaUrls = configuredDiagnosticsSchemas();
+    this.diagnosticsLayout = null;
+    this.diagnosticsLayoutState = 'loading';
 
     this.group = new THREE.Group();
     this.group.name = 'MXGeniusSensorOrb';
@@ -148,6 +138,25 @@ export class XRSensorOrb {
     this.panel.position.set(-0.5, 0.1, -0.03);
     this.panel.scale.setScalar(0.001);
     this.group.add(this.panel);
+    this.drawPanel();
+    this.loadLayout();
+  }
+
+  async loadLayout() {
+    let lastError = null;
+    for (const schemaUrl of this.diagnosticsSchemaUrls) {
+      try {
+        this.diagnosticsLayout = await loadDiagnosticsLayout({ schemaUrl });
+        this.diagnosticsLayoutState = 'ready';
+        this.drawPanel();
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    this.diagnosticsLayout = null;
+    this.diagnosticsLayoutState = 'unavailable';
+    console.warn('XR diagnostics layout unavailable', lastError);
     this.drawPanel();
   }
 
@@ -212,9 +221,9 @@ export class XRSensorOrb {
         socket.send(JSON.stringify({
           type: 'node.announce',
           nodeType: 'xr-client',
-          nodeName: 'MXG Fleet Globe',
+          nodeName: this.surface === 'sensor-diagnostics' ? 'MXG Sensor Diagnostics' : 'MXG Fleet Globe',
           capabilities: ['thermal-display', 'diagnostics-display', 'webxr'],
-          surface: 'fleet-globe'
+          surface: this.surface
         }));
         if (this.sessionId) socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
       });
@@ -372,14 +381,6 @@ export class XRSensorOrb {
   drawPanel() {
     const ctx = this.panelContext;
     const data = this.diagnostics || {};
-    const bridge = data.bridge || {};
-    const metrics = data.metrics || {};
-    const hardware = data.hardware || {};
-    const cpuPercent = metrics['cpu.utilization']?.value ?? metrics.cpuPercent;
-    const temperature = metrics['cpu.temperature']?.value ?? metrics.temperatureC;
-    const memoryPercent = metrics['memory.utilization']?.value ?? metrics.memoryPercent;
-    const transports = Object.values(data.transports || {});
-    const findingCount = Array.isArray(data.findings) ? data.findings.length : Object.keys(data.findings || {}).length;
     ctx.clearRect(0, 0, this.panelCanvas.width, this.panelCanvas.height);
     ctx.fillStyle = 'rgba(4, 13, 24, 0.96)';
     ctx.fillRect(0, 0, this.panelCanvas.width, this.panelCanvas.height);
@@ -388,22 +389,16 @@ export class XRSensorOrb {
     ctx.strokeRect(4, 4, 1016, 632);
     ctx.fillStyle = '#67e8f9';
     ctx.font = '700 30px ui-monospace, monospace';
-    ctx.fillText('MXG SENSOR CHAIN', 42, 58);
+    ctx.fillText(clean(this.diagnosticsLayout?.panel?.title, 'PI EDGE DIAGNOSTICS'), 42, 58);
     ctx.fillStyle = '#e9f8ff';
     ctx.font = '600 24px system-ui, sans-serif';
-    ctx.fillText(`${clean(this.state, 'offline').toUpperCase()} · ${clean(this.sourceStatus, 'standby').toUpperCase()}`, 42, 98);
-    const rows = [
-      ['PI NODE', clean(data.host?.name || data.node, 'not connected')],
-      ['CPU', data.cpu ? `${Number(data.cpu.usedPercent || 0).toFixed(1)}% · ${data.cpu.temperatureC ?? '—'}°C` : cpuPercent != null ? `${Number(cpuPercent).toFixed(1)}% · ${temperature ?? '—'}°C` : '—'],
-      ['MEMORY', data.memory ? `${Number(data.memory.usedPercent || 0).toFixed(1)}% · ${formatBytes(data.memory.availableBytes)} free` : memoryPercent != null ? `${Number(memoryPercent).toFixed(1)}%` : '—'],
-      ['TRANSPORTS', transports.length ? `${transports.filter((item) => item.status === 'online').length}/${transports.length} online` : `${hardware.usbDevices ?? '—'} USB / ${hardware.serialPorts ?? '—'} serial`],
-      ['FINDINGS', data.findings ? `${findingCount} active` : data.portProbes ? `${data.portProbes.filter((item) => item.status !== 'open').length} active` : '—'],
-      ['XR / SOURCES', `${bridge.consumers ?? 0} / ${bridge.sources ?? 0}`],
-      ['THERMAL FRAMES', String(this.frames || bridge.thermalFrames || 0)],
-      ['LATEST SCAN', this.scans[0]?.normalized?.partNumber || this.scans[0]?.normalized?.serialNumber || this.scans[0]?.normalized?.identifierCandidate || '—']
-    ];
+    const contract = data.schemaVersion ? ` · CONTRACT ${clean(data.schemaVersion).toUpperCase()}` : '';
+    ctx.fillText(`${clean(this.state, 'offline').toUpperCase()} · ${clean(this.sourceStatus, 'standby').toUpperCase()}${contract}`, 42, 98);
+    const rows = this.diagnosticsLayout
+      ? formatDiagnosticsLayout(this.diagnosticsLayout, data)
+      : [{ label: 'PI LAYOUT', value: this.diagnosticsLayoutState === 'loading' ? 'loading schema…' : 'schema unavailable' }];
     let y = 158;
-    for (const [label, value] of rows) {
+    for (const { label, value } of rows) {
       ctx.fillStyle = '#7f9daf';
       ctx.font = '700 19px ui-monospace, monospace';
       ctx.fillText(label, 42, y);
@@ -414,7 +409,7 @@ export class XRSensorOrb {
     }
     ctx.fillStyle = '#8ba6b8';
     ctx.font = '20px system-ui, sans-serif';
-    ctx.fillText(this.bridge.url ? 'Tap the orb to activate or suspend the thermal source.' : 'Configure ?sensorBridge=wss://host/ws/xr to connect.', 42, 600);
+    ctx.fillText(this.bridge.url ? 'Schema-mapped Pi stream · tap the orb to control the thermal source.' : 'Configure ?sensorBridge=wss://host/ws/xr to connect.', 42, 600);
     this.panelTexture.needsUpdate = true;
   }
 

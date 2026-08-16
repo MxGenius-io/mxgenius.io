@@ -42,7 +42,14 @@ class EdgeSchemaTests(unittest.TestCase):
 
     def test_contract_file_is_valid_json(self):
         contract = Path(__file__).resolve().parent.parent / "contracts" / "diagnostics-state.schema.json"
-        self.assertEqual(json.loads(contract.read_text())["$defs"]["state"]["properties"]["type"]["const"], "diagnostics.state")
+        schema = json.loads(contract.read_text())
+        self.assertEqual(schema["$defs"]["state"]["properties"]["type"]["const"], "diagnostics.state")
+        layout = schema["x-mxg-xr-layout"]
+        self.assertEqual(layout["surface"], "sensor-diagnostics")
+        self.assertEqual(
+            [row["id"] for row in layout["panel"]["rows"]],
+            ["node", "posture", "cpu", "memory", "storage", "load", "transports", "findings"],
+        )
 
     def test_remote_witness_contract_requires_wearer_consent(self):
         contract = Path(__file__).resolve().parent.parent / "contracts" / "remote-witness-session.schema.json"

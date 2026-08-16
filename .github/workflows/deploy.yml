@@ -65,6 +65,8 @@ jobs:
           mkdir _site
           cp -- *.html *.js *.css *.jpg *.png *.json *.md CNAME _site/ 2>/dev/null || true
           cp -R -- 3d-viewer assets icons media "Training Data" "Generated Reports" docs _site/ 2>/dev/null || true
+          mkdir -p _site/schemas
+          cp -- services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json _site/schemas/edge-diagnostics-1.0.0.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

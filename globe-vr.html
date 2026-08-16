@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>MXGenius Fleet Globe VR</title>
+  <title>MXGenius XR Scene</title>
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050914; color: #eaf7ff; font-family: system-ui, sans-serif; }
     canvas { display: block; width: 100%; height: 100%; }
@@ -30,6 +30,9 @@
     .sensor-actions a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
     .sensor-actions [hidden] { display: none; }
     #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
+    body.sensor-scene { background: radial-gradient(circle at 55% 42%, #0b2740 0, #050914 56%, #02050d 100%); }
+    body.sensor-scene .hud { border-color: rgba(251,146,60,.44); }
+    body.sensor-scene .hud strong { color: #fb923c; }
   </style>
   <script type="importmap">
   {
@@ -48,7 +51,7 @@
 </head>
 <body>
   <div class="hud">
-    <strong>MXGenius Fleet Globe</strong>
+    <strong id="sceneTitle">MXGenius Fleet Globe</strong>
     <span id="fleetStatus">Preparing mapped fleet…</span>
   </div>
   <a class="back" href="dashboard.html">Back to dashboard</a>
@@ -80,6 +83,7 @@
     } from './xr-session-client.js?v=2';
 
     const status = document.getElementById('fleetStatus');
+    const sceneTitle = document.getElementById('sceneTitle');
     const sensorSetup = document.getElementById('sensorSetup');
     const sensorSetupStatus = document.getElementById('sensorSetupStatus');
     const openSensorCompanion = document.getElementById('openSensorCompanion');
@@ -90,6 +94,11 @@
     const xrSessionId = sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
     sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const pageQuery = new URLSearchParams(location.search);
+    const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
+    const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
+    document.body.classList.toggle('sensor-scene', sensorOnlyScene);
+    document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
+    sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
     const sensorBridgeUrl = pageQuery.get('sensorBridge')
       || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
       || localStorage.getItem('mxg_sensor_bridge_url')
@@ -173,12 +182,17 @@
     });
     document.getElementById('dismissSensorSetup').addEventListener('click', () => { sensorSetup.hidden = true; });
     renderSensorSetup();
-    let fleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
-    try {
-      fleet = JSON.parse(localStorage.getItem('mxg_globe_vr_data') || 'null') || fleet;
-    } catch (error) {
-      console.warn('Unable to read cached fleet globe data', error);
+    function readSceneFleet() {
+      const emptyFleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
+      if (sensorOnlyScene) return emptyFleet;
+      try {
+        return JSON.parse(localStorage.getItem('mxg_globe_vr_data') || 'null') || emptyFleet;
+      } catch (error) {
+        console.warn('Unable to read cached fleet globe data', error);
+        return emptyFleet;
+      }
     }
+    const fleet = readSceneFleet();
 
     const scene = new THREE.Scene();
     scene.background = null;
@@ -196,14 +210,15 @@
     document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
     const xrVoice = new XRRealtimePresence({
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action, input, target, context: { surface: 'fleet-globe' } }
+        detail: { action, input, target, context: { surface: sceneSurface } }
       }))
     });
     scene.add(xrVoice.group);
     const xrSensors = new XRSensorOrb({
       sessionId: xrSessionId,
+      surface: sceneSurface,
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action, input, target, context: { surface: 'fleet-globe' } }
+        detail: { action, input, target, context: { surface: sceneSurface } }
       })),
       onStatus: ({ state, sourceStatus, companionStatus }) => {
         sensorSnapshot = { relayState: state, sourceStatus, companionStatus };
@@ -221,7 +236,26 @@
 
     const globeGroup = new THREE.Group();
     globeGroup.position.set(0, 1.55, -1.75);
+    globeGroup.visible = !sensorOnlyScene;
     scene.add(globeGroup);
+
+    if (sensorOnlyScene) {
+      const sensorBackdropTexture = new THREE.TextureLoader().load('assets/thermal-sensor-scene-square.png');
+      sensorBackdropTexture.colorSpace = THREE.SRGBColorSpace;
+      const sensorBackdrop = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.9, 1.9),
+        new THREE.MeshBasicMaterial({
+          map: sensorBackdropTexture,
+          transparent: true,
+          opacity: 0.44,
+          toneMapped: false,
+          depthWrite: false
+        })
+      );
+      sensorBackdrop.name = 'SensorDiagnosticsBackdrop';
+      sensorBackdrop.position.set(0, 1.52, -2.35);
+      scene.add(sensorBackdrop);
+    }
 
     const texture = new THREE.TextureLoader().load('earth-blue-marble.jpg');
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -583,6 +617,7 @@
     }
 
     async function openAircraftDetails(summary) {
+      if (sensorOnlyScene) return;
       drawPanelFrame('JETNET AIRCRAFT', 'Retrieving aircraft, gallery, and engine records…');
       detailsTexture.needsUpdate = true;
       try {
@@ -690,6 +725,7 @@
       new THREE.MeshBasicMaterial({ map: rotateTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
     rotateButton.name = 'FleetRotationToggle';
+    rotateButton.visible = !sensorOnlyScene;
     scene.add(rotateButton);
     let rotationEnabled = true;
 
@@ -708,6 +744,7 @@
     }
 
     function toggleGlobeRotation(input) {
+      if (sensorOnlyScene) return;
       rotationEnabled = !rotationEnabled;
       drawRotationButton();
       status.textContent = `${rotationEnabled ? 'Globe rotation started' : 'Globe rotation paused'} · ${input}`;
@@ -735,6 +772,7 @@
     const rotateFingerTargets = new Map();
 
     function activateCluster(index, input) {
+      if (sensorOnlyScene) return;
       const cluster = fleet.clusters[index];
       if (!cluster) return;
       const detail = {
@@ -777,18 +815,20 @@
       });
       controller.addEventListener('select', () => {
         xrRaycaster.setFromXRController(controller);
-        const uiHit = xrRaycaster.intersectObjects([
+        const uiTargets = [
           ...xrVoice.interactiveObjects(),
-          ...xrSensors.interactiveObjects(),
-          detailsSurface,
-          rotateButton
-        ], false)[0];
+          ...xrSensors.interactiveObjects()
+        ];
+        if (!sensorOnlyScene) uiTargets.push(detailsSurface, rotateButton);
+        const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
         if (uiHit && xrSensors.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
         if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
-        const hit = xrRaycaster.intersectObject(markers, false)[0];
-        if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
+        if (!sensorOnlyScene) {
+          const hit = xrRaycaster.intersectObject(markers, false)[0];
+          if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
+        }
       });
       controller.addEventListener('squeezestart', () => {
         xrActiveGrips.set(index, controller);
@@ -818,6 +858,7 @@
     }
 
     function captureGlobeGesture() {
+      if (sensorOnlyScene) return;
       const controllers = [...xrActiveGrips.values()];
       if (!renderer.xr.isPresenting || !controllers.length) {
         xrGlobeGesture = null;
@@ -846,6 +887,7 @@
     }
 
     function updateGlobeGesture() {
+      if (sensorOnlyScene) return;
       if (!xrGlobeGesture || !renderer.xr.isPresenting) return;
       if (xrGlobeGesture.mode === 'move') {
         xrGlobeGesture.controller.getWorldPosition(gesturePointA);
@@ -865,6 +907,7 @@
     }
 
     function updateRotationButtonPosition() {
+      if (sensorOnlyScene) return;
       const scale = globeGroup.scale.x;
       rotateButtonOffset.set(0.82 * scale, -0.48 * scale, 0.08);
       rotateButton.position.copy(globeGroup.position).add(rotateButtonOffset);
@@ -898,6 +941,7 @@
         }
         voiceFingerTargets.set(handIndex, voiceTarget);
         if (voiceTarget) return;
+        if (sensorOnlyScene) return;
 
         let panelRegion = -1;
         if (detailsPanel.visible) {
@@ -947,15 +991,19 @@
     key.position.set(2, 3, 2);
     scene.add(key);
 
-    status.textContent = fleet.clusters.length
-      ? `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft · ${fleet.clusters.length} locations`
-      : 'No cached fleet data. Return to the dashboard and load Fleet Context first.';
+    status.textContent = sensorOnlyScene
+      ? 'Isolated FLIR + Pi workspace · no JetNet fleet data loaded'
+      : fleet.clusters.length
+        ? `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft · ${fleet.clusters.length} locations`
+        : 'No cached fleet data. Return to the dashboard and load Fleet Context first.';
 
     renderer.xr.addEventListener('sessionstart', () => {
       detailsTarget = 0;
       xrVoice.setPresenting(true);
       xrSensors.setPresenting(true);
-      status.textContent = `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
+      status.textContent = sensorOnlyScene
+        ? 'Sensor diagnostics active in VR · awaiting FLIR and Pi streams'
+        : `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
     });
     renderer.xr.addEventListener('sessionend', () => {
       detailsTarget = 0;
@@ -966,16 +1014,19 @@
       scene.attach(detailsPanel);
       detailsPanel.position.copy(panelWorldPosition);
       detailsPanel.quaternion.copy(panelWorldQuaternion);
-      status.textContent = 'VR session ended';
+      status.textContent = sensorOnlyScene ? 'Sensor diagnostics scene ready' : 'VR session ended';
     });
 
-    const clock = new THREE.Clock();
+    let lastFrameTime = performance.now();
     renderer.setAnimationLoop((time) => {
-      const delta = clock.getDelta();
-      if (rotationEnabled) globeGroup.rotation.y += delta * 0.035;
-      updateGlobeGesture();
-      updateRotationButtonPosition();
-      updateDetailsPresentation(delta);
+      const delta = Math.min(0.1, Math.max(0, (time - lastFrameTime) / 1000));
+      lastFrameTime = time;
+      if (!sensorOnlyScene && rotationEnabled) globeGroup.rotation.y += delta * 0.035;
+      if (!sensorOnlyScene) {
+        updateGlobeGesture();
+        updateRotationButtonPosition();
+        updateDetailsPresentation(delta);
+      }
       updateFingerCollisions(time);
       xrVoice.update(delta, time, {
         camera
