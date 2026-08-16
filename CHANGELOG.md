@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-08-16: Added the Quest companion's paired-device RFCOMM client so normalized Raspberry Pi diagnostics can share the active XR relay with FLIR thermal frames, while preserving separate Pi and camera readiness states.
 - 2026-08-16: Validated the Pi 5/16 GB cold path on hardware, made SD staging compatible with Windows PowerShell 5, enabled BlueZ's compatibility interface for the explicit RFCOMM diagnostics profile, bound its Python 3.13 listener through `BDADDR_ANY`, and corrected the Raspberry Pi desktop kiosk autostart entry.
 
 All notable changes to the MXGenius project are documented in this file.

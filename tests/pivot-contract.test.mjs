@@ -17,6 +17,9 @@ const manualService = await read('services/manual-retrieval/app.py');
 const jetnetProbe = await read('probe_jetnet.js');
 const jetnetDeepProbe = await read('probe_deep.js');
 const metaRelease = JSON.parse(await read('services/xr-flir-companion/meta/meta-release.json'));
+const companionManifest = await read('services/xr-flir-companion/app/src/main/AndroidManifest.xml');
+const piDiagnosticsClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/PiDiagnosticsClient.java');
+const relayClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RelayClient.java');
 
 test('dated pivot names every canonical source and the baseline commit', () => {
   assert.match(pivot, /MXG-PIVOT-2026-08-14-XR-EDGE-V1/);
@@ -60,13 +63,23 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
 });
 
 test('Quest companion config uses the clean private Alpha fallback and accepted build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.2'/);
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.3'/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.build.versionCode, 2);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.2');
+  assert.equal(metaRelease.build.versionCode, 3);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.3');
   assert.equal(metaRelease.assets.landscape.width, 2560);
   assert.equal(metaRelease.assets.landscape.height, 1440);
+});
+
+test('Quest companion bridges paired Pi RFCOMM diagnostics into the XR relay', () => {
+  assert.match(companionManifest, /android\.permission\.BLUETOOTH_CONNECT/);
+  assert.match(piDiagnosticsClient, /00001101-0000-1000-8000-00805F9B34FB/);
+  assert.match(piDiagnosticsClient, /getBondedDevices\(\)/);
+  assert.match(piDiagnosticsClient, /input\.readInt\(\)/);
+  assert.match(piDiagnosticsClient, /mxg\.edge\.diagnostics/);
+  assert.match(relayClient, /void sendDiagnostics\(JSONObject diagnostics\)/);
+  assert.match(relayClient, /message\.put\("sessionId", activation\.sessionId\)/);
 });
 
 test('legacy JetNet probes require runtime credentials and do not print token fragments', () => {

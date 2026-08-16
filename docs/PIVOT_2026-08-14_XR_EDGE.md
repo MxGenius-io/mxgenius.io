@@ -94,3 +94,10 @@ No deployment, SD-card rewrite, credential activation, commit, tag, or push is r
 - The companion uses a foreground transfer service so it can keep the relay and camera alive after the wearer returns to WebXR. It advertises `flir-one-pro-usb-c`, emits explicit `source.status`, and throttles FLIR-rendered JPEG frames into the existing `MXGS/1` envelope.
 - The browser no longer treats a successful launch attempt as device readiness. Its three-stage panel advances only from observed relay state, companion presence, and camera status/frames; install fallback remains configuration-gated until a signed APK distribution URL exists.
 - Production remains gated on the unmounted authenticated WSS negotiation route. Debug-only cleartext activation is explicitly marked `pilot=1`; release builds reject and disable it.
+
+## 2026-08-16 Quest Pi transport addendum
+
+- Companion `0.1.0-poc.3` closes the previously documented Pi-to-Quest gap with an Android Bluetooth Classic RFCOMM client for the paired `MxGenius` SPP service.
+- The client reads the canonical four-byte big-endian length plus UTF-8 JSON framing, accepts only `diagnostics.state` and `diagnostics.delta` under `mxg.edge.diagnostics`, replaces the device-local session value with the active authenticated XR session, and forwards the message over the companion producer relay.
+- FLIR source status remains independent from Pi connection status so an edge reconnect cannot falsely advance or block the thermal readiness lane.
+- Physical Horizon OS pairing, SPP connection, foreground survival, and simultaneous FLIR USB operation remain the headset test gate; Windows is not a runtime consumer.

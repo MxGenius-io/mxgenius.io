@@ -18,7 +18,7 @@ import java.util.UUID;
 
 public final class SensorBridgeService extends Service implements FlirCameraController.Listener {
     interface StatusListener {
-        void onStatus(String relay, String camera);
+        void onStatus(String relay, String camera, String pi);
     }
 
     static final String ACTION_STOP = "io.mxgenius.sensorbridge.STOP";
@@ -27,10 +27,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private final LocalBinder binder = new LocalBinder();
     private RelayClient relay;
     private FlirCameraController camera;
+    private PiDiagnosticsClient piDiagnostics;
     private BridgeActivation activation;
     private StatusListener statusListener;
     private String relayState = "idle";
     private String cameraState = "standby";
+    private String piState = "standby";
 
     public final class LocalBinder extends Binder {
         SensorBridgeService service() { return SensorBridgeService.this; }
@@ -40,6 +42,18 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         super.onCreate();
         ThermalSdkAndroid.init(getApplicationContext(), ThermalLog.LogLevel.INFO);
         camera = new FlirCameraController(this);
+        piDiagnostics = new PiDiagnosticsClient(this, new PiDiagnosticsClient.Listener() {
+            @Override public void onPiState(String state) {
+                piState = state;
+                publishStatus();
+                updateNotification();
+            }
+
+            @Override public void onDiagnostics(org.json.JSONObject diagnostics) {
+                RelayClient current = relay;
+                if (current != null) current.sendDiagnostics(diagnostics);
+            }
+        });
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, notification("Waiting for browser activation"));
     }
@@ -55,6 +69,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             activation = next;
             relay = new RelayClient(next, stableNodeId(), this::onRelayState);
             relay.connect();
+            piDiagnostics.connect();
             updateNotification();
             return START_REDELIVER_INTENT;
         } catch (RuntimeException error) {
@@ -72,6 +87,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     @Override public void onDestroy() {
         statusListener = null;
         if (camera != null) camera.shutdown();
+        if (piDiagnostics != null) piDiagnostics.close();
         if (relay != null) relay.close();
         super.onDestroy();
     }
@@ -92,6 +108,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             return;
         }
         camera.discoverAndConnect(activity);
+    }
+
+    void connectPi() {
+        if (activation == null || relay == null) {
+            piState = "activation-required";
+            publishStatus();
+            return;
+        }
+        piDiagnostics.connect();
     }
 
     String sessionId() {
@@ -123,14 +148,14 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     private void publishStatus() {
         StatusListener current = statusListener;
-        if (current != null) current.onStatus(relayState, cameraState);
+        if (current != null) current.onStatus(relayState, cameraState, piState);
     }
 
     private String stableNodeId() {
         SharedPreferences preferences = getSharedPreferences("bridge", MODE_PRIVATE);
         String value = preferences.getString("node_id", null);
         if (value != null) return value;
-        value = "quest-flir-" + UUID.randomUUID();
+        value = "quest-sensor-" + UUID.randomUUID();
         preferences.edit().putString("node_id", value).apply();
         return value;
     }
@@ -144,7 +169,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private android.app.Notification notification(String text) {
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-                .setContentTitle("MxGenius FLIR bridge")
+                .setContentTitle("MxGenius sensor bridge")
                 .setContentText(text)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
@@ -152,7 +177,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     private void updateNotification() {
-        String text = "Relay " + relayState + " · FLIR " + cameraState;
+        String text = "Relay " + relayState + " · FLIR " + cameraState + " · Pi " + piState;
         getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, notification(text));
     }
 }

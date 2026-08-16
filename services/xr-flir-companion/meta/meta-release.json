@@ -6,10 +6,10 @@
     "package": "io.mxgenius.sensorbridge"
   },
   "build": {
-    "versionCode": 2,
-    "versionName": "0.1.0-poc.2",
+    "versionCode": 3,
+    "versionName": "0.1.0-poc.3",
     "channel": "Alpha",
-    "metaTestStatus": "Complete"
+    "metaTestStatus": "PendingUpload"
   },
   "releaseChannel": {
     "channelId": "1516125643598287",

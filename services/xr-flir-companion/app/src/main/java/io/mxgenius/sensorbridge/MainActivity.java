@@ -1,5 +1,6 @@
 package io.mxgenius.sensorbridge;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -7,15 +8,19 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
 public final class MainActivity extends Activity implements SensorBridgeService.StatusListener {
+    private static final int REQUEST_BLUETOOTH_CONNECT = 4108;
     private TextView sessionStatus;
     private TextView relayStatus;
     private TextView cameraStatus;
+    private TextView piStatus;
     private Button connectCamera;
+    private Button connectPi;
     private SensorBridgeService service;
     private boolean bound;
     private BridgeActivation activation;
@@ -26,6 +31,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             bound = true;
             service.setStatusListener(MainActivity.this);
             renderActivation();
+            requestPiConnection();
         }
 
         @Override public void onServiceDisconnected(ComponentName name) {
@@ -33,6 +39,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             service = null;
             relayStatus.setText("Relay · service stopped");
             cameraStatus.setText("FLIR ONE · service stopped");
+            piStatus.setText("PI EDGE · service stopped");
         }
     };
 
@@ -42,10 +49,13 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         sessionStatus = findViewById(R.id.session_status);
         relayStatus = findViewById(R.id.relay_status);
         cameraStatus = findViewById(R.id.camera_status);
+        piStatus = findViewById(R.id.pi_status);
         connectCamera = findViewById(R.id.connect_camera);
+        connectPi = findViewById(R.id.connect_pi);
         connectCamera.setOnClickListener(view -> {
             if (service != null) service.connectCamera(this);
         });
+        connectPi.setOnClickListener(view -> requestPiConnection());
         findViewById(R.id.return_to_browser).setOnClickListener(view -> finish());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
         activate(getIntent());
@@ -73,12 +83,15 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         super.onStop();
     }
 
-    @Override public void onStatus(String relay, String camera) {
+    @Override public void onStatus(String relay, String camera, String pi) {
         runOnUiThread(() -> {
             relayStatus.setText("Relay · " + relay);
             cameraStatus.setText("FLIR ONE · " + camera);
             connectCamera.setEnabled(!"streaming".equals(camera) && !"connecting".equals(camera));
             connectCamera.setText("streaming".equals(camera) ? "FLIR ONE streaming" : "Connect FLIR ONE");
+            piStatus.setText("PI EDGE · " + pi);
+            connectPi.setEnabled(!"streaming".equals(pi) && !"connecting".equals(pi));
+            connectPi.setText("streaming".equals(pi) ? "Pi diagnostics streaming" : "Connect MxGenius Pi");
         });
     }
 
@@ -91,13 +104,36 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             sessionStatus.setText("Session · " + shortSession(activation.sessionId));
             relayStatus.setText("Relay · " + activation.relayLabel());
             cameraStatus.setText("FLIR ONE · permission required");
+            piStatus.setText("PI EDGE · permission required");
             connectCamera.setEnabled(true);
+            connectPi.setEnabled(true);
         } catch (RuntimeException error) {
             activation = null;
             sessionStatus.setText(error.getMessage());
             relayStatus.setText("Relay · not assigned");
             cameraStatus.setText("FLIR ONE · blocked");
+            piStatus.setText("PI EDGE · blocked");
             connectCamera.setEnabled(false);
+            connectPi.setEnabled(false);
+        }
+    }
+
+    private void requestPiConnection() {
+        if (activation == null || service == null) return;
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_BLUETOOTH_CONNECT);
+            return;
+        }
+        service.connectPi();
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_BLUETOOTH_CONNECT) return;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (service != null) service.connectPi();
+        } else {
+            piStatus.setText("PI EDGE · nearby-device permission denied");
         }
     }
 

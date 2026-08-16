@@ -15,8 +15,8 @@ android {
         applicationId = "io.mxgenius.sensorbridge"
         minSdk = 33
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.0-poc.2"
+        versionCode = 3
+        versionName = "0.1.0-poc.3"
         buildToolsVersion = "36.0.0"
         buildConfigField("String", "FLIR_SDK_VERSION", "\"2.22.0\"")
         ndk { abiFilters += "arm64-v8a" }
@@ -53,4 +53,6 @@ dependencies {
     implementation("", name = "androidsdk-release", ext = "aar")
     implementation("", name = "thermalsdk-release", ext = "aar")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
 }

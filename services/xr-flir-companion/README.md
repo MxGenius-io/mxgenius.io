@@ -6,7 +6,7 @@ This Android companion is the native half of the browser activation flow in `glo
 mxgenius://sensor-bridge?sessionId=<opaque-id>&bridge=<short-lived-wss-url>
 ```
 
-on the Quest. The companion validates that handoff, starts a foreground transfer service, requests Android USB-host permission for the hard-wired FLIR ONE Pro, and forwards throttled JPEG thermal frames using the existing `MXGS/1` envelope. Returning to the browser leaves the foreground bridge active.
+on the Quest. The companion validates that handoff, starts a foreground transfer service, requests Android USB-host permission for the hard-wired FLIR ONE Pro, and forwards throttled JPEG thermal frames using the existing `MXGS/1` envelope. It also requests nearby-device access, connects to a paired Bluetooth Classic device named `MxGenius` through the standard Serial Port Profile, validates the Pi's length-prefixed `mxg.edge.diagnostics` messages, binds them to the active XR session, and forwards them through the same relay. Returning to the browser leaves both bridges active.
 
 ## Vendor boundary
 
@@ -39,8 +39,9 @@ The one-time `mxgenius-sensor-bridge-recovery.txt` file in that protected direct
 1. Start the existing kiosk bridge and thermal simulator to verify the browser's `MXGS/1` rendering independently.
 2. Serve `globe-vr.html` locally with `?sensorBridge=ws://<host>/ws/xr&insecurePilot=1`. The page maps the Pi's consumer route to `/ws/ingest` for the companion; `sensorIngest` can override it explicitly. Production activation requires separately negotiated consumer- and producer-scoped `wss://` URLs.
 3. Install the debug APK on the Quest and open **Open sensor bridge** from the headset browser.
-4. In the companion, select **Connect FLIR ONE** and approve the Android USB prompt.
-5. Return to MxGenius. The setup panel must progress from relay to Quest app to FLIR streaming before entering VR.
+4. Pair the headset once with the Bluetooth device named **MxGenius**, grant the companion nearby-device permission, and select **Connect MxGenius Pi** if it is not already reconnecting automatically.
+5. In the companion, select **Connect FLIR ONE** and approve the Android USB prompt.
+6. Return to MxGenius. The setup panel must progress from relay to Quest app to FLIR streaming, while the diagnostics panel receives the Pi state independently.
 
 Do not treat a successful deep-link launch as proof of camera readiness. The browser marks the companion ready only after its `node.announce` reaches the relay and marks thermal ready only after `source.status`/`MXGS/1` frames arrive.
 
@@ -54,7 +55,7 @@ The browser's install fallback points to the private Meta Alpha channel for app 
 https://www.oculus.com/experiences/1280760725126205/release-channels/1516125643598287/
 ```
 
-The current accepted private build is `0.1.0-poc.2` (`versionCode 2`). The channel URL is intentionally free of invitation or email tracking parameters and still requires an invited Meta account. An APK update must increment `versionCode`; changing site configuration or Meta artwork does not require a new APK.
+The next signed private build is `0.1.0-poc.3` (`versionCode 3`), adding the Pi RFCOMM consumer; the previously accepted Alpha remains `0.1.0-poc.2` until Meta finishes ingesting the replacement. The channel URL is intentionally free of invitation or email tracking parameters and still requires an invited Meta account. An APK update must increment `versionCode`; changing site configuration or Meta artwork does not require a new APK.
 
 Meta cover art is submission metadata, not an Android resource and not part of the APK. In the Developer Dashboard use **App submissions → v1 → App metadata → Assets → Cover art → Landscape**. Upload `meta/mxgenius-sensor-bridge-cover-2560x1440.png`, a 24-bit 2560×1440 PNG. The IDs, dashboard route, checksums, and required dimensions are recorded in `meta/meta-release.json`; keeping this draft metadata does not submit the app for public Store review.
 
