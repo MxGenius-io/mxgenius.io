@@ -5,6 +5,7 @@ import { test } from 'node:test';
 const presence = await readFile(new URL('../xr-realtime-presence.js', import.meta.url), 'utf8');
 const globe = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
+const sensors = await readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8');
 
 test('XR voice presence is a shared point cloud with transcript and pin controls', () => {
   assert.match(presence, /new THREE\.Points\(/);
@@ -27,4 +28,23 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /viewerContext\?\.caseId/);
   assert.doesNotMatch(viewer, /anchor: rightWrist/);
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
+});
+
+test('fleet globe mounts a hand-adjacent thermal and diagnostics sensor orb', () => {
+  assert.match(globe, /XRSensorOrb/);
+  assert.match(globe, /xrSensors\.setAnchors\(\{ rightHand \}\)/);
+  assert.match(globe, /xrSensors\.handleObject/);
+  assert.match(globe, /xrSensors\.setPresenting\(true\)/);
+  assert.match(globe, /xrSensors\.startPreflight\(\)/);
+  assert.match(globe, /mxgenius:\/\/sensor-bridge/);
+  assert.match(globe, /REMOTE WITNESS/);
+  assert.match(sensors, /MXGeniusSensorOrb/);
+  assert.match(sensors, /MXGeniusDiagnosticsPanel/);
+  assert.match(sensors, /diagnostics\.snapshot/);
+  assert.match(sensors, /scan\.observed/);
+  assert.match(sensors, /mxgenius:scan-observed/);
+  assert.match(sensors, /mxgenius:sensor-diagnostics/);
+  assert.match(sensors, /FRAME_MAGIC = 0x4d584753/);
+  assert.match(sensors, /bridge\.session/);
+  assert.match(sensors, /flir-one-pro-usb-c/);
 });

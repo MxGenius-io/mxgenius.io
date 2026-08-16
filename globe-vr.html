@@ -11,6 +11,24 @@
     .hud strong { display: block; color: #67e8f9; font-size: 14px; }
     .hud span { display: block; margin-top: 3px; color: #9db1c6; font: 12px/1.4 ui-monospace, monospace; }
     .back { position: fixed; top: 14px; right: 14px; z-index: 4; padding: 9px 13px; border: 1px solid #31465d; border-radius: 7px; background: #0b1524; color: #d9edff; text-decoration: none; font-size: 13px; }
+    .sensor-setup { position: fixed; left: 14px; bottom: 14px; z-index: 4; width: min(390px, calc(100vw - 28px)); padding: 12px; border: 1px solid rgba(34,211,238,.35); border-radius: 10px; background: rgba(5,9,20,.92); }
+    .sensor-setup strong { display: block; color: #67e8f9; font: 700 12px/1.3 ui-monospace, monospace; }
+    .sensor-setup span { display: block; margin: 5px 0 10px; color: #9db1c6; font-size: 12px; }
+    .sensor-chain { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; padding: 0; list-style: none; }
+    .sensor-chain li { padding: 7px 8px; border: 1px solid #273d51; border-radius: 7px; color: #718da3; background: rgba(10,25,39,.72); font: 700 10px/1.25 ui-monospace, monospace; }
+    .sensor-chain li::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #64748b; }
+    .sensor-chain li[data-state="ready"] { color: #a7f3d0; border-color: rgba(52,211,153,.42); }
+    .sensor-chain li[data-state="ready"]::before { background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,.65); }
+    .sensor-chain li[data-state="opening"], .sensor-chain li[data-state="waiting"], .sensor-chain li[data-state="connecting"] { color: #fde68a; border-color: rgba(245,158,11,.42); }
+    .sensor-chain li[data-state="opening"]::before, .sensor-chain li[data-state="waiting"]::before, .sensor-chain li[data-state="connecting"]::before { background: #f59e0b; }
+    .sensor-chain li[data-state="streaming"] { color: #fed7aa; border-color: rgba(251,146,60,.55); }
+    .sensor-chain li[data-state="streaming"]::before { background: #fb923c; box-shadow: 0 0 9px rgba(251,146,60,.7); }
+    .sensor-chain li[data-state="failed"], .sensor-chain li[data-state="offline"] { color: #fda4af; border-color: rgba(251,113,133,.48); }
+    .sensor-chain li[data-state="failed"]::before, .sensor-chain li[data-state="offline"]::before { background: #fb7185; }
+    .sensor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sensor-actions a, .sensor-actions button { padding: 7px 10px; border: 1px solid #31566c; border-radius: 7px; background: #0a2333; color: #dffaff; font: 600 12px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+    .sensor-actions a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+    .sensor-actions [hidden] { display: none; }
     #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
   </style>
   <script type="importmap">
@@ -21,7 +39,9 @@
     }
   }
   </script>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
   <script src="runtime-config.js?v=3"></script>
+  <script src="auth.js?v=7"></script>
   <script src="cache.js"></script>
   <script src="application-client.js?v=10"></script>
   <script src="realtime-client.js?v=2"></script>
@@ -32,13 +52,127 @@
     <span id="fleetStatus">Preparing mapped fleet…</span>
   </div>
   <a class="back" href="dashboard.html">Back to dashboard</a>
+  <section class="sensor-setup" id="sensorSetup" aria-live="polite">
+    <strong>SENSOR CHAIN · REMOTE WITNESS</strong>
+    <span id="sensorSetupStatus">Checking the Quest companion and diagnostic bridge…</span>
+    <ol class="sensor-chain" aria-label="Sensor connection stages">
+      <li id="sensorRelayStep" data-state="required">1 · RELAY</li>
+      <li id="sensorCompanionStep" data-state="blocked">2 · QUEST APP</li>
+      <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
+    </ol>
+    <div class="sensor-actions">
+      <a id="openSensorCompanion" href="#">Open sensor bridge</a>
+      <a id="downloadSensorCompanion" href="#" download hidden>Install sensor bridge</a>
+      <button id="dismissSensorSetup" type="button">Hide</button>
+    </div>
+  </section>
 
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=2';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=1';
+    import {
+      buildSensorCompanionIntentUrl,
+      buildSensorCompanionLaunchUrl,
+      deriveSensorCompanionBridgeUrl,
+      deriveSensorActivationState
+    } from './xr-session-client.js?v=2';
 
     const status = document.getElementById('fleetStatus');
+    const sensorSetup = document.getElementById('sensorSetup');
+    const sensorSetupStatus = document.getElementById('sensorSetupStatus');
+    const openSensorCompanion = document.getElementById('openSensorCompanion');
+    const downloadSensorCompanion = document.getElementById('downloadSensorCompanion');
+    const sensorRelayStep = document.getElementById('sensorRelayStep');
+    const sensorCompanionStep = document.getElementById('sensorCompanionStep');
+    const sensorCameraStep = document.getElementById('sensorCameraStep');
+    const xrSessionId = sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
+    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
+    const pageQuery = new URLSearchParams(location.search);
+    const sensorBridgeUrl = pageQuery.get('sensorBridge')
+      || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
+      || localStorage.getItem('mxg_sensor_bridge_url')
+      || '';
+    const allowInsecurePilot = globalThis.MXGENIUS_CONFIG?.allowInsecurePilot === true
+      || (location.protocol === 'http:' && (pageQuery.get('insecurePilot') === '1' || ['localhost', '127.0.0.1'].includes(location.hostname)));
+    let sensorCompanionBridgeUrl = pageQuery.get('sensorIngest') || '';
+    if (!sensorCompanionBridgeUrl && sensorBridgeUrl) {
+      try {
+        sensorCompanionBridgeUrl = deriveSensorCompanionBridgeUrl(sensorBridgeUrl, { allowInsecurePilot });
+      } catch {
+        // A production gateway must issue a separate producer-scoped URL.
+      }
+    }
+    const companionLaunchBase = globalThis.MXGENIUS_CONFIG?.sensorCompanionLaunchUrl || 'mxgenius://sensor-bridge';
+    const companionPackage = globalThis.MXGENIUS_CONFIG?.sensorCompanionPackage || 'io.mxgenius.sensorbridge';
+    const companionDownloadUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionDownloadUrl || '';
+    let companionActivationPending = false;
+    let sensorSnapshot = { relayState: sensorBridgeUrl ? 'connecting' : 'unconfigured', companionStatus: 'unknown', sourceStatus: 'standby' };
+    let activationTimeout = null;
+
+    try {
+      const customLaunchUrl = buildSensorCompanionLaunchUrl({
+        base: companionLaunchBase,
+        sessionId: xrSessionId,
+        bridgeUrl: sensorCompanionBridgeUrl,
+        allowInsecurePilot
+      });
+      const intentLaunchUrl = buildSensorCompanionIntentUrl({
+        packageName: companionPackage,
+        sessionId: xrSessionId,
+        bridgeUrl: sensorCompanionBridgeUrl,
+        fallbackUrl: companionDownloadUrl,
+        allowInsecurePilot
+      });
+      openSensorCompanion.href = /Android|OculusBrowser/i.test(navigator.userAgent) ? intentLaunchUrl : customLaunchUrl;
+      openSensorCompanion.dataset.customLaunchUrl = customLaunchUrl;
+    } catch (error) {
+      openSensorCompanion.href = '#';
+      openSensorCompanion.dataset.activationError = error.message;
+    }
+    if (companionDownloadUrl) {
+      downloadSensorCompanion.href = companionDownloadUrl;
+      downloadSensorCompanion.hidden = false;
+    }
+    function renderSensorSetup() {
+      const activation = deriveSensorActivationState({
+        bridgeUrl: sensorCompanionBridgeUrl,
+        ...sensorSnapshot,
+        activating: companionActivationPending
+      });
+      sensorSetup.dataset.state = activation.state;
+      sensorRelayStep.dataset.state = activation.relay;
+      sensorCompanionStep.dataset.state = activation.companion;
+      sensorCameraStep.dataset.state = activation.camera;
+      sensorSetupStatus.textContent = openSensorCompanion.dataset.activationError
+        ? openSensorCompanion.dataset.activationError
+        : `${activation.message} Session ${xrSessionId.slice(0, 8)}.`;
+      openSensorCompanion.setAttribute('aria-disabled', String(!activation.canActivate || Boolean(openSensorCompanion.dataset.activationError)));
+      openSensorCompanion.textContent = activation.state === 'streaming'
+        ? 'Bridge connected'
+        : activation.state === 'relay-required'
+          ? 'Relay required'
+          : companionActivationPending ? 'Opening bridge…' : 'Open sensor bridge';
+    }
+    openSensorCompanion.addEventListener('click', (event) => {
+      if (openSensorCompanion.getAttribute('aria-disabled') === 'true') {
+        event.preventDefault();
+        return;
+      }
+      companionActivationPending = true;
+      renderSensorSetup();
+      clearTimeout(activationTimeout);
+      activationTimeout = setTimeout(() => {
+        if (sensorSnapshot.companionStatus !== 'ready') {
+          companionActivationPending = false;
+          sensorSnapshot.companionStatus = 'missing';
+          renderSensorSetup();
+        }
+      }, 12000);
+    });
+    document.getElementById('dismissSensorSetup').addEventListener('click', () => { sensorSetup.hidden = true; });
+    renderSensorSetup();
     let fleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
     try {
       fleet = JSON.parse(localStorage.getItem('mxg_globe_vr_data') || 'null') || fleet;
@@ -66,6 +200,23 @@
       }))
     });
     scene.add(xrVoice.group);
+    const xrSensors = new XRSensorOrb({
+      sessionId: xrSessionId,
+      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
+        detail: { action, input, target, context: { surface: 'fleet-globe' } }
+      })),
+      onStatus: ({ state, sourceStatus, companionStatus }) => {
+        sensorSnapshot = { relayState: state, sourceStatus, companionStatus };
+        if (companionStatus === 'ready') {
+          companionActivationPending = false;
+          clearTimeout(activationTimeout);
+        }
+        renderSensorSetup();
+        if (renderer.xr.isPresenting && state !== 'connected') status.textContent = `Sensor chain ${state} · thermal ${sourceStatus}`;
+      }
+    });
+    scene.add(xrSensors.group);
+    xrSensors.startPreflight();
     const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();
@@ -167,6 +318,8 @@
     let imageGridGeneration = 0;
     let leftHand = null;
     let leftController = null;
+    let rightHand = null;
+    let rightController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
     const panelWorldQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.22, 0));
     const panelCameraPosition = new THREE.Vector3();
@@ -617,14 +770,20 @@
         controller.userData.handedness = event.data?.handedness || '';
         grip.userData.handedness = controller.userData.handedness;
         if (controller.userData.handedness === 'left') leftController = grip;
+        if (controller.userData.handedness === 'right') {
+          rightController = grip;
+          xrSensors.setAnchors({ rightController });
+        }
       });
       controller.addEventListener('select', () => {
         xrRaycaster.setFromXRController(controller);
         const uiHit = xrRaycaster.intersectObjects([
           ...xrVoice.interactiveObjects(),
+          ...xrSensors.interactiveObjects(),
           detailsSurface,
           rotateButton
         ], false)[0];
+        if (uiHit && xrSensors.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
         if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
@@ -649,6 +808,10 @@
       hand.addEventListener('connected', (event) => {
         hand.userData.handedness = event.data?.handedness || '';
         if (hand.userData.handedness === 'left') leftHand = hand;
+        if (hand.userData.handedness === 'right') {
+          rightHand = hand;
+          xrSensors.setAnchors({ rightHand });
+        }
       });
       xrHands.push(hand);
       scene.add(hand);
@@ -719,6 +882,15 @@
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
 
+        const sensorTarget = xrSensors.fingerTargetAt(fingerPoint);
+        if (sensorTarget) {
+          const previousSensorTarget = hand.userData.sensorFingerTarget || null;
+          if (sensorTarget !== previousSensorTarget) xrSensors.handleObject(sensorTarget, `finger-${handIndex}`);
+          hand.userData.sensorFingerTarget = sensorTarget;
+          return;
+        }
+        hand.userData.sensorFingerTarget = null;
+
         const voiceTarget = xrVoice.fingerTargetAt(fingerPoint);
         const previousVoiceTarget = voiceFingerTargets.get(handIndex) || null;
         if (voiceTarget && voiceTarget !== previousVoiceTarget) {
@@ -782,11 +954,13 @@
     renderer.xr.addEventListener('sessionstart', () => {
       detailsTarget = 0;
       xrVoice.setPresenting(true);
+      xrSensors.setPresenting(true);
       status.textContent = `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
     });
     renderer.xr.addEventListener('sessionend', () => {
       detailsTarget = 0;
       xrVoice.setPresenting(false);
+      xrSensors.setPresenting(false);
       xrActiveGrips.clear();
       xrGlobeGesture = null;
       scene.attach(detailsPanel);
@@ -806,6 +980,7 @@
       xrVoice.update(delta, time, {
         camera
       });
+      xrSensors.update(delta, time, { camera });
       renderer.render(scene, camera);
     });
 

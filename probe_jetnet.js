@@ -11,9 +11,14 @@ const https = require('https');
 
 const JETNET_BASE = 'https://customer.jetnetconnect.com';
 const CREDS = {
-  EmailAddress: 'PROD@Advancedaog.com',
-  Password: 'Advancedaog1$',
+  EmailAddress: process.env.JETNET_IDENTITY || '',
+  Password: process.env.JETNET_CREDENTIAL || '',
 };
+
+if (!CREDS.EmailAddress || !CREDS.Password) {
+  console.error('Set JETNET_IDENTITY and JETNET_CREDENTIAL before running this live probe.');
+  process.exit(2);
+}
 
 // ─── HTTP Helper ───────────────────────────────────
 function request(method, path, body, bearer) {
@@ -66,7 +71,7 @@ async function main() {
   }
   const BEARER = login.data.bearerToken;
   const TOKEN = login.data.apiToken;
-  console.log(`✅ Authenticated. Token: ${TOKEN.slice(0, 20)}...`);
+  console.log('✅ Authenticated.');
   console.log(`   Service: ${login.data.serviceType || '?'}  Frequency: ${login.data.frequency || '?'}\n`);
 
   // Step 2: Probe all endpoints

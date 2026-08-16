@@ -1,0 +1,25 @@
+[Unit]
+Description=MXG XR diagnostics kiosk and sensor bridge
+After=network-online.target mxg-bluetooth-sdp.service
+Wants=network-online.target mxg-bluetooth-sdp.service
+
+[Service]
+Type=simple
+User=mxgdiag
+Group=mxgdiag
+SupplementaryGroups=dialout video render plugdev
+WorkingDirectory=/opt/mxg-diagnostics-kiosk/backend
+EnvironmentFile=-/etc/mxg-diagnostics-kiosk.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/mxg-diagnostics-kiosk/venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8844 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

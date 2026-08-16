@@ -24,6 +24,7 @@ use mxgenius_shared::adapters::faa::{
 };
 use mxgenius_shared::adapters::jetnet::{JetNetAdapter, NotConfiguredJetNetAdapter};
 use mxgenius_shared::adapters::manual::{ManualCorpusAdapter, NotConfiguredManualAdapter};
+use mxgenius_shared::adapters::weather::AviationWeatherAdapter;
 use mxgenius_shared::application::policy::Role;
 use tracing_subscriber::EnvFilter;
 
@@ -63,13 +64,13 @@ async fn main() -> anyhow::Result<()> {
     let manual: Arc<dyn ManualCorpusAdapter> = if insecure_local && !pilot {
         Arc::new(NotConfiguredManualAdapter)
     } else {
-        match mxgenius_mcp::adapters::manual::AzureManualCorpusAdapter::from_env() {
-            Ok(adapter) => Arc::new(adapter),
-            Err(error) => {
-                tracing::warn!(target: "mxgenius.mcp", %error, "manual corpus adapter is not configured");
-                Arc::new(NotConfiguredManualAdapter)
-            }
-        }
+        let adapter = mxgenius_mcp::adapters::manual::AzureManualCorpusAdapter::from_env()
+            .map_err(|error| anyhow::anyhow!("manual retrieval configuration rejected: {error}"))?;
+        adapter
+            .validate_contract()
+            .await
+            .map_err(|error| anyhow::anyhow!("manual retrieval readiness rejected: {error}"))?;
+        Arc::new(adapter)
     };
     let registry = if insecure_local && !pilot {
         default_registry(case_service, evidence_service)
@@ -99,6 +100,14 @@ async fn main() -> anyhow::Result<()> {
                     )
                 }
             };
+        let weather: Option<Arc<dyn AviationWeatherAdapter>> =
+            match mxgenius_mcp::adapters::weather::AviationWeatherHttpAdapter::from_env() {
+                Ok(adapter) => Some(Arc::new(adapter)),
+                Err(error) => {
+                    tracing::warn!(target: "mxgenius.mcp", %error, "AviationWeather.gov adapter is not configured");
+                    None
+                }
+            };
         registry_with_adapters(
             case_service,
             evidence_service,
@@ -109,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
                 aircraft_catalog,
                 faa_ad,
                 saib,
+                weather,
                 allow_fixture_compliance: false,
             },
         )

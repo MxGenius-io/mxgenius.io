@@ -209,7 +209,7 @@ const MXApplicationClient = (() => {
     return (await applicationRequest(path, options)).json();
   }
 
-  function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, displayContext, accessToken, organizationId, correlationId, signal }) {
+  function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, aircraftContext, displayContext, accessToken, organizationId, correlationId, signal }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
       'Content-Type': 'application/json',
@@ -234,6 +234,7 @@ const MXApplicationClient = (() => {
         history: Array.isArray(history) ? history.slice(-12) : [],
         fleet_signals: chatFleetSignals(message, fleetSignals),
         case_context: caseContext || null,
+        aircraft_context: aircraftContext || null,
         display_context: displayContext || null
       })
     });

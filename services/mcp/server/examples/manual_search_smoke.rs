@@ -15,6 +15,7 @@ async fn main() -> Result<()> {
     let evidence = adapter
         .search(&ManualQuery {
             aircraft_id: None,
+            aircraft_model: Some("CL350".into()),
             ata: None,
             text: query,
             limit: Some(5),
@@ -23,6 +24,7 @@ async fn main() -> Result<()> {
         .context("authoritative manual retrieval failed")?;
 
     let summary = evidence
+        .evidence
         .iter()
         .map(|item| {
             json!({
@@ -36,7 +38,7 @@ async fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
     println!("{}", serde_json::to_string_pretty(&summary)?);
-    if evidence.is_empty() {
+    if evidence.evidence.is_empty() {
         anyhow::bail!("authoritative manual retrieval returned no evidence");
     }
     Ok(())

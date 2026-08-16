@@ -18,4 +18,7 @@ USER mxgenius
 
 EXPOSE 8080
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=5).read()"]
+
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT}"]

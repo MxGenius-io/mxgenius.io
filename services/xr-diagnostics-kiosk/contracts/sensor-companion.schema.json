@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/sensor-companion.schema.json",
+  "title": "MXG Quest sensor companion messages",
+  "oneOf": [
+    { "$ref": "#/$defs/activation" },
+    { "$ref": "#/$defs/announce" },
+    { "$ref": "#/$defs/sourceStatus" }
+  ],
+  "$defs": {
+    "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sessionId", "bridgeUrl"],
+      "allOf": [
+        {
+          "if": { "properties": { "bridgeUrl": { "pattern": "^ws://" } } },
+          "then": { "required": ["pilot"], "properties": { "pilot": { "const": true } } }
+        }
+      ],
+      "properties": {
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "bridgeUrl": { "type": "string", "pattern": "^wss?://" },
+        "pilot": { "type": "boolean", "default": false }
+      }
+    },
+    "announce": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "nodeId", "nodeType", "nodeName", "capabilities", "sourceType", "softwareVersion", "sdkVersion"],
+      "properties": {
+        "type": { "const": "node.announce" },
+        "nodeId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "nodeType": { "const": "quest-companion" },
+        "nodeName": { "const": "MxGenius FLIR Companion" },
+        "capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "contains": { "const": "flir-one-pro-usb-c" },
+          "items": { "enum": ["thermal-source", "flir-one-pro-usb-c", "mxgs-1", "thermal-jpeg", "radiometric-y16"] }
+        },
+        "sourceType": { "const": "flir-one-pro" },
+        "softwareVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "sdkVersion": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "sourceStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "sourceType", "status", "sessionId", "observedAtMs"],
+      "properties": {
+        "type": { "const": "source.status" },
+        "sourceType": { "const": "flir-one-pro" },
+        "status": { "enum": ["discovering", "permission-required", "permission-denied", "connecting", "ready", "streaming", "offline", "failed"] },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "observedAtMs": { "type": "integer", "minimum": 0 },
+        "reason": { "type": ["string", "null"], "maxLength": 240 }
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+-keep class com.flir.** { *; }
+-dontwarn com.flir.**

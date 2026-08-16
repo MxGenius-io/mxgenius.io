@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/xr-session-gateway.schema.json",
+  "title": "MXG XR session gateway messages",
+  "oneOf": [
+    { "$ref": "#/$defs/negotiateRequest" },
+    { "$ref": "#/$defs/negotiateResponse" },
+    { "$ref": "#/$defs/evidenceAck" }
+  ],
+  "$defs": {
+    "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "negotiateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sessionId", "nodeType", "capabilities"],
+      "properties": {
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "nodeType": { "enum": ["xr-client", "quest-companion", "edge-kiosk", "remote-witness-viewer"] },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 80 } }
+      }
+    },
+    "negotiateResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sessionId", "connectionId", "bridgeUrl", "companionBridgeUrl", "expiresAtMs"],
+      "properties": {
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "connectionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bridgeUrl": { "type": "string", "pattern": "^wss://" },
+        "companionBridgeUrl": { "type": "string", "pattern": "^wss://" },
+        "expiresAtMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidenceAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "version", "sessionId", "sequence", "eventSha256", "status", "observedAtMs"],
+      "properties": {
+        "type": { "const": "evidence.ack" },
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "eventSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "status": { "enum": ["accepted", "duplicate", "rejected"] },
+        "reason": { "type": ["string", "null"], "maxLength": 500 },
+        "observedAtMs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

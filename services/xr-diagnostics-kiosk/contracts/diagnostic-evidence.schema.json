@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/diagnostic-evidence.schema.json",
+  "title": "MXG diagnostic evidence observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type", "version", "observationId", "sessionId", "sequence", "observedAtMs", "source",
+    "conditionResult", "measurements", "limitations", "integrity"
+  ],
+  "properties": {
+    "type": { "const": "evidence.observation" },
+    "version": { "const": 1 },
+    "observationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "reportedConditionId": { "type": ["string", "null"], "maxLength": 128 },
+    "observedAtMs": { "type": "integer", "minimum": 0 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "model", "devicePseudonym", "softwareVersion"],
+      "properties": {
+        "kind": { "enum": ["thermal", "barcode-scanner", "multimeter", "oscilloscope", "rs485", "can", "visual", "manual"] },
+        "model": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "devicePseudonym": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "softwareVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "calibrationState": { "enum": ["verified", "self-check-only", "unknown", "expired", "not-applicable"] },
+        "calibrationValidThrough": { "type": ["string", "null"], "format": "date" }
+      }
+    },
+    "conditionResult": {
+      "enum": ["supports-reported-condition", "does-not-reproduce", "inconclusive", "not-evaluated"]
+    },
+    "measurements": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "unit"],
+        "properties": {
+          "value": { "type": ["number", "string", "boolean", "null"] },
+          "unit": { "type": "string", "maxLength": 32 },
+          "uncertainty": { "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "boolean", "null"] }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "technicianAnnotation": { "type": ["string", "null"], "maxLength": 4000 },
+    "witnessSessionId": { "type": ["string", "null"], "maxLength": 128 },
+    "artifactReference": { "type": ["string", "null"], "maxLength": 1024 },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalization", "hashAlgorithm", "payloadSha256", "eventSha256"],
+      "properties": {
+        "canonicalization": { "const": "mxg-canonical-json-1" },
+        "hashAlgorithm": { "const": "sha256" },
+        "payloadSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "previousEventSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "eventSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "deviceSignature": { "type": ["string", "null"], "maxLength": 2048 }
+      }
+    }
+  }
+}

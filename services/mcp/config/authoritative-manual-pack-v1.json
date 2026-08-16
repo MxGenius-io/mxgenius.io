@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "pack_id": "mxg-cl350-starter-manuals-v1",
+  "release_state": "frozen",
+  "source_class": "manual",
+  "aircraft_models": [
+    "CL350"
+  ],
+  "index_contract": {
+    "search_service": "mxg-search-50106",
+    "index_name": "manuals-authoritative-v2",
+    "embedding_service": "mxg-manual-embeddings",
+    "embedding_model": "all-MiniLM-L6-v2",
+    "vector_field": "content_vector",
+    "vector_dimensions": 384
+  },
+  "integrity": {
+    "chunk_count": 13121,
+    "logical_manual_count": 5,
+    "search_document_count": 8,
+    "content_set_hash": "sha256:8522219c188bb09a5dc8104405a78f85e814e74c8c46bdce4e731a65888eece9",
+    "hash_algorithm": "sha256",
+    "content_set_hash_input": "UTF-8 sorted lines of <search-document-id>|<content-hash>, joined with LF and no trailing LF"
+  },
+  "currency_policy": {
+    "state": "unverified",
+    "reason": "The indexed source records do not contain revision or effective-date metadata.",
+    "answer_requirement": "Responses must identify manual currency as unverified until revision and effective-date metadata are supplied and reconciled."
+  },
+  "manuals": [
+    {
+      "manual_id": "cl350-amm",
+      "display_name": "CL350 Aircraft Maintenance Manual",
+      "manual_type": "AMM",
+      "aircraft_models": [
+        "CL350"
+      ],
+      "source_prefixes": [
+        "Bombardier Manuals/CL350/CL350 AMM PT 1/",
+        "Bombardier Manuals/CL350/CL350 AMM PT 2/"
+      ],
+      "document_ids": [
+        "3578e9e8af080173614f3e6c113c4d985852a763b386d0a30027f9cdeb020d37",
+        "e24e88c6733bc667588afdc4b020032dcd3453c92438b23b42fdd18d5b74c672"
+      ],
+      "chunk_count": 8491,
+      "source_section_count": 68,
+      "content_set_hash": "sha256:f1bddc3eeea364671213d0d269a5346c4dd5bcf44e1749d338294803953cedb7",
+      "revision": null,
+      "effective_date": null,
+      "currency_state": "unverified",
+      "page_linked_chunk_count": 6,
+      "asset_reference_count": 5,
+      "asset_reference_set_hash": "sha256:12d870ba5936b13d6a84aa9ca784df319420044fbba68e9a991015bd13d713d1"
+    },
+    {
+      "manual_id": "cl350-ipc",
+      "display_name": "CL350 Illustrated Parts Catalog",
+      "manual_type": "IPC",
+      "aircraft_models": [
+        "CL350"
+      ],
+      "source_prefixes": [
+        "Bombardier Manuals/CL350/CL350 IPC/"
+      ],
+      "document_ids": [
+        "16a1c8fb3b22a2ed6aadece155e03528a3aa55717730840a39b1df0cbb5dfb83"
+      ],
+      "chunk_count": 2088,
+      "source_section_count": 38,
+      "content_set_hash": "sha256:a43fd46013e642731ba07f448b65f0e277fc6971f6fab6dabc7b5f4f52d4d734",
+      "revision": null,
+      "effective_date": null,
+      "currency_state": "unverified",
+      "page_linked_chunk_count": 0,
+      "asset_reference_count": 0,
+      "asset_reference_set_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "manual_id": "cl350-spm",
+      "display_name": "CL350 Standard Practices Manual",
+      "manual_type": "SPM",
+      "aircraft_models": [
+        "CL350"
+      ],
+      "source_prefixes": [
+        "Bombardier Manuals/CL350/SPM Standard Practices Manual (All Models)/"
+      ],
+      "document_ids": [
+        "83affe0a5ee316c97c570a0906bc670b4d9ac9a129ca7371a3e8009eb691a182",
+        "c23807aad11eb6d9bd4183e19ec0267f22019d32d9d7f36947a0d0cd1461afa2",
+        "c64bb6694a04908d266d172c3e977080ca28d4b46ab13b0b91e680dd69bc1ce2"
+      ],
+      "chunk_count": 1590,
+      "source_section_count": 58,
+      "content_set_hash": "sha256:c892ac5e2b9e5dd0dfd94caf0ffccef0cfcdd3959f2f56c38c3cb3c20295619b",
+      "revision": null,
+      "effective_date": null,
+      "currency_state": "unverified",
+      "page_linked_chunk_count": 0,
+      "asset_reference_count": 0,
+      "asset_reference_set_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "manual_id": "cl350-ndt",
+      "display_name": "CL350 Nondestructive Testing Manual",
+      "manual_type": "NDT",
+      "aircraft_models": [
+        "CL350"
+      ],
+      "source_prefixes": [
+        "Bombardier Manuals/CL350/CL350 NDT/"
+      ],
+      "document_ids": [
+        "4f52dc583e5eb4b2d905df01b095703b4db8f77a62d0ac49e24295f1af1bd267"
+      ],
+      "chunk_count": 501,
+      "source_section_count": 4,
+      "content_set_hash": "sha256:b6e12906c82d2cb83cab06a9b672a0ab83e2c812d801fb3a40466648333077fa",
+      "revision": null,
+      "effective_date": null,
+      "currency_state": "unverified",
+      "page_linked_chunk_count": 0,
+      "asset_reference_count": 0,
+      "asset_reference_set_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "manual_id": "cl350-ssm",
+      "display_name": "CL350 System Schematic Manual",
+      "manual_type": "SSM",
+      "aircraft_models": [
+        "CL350"
+      ],
+      "source_prefixes": [
+        "Bombardier Manuals/CL350/CL350 System Schematic Manual (SSM)/"
+      ],
+      "document_ids": [
+        "c8b5e21d9ef5928e8eb3a0ab7f76d47dc239289d6840f781b0785dcc61fb4120"
+      ],
+      "chunk_count": 451,
+      "source_section_count": 29,
+      "content_set_hash": "sha256:c0557236ad1dcb68547a78228d9d06809631082327c7d1686221430e950e1204",
+      "revision": null,
+      "effective_date": null,
+      "currency_state": "unverified",
+      "page_linked_chunk_count": 0,
+      "asset_reference_count": 0,
+      "asset_reference_set_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "assets": [
+    {
+      "manual_id": "cl350-amm",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/611176d4fe799ceb8f533810c2ed08baf2633527319f7b04df0b773249e7655e.png",
+      "media_type": "image/png",
+      "content_hash": "sha256:611176d4fe799ceb8f533810c2ed08baf2633527319f7b04df0b773249e7655e"
+    },
+    {
+      "manual_id": "cl350-amm",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/6497f7ed5e945928f4930d1aae888d0afc3f0cc4ff3a556fb646347e62f71243.png",
+      "media_type": "image/png",
+      "content_hash": "sha256:6497f7ed5e945928f4930d1aae888d0afc3f0cc4ff3a556fb646347e62f71243"
+    },
+    {
+      "manual_id": "cl350-amm",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/9ad7b62a05e14d0ae5fe13d80315a79f5cb2e7a50be310ef4375a38342b14253.png",
+      "media_type": "image/png",
+      "content_hash": "sha256:9ad7b62a05e14d0ae5fe13d80315a79f5cb2e7a50be310ef4375a38342b14253"
+    },
+    {
+      "manual_id": "cl350-amm",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/a60bebc1ac59d1e95352bf2f1c4aa49d7a3ed7d9c091409bef587d759bdc482d.png",
+      "media_type": "image/png",
+      "content_hash": "sha256:a60bebc1ac59d1e95352bf2f1c4aa49d7a3ed7d9c091409bef587d759bdc482d"
+    },
+    {
+      "manual_id": "cl350-amm",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab.png",
+      "media_type": "image/png",
+      "content_hash": "sha256:cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab"
+    }
+  ],
+  "excluded_sources": {
+    "policy": "excluded_from_starter_pack",
+    "chunk_count": 4208,
+    "families": [
+      {
+        "name": "CL350 GROUND HANDLING AND SERVICE INFO",
+        "chunk_count": 457
+      },
+      {
+        "name": "CL350 ILLUSTRATED TOOL AND EQUIPMENT MANUAL",
+        "chunk_count": 105
+      },
+      {
+        "name": "CL350 MAINTENANCE PLANNING DOC",
+        "chunk_count": 136
+      },
+      {
+        "name": "CL350 Wiring List Manual",
+        "chunk_count": 1889
+      },
+      {
+        "name": "CL350 Wiring Manual",
+        "chunk_count": 546
+      },
+      {
+        "name": "SMART FIX PLUS SFP",
+        "chunk_count": 1075
+      }
+    ]
+  }
+}

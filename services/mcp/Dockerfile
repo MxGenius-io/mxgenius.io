@@ -6,6 +6,7 @@ COPY server ./server
 COPY migrations ./migrations
 COPY fixtures ./fixtures
 COPY demo ./demo
+COPY config ./config
 RUN cargo build --locked --release -p mxgenius-mcp
 
 FROM debian:bookworm-slim AS runtime

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "application": {
+    "name": "MxGenius Sensor Bridge",
+    "appId": "1280760725126205",
+    "package": "io.mxgenius.sensorbridge"
+  },
+  "build": {
+    "versionCode": 2,
+    "versionName": "0.1.0-poc.2",
+    "channel": "Alpha",
+    "metaTestStatus": "Complete"
+  },
+  "releaseChannel": {
+    "channelId": "1516125643598287",
+    "installUrl": "https://www.oculus.com/experiences/1280760725126205/release-channels/1516125643598287/"
+  },
+  "metadata": {
+    "submissionId": "1280760741792870",
+    "metadataId": "1280760735126204",
+    "assetsUrl": "https://developers.meta.com/horizon/manage/applications/1280760725126205/submissions/1280760741792870/metadata/assets/",
+    "state": "draft-not-submitted"
+  },
+  "assets": {
+    "landscape": {
+      "path": "mxgenius-sensor-bridge-cover-2560x1440.png",
+      "mimeType": "image/png",
+      "pixelFormat": "24-bit RGB",
+      "width": 2560,
+      "height": 1440,
+      "sha256": "6df0d68a50b97dc3cbe22ef52a12b4eb3911787818bda816be2fe1d054e9f410"
+    }
+  },
+  "knownAdvisories": [
+    {
+      "component": "lib/arm64-v8a/libatlas_native.so",
+      "issue": "Vendor-supplied FLIR Atlas 2.22.0 library bundles a vulnerable libssh2 version.",
+      "privateAlphaBlocker": false,
+      "publicSubmissionGate": true
+    }
+  ]
+}

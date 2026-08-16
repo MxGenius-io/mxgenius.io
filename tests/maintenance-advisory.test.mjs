@@ -48,7 +48,9 @@ test('chat close uses explicit state and cannot reopen the panel after a respons
 
 test('aircraft prompt opens chat without the originating click closing it again', () => {
   assert.match(app, /button\.addEventListener\('click', \(event\) => \{\s+event\.stopPropagation\(\);\s+closeModal\('acDetailModal'\);\s+window\.openChatWith/);
-  assert.match(app, /window\.openChatWith = \(text\) => \{\s+setPanelOpen\(true\);\s+input\.value = text;\s+sendMessage\(\);/);
+  assert.match(app, /window\.openChatWith = \(text, aircraftContext = null\) => \{\s+activeAircraftContext = aircraftContext;\s+setPanelOpen\(true\);\s+input\.value = text;\s+sendMessage\(\);/);
+  assert.match(app, /aircraftContext: activeCaseContext \? null : activeAircraftContext/);
+  assert.match(app, /registration: ident\.regnbr \|\| ident\.registration \|\| null/);
   assert.match(app, /html = html\.replace\(\/\^\\s\*-\\s\+\/gm, '&bull; '\);/);
 });
 

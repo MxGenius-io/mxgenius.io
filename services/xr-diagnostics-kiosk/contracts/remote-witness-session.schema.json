@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/remote-witness-session.schema.json",
+  "title": "MXG Remote Witness session messages",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/consent" },
+    { "$ref": "#/$defs/status" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["type", "version", "sessionId", "observedAtMs"],
+      "properties": {
+        "type": { "type": "string" },
+        "version": { "const": 1 },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "observedAtMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "request": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["audience", "capture", "layers", "wearerInitiated", "recordingRequested"],
+          "properties": {
+            "type": { "const": "remote-witness.request" },
+            "audience": { "enum": ["hq", "customer"] },
+            "capture": { "enum": ["wearer-pov", "service-camera"] },
+            "layers": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["headset-ui", "thermal", "diagnostics", "microphone"] }
+            },
+            "wearerInitiated": { "const": true },
+            "recordingRequested": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "consent": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["granted", "grantedBy", "expiresAtMs", "recordingGranted"],
+          "properties": {
+            "type": { "const": "remote-witness.consent" },
+            "granted": { "type": "boolean" },
+            "grantedBy": { "const": "wearer" },
+            "expiresAtMs": { "type": "integer", "minimum": 0 },
+            "recordingGranted": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "status": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["state", "viewerCount", "recording"],
+          "properties": {
+            "type": { "const": "remote-witness.status" },
+            "state": { "enum": ["idle", "requesting-consent", "connecting", "live", "paused", "ended", "failed"] },
+            "viewerCount": { "type": "integer", "minimum": 0 },
+            "recording": { "type": "boolean" },
+            "activeLayers": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["headset-ui", "thermal", "diagnostics", "microphone"] }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

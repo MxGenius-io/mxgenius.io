@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MXG Local Diagnostics</title>
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.1">
+</head>
+<body>
+  <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
+    <div class="boot-mark">
+      <img src="/assets/mxgenius-logo.png" alt="MxGenius">
+      <div><b>MxGenius</b><span>EDGE DIAGNOSTICS</span></div>
+    </div>
+    <div class="boot-copy">
+      <p>STANDALONE NODE</p>
+      <h1 id="bootTitle">Initializing edge node</h1>
+      <small id="bootDetail">Loading the local diagnostics surface</small>
+    </div>
+    <ol class="boot-stages">
+      <li id="bootSurface" class="active"><i></i><span>Surface</span></li>
+      <li id="bootBridge"><i></i><span>Bridge</span></li>
+      <li id="bootDiagnostics"><i></i><span>Diagnostics</span></li>
+      <li id="bootReady"><i></i><span>Ready</span></li>
+    </ol>
+  </section>
+  <main class="shell">
+    <header>
+      <div class="site-brand">
+        <img src="/assets/mxgenius-logo.png" alt="">
+        <div>
+        <p class="eyebrow">MXGENIUS · EDGE NODE</p>
+        <h1>Local diagnostics</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <nav class="view-switch" aria-label="Kiosk views">
+          <button class="view-tab active" type="button" data-view="overview" role="tab" aria-selected="true" aria-controls="overviewView">Overview</button>
+          <button class="view-tab" type="button" data-view="logs" role="tab" aria-selected="false" aria-controls="logView">Live log <span id="logCount">0</span></button>
+        </nav>
+        <div class="bridge-state"><i id="stateLamp"></i><span id="bridgeState">Starting bridge</span></div>
+      </div>
+    </header>
+
+    <div id="overviewView" class="view-panel" role="tabpanel">
+    <section class="hero card">
+      <div>
+        <p class="label">SYSTEM POSTURE</p>
+        <strong id="systemPosture">INITIALIZING</strong>
+        <p id="hostLine">Reading Raspberry Pi sensors…</p>
+      </div>
+      <div class="orb-wrap"><canvas id="thermalCanvas" width="320" height="240" aria-label="Thermal feed preview"></canvas><div class="orb-glass"></div></div>
+      <div class="hero-stats">
+        <span>XR CLIENTS<b id="clientCount">0</b></span>
+        <span>SOURCES<b id="sourceCount">0</b></span>
+        <span>FRAMES<b id="frameCount">0</b></span>
+        <span>BLUETOOTH<b id="bluetoothState">OFF</b></span>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <article class="card metric"><p>CPU</p><b id="cpuValue">—</b><meter id="cpuMeter" min="0" max="100" value="0"></meter><small id="cpuDetail">Waiting for sample</small></article>
+      <article class="card metric"><p>MEMORY</p><b id="memoryValue">—</b><meter id="memoryMeter" min="0" max="100" value="0"></meter><small id="memoryDetail">Waiting for sample</small></article>
+      <article class="card metric"><p>STORAGE</p><b id="storageValue">—</b><meter id="storageMeter" min="0" max="100" value="0"></meter><small id="storageDetail">Waiting for sample</small></article>
+      <article class="card metric"><p>THERMAL</p><b id="temperatureValue">—</b><meter id="temperatureMeter" min="20" max="90" value="20"></meter><small>Pi SoC temperature</small></article>
+    </section>
+
+    <section class="peripheral-section card" aria-labelledby="peripheralTitle">
+      <div class="section-heading">
+        <div><p class="label">POC HARDWARE LANES</p><h2 id="peripheralTitle">Peripheral readiness</h2></div>
+        <p>Expected routes are shown before the equipment is attached. Observations remain unverified until resolved by an authorized source.</p>
+      </div>
+      <div class="peripheral-grid">
+        <article class="peripheral" id="peripheralFlir" data-state="standby">
+          <div class="peripheral-top"><span class="peripheral-icon">IR</span><b id="flirStatus">COMPANION GATE</b></div>
+          <h3>FLIR ONE Pro</h3><p>Quest USB-C · Android companion · MXGS/1</p><small id="flirDetail">Licensed SDK and headset enumeration pending</small>
+        </article>
+        <article class="peripheral" id="peripheralHoneywell" data-state="standby">
+          <div class="peripheral-top"><span class="peripheral-icon">1D</span><b id="honeywellStatus">WAITING</b></div>
+          <h3>Honeywell Xenon XP 1950g</h3><p>Pi USB CDC · scan.raw → scan.observed</p><small id="honeywellDetail">No matching USB device detected</small>
+        </article>
+        <article class="peripheral" id="peripheralZebra" data-state="standby">
+          <div class="peripheral-top"><span class="peripheral-icon">2D</span><b id="zebraStatus">WAITING</b></div>
+          <h3>Zebra DS3608</h3><p>Pi USB CDC · rugged scanner profile</p><small id="zebraDetail">No matching USB device detected</small>
+        </article>
+        <article class="peripheral" id="peripheralSocket" data-state="standby">
+          <div class="peripheral-top"><span class="peripheral-icon">BT</span><b id="socketStatus">DISABLED</b></div>
+          <h3>Socket Mobile S740</h3><p>Pi Bluetooth SPP · RFCOMM channel 8</p><small id="socketDetail">Bluetooth bridge is not enabled</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="integration-section card" aria-labelledby="integrationTitle">
+      <div class="section-heading">
+        <div><p class="label">NORMALIZED API FIXTURES</p><h2 id="integrationTitle">Orchestration lanes</h2></div>
+        <p>Provider-specific payloads stop at the server adapter. These local fixtures model only the stable MxGenius envelope the headset and model will consume.</p>
+      </div>
+      <div class="integration-layout">
+        <div id="integrationGrid" class="integration-grid" aria-live="polite">
+          <article class="integration-card loading"><b>Loading fixture registry…</b><small>Local bridge</small></article>
+        </div>
+        <div class="integration-shape">
+          <div class="shape-title"><span id="shapeTitle">Select an API lane</span><em id="shapeState">SIMULATED</em></div>
+          <pre id="shapePreview" tabindex="0">Normalized sample data will appear here.</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="lower">
+      <article class="card list-card"><div class="card-title"><span>PORT HEALTH</span><em id="portSummary">NO PROBES</em></div><div id="ports" class="rows"></div></article>
+      <article class="card list-card"><div class="card-title"><span>CONNECTED HARDWARE</span><em id="usbSummary">SCANNING</em></div><div id="hardware" class="rows"></div></article>
+      <article class="card list-card"><div class="card-title"><span>SCAN OBSERVATIONS</span><em id="scanSummary">STANDBY</em></div><div id="scans" class="rows"><div class="row"><span>No scanner observations</span><small>—</small></div></div></article>
+      <article class="card list-card"><div class="card-title"><span>NETWORK</span><em>LOCAL EDGE</em></div><div id="network" class="rows"></div></article>
+    </section>
+    </div>
+
+    <section id="logView" class="view-panel log-view" role="tabpanel" hidden>
+      <div class="log-heading">
+        <div><p class="label">COMMISSIONING TRACE</p><h2>Live diagnostic log</h2><p>Browser, bridge, thermal, scanner, and peripheral transitions captured locally for the first hardware run.</p></div>
+        <div class="log-summary" aria-label="Log summary">
+          <span><b id="logTotal">0</b> events</span>
+          <span class="warn"><b id="logWarnings">0</b> warnings</span>
+          <span class="error"><b id="logErrors">0</b> errors</span>
+        </div>
+      </div>
+      <div class="log-toolbar">
+        <div class="log-filters" aria-label="Log level filters">
+          <button type="button" class="log-filter active" data-level="all">All</button>
+          <button type="button" class="log-filter" data-level="info">Info</button>
+          <button type="button" class="log-filter" data-level="warning">Warnings</button>
+          <button type="button" class="log-filter" data-level="error">Errors</button>
+        </div>
+        <label class="follow-toggle"><input id="autoFollow" type="checkbox" checked> Auto-follow</label>
+        <button id="exportLogs" class="utility-button" type="button">Export JSONL</button>
+        <button id="clearLogs" class="utility-button quiet" type="button">Clear</button>
+      </div>
+      <div class="log-layout">
+        <div id="logStream" class="log-stream" role="log" aria-live="polite" aria-label="Live diagnostic events"></div>
+        <aside class="runbook card">
+          <p class="label">FIRST-RUN SEQUENCE</p>
+          <ol>
+            <li><b>Bridge</b><span>Socket opens and diagnostics snapshot arrives.</span></li>
+            <li><b>Pi peripherals</b><span>USB CDC or Bluetooth SPP identity appears.</span></li>
+            <li><b>Quest companion</b><span>Headset announces the FLIR source.</span></li>
+            <li><b>XR session</b><span>Session binding and thermal frames agree.</span></li>
+          </ol>
+          <p class="privacy-note">Logs stay on this browser. Raw scanner values are never written to the commissioning log.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.1"></script>
+</body>
+</html>

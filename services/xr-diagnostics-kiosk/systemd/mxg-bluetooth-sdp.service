@@ -1,0 +1,13 @@
+[Unit]
+Description=Advertise the MXG diagnostics Bluetooth serial service
+After=bluetooth.service
+Requires=bluetooth.service
+Before=mxg-diagnostics-kiosk.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sdptool add --channel=8 SP
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -111,6 +111,7 @@ pub fn default_registry(
             aircraft_catalog: Arc::new(InMemoryAircraftCatalog::default()),
             faa_ad: Arc::new(NotConfiguredFaaAdAdapter),
             saib: Arc::new(NotConfiguredSaibAdapter),
+            weather: None,
             allow_fixture_compliance: true,
         },
     )
@@ -129,6 +130,7 @@ pub struct RegistryAdapters {
     pub aircraft_catalog: Arc<dyn crate::application::aircraft_catalog::AircraftCatalog>,
     pub faa_ad: Arc<dyn mxgenius_shared::adapters::faa::FaaAdAdapter>,
     pub saib: Arc<dyn mxgenius_shared::adapters::faa::SaibAdapter>,
+    pub weather: Option<Arc<dyn mxgenius_shared::adapters::weather::AviationWeatherAdapter>>,
     pub allow_fixture_compliance: bool,
 }
 

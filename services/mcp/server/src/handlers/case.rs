@@ -11,7 +11,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sha2::Digest;
 
-use mxgenius_shared::adapters::manual::{ManualCorpusAdapter, ManualQuery};
+use mxgenius_shared::adapters::manual::{
+    ManualCorpusAdapter, ManualQuery, ManualRetrievalState, ManualSearchResult,
+};
 use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::application::envelope::CapabilityEnvelope;
 use mxgenius_shared::application::envelope::EnvelopeError;
@@ -25,13 +27,14 @@ use mxgenius_shared::contracts::{
     MaintenanceCaseCreateRequest, MaintenanceCaseCreateResponse, MaintenanceCaseGetRequest,
     MaintenanceCaseGetResponse, MaintenanceCaseSimilarCasesRequest,
     MaintenanceCaseSimilarCasesResponse, MaintenanceCaseUpdateStatusRequest,
-    MaintenanceCaseUpdateStatusResponse, PartsSlice, PriorityDto, RegulatoryRef, TimelineEntry,
-    WeatherSlice,
+    MaintenanceCaseUpdateStatusResponse, ManualRetrievalSummary, PartsSlice, PriorityDto,
+    RegulatoryRef, TimelineEntry, WeatherSlice,
 };
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceKind, SourceType};
-use mxgenius_shared::domain::ids::EvidenceId;
+use mxgenius_shared::domain::ids::{AircraftId, EvidenceId};
 use uuid::Uuid;
 
+use crate::application::aircraft_catalog::AircraftCatalog;
 use crate::application::case_service::CaseService;
 use crate::application::evidence_service::EvidenceService;
 use crate::handlers::spec;
@@ -59,6 +62,7 @@ pub fn register(
     reg: &mut Registry,
     service: Arc<dyn CaseService>,
     manual: Arc<dyn ManualCorpusAdapter>,
+    aircraft_catalog: Arc<dyn AircraftCatalog>,
     allow_fixture_compliance: bool,
 ) {
     reg.register_typed_tool(wrap(Arc::new(MaintenanceCaseCreateTool {
@@ -70,6 +74,7 @@ pub fn register(
     reg.register_typed_tool(wrap(Arc::new(MaintenanceCaseBuildContextTool {
         service: service.clone(),
         manual,
+        aircraft_catalog,
         allow_fixture_compliance,
     })));
     reg.register_typed_tool(wrap(Arc::new(MaintenanceCaseUpdateStatusTool {
@@ -168,6 +173,7 @@ impl Tool for MaintenanceCaseGetTool {
 pub struct MaintenanceCaseBuildContextTool {
     service: Arc<dyn CaseService>,
     manual: Arc<dyn ManualCorpusAdapter>,
+    aircraft_catalog: Arc<dyn AircraftCatalog>,
     allow_fixture_compliance: bool,
 }
 
@@ -199,23 +205,53 @@ impl Tool for MaintenanceCaseBuildContextTool {
             .map_err(EnvelopeError::from)?;
         let case = case_resp.case.clone();
 
-        let (manual_evidence, manual_warning) = if flags.documents {
+        let aircraft_model = match case.aircraft_id.parse::<AircraftId>() {
+            Ok(aircraft_id) => self
+                .aircraft_catalog
+                .get(ctx.organization_id, aircraft_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|aircraft| aircraft.model),
+            Err(_) => None,
+        };
+
+        let (manual_result, manual_warning) = if flags.documents {
             match self
                 .manual
                 .search(&ManualQuery {
                     aircraft_id: Some(case.aircraft_id.clone()),
+                    aircraft_model: aircraft_model.clone(),
                     ata: None,
                     text: case.raw_discrepancy.clone(),
                     limit: Some(8),
                 })
                 .await
             {
-                Ok(evidence) => (evidence, None),
-                Err(error) => (vec![], Some(error.to_string())),
+                Ok(result) => (result, None),
+                Err(error) => (
+                    ManualSearchResult {
+                        state: ManualRetrievalState::RetrievalUnavailable,
+                        aircraft_model: aircraft_model.clone(),
+                        ata: None,
+                        evidence: vec![],
+                    },
+                    Some(error.to_string()),
+                ),
             }
         } else {
-            (vec![], None)
+            (
+                ManualSearchResult {
+                    state: ManualRetrievalState::NotRequested,
+                    aircraft_model: aircraft_model.clone(),
+                    ata: None,
+                    evidence: vec![],
+                },
+                None,
+            )
         };
+        let manual_state = manual_result.state;
+        let manual_evidence = manual_result.evidence.clone();
 
         let mut document_map = BTreeMap::new();
         for evidence in &manual_evidence {
@@ -310,6 +346,13 @@ impl Tool for MaintenanceCaseBuildContextTool {
 
         let resp = MaintenanceCaseBuildContextResponse {
             case,
+            aircraft_model: aircraft_model.clone(),
+            manual_retrieval: ManualRetrievalSummary {
+                state: manual_state,
+                aircraft_model: manual_result.aircraft_model,
+                ata: manual_result.ata,
+                returned: manual_evidence.len() as u32,
+            },
             documents,
             regulatory_items,
             weather,
@@ -333,7 +376,25 @@ impl Tool for MaintenanceCaseBuildContextTool {
             env.confidence.explanation = "manual corpus did not return evidence".into();
         } else if env.evidence.is_empty() {
             env.confidence.score = 0.0;
-            env.confidence.explanation = "no manual excerpts matched the case context".into();
+            env.confidence.explanation = match manual_state {
+                ManualRetrievalState::NoRelevantSection => {
+                    "the applicable approved manual pack was searched, but no section met the relevance floor"
+                }
+                ManualRetrievalState::ManualAbsent => {
+                    "the authoritative aircraft model has no approved manual in the frozen pack"
+                }
+                ManualRetrievalState::ApplicabilityUnknown => {
+                    "the aircraft model could not be resolved, so manual applicability was not established"
+                }
+                ManualRetrievalState::NotRequested => "manual retrieval was not requested",
+                ManualRetrievalState::RetrievalUnavailable => {
+                    "manual retrieval was unavailable"
+                }
+                ManualRetrievalState::VerifiedMatch => {
+                    "manual retrieval reported a verified match without evidence"
+                }
+            }
+            .into();
         } else {
             env.confidence.basis =
                 mxgenius_shared::domain::evidence::ConfidenceBasis::DeterministicLookup;

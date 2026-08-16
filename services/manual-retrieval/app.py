@@ -1,4 +1,5 @@
 import hmac
+import math
 import os
 from functools import lru_cache
 from typing import Any
@@ -8,6 +9,8 @@ from pydantic import BaseModel, Field
 
 
 MODEL_NAME = "all-MiniLM-L6-v2"
+VECTOR_DIMENSIONS = 384
+READINESS_PROBE_TEXT = "MXGenius manual embedding readiness probe"
 
 
 class EmbeddingRequest(BaseModel):
@@ -64,6 +67,20 @@ def create_app(embedder: Any | None = None) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok", "model": MODEL_NAME}
 
+    @app.get("/readyz")
+    def readyz() -> dict[str, str | int]:
+        vectors = (embedder or default_embedder())([READINESS_PROBE_TEXT])
+        vector = vectors[0] if vectors else []
+        if len(vector) != VECTOR_DIMENSIONS or any(
+            not math.isfinite(float(value)) for value in vector
+        ):
+            raise HTTPException(status_code=503, detail="embedding contract is not ready")
+        return {
+            "status": "ready",
+            "model": MODEL_NAME,
+            "dimensions": VECTOR_DIMENSIONS,
+        }
+
     @app.post("/v1/embeddings", response_model=EmbeddingResponse)
     def embeddings(
         request: EmbeddingRequest,
@@ -82,6 +99,12 @@ def create_app(embedder: Any | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="each input must contain 1 to 32000 UTF-8 bytes")
 
         vectors = (embedder or default_embedder())(texts)
+        if any(
+            len(vector) != VECTOR_DIMENSIONS
+            or any(not math.isfinite(float(value)) for value in vector)
+            for vector in vectors
+        ):
+            raise HTTPException(status_code=503, detail="embedding contract is not ready")
         data = [
             EmbeddingDatum(embedding=[float(value) for value in vector], index=index)
             for index, vector in enumerate(vectors)

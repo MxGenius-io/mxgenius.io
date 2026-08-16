@@ -54,11 +54,12 @@ pub fn register_all(
         reg,
         case_service.clone(),
         adapters.manual.clone(),
+        adapters.aircraft_catalog.clone(),
         adapters.allow_fixture_compliance,
     );
     parts::register(reg, adapters.pool.clone());
     mro::register(reg, adapters.pool.clone());
-    weather::register(reg);
+    weather::register(reg, adapters.weather);
     compliance::register(
         reg,
         adapters.aircraft_catalog.clone(),

@@ -718,6 +718,7 @@ function setupChatPanel() {
   const imageInput = document.getElementById('chatImageInput');
   const attachmentPreview = document.getElementById('chatAttachmentPreview');
   let activeCaseContext = null;
+  let activeAircraftContext = null;
   let activeThreadId = localStorage.getItem('mxg_active_thread_id') || null;
   let lastDisplayedResponseContext = null;
   const chatTurns = [];
@@ -987,6 +988,7 @@ function setupChatPanel() {
 
   newThreadBtn?.addEventListener('click', () => {
     activeThreadId = null;
+    activeAircraftContext = null;
     chatTurns.length = 0;
     clearPendingImages();
     localStorage.removeItem('mxg_active_thread_id');
@@ -1029,6 +1031,7 @@ function setupChatPanel() {
   window.addEventListener('mxg:case-selected', (event) => {
     chatTurns.length = 0;
     activeCaseContext = event.detail || null;
+    activeAircraftContext = null;
     activeThreadId = null;
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
@@ -1584,7 +1587,8 @@ Rules:
   }
 
 
-  window.openChatWith = (text) => {
+  window.openChatWith = (text, aircraftContext = null) => {
+    activeAircraftContext = aircraftContext;
     setPanelOpen(true);
     input.value = text;
     sendMessage();
@@ -1707,6 +1711,7 @@ Rules:
           version: activeCaseContext.case?.version,
           capability_trace: activeCaseContext.trace
         },
+        aircraftContext: activeCaseContext ? null : activeAircraftContext,
         displayContext: collectApplicationDisplayContext(),
         accessToken: applicationSession.accessToken,
         organizationId: applicationSession.organizationId,
@@ -3608,7 +3613,14 @@ async function showAircraftDetail(id) {
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         closeModal('acDetailModal');
-        window.openChatWith(`${aircraftPromptPrefix} ${button.dataset.promptSuffix || ''}`.trim());
+        window.openChatWith(
+          `${aircraftPromptPrefix} ${button.dataset.promptSuffix || ''}`.trim(),
+          {
+            registration: ident.regnbr || ident.registration || null,
+            serial_number: ident.sernbr || ident.serial || ident.serialnumber || null,
+            source_id: ident.aircraftid || id
+          }
+        );
       });
     });
 

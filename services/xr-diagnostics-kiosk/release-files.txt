@@ -1,0 +1,17 @@
+# Canonical MXG diagnostics release payload.
+# Local environments, logs, deployment wrappers, and generated previews are excluded.
+backend
+contracts
+frontend
+systemd
+scripts/simulate_sensor.py
+scripts/simulate_scanner.py
+scripts/scan_serial.py
+scripts/smoke_test.py
+install.sh
+update.sh
+mxg-firstboot.sh
+requirements.txt
+README.md
+VERSION
+release-files.txt

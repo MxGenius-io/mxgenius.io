@@ -1,5 +1,12 @@
 const https = require('https');
 const B = 'https://customer.jetnetconnect.com';
+const IDENTITY = process.env.JETNET_IDENTITY || '';
+const CREDENTIAL = process.env.JETNET_CREDENTIAL || '';
+
+if (!IDENTITY || !CREDENTIAL) {
+  console.error('Set JETNET_IDENTITY and JETNET_CREDENTIAL before running this live probe.');
+  process.exit(2);
+}
 
 function req(m, p, b, t) {
   return new Promise(r => {
@@ -21,7 +28,7 @@ function req(m, p, b, t) {
 }
 
 (async () => {
-  const l = await req('POST', '/api/Admin/APILogin', { EmailAddress: 'PROD@Advancedaog.com', Password: 'Advancedaog1$' }, null);
+  const l = await req('POST', '/api/Admin/APILogin', { EmailAddress: IDENTITY, Password: CREDENTIAL }, null);
   const T = l.d.apiToken, BR = l.d.bearerToken;
 
   // Account Info

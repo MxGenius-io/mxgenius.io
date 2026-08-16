@@ -1,0 +1,15 @@
+<svg viewBox="0 0 128 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">MxGenius</title>
+  <defs>
+    <linearGradient id="mxg-blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7debf4"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#mxg-blue)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 34h31l19-6 17 6-17 6-19-6H18Z" fill="url(#mxg-blue)" fill-opacity=".18" stroke-width="2"/>
+    <path d="m48 34-12-10m12 10L36 44m18-10 13-11m-13 11 13 11" stroke-width="3"/>
+    <path d="m77 34 24-18m-4-3 8-3 3 8-5 5" stroke-width="4"/>
+    <circle cx="18" cy="34" r="5" fill="#7debf4" stroke-width="2"/>
+  </g>
+</svg>

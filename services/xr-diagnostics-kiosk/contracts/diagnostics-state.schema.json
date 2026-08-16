@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/schemas/edge-diagnostics-1.0.0.json",
+  "title": "MXG live edge diagnostics",
+  "oneOf": [
+    { "$ref": "#/$defs/state" },
+    { "$ref": "#/$defs/delta" }
+  ],
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "required": ["value", "unit", "quality"],
+      "properties": {
+        "value": { "type": ["number", "integer", "string", "boolean", "null"] },
+        "unit": { "type": "string" },
+        "quality": { "enum": ["measured", "estimated", "stale", "unavailable"] }
+      },
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "required": ["type", "schema", "schemaVersion", "nodeId", "sequence", "observedAtMs", "posture", "metrics", "transports", "findings"],
+      "properties": {
+        "type": { "const": "diagnostics.state" },
+        "schema": { "const": "mxg.edge.diagnostics" },
+        "schemaVersion": { "const": "1.0.0" },
+        "nodeId": { "type": "string", "minLength": 1 },
+        "sessionId": { "type": ["string", "null"] },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "observedAtMs": { "type": "integer" },
+        "posture": { "enum": ["nominal", "warning", "critical", "unknown"] },
+        "system": { "type": "object" },
+        "metrics": { "type": "object", "additionalProperties": { "$ref": "#/$defs/metric" } },
+        "transports": { "type": "object", "additionalProperties": { "type": "object" } },
+        "findings": { "type": "object", "additionalProperties": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "operation": {
+      "type": "object",
+      "required": ["op", "path"],
+      "properties": {
+        "op": { "enum": ["add", "replace", "remove"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "value": true
+      }
+    },
+    "delta": {
+      "type": "object",
+      "required": ["type", "schema", "schemaVersion", "nodeId", "baseSequence", "sequence", "observedAtMs", "operations"],
+      "properties": {
+        "type": { "const": "diagnostics.delta" },
+        "schema": { "const": "mxg.edge.diagnostics" },
+        "schemaVersion": { "const": "1.0.0" },
+        "nodeId": { "type": "string" },
+        "sessionId": { "type": ["string", "null"] },
+        "baseSequence": { "type": "integer" },
+        "sequence": { "type": "integer" },
+        "observedAtMs": { "type": "integer" },
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

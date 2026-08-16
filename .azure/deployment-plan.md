@@ -1,6 +1,49 @@
 # MXGenius Azure Deployment Plan
 
-Status: Azure Promoted; Frontend Acceptance Pending
+Status: Approved — 2026-08-11 Manual Retrieval Stabilization
+
+## Manual Retrieval Stabilization Delta — 2026-08-11
+
+### Approved scope
+
+- Update the existing private `mxg-manual-embeddings` Container App from
+  `services/manual-retrieval` without changing its ingress or credential.
+- Build and promote the existing `mxg-core` Container App from `services/mcp`.
+- Cut `mxg-core` over from `manuals-authoritative-v1` to the frozen
+  `manuals-authoritative-v2` CL350 pack only after the private MiniLM service is
+  ready.
+- Preserve the current ready images and revisions for rollback.
+- Do not modify `mxg-fleet`, `mxg-api`, database migrations, Search documents,
+  storage assets, identity, RBAC, scaling, or Azure resource topology.
+- Publish the paired static frontend directly to Git `main` only after Azure
+  acceptance passes.
+
+### Release gates
+
+- The frozen manifest reconciles to 13,121 approved CL350 chunks across eight
+  Search document IDs and five manuals.
+- The v2 index declares a 384-dimensional `content_vector` compatible with
+  `all-MiniLM-L6-v2`.
+- JavaScript, Python, Rust workspace, locked release build, formatting, strict
+  Clippy, schema fingerprint, and diff-integrity checks pass.
+- The new embedding revision becomes ready before core settings are changed.
+- The new core revision becomes latest-ready and returns HTTP 200 from
+  `/healthz` and `/readyz`.
+- `/adapterz` reports `manuals-authoritative-v2` and healthy manual retrieval.
+- Unauthenticated application and fleet boundaries continue to fail closed.
+
+### Rollback
+
+- Restore the prior `mxg-core` image and its previous manual settings if the
+  core readiness or adapter gate fails.
+- Restore the prior `mxg-manual-embeddings` image if its readiness gate fails.
+- Do not delete either failed revision, the v2 index, or the frozen corpus.
+
+### Approval
+
+Approved by the user on 2026-08-11 for Azure subscription
+`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`, region `centralus`, resource group
+`mxg-rg-50106`, followed by a direct Git push to `main` after Azure acceptance.
 
 ## Market-Readiness Delta — 2026-08-04
 

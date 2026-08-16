@@ -86,6 +86,15 @@ MXGENIUS_DRS_ENDPOINT              # optional; default https://drs.faa.gov/api/d
 MXGENIUS_DRS_AD_DOCUMENT_TYPES     # optional; default ADFRAWD,ADFREAD
 MXGENIUS_DRS_SAIB_DOCUMENT_TYPE    # optional; default SAIB
 MXGENIUS_DRS_MAX_PAGES             # optional safety limit; default 20
+MXGENIUS_AVIATION_WEATHER_ENDPOINT # optional; default official Data API
+MXGENIUS_AVIATION_WEATHER_USER_AGENT # identify this application to the public service
+MXGENIUS_PARTSBASE_AUTH_MODE       # disabled (default), bearer, browser_broker, or oauth_password
+MXGENIUS_PARTSBASE_BEARER_TOKEN    # server-side short-lived token for bearer mode
+MXGENIUS_PARTSBASE_BEARER_FILE     # token file refreshed by a future server-side browser auth broker
+MXGENIUS_PARTSBASE_CLIENT_ID       # issued credential for oauth_password mode
+MXGENIUS_PARTSBASE_CLIENT_SECRET   # issued credential for oauth_password mode
+MXGENIUS_PARTSBASE_USERNAME        # issued/account credential for oauth_password mode
+MXGENIUS_PARTSBASE_PASSWORD        # issued/account credential for oauth_password mode
 ```
 
 Production startup:
@@ -98,8 +107,12 @@ Production startup:
 6. mounts Postgres case and evidence adapters;
 7. mounts the authoritative manual corpus only when its Search filter and embedding provider are configured, and exposes verified linked images through the authenticated `/manual-assets` proxy when private asset access is configured;
 8. mounts JetNet through a tenant-scoped canonical aircraft catalog when its credentials are present;
-9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable.
-10. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images.
+9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable;
+10. mounts public AviationWeather.gov METAR/TAF data for `mxg.weather.airport_now`. Maintenance-window, ramp-risk, ferry, and hazard derivations stay unavailable until their operational thresholds are accepted;
+11. prepares PartsBase market-pricing access behind server-only credential modes. It is not mounted as canonical supplier data until licensed live response mapping is validated;
+12. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images.
+
+Provider credentials are an adapter concern, never MCP tool arguments or browser configuration. `browser_broker` means a future OAuth callback service owns login and refresh and writes a short-lived bearer token to the configured server-only file; the adapter rereads that token for each call. This keeps browser authorization replaceable without coupling it to provider response parsing. It does not imply that a given vendor supports browser OAuth; each provider must explicitly authorize that mode.
 
 Live manual retrieval can be checked without starting the full authenticated server:
 
@@ -113,6 +126,12 @@ Live FAA DRS metadata can be checked through the same production adapter:
 
 ```powershell
 cargo run -p mxgenius-mcp --example faa_drs_smoke
+```
+
+The public weather adapter has a credential-free read-only smoke test:
+
+```powershell
+cargo run -p mxgenius-mcp --example aviation_weather_smoke -- KATL
 ```
 
 The smoke test prints identifiers and official DRS links only. It labels all

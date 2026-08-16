@@ -30,8 +30,10 @@ use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
 use mxgenius_shared::adapters::manual::{
-    ManualCorpusAdapter, ManualQuery, NotConfiguredManualAdapter,
+    ManualCorpusAdapter, ManualQuery, ManualRetrievalState, ManualSearchResult,
+    NotConfiguredManualAdapter,
 };
+use mxgenius_shared::adapters::source::AdapterHealth;
 use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceAssetAvailability};
 use mxgenius_shared::domain::ids::{CorrelationId, OrganizationId};
@@ -555,14 +557,34 @@ async fn upload_content(
 
 async fn readyz(State(state): State<AppState>) -> Response {
     match database_ready(&state.health).await {
-        Ok(mode) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "ready": true, "mode": mode,
-                "database": if mode == "local" { "not_required" } else { "ready" }
-            })),
-        )
-            .into_response(),
+        Ok(mode) => {
+            let manual = state.manual.source_info().await;
+            if mode != "local" && manual.health != AdapterHealth::Healthy {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "ready": false,
+                        "mode": mode,
+                        "database": "ready",
+                        "manuals": manual.health,
+                        "manual_source": manual.name,
+                        "reason": "authoritative manual retrieval is unavailable"
+                    })),
+                )
+                    .into_response();
+            }
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "ready": true,
+                    "mode": mode,
+                    "database": if mode == "local" { "not_required" } else { "ready" },
+                    "manuals": manual.health,
+                    "manual_source": manual.name
+                })),
+            )
+                .into_response()
+        }
         Err(message) => (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
@@ -3474,6 +3496,8 @@ struct ChatRequest {
     #[serde(default)]
     case_context: Option<Value>,
     #[serde(default)]
+    aircraft_context: Option<Value>,
+    #[serde(default)]
     display_context: Option<Value>,
 }
 
@@ -4249,30 +4273,115 @@ async fn chat(
     } else {
         Value::Null
     };
+    let authoritative_aircraft_context = if authoritative_case_context.is_null() {
+        if let Some(selectors) = input.aircraft_context.as_ref() {
+            let read_auth = AuthRequest {
+                confirmation_grant: None,
+                ..auth.clone()
+            };
+            let lookup = match invoke(
+                &state.dispatcher,
+                read_auth.clone(),
+                "mxg.aircraft.lookup",
+                selectors.clone(),
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(response) => return response,
+            };
+            capability_trace.push(trace_summary("mxg.aircraft.lookup", &lookup));
+            let canonical_id = lookup
+                .pointer("/output/aircraft_id")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    let matches = lookup.pointer("/output/matches")?.as_array()?;
+                    (matches.len() == 1)
+                        .then(|| matches[0].get("aircraft_id").and_then(Value::as_str))
+                        .flatten()
+                });
+            if let Some(aircraft_id) = canonical_id {
+                let profile = match invoke(
+                    &state.dispatcher,
+                    read_auth,
+                    "mxg.aircraft.profile",
+                    json!({"aircraft_id": aircraft_id}),
+                )
+                .await
+                {
+                    Ok(value) => value,
+                    Err(response) => return response,
+                };
+                capability_trace.push(trace_summary("mxg.aircraft.profile", &profile));
+                profile.get("output").cloned().unwrap_or(Value::Null)
+            } else {
+                Value::Null
+            }
+        } else {
+            Value::Null
+        }
+    } else {
+        Value::Null
+    };
     let aircraft_id = authoritative_case_context
         .pointer("/case/aircraft_id")
         .and_then(Value::as_str)
+        .or_else(|| {
+            authoritative_aircraft_context
+                .get("aircraft_id")
+                .and_then(Value::as_str)
+        })
+        .map(str::to_owned);
+    let aircraft_model = authoritative_case_context
+        .pointer("/context/aircraft_model")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            authoritative_aircraft_context
+                .get("model")
+                .and_then(Value::as_str)
+        })
         .map(str::to_owned);
     let manual_search_query =
         build_manual_search_query(message, &conversation_history, &authoritative_case_context);
-    let (manual_evidence, manual_warning) =
+    let (manual_result, manual_warning) =
         if should_search_manual(&manual_search_query, requested_case_id) {
             match state
                 .manual
                 .search(&ManualQuery {
                     aircraft_id,
+                    aircraft_model: aircraft_model.clone(),
                     ata: extract_ata_chapter(&manual_search_query),
                     text: manual_search_query,
                     limit: Some(33),
                 })
                 .await
             {
-                Ok(evidence) => (evidence, None),
-                Err(error) => (vec![], Some(error.to_string())),
+                Ok(result) => (result, None),
+                Err(error) => (
+                    ManualSearchResult {
+                        state: ManualRetrievalState::RetrievalUnavailable,
+                        aircraft_model: aircraft_model.clone(),
+                        ata: None,
+                        evidence: vec![],
+                    },
+                    Some(error.to_string()),
+                ),
             }
         } else {
-            (vec![], None)
+            (
+                ManualSearchResult {
+                    state: ManualRetrievalState::NotRequested,
+                    aircraft_model,
+                    ata: None,
+                    evidence: vec![],
+                },
+                None,
+            )
         };
+    let manual_retrieval_state = manual_result.state;
+    let manual_retrieval_model = manual_result.aircraft_model.clone();
+    let manual_retrieval_ata = manual_result.ata.clone();
+    let manual_evidence = manual_result.evidence;
     let manual_model_context = manual_evidence
         .iter()
         .take(MODEL_MANUAL_RECORD_LIMIT)
@@ -4286,8 +4395,10 @@ async fn chat(
     let application_display_context = bounded_display_context(input.display_context.as_ref());
     let grounded_context = json!({
         "authoritative_case_context": authoritative_case_context,
+        "authoritative_aircraft_context": authoritative_aircraft_context,
         "compatibility_fleet_signals": compatibility_signals,
         "authoritative_manual_records": manual_model_context,
+        "manual_retrieval_state": manual_retrieval_state,
         "manual_retrieval_warning": manual_warning.clone(),
         "application_display_context": application_display_context
     });
@@ -4634,6 +4745,9 @@ async fn chat(
                 "advisory": advisory,
                 "manual_records": manual_records,
                 "retrieval": {
+                    "state": manual_retrieval_state,
+                    "aircraft_model": manual_retrieval_model,
+                    "ata": manual_retrieval_ata,
                     "requested": 33,
                     "returned": manual_record_count,
                     "model_context_records": manual_model_context.len(),

@@ -115,6 +115,8 @@ pub struct MaintenanceCaseBuildContextRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MaintenanceCaseBuildContextResponse {
     pub case: CaseDto,
+    pub aircraft_model: Option<String>,
+    pub manual_retrieval: ManualRetrievalSummary,
     pub documents: Vec<DocumentRef>,
     pub regulatory_items: Vec<RegulatoryRef>,
     pub weather: Option<WeatherSlice>,
@@ -123,6 +125,14 @@ pub struct MaintenanceCaseBuildContextResponse {
     pub timeline: Vec<TimelineEntry>,
     pub unresolved_conflicts: Vec<ConflictRef>,
     pub evidence_map: Vec<EvidenceLink>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ManualRetrievalSummary {
+    pub state: crate::adapters::manual::ManualRetrievalState,
+    pub aircraft_model: Option<String>,
+    pub ata: Option<String>,
+    pub returned: u32,
 }
 
 // 10. mxg.maintenance_case.similar_cases ---------------------------------

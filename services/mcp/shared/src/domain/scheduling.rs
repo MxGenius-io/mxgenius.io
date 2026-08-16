@@ -22,4 +22,7 @@ pub struct WeatherContext {
     pub observed_at: OffsetDateTime,
     pub flight_category: Option<String>,
     pub source_reference: String,
+    pub metar: Option<String>,
+    pub taf: Option<String>,
+    pub decoded: Option<serde_json::Value>,
 }

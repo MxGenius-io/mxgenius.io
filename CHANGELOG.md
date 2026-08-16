@@ -7,6 +7,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — XR edge hardware pivot
+
+- Established [`MXG-PIVOT-2026-08-14-XR-EDGE-V1`](docs/PIVOT_2026-08-14_XR_EDGE.md) as the audited reference boundary for browser VR/AR, the Quest FLIR companion seam, Raspberry Pi diagnostics, scanners, Remote Witness, external providers, and future MCP sensor projections.
+- Added the standalone Raspberry Pi kiosk and exact release payload with local preview, cold SD-card staging, SSH updates, diagnostics state/deltas, Bluetooth summary, scanner observations, and synthetic `MXGS/1` thermal testing.
+- Added the fleet-globe thermal/diagnostics orb with controller and hand interaction, session binding, Pi metrics, scanner observations, and fail-closed companion setup states.
+- Added canonical XR session, diagnostics, scanner, evidence, and Remote Witness schemas under the deployable kiosk contracts directory.
+- Added the public AviationWeather.gov METAR/TAF adapter and a staged PartsBase client behind the shared server-only provider authentication boundary.
+- Added the branded Pi commissioning surface with FLIR and scanner readiness cards, a bounded device-local Live log with JSONL export, and normalized AviationWeather, PartsBase, and Honeywell Forge fixture previews.
+- Added a schema-backed local integration fixture endpoint so the kiosk, headset, and orchestration layers can exercise stable provider-neutral shapes before live authentication is enabled.
+- Added the FLIR Android 2.22.0 Quest companion source, external-SDK build lane, browser deep-link/Android-intent activation, foreground thermal relay, and a locally built ARM64 debug APK without committing licensed vendor AARs.
+- Added a canonical sensor-companion schema plus relay → Quest app → FLIR ONE readiness indicators; browser launch attempts are no longer treated as proof that the native bridge or camera is present.
+- Promoted the signed Quest companion to private Meta Alpha build `0.1.0-poc.2` (`versionCode 2`), recorded its clean release-channel fallback URL, and kept authenticated WSS relay presence as the activation gate.
+- Added the verified 24-bit 2560×1440 Meta landscape cover and a metadata manifest that records its portal location, dimensions, and checksum separately from the APK.
+- Recorded Meta's non-blocking `libssh2` advisory in the vendor-supplied FLIR Atlas 2.22.0 native library for resolution before any public Store submission.
+
+### Changed — Authoritative source consolidation
+
+- Made the frozen CL350 manual-pack manifest the source of truth for approved manuals, Azure AI Search index identity, MiniLM model and vector dimensions, asset hashes, excluded sources, and unverified currency state.
+- Added read-only corpus reconciliation, embedding readiness validation, aircraft-model applicability resolution, explicit manual-retrieval states, and fail-closed production readiness.
+- Standardized XR session identifiers across browser, Pi, and gateway contracts; stale sensor nodes now disconnect explicitly and scanner candidates remain unverified until catalog resolution.
+- Removed a tracked JetNet identity and password from legacy live-probe scripts; probes now require `JETNET_IDENTITY` and `JETNET_CREDENTIAL` at runtime and no longer print token fragments. The exposed credential must be rotated outside the repository.
+- Recorded the operator's confirmation that the previously exposed JetNet credential was already rotated when the live integration moved to environment variables.
+- Recorded that the authenticated XR relay negotiation route, FLIR-on-Quest hardware validation, PartsBase credentials, Remote Witness media room, persistence, and MCP sensor tools remain activation gates rather than completed runtime capabilities.
+
 ### Improved — Market Intelligence selection
 
 - Replaced free-form make and model fields with cascading dropdowns populated from the models available to the JetNet Customer API subscription.

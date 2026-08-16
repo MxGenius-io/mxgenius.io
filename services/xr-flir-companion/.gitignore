@@ -1,0 +1,10 @@
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+app/libs/*.aar
+*.jks
+*.keystore
+*signing*.xml
+*recovery*.txt
