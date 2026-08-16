@@ -26,7 +26,7 @@ for group in dialout video render plugdev bluetooth; do
 done
 
 install -d -m 0755 "$INSTALL_DIR"
-cp -a "$SOURCE_DIR/backend" "$SOURCE_DIR/contracts" "$SOURCE_DIR/frontend" "$SOURCE_DIR/systemd" "$SOURCE_DIR/requirements.txt" "$INSTALL_DIR/"
+cp -a "$SOURCE_DIR/backend" "$SOURCE_DIR/contracts" "$SOURCE_DIR/frontend" "$SOURCE_DIR/scripts" "$SOURCE_DIR/systemd" "$SOURCE_DIR/requirements.txt" "$INSTALL_DIR/"
 if [ -f "$SOURCE_DIR/VERSION" ]; then
   install -m 0644 "$SOURCE_DIR/VERSION" "$INSTALL_DIR/VERSION"
 fi
@@ -45,8 +45,8 @@ MXG_BLUETOOTH_CHANNEL=8
 EOF
 fi
 
-systemctl enable --now bluetooth.service
-command -v sdptool >/dev/null 2>&1 && sdptool add --channel=8 SP || true
+install -d -m 0755 /etc/systemd/system/bluetooth.service.d
+install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-compat.conf" /etc/systemd/system/bluetooth.service.d/mxg-compat.conf
 
 install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/systemd/system/mxg-diagnostics-kiosk.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
@@ -55,6 +55,8 @@ install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.desktop" "/home/$KIO
 chown -R "$KIOSK_USER:$KIOSK_USER" "/home/$KIOSK_USER/.config"
 
 systemctl daemon-reload
+systemctl enable bluetooth.service
+systemctl restart bluetooth.service
 systemctl enable mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service
 systemctl restart mxg-bluetooth-sdp.service
 systemctl restart mxg-diagnostics-kiosk.service

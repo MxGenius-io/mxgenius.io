@@ -17,7 +17,7 @@ OLD_REQUIREMENTS="$(sha256sum "$INSTALL_DIR/requirements.txt" 2>/dev/null | cut 
 NEW_REQUIREMENTS="$(sha256sum "$SOURCE_DIR/requirements.txt" | cut -d' ' -f1)"
 
 systemctl stop mxg-diagnostics-kiosk.service 2>/dev/null || true
-for component in backend contracts frontend systemd; do
+for component in backend contracts frontend scripts systemd; do
   rm -rf "$INSTALL_DIR/$component"
   cp -a "$SOURCE_DIR/$component" "$INSTALL_DIR/$component"
 done
@@ -33,6 +33,8 @@ fi
 chown -R root:root "$INSTALL_DIR"
 install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/systemd/system/mxg-diagnostics-kiosk.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
+install -d -m 0755 /etc/systemd/system/bluetooth.service.d
+install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-compat.conf" /etc/systemd/system/bluetooth.service.d/mxg-compat.conf
 if [ -n "$KIOSK_USER" ] && [ -d "/home/$KIOSK_USER" ]; then
   install -d -m 0755 "/home/$KIOSK_USER/.config/autostart"
   install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.desktop" "/home/$KIOSK_USER/.config/autostart/mxg-diagnostics-kiosk.desktop"
@@ -40,6 +42,8 @@ if [ -n "$KIOSK_USER" ] && [ -d "/home/$KIOSK_USER" ]; then
 fi
 
 systemctl daemon-reload
+systemctl enable bluetooth.service
+systemctl restart bluetooth.service
 systemctl enable mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service
 systemctl restart mxg-bluetooth-sdp.service
 systemctl restart mxg-diagnostics-kiosk.service

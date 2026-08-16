@@ -5,6 +5,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HTML = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
 JS = (ROOT / "frontend" / "assets" / "kiosk.js").read_text(encoding="utf-8")
+BLUETOOTH_COMPAT = (ROOT / "systemd" / "mxg-bluetooth-compat.conf").read_text(encoding="utf-8")
+INSTALL = (ROOT / "install.sh").read_text(encoding="utf-8")
+UPDATE = (ROOT / "update.sh").read_text(encoding="utf-8")
+BLUETOOTH_STREAM = (ROOT / "backend" / "bluetooth_stream.py").read_text(encoding="utf-8")
 
 
 class KioskUiContractTests(unittest.TestCase):
@@ -27,6 +31,14 @@ class KioskUiContractTests(unittest.TestCase):
     def test_normalized_fixture_registry_is_loaded_from_local_bridge(self):
         self.assertIn("/api/v1/integrations/simulated", JS)
         self.assertIn("Normalized API shape previewed", JS)
+
+    def test_bluetooth_serial_profile_enables_the_bluez_compatibility_interface(self):
+        self.assertIn("bluetoothd --compat", BLUETOOTH_COMPAT)
+        for script in (INSTALL, UPDATE):
+            self.assertIn("mxg-bluetooth-compat.conf", script)
+            self.assertIn("systemctl restart bluetooth.service", script)
+            self.assertIn("scripts", script)
+        self.assertIn('getattr(socket, "BDADDR_ANY", "00:00:00:00:00:00")', BLUETOOTH_STREAM)
 
 
 if __name__ == "__main__":

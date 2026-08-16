@@ -49,7 +49,8 @@ class BluetoothDiagnosticsServer:
     def _run(self) -> None:
         try:
             self._server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-            self._server.bind(("", self.channel))
+            bind_address = getattr(socket, "BDADDR_ANY", "00:00:00:00:00:00")
+            self._server.bind((bind_address, self.channel))
             self._server.listen(1)
             self._server.settimeout(1)
             self.state = "listening"

@@ -92,6 +92,8 @@ The cold installer needs network access for Debian and Python packages. After a 
 - `WS /ws/ingest?token=...` — local simulator and alternate high-bandwidth producer test path
 - Bluetooth Classic RFCOMM channel `8` — reduced diagnostics for the Quest native companion
 
+The installer enables BlueZ's deprecated compatibility interface only to register the explicit RFCOMM Serial Port Profile used by channel `8`; the diagnostic payload itself remains owned by the unprivileged `mxgdiag` service.
+
 Loopback clients do not need the token. LAN clients use the token generated in `/etc/mxg-diagnostics-kiosk.env` during installation.
 
 The kiosk Overview includes explicit readiness cards for the FLIR ONE Pro headset lane and the Honeywell Xenon XP 1950g, Zebra DS3608, and Socket Mobile S740 Pi scanner lanes. Its Live log view retains a bounded device-local commissioning trace, filters warnings and errors, and exports JSONL for first-run diagnosis. Scanner log entries record only profile, transport, and sequence; raw scanned values are not persisted in the log.
