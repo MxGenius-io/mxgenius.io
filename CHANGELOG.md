@@ -1,6 +1,6 @@
 # Changelog
 
-- 2026-08-16: Validated the Pi 5/16 GB cold path on hardware, made SD staging compatible with Windows PowerShell 5, enabled BlueZ's compatibility interface for the explicit RFCOMM diagnostics profile, and bound its Python 3.13 listener through `BDADDR_ANY`.
+- 2026-08-16: Validated the Pi 5/16 GB cold path on hardware, made SD staging compatible with Windows PowerShell 5, enabled BlueZ's compatibility interface for the explicit RFCOMM diagnostics profile, bound its Python 3.13 listener through `BDADDR_ANY`, and corrected the Raspberry Pi desktop kiosk autostart entry.
 
 All notable changes to the MXGenius project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).

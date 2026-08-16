@@ -2,7 +2,7 @@
 Type=Application
 Name=MXG Diagnostics Kiosk
 Comment=Fullscreen local diagnostics and XR sensor bridge
-Exec=sh -lc 'chromium --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --app=http://127.0.0.1:8844/'
+Exec=chromium --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --app=http://127.0.0.1:8844/
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true

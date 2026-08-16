@@ -9,6 +9,7 @@ BLUETOOTH_COMPAT = (ROOT / "systemd" / "mxg-bluetooth-compat.conf").read_text(en
 INSTALL = (ROOT / "install.sh").read_text(encoding="utf-8")
 UPDATE = (ROOT / "update.sh").read_text(encoding="utf-8")
 BLUETOOTH_STREAM = (ROOT / "backend" / "bluetooth_stream.py").read_text(encoding="utf-8")
+DESKTOP_ENTRY = (ROOT / "systemd" / "mxg-diagnostics-kiosk.desktop").read_text(encoding="utf-8")
 
 
 class KioskUiContractTests(unittest.TestCase):
@@ -39,6 +40,11 @@ class KioskUiContractTests(unittest.TestCase):
             self.assertIn("systemctl restart bluetooth.service", script)
             self.assertIn("scripts", script)
         self.assertIn('getattr(socket, "BDADDR_ANY", "00:00:00:00:00:00")', BLUETOOTH_STREAM)
+
+    def test_kiosk_autostart_uses_a_desktop_entry_safe_exec_line(self):
+        exec_line = next(line for line in DESKTOP_ENTRY.splitlines() if line.startswith("Exec="))
+        self.assertTrue(exec_line.startswith("Exec=chromium --kiosk "))
+        self.assertNotIn("'", exec_line)
 
 
 if __name__ == "__main__":
