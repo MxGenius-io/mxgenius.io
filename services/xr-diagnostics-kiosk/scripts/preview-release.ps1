@@ -79,7 +79,11 @@ $manifest = Get-ChildItem -LiteralPath $previewRoot -File -Recurse |
     }
   }
 New-Item -ItemType Directory -Path $previewBase -Force | Out-Null
-$manifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText(
+  $manifestPath,
+  "$($manifest | ConvertTo-Json -Depth 3)`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
 
 $version = (Get-Content -Raw -LiteralPath (Join-Path $previewRoot 'VERSION')).Trim()
 $totalBytes = ($manifest | Measure-Object -Property Size -Sum).Sum

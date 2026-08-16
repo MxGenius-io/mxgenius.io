@@ -102,7 +102,11 @@ $manifest = Get-ChildItem -LiteralPath $destination -Recurse -File | ForEach-Obj
     Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
   }
 }
-$manifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $root 'mxg-diagnostics-manifest.json') -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText(
+  (Join-Path $root 'mxg-diagnostics-manifest.json'),
+  "$($manifest | ConvertTo-Json -Depth 3)`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
 
 $version = (Get-Content -Raw -LiteralPath (Join-Path $source 'VERSION')).Trim()
 $commit = git -C (Resolve-Path (Join-Path $source '..\..')).Path rev-parse --short HEAD 2>$null
@@ -113,7 +117,11 @@ $release = [PSCustomObject]@{
   StagedAtUtc = [DateTime]::UtcNow.ToString('o')
   PayloadFiles = $manifest.Count
 }
-$release | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'mxg-diagnostics-release.json') -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText(
+  (Join-Path $root 'mxg-diagnostics-release.json'),
+  "$($release | ConvertTo-Json)`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
 
 Write-Output "Staged MXG diagnostics kiosk at $destination"
 Write-Output "Activated first boot hook: /boot/firmware/mxg-firstboot.sh"
