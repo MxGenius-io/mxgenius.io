@@ -10,6 +10,9 @@ INSTALL = (ROOT / "install.sh").read_text(encoding="utf-8")
 UPDATE = (ROOT / "update.sh").read_text(encoding="utf-8")
 BLUETOOTH_STREAM = (ROOT / "backend" / "bluetooth_stream.py").read_text(encoding="utf-8")
 DESKTOP_ENTRY = (ROOT / "systemd" / "mxg-diagnostics-kiosk.desktop").read_text(encoding="utf-8")
+CONTROL_SERVICE = (ROOT / "systemd" / "mxg-edge-control.service").read_text(encoding="utf-8")
+CONTROL_AGENT = (ROOT / "backend" / "control_agent.py").read_text(encoding="utf-8")
+APPLIANCE_CONFIG = (ROOT / "scripts" / "configure-appliance.sh").read_text(encoding="utf-8")
 
 
 class KioskUiContractTests(unittest.TestCase):
@@ -45,6 +48,25 @@ class KioskUiContractTests(unittest.TestCase):
         exec_line = next(line for line in DESKTOP_ENTRY.splitlines() if line.startswith("Exec="))
         self.assertTrue(exec_line.startswith("Exec=chromium --kiosk "))
         self.assertNotIn("'", exec_line)
+        self.assertIn("--no-first-run", exec_line)
+
+    def test_appliance_surface_exposes_local_connections_and_guarded_power(self):
+        for marker in ('data-view="connections"', 'id="wifiScan"', 'id="bluetoothScan"', 'id="powerDialog"'):
+            self.assertIn(marker, HTML)
+        self.assertIn("X-MXG-Control-Token", JS)
+        self.assertNotIn("wifiPassword').value, error", JS)
+
+    def test_privileged_control_plane_is_allow_listed_and_separate(self):
+        self.assertIn("User=root", CONTROL_SERVICE)
+        self.assertIn("Group=mxgdiag", CONTROL_SERVICE)
+        self.assertIn("ProtectSystem=strict", CONTROL_SERVICE)
+        self.assertNotIn("shell=True", CONTROL_AGENT)
+        self.assertIn('action == "poweroff"', CONTROL_AGENT)
+
+    def test_appliance_boot_enables_autologin_and_official_splash_tool(self):
+        self.assertIn("do_boot_behaviour B4", APPLIANCE_CONFIG)
+        self.assertIn("configure-splash", APPLIANCE_CONFIG)
+        self.assertIn("1080x1080", APPLIANCE_CONFIG)
 
 
 if __name__ == "__main__":

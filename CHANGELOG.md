@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-08-16: Converted the Raspberry Pi path into an appliance-style boot flow with an MxGenius early splash, explicit desktop auto-login, prompt-free Chromium kiosk startup, local Wi-Fi and Bluetooth discovery/switching, and a guarded safe-shutdown control.
+- 2026-08-16: Isolated Pi radio and power mutations behind a root-owned allow-listed Unix-socket agent while keeping the diagnostics bridge unprivileged and its control endpoints loopback-only.
 - 2026-08-16: Added the Quest companion's paired-device RFCOMM client so normalized Raspberry Pi diagnostics can share the active XR relay with FLIR thermal frames, while preserving separate Pi and camera readiness states.
 - 2026-08-16: Validated the Pi 5/16 GB cold path on hardware, made SD staging compatible with Windows PowerShell 5, enabled BlueZ's compatibility interface for the explicit RFCOMM diagnostics profile, bound its Python 3.13 listener through `BDADDR_ANY`, and corrected the Raspberry Pi desktop kiosk autostart entry.
 
@@ -15,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Added a square, text-free thermal aircraft tab to the fleet-globe rail that opens a dedicated FLIR and Pi diagnostics scene; the scene skips cached JetNet fleet data and reserves its XR surface for thermal, diagnostic, scanner, and evidence streams.
 - Established [`MXG-PIVOT-2026-08-14-XR-EDGE-V1`](docs/PIVOT_2026-08-14_XR_EDGE.md) as the audited reference boundary for browser VR/AR, the Quest FLIR companion seam, Raspberry Pi diagnostics, scanners, Remote Witness, external providers, and future MCP sensor projections.
 - Added the standalone Raspberry Pi kiosk and exact release payload with local preview, cold SD-card staging, SSH updates, diagnostics state/deltas, Bluetooth summary, scanner observations, and synthetic `MXGS/1` thermal testing.
+- Added appliance boot branding, automatic kiosk login, an on-device Connections view for Wi-Fi and Bluetooth management, and a two-step safe power-off control.
 - Added the fleet-globe thermal/diagnostics orb with controller and hand interaction, session binding, Pi metrics, scanner observations, and fail-closed companion setup states.
 - Added canonical XR session, diagnostics, scanner, evidence, and Remote Witness schemas under the deployable kiosk contracts directory.
 - Added the public AviationWeather.gov METAR/TAF adapter and a staged PartsBase client behind the shared server-only provider authentication boundary.

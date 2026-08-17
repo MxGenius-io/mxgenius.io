@@ -49,6 +49,8 @@ Run the black-box contract checks against an already-running bridge with:
 The startup splash is event-driven: it clears only after the WebSocket bridge connects and the first diagnostics snapshot arrives.
 Open `http://127.0.0.1:8844/?splash=hold` to hold its final ready state while styling or reviewing it.
 
+On Raspberry Pi OS, installation also selects desktop auto-login, suppresses Chromium's first-run prompts, and configures the packaged MxGenius logo as the early fullscreen boot splash through Raspberry Pi's `rpi-splash-screen-support` tool. Linux still boots underneath, but the intended operator path is splash → local web splash → live kiosk without a login or browser prompt. The splash is regenerated only when the source logo changes; reboot once after installation or an updated logo to validate the early-boot handoff.
+
 ### 2. Incremental Pi deployment
 
 After the Pi has a valid `mxgenius` user and SSH access:
@@ -88,6 +90,10 @@ The cold installer needs network access for Debian and Python packages. After a 
 - `GET /api/v1/schemas/sensor-companion` — browser activation, Quest announce, and FLIR source-status contract
 - `GET /api/v1/integrations/simulated` — synthetic normalized AviationWeather, PartsBase, and Honeywell Forge envelopes
 - `GET /api/v1/schemas/integration-fixtures` — fixture-registry JSON Schema
+- `GET /api/v1/control/session` — loopback-only, ephemeral local appliance control nonce
+- `POST /api/v1/control/wifi/scan` and `/connect` — local NetworkManager discovery and connection actions
+- `POST /api/v1/control/bluetooth/scan` and `/action` — local BlueZ discovery, pair, connect, disconnect, and forget actions
+- `POST /api/v1/control/poweroff` — guarded local safe-shutdown action
 - `WS /ws/xr?token=...` — Quest/browser consumer stream
 - `WS /ws/ingest?token=...` — local simulator and alternate high-bandwidth producer test path
 - Bluetooth Classic RFCOMM channel `8` — reduced diagnostics for the Quest native companion
@@ -95,6 +101,8 @@ The cold installer needs network access for Debian and Python packages. After a 
 The installer enables BlueZ's deprecated compatibility interface only to register the explicit RFCOMM Serial Port Profile used by channel `8`; the diagnostic payload itself remains owned by the unprivileged `mxgdiag` service.
 
 Loopback clients do not need the token. LAN clients use the token generated in `/etc/mxg-diagnostics-kiosk.env` during installation.
+
+Radio and power actions are more restrictive than the read-only diagnostics API. They require a per-process nonce available only to a loopback browser and are forwarded over a group-restricted Unix socket to a separate root-owned allow-list service. The FastAPI diagnostics bridge remains unprivileged and cannot execute arbitrary commands. Wi-Fi passwords are never added to the commissioning log and the form clears them after each connection attempt.
 
 The kiosk Overview includes explicit readiness cards for the FLIR ONE Pro headset lane and the Honeywell Xenon XP 1950g, Zebra DS3608, and Socket Mobile S740 Pi scanner lanes. Its Live log view retains a bounded device-local commissioning trace, filters warnings and errors, and exports JSONL for first-run diagnosis. Scanner log entries record only profile, transport, and sequence; raw scanned values are not persisted in the log.
 

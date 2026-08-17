@@ -16,7 +16,10 @@ if [ -z "$KIOSK_USER" ]; then
 fi
 
 apt-get update
-apt-get install -y python3 python3-venv python3-pip chromium openssl bluez
+apt-get install -y python3 python3-venv python3-pip chromium openssl bluez network-manager imagemagick
+if apt-cache show rpi-splash-screen-support >/dev/null 2>&1; then
+  apt-get install -y rpi-splash-screen-support
+fi
 
 if ! id mxgdiag >/dev/null 2>&1; then
   useradd --system --home-dir "$INSTALL_DIR" --shell /usr/sbin/nologin mxgdiag
@@ -49,15 +52,19 @@ install -d -m 0755 /etc/systemd/system/bluetooth.service.d
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-compat.conf" /etc/systemd/system/bluetooth.service.d/mxg-compat.conf
 
 install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/systemd/system/mxg-diagnostics-kiosk.service
+install -m 0644 "$INSTALL_DIR/systemd/mxg-edge-control.service" /etc/systemd/system/mxg-edge-control.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
 install -d -m 0755 "/home/$KIOSK_USER/.config/autostart"
 install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.desktop" "/home/$KIOSK_USER/.config/autostart/mxg-diagnostics-kiosk.desktop"
 chown -R "$KIOSK_USER:$KIOSK_USER" "/home/$KIOSK_USER/.config"
+chmod +x "$INSTALL_DIR/scripts/configure-appliance.sh"
+"$INSTALL_DIR/scripts/configure-appliance.sh" "$INSTALL_DIR" "$KIOSK_USER"
 
 systemctl daemon-reload
 systemctl enable bluetooth.service
 systemctl restart bluetooth.service
-systemctl enable mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service
+systemctl enable mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service
+systemctl restart mxg-edge-control.service
 systemctl restart mxg-bluetooth-sdp.service
 systemctl restart mxg-diagnostics-kiosk.service
 

@@ -1,7 +1,7 @@
 [Unit]
 Description=MXG XR diagnostics kiosk and sensor bridge
-After=network-online.target mxg-bluetooth-sdp.service
-Wants=network-online.target mxg-bluetooth-sdp.service
+After=network-online.target mxg-bluetooth-sdp.service mxg-edge-control.service
+Wants=network-online.target mxg-bluetooth-sdp.service mxg-edge-control.service
 
 [Service]
 Type=simple

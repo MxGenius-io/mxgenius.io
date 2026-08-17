@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import socket
 import struct
 import time
@@ -14,11 +15,12 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from bluetooth_stream import BluetoothDiagnosticsServer
+from control import ControlUnavailable, request_control
 from diagnostics import DiagnosticsCollector
 from edge_schema import StateDeltaEncoder
 from integration_fixtures import simulated_integrations
@@ -35,6 +37,8 @@ FRAME_HEADER_SIZE = 24
 MAX_FRAME_BYTES = int(os.getenv("MXG_MAX_FRAME_BYTES", str(8 * 1024 * 1024)))
 BRIDGE_TOKEN = os.getenv("MXG_BRIDGE_TOKEN", "").strip()
 SESSION_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+CONTROL_NONCE = secrets.token_urlsafe(32)
+LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 
 class Bridge:
@@ -176,6 +180,24 @@ def _is_authorized(websocket: WebSocket, token: str | None) -> bool:
     return not BRIDGE_TOKEN or token == BRIDGE_TOKEN
 
 
+def _require_local_control(request: Request) -> None:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="appliance controls are local-only")
+    if request.headers.get("x-mxg-control-token") != CONTROL_NONCE:
+        raise HTTPException(status_code=403, detail="local control token required")
+
+
+async def _control(action: str, **parameters: Any) -> dict[str, Any]:
+    try:
+        response = await request_control(action, **parameters)
+    except ControlUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    if not response.get("ok"):
+        raise HTTPException(status_code=409, detail=str(response.get("error") or "control operation failed"))
+    return response
+
+
 def _validate_frame(frame: bytes) -> dict[str, int]:
     if len(frame) < FRAME_HEADER_SIZE or len(frame) > MAX_FRAME_BYTES:
         raise ValueError("frame size outside bridge limits")
@@ -218,6 +240,56 @@ async def health() -> dict[str, Any]:
         "uptimeMs": int((time.monotonic() - STARTED_AT) * 1000),
         "bridge": bridge.summary(),
     }
+
+
+@app.get("/api/v1/control/session")
+async def control_session(request: Request) -> dict[str, Any]:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="appliance controls are local-only")
+    status = await _control("status")
+    return {"token": CONTROL_NONCE, "scope": "local-appliance", "version": 1, "capabilities": status.get("capabilities", [])}
+
+
+@app.post("/api/v1/control/wifi/scan")
+async def control_wifi_scan(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    return await _control("wifi.scan")
+
+
+@app.post("/api/v1/control/wifi/connect")
+async def control_wifi_connect(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    payload = await request.json()
+    return await _control(
+        "wifi.connect",
+        ssid=str(payload.get("ssid") or ""),
+        password=str(payload.get("password") or ""),
+        hidden=payload.get("hidden") is True,
+    )
+
+
+@app.post("/api/v1/control/bluetooth/scan")
+async def control_bluetooth_scan(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    return await _control("bluetooth.scan")
+
+
+@app.post("/api/v1/control/bluetooth/action")
+async def control_bluetooth_action(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    payload = await request.json()
+    return await _control(
+        "bluetooth.action",
+        address=str(payload.get("address") or ""),
+        operation=str(payload.get("operation") or ""),
+    )
+
+
+@app.post("/api/v1/control/poweroff")
+async def control_poweroff(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    return await _control("poweroff")
 
 
 @app.get("/api/v1/diagnostics")

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.4">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.5">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -36,6 +36,7 @@
       <div class="header-actions">
         <nav class="view-switch" aria-label="Kiosk views">
           <button class="view-tab active" type="button" data-view="overview" role="tab" aria-selected="true" aria-controls="overviewView">Overview</button>
+          <button class="view-tab" type="button" data-view="connections" role="tab" aria-selected="false" aria-controls="connectionsView">Connections</button>
           <button class="view-tab" type="button" data-view="logs" role="tab" aria-selected="false" aria-controls="logView">Live log <span id="logCount">0</span></button>
         </nav>
         <div class="bridge-state"><i id="stateLamp"></i><span id="bridgeState">Starting bridge</span></div>
@@ -114,6 +115,31 @@
     </section>
     </div>
 
+    <section id="connectionsView" class="view-panel connections-view" role="tabpanel" hidden>
+      <div class="connections-heading">
+        <div><p class="label">LOCAL APPLIANCE CONTROL</p><h2>Connections</h2><p>Discover and switch the Pi's local network and peripheral links. Credentials remain on this device.</p></div>
+        <button id="powerButton" class="power-button" type="button"><span>POWER</span> Shut down safely</button>
+      </div>
+      <div id="controlNotice" class="control-notice" role="status" aria-live="polite">Controls are initializing…</div>
+      <div class="connection-grid">
+        <article class="card connection-card">
+          <div class="connection-title"><div><p class="label">NETWORK</p><h3>Wi-Fi</h3></div><button id="wifiScan" class="scan-button" type="button">Search networks</button></div>
+          <div id="wifiNetworks" class="device-list"><p class="device-empty">Run a scan to find nearby networks.</p></div>
+          <form id="wifiForm" class="connect-form" autocomplete="off">
+            <label>Network name<input id="wifiSsid" name="ssid" maxlength="32" required placeholder="SSID"></label>
+            <label>Password<input id="wifiPassword" name="password" type="password" maxlength="256" placeholder="Leave blank for open networks"></label>
+            <label class="check-field"><input id="wifiHidden" name="hidden" type="checkbox"> Hidden network</label>
+            <button class="primary-button" type="submit">Connect</button>
+          </form>
+        </article>
+        <article class="card connection-card">
+          <div class="connection-title"><div><p class="label">PERIPHERALS</p><h3>Bluetooth</h3></div><button id="bluetoothScan" class="scan-button" type="button">Search devices</button></div>
+          <p class="connection-note">Pair scanners and other local diagnostic tools here. The Quest diagnostics stream remains a separate RFCOMM lane.</p>
+          <div id="bluetoothDevices" class="device-list"><p class="device-empty">Run a scan to find nearby Bluetooth devices.</p></div>
+        </article>
+      </div>
+    </section>
+
     <section id="logView" class="view-panel log-view" role="tabpanel" hidden>
       <div class="log-heading">
         <div><p class="label">COMMISSIONING TRACE</p><h2>Live diagnostic log</h2><p>Browser, bridge, thermal, scanner, and peripheral transitions captured locally for the first hardware run.</p></div>
@@ -149,6 +175,14 @@
       </div>
     </section>
   </main>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.4"></script>
+  <dialog id="powerDialog" class="power-dialog">
+    <form method="dialog">
+      <p class="label">SAFE SHUTDOWN</p>
+      <h2>Power off this edge node?</h2>
+      <p>Wait until the activity light stops before removing power from the Pi.</p>
+      <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.5"></script>
 </body>
 </html>

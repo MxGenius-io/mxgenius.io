@@ -1,0 +1,26 @@
+[Unit]
+Description=MXG allow-listed edge appliance control agent
+After=NetworkManager.service bluetooth.service
+Wants=NetworkManager.service bluetooth.service
+
+[Service]
+Type=simple
+User=root
+Group=mxgdiag
+RuntimeDirectory=mxg-edge-control
+RuntimeDirectoryMode=0750
+UMask=0007
+WorkingDirectory=/opt/mxg-diagnostics-kiosk/backend
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/mxg-diagnostics-kiosk/backend/control_agent.py
+Restart=always
+RestartSec=2
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/run/mxg-edge-control
+
+[Install]
+WantedBy=multi-user.target

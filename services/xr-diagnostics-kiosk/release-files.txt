@@ -8,6 +8,7 @@ scripts/simulate_sensor.py
 scripts/simulate_scanner.py
 scripts/scan_serial.py
 scripts/smoke_test.py
+scripts/configure-appliance.sh
 install.sh
 update.sh
 mxg-firstboot.sh

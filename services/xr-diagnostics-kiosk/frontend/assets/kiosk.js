@@ -23,6 +23,7 @@ let lastPeripheralSignature = '';
 let lastThermalMilestone = 0;
 let integrationFixtures = [];
 let eventLog = [];
+let controlToken = '';
 
 try {
   const stored = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || '[]');
@@ -93,7 +94,9 @@ function logEvent(level, source, message, detail = {}) {
 
 function setView(view) {
   const showLogs = view === 'logs';
-  $('overviewView').hidden = showLogs;
+  const showConnections = view === 'connections';
+  $('overviewView').hidden = showLogs || showConnections;
+  $('connectionsView').hidden = !showConnections;
   $('logView').hidden = !showLogs;
   document.querySelectorAll('.view-tab').forEach((button) => {
     const active = button.dataset.view === view;
@@ -101,6 +104,7 @@ function setView(view) {
     button.setAttribute('aria-selected', String(active));
   });
   if (showLogs) renderLog();
+  if (showConnections && !controlToken) initializeControls();
 }
 
 function setBootStage(stage, title, detail) {
@@ -246,6 +250,151 @@ async function loadIntegrationFixtures() {
   }
 }
 
+function setControlNotice(message, state = '') {
+  $('controlNotice').textContent = message;
+  $('controlNotice').dataset.state = state;
+}
+
+async function initializeControls() {
+  try {
+    const response = await fetch('/api/v1/control/session', { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    controlToken = (await response.json()).token;
+    setControlNotice('Local appliance controls ready', 'success');
+  } catch (error) {
+    setControlNotice('Controls are available only on the installed Raspberry Pi', 'error');
+    logEvent('warning', 'control', 'Local appliance control session unavailable', { error: error.message });
+  }
+}
+
+async function controlRequest(path, payload = {}) {
+  if (!controlToken) await initializeControls();
+  if (!controlToken) throw new Error('Local control service is unavailable');
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-MXG-Control-Token': controlToken },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+  return result;
+}
+
+function renderWifiNetworks(networks) {
+  const target = $('wifiNetworks');
+  target.replaceChildren();
+  if (!networks.length) {
+    target.innerHTML = '<p class="device-empty">No broadcast Wi-Fi networks found. You can enter a hidden network below.</p>';
+    return;
+  }
+  for (const network of networks) {
+    const row = document.createElement('button');
+    row.className = 'device-row network-choice';
+    row.type = 'button';
+    row.dataset.active = String(Boolean(network.active));
+    const identity = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = network.ssid;
+    const detail = document.createElement('small');
+    detail.textContent = `${network.security || 'Open'} · ${network.signal || 0}% signal${network.active ? ' · CONNECTED' : ''}`;
+    identity.append(name, detail);
+    const action = document.createElement('span');
+    action.className = 'device-action';
+    action.textContent = network.active ? 'Active' : 'Select';
+    row.append(identity, action);
+    row.addEventListener('click', () => {
+      $('wifiSsid').value = network.ssid;
+      $('wifiPassword').focus();
+    });
+    target.append(row);
+  }
+}
+
+function bluetoothButton(device, operation, label, danger = false) {
+  const button = document.createElement('button');
+  button.className = `device-action${danger ? ' danger' : ''}`;
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    setControlNotice(`${label} ${device.name}…`);
+    try {
+      await controlRequest('/api/v1/control/bluetooth/action', { address: device.address, operation });
+      setControlNotice(`${device.name}: ${operation} complete`, 'success');
+      logEvent('info', 'bluetooth', `Bluetooth ${operation} completed`, { address: device.address, name: device.name });
+      await scanBluetooth();
+    } catch (error) {
+      setControlNotice(error.message, 'error');
+      logEvent('error', 'bluetooth', `Bluetooth ${operation} failed`, { address: device.address, error: error.message });
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
+function renderBluetoothDevices(devices) {
+  const target = $('bluetoothDevices');
+  target.replaceChildren();
+  if (!devices.length) {
+    target.innerHTML = '<p class="device-empty">No Bluetooth devices found. Put the peripheral in pairing mode and scan again.</p>';
+    return;
+  }
+  for (const device of devices) {
+    const row = document.createElement('div');
+    row.className = 'device-row';
+    row.dataset.active = String(Boolean(device.connected));
+    const identity = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = device.name;
+    const detail = document.createElement('small');
+    detail.textContent = `${device.address} · ${device.connected ? 'CONNECTED' : device.paired ? 'PAIRED' : 'AVAILABLE'}`;
+    identity.append(name, detail);
+    const actions = document.createElement('span');
+    actions.className = 'device-actions';
+    if (device.connected) actions.append(bluetoothButton(device, 'disconnect', 'Disconnect'));
+    else if (device.paired) actions.append(bluetoothButton(device, 'connect', 'Connect'));
+    else actions.append(bluetoothButton(device, 'pair', 'Pair'));
+    if (device.paired) actions.append(bluetoothButton(device, 'forget', 'Forget', true));
+    row.append(identity, actions);
+    target.append(row);
+  }
+}
+
+async function scanWifi() {
+  const button = $('wifiScan');
+  button.disabled = true;
+  setControlNotice('Scanning for nearby Wi-Fi networks…');
+  try {
+    const result = await controlRequest('/api/v1/control/wifi/scan');
+    renderWifiNetworks(result.networks || []);
+    setControlNotice(`${(result.networks || []).length} Wi-Fi network(s) found`, 'success');
+    logEvent('info', 'wifi', 'Wi-Fi scan completed', { networks: (result.networks || []).length });
+  } catch (error) {
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'wifi', 'Wi-Fi scan failed', { error: error.message });
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function scanBluetooth() {
+  const button = $('bluetoothScan');
+  button.disabled = true;
+  setControlNotice('Scanning for Bluetooth devices…');
+  try {
+    const result = await controlRequest('/api/v1/control/bluetooth/scan');
+    renderBluetoothDevices(result.devices || []);
+    setControlNotice(`${(result.devices || []).length} Bluetooth device(s) found`, 'success');
+    logEvent('info', 'bluetooth', 'Bluetooth scan completed', { devices: (result.devices || []).length });
+  } catch (error) {
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'bluetooth', 'Bluetooth scan failed', { error: error.message });
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function update(snapshot) {
   const bridge = snapshot.bridge || {};
   $('systemPosture').textContent = String(snapshot.status || 'unknown').toUpperCase();
@@ -388,6 +537,48 @@ function connect() {
 }
 
 document.querySelectorAll('.view-tab').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+$('wifiScan').addEventListener('click', scanWifi);
+$('bluetoothScan').addEventListener('click', scanBluetooth);
+$('wifiForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  setControlNotice(`Connecting to ${$('wifiSsid').value}…`);
+  try {
+    const result = await controlRequest('/api/v1/control/wifi/connect', {
+      ssid: $('wifiSsid').value,
+      password: $('wifiPassword').value,
+      hidden: $('wifiHidden').checked,
+    });
+    $('wifiPassword').value = '';
+    setControlNotice(`${result.ssid} connected`, 'success');
+    logEvent('info', 'wifi', 'Wi-Fi connection activated', { ssid: result.ssid });
+    window.setTimeout(scanWifi, 1200);
+  } catch (error) {
+    $('wifiPassword').value = '';
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'wifi', 'Wi-Fi connection failed', { ssid: $('wifiSsid').value, error: error.message });
+  } finally {
+    button.disabled = false;
+  }
+});
+$('powerButton').addEventListener('click', () => $('powerDialog').showModal());
+$('confirmPoweroff').addEventListener('click', async (event) => {
+  event.preventDefault();
+  $('confirmPoweroff').disabled = true;
+  setControlNotice('Safe shutdown requested…');
+  try {
+    await controlRequest('/api/v1/control/poweroff');
+    $('powerDialog').close();
+    setControlNotice('Powering off. Wait for the activity light to stop before disconnecting power.', 'success');
+    logEvent('warning', 'power', 'Safe shutdown requested from local kiosk');
+  } catch (error) {
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'power', 'Safe shutdown request failed', { error: error.message });
+  } finally {
+    $('confirmPoweroff').disabled = false;
+  }
+});
 document.querySelectorAll('.log-filter').forEach((button) => button.addEventListener('click', () => {
   logFilter = button.dataset.level;
   document.querySelectorAll('.log-filter').forEach((candidate) => candidate.classList.toggle('active', candidate === button));
