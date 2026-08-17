@@ -9,10 +9,11 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 
-test('Settings exposes the shared provisional patent workspace and build board', () => {
+test('Settings exposes the shared provisional patent workspace, build board, and reports', () => {
   assert.match(dashboard, /id="settingsWorkspacesCard"/);
   assert.match(dashboard, /value="patent-workspace\.html">Provisional Patent Application/);
   assert.match(dashboard, /value="build-board\.html">Build Board/);
+  assert.match(dashboard, /value="progress\.html">Reports/);
   assert.match(html, /Back to Settings/);
 });
 

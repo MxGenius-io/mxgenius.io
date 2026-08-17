@@ -8,11 +8,13 @@ const css = await readFile(new URL('../build-board.css', import.meta.url), 'utf8
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
-test('Settings has one build-board entry and Getting Started no longer duplicates the tracker', () => {
+test('Settings has one build-board entry and one Reports entry without a Getting Started duplicate', () => {
   assert.match(dashboard, /value="build-board\.html">Build Board/);
+  assert.match(dashboard, /value="progress\.html">Reports/);
   assert.doesNotMatch(dashboard, /Open Tracker/);
   assert.doesNotMatch(dashboard, /Final Build Plan · coming next/);
   assert.equal((dashboard.match(/value="build-board\.html"/g) || []).length, 1);
+  assert.equal((dashboard.match(/value="progress\.html"/g) || []).length, 1);
 });
 
 test('the board is authenticated and persists through the shared workspace boundary', () => {
