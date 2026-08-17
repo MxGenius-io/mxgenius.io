@@ -379,6 +379,10 @@ test('XR workspace uses one-grab translation and two-grab scale rotation', () =>
 
 test('owned and uploaded GLB models remain available without a Sketchfab catalog dependency', () => {
   assert.ok(modelCatalog.some((model) => model.file?.endsWith('.glb')), 'local GLB models must remain available');
+  assert.ok(
+    modelCatalog.some((model) => model.file === 'models/SingleBoardComputer_Prototype_v1.glb'),
+    'the single-board computer apparatus model must remain selectable'
+  );
   assert.equal(modelCatalog.some((model) => model.provider === 'sketchfab'), false);
   assert.doesNotMatch(JSON.stringify(modelCatalog), /sketchfab/i);
 });

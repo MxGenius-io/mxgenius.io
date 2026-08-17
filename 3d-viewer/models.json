@@ -54,5 +54,14 @@
     "lod": "LOD0",
     "revision": "v1",
     "operationalStatus": "demo_asset"
+  },
+  {
+    "file": "models/SingleBoardComputer_Prototype_v1.glb",
+    "name": "Single-Board Computer Prototype",
+    "type": "apparatus_component",
+    "lod": "source",
+    "revision": "v1",
+    "operationalStatus": "demo_asset",
+    "description": "High-detail source model for evaluating the apparatus viewer workflow and rendering performance."
   }
 ]
