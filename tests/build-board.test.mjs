@@ -29,7 +29,7 @@ test('the board is authenticated and persists through the shared workspace bound
 });
 
 test('the simple board has questions, current sprint, completion, and post updates', () => {
-  for (const label of ['Open questions', 'Current sprint', 'Complete', 'Post to board', 'Post update']) {
+  for (const label of ['Open questions', 'Current sprint', 'Completed', 'Post to board', 'Post update']) {
     assert.match(`${html}\n${js}`, new RegExp(label));
   }
   assert.match(js, /card\.lane === 'complete'/);
@@ -48,7 +48,10 @@ test('the starter build list reflects the known apparatus work without live-test
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {
   assert.match(js, /element\.textContent = text/);
   assert.doesNotMatch(js, /innerHTML/);
-  assert.match(css, /grid-template-columns: repeat\(3/);
+  assert.match(css, /grid-template-columns: minmax\(220px, 0\.78fr\) minmax\(360px, 1\.45fr\) minmax\(220px, 0\.78fr\)/);
   assert.match(css, /@media \(max-width: 720px\)/);
-  assert.match(html, /Open legacy roadmap/);
+  assert.match(html, /class="button button--quiet" href="progress\.html">Reports<\/a>/);
+  assert.doesNotMatch(html, /legacy roadmap/i);
+  assert.match(js, /Created by \$\{card\.author\}/);
+  assert.match(js, /account\.idTokenClaims\?\.name/);
 });

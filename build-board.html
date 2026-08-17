@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Build Board · MXGenius</title>
   <meta name="description" content="Shared MXGenius apparatus build board">
-  <link rel="stylesheet" href="build-board.css?v=1">
+  <link rel="stylesheet" href="build-board.css?v=2">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
 </head>
@@ -17,6 +17,7 @@
     </a>
     <div class="header-actions">
       <span id="boardSaveState" class="save-state" role="status" aria-live="polite">Loading board…</span>
+      <a class="button button--quiet" href="progress.html">Reports</a>
       <a class="button button--quiet" href="dashboard.html#settings">Back to Settings</a>
       <button id="boardSave" class="button button--primary" type="button" disabled>Save board</button>
     </div>
@@ -32,7 +33,7 @@
       <div class="board-summary" aria-label="Board summary">
         <div><strong id="questionTotal">0</strong><span>Open questions</span></div>
         <div><strong id="sprintTotal">0</strong><span>Current sprint</span></div>
-        <div><strong id="completeTotal">0</strong><span>Complete</span></div>
+        <div><strong id="completeTotal">0</strong><span>Completed</span></div>
       </div>
     </section>
 
@@ -79,14 +80,14 @@
     </section>
 
     <section class="lanes" aria-label="Build board lanes">
-      <section class="lane lane--question" aria-labelledby="questionHeading">
+      <aside class="lane lane--question" aria-labelledby="questionHeading">
         <header>
           <div><span class="lane-dot"></span><h2 id="questionHeading">Open questions</h2></div>
           <span id="questionCount" class="lane-count">0</span>
         </header>
         <p class="lane-help">A specific answer or decision is still needed.</p>
         <div id="questionCards" class="card-list"></div>
-      </section>
+      </aside>
 
       <section class="lane lane--sprint" aria-labelledby="sprintHeading">
         <header>
@@ -97,25 +98,20 @@
         <div id="sprintCards" class="card-list"></div>
       </section>
 
-      <section class="lane lane--complete" aria-labelledby="completeHeading">
+      <aside class="lane lane--complete" aria-labelledby="completeHeading">
         <header>
-          <div><span class="lane-dot"></span><h2 id="completeHeading">Complete</h2></div>
+          <div><span class="lane-dot"></span><h2 id="completeHeading">Completed</h2></div>
           <span id="completeCount" class="lane-count">0</span>
         </header>
         <p class="lane-help">Closed work with enough context to remember what changed.</p>
         <div id="completeCards" class="card-list"></div>
-      </section>
+      </aside>
     </section>
-
-    <footer class="board-footer">
-      <span>The previous milestone roadmap is preserved as an archive.</span>
-      <a href="progress.html">Open legacy roadmap</a>
-    </footer>
   </main>
 
   <script src="runtime-config.js?v=3"></script>
   <script src="auth.js?v=8"></script>
   <script src="application-client.js?v=20"></script>
-  <script src="build-board.js?v=1"></script>
+  <script src="build-board.js?v=2"></script>
 </body>
 </html>

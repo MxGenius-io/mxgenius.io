@@ -6,7 +6,7 @@
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
-    ['complete', 'Complete']
+    ['complete', 'Completed']
   ];
 
   const starterCards = [
@@ -167,7 +167,14 @@
 
   function authorName() {
     const account = currentSession().account || globalThis.MXGENIUS_AUTH?.account?.() || {};
-    return String(account.name || account.username || 'Team member').slice(0, 120);
+    return String(
+      account.name
+      || account.display_name
+      || account.idTokenClaims?.name
+      || account.username
+      || account.idTokenClaims?.preferred_username
+      || 'Team member'
+    ).slice(0, 120);
   }
 
   function setSaveState(message, value = '') {
@@ -271,8 +278,11 @@
     const meta = makeElement('div', 'card-meta');
     meta.append(
       makeElement('span', 'card-owner', `Owner: ${card.owner || 'Unassigned'}`),
-      makeElement('span', '', `${card.author} · ${formatDate(card.updated_at)}`)
+      makeElement('span', 'card-creator', `Created by ${card.author} · ${formatDate(card.created_at)}`)
     );
+    if (card.updated_at !== card.created_at) {
+      meta.append(makeElement('span', '', `Last activity ${formatDate(card.updated_at)}`));
+    }
     article.append(meta);
 
     const actions = makeElement('div', 'card-actions');
