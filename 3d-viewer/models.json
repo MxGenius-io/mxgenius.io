@@ -63,5 +63,23 @@
     "revision": "v1",
     "operationalStatus": "demo_asset",
     "description": "High-detail source model for evaluating the apparatus viewer workflow and rendering performance."
+  },
+  {
+    "file": "models/BlackPicatinnyRail_v1.glb",
+    "name": "Black Picatinny Rail",
+    "type": "apparatus_component",
+    "lod": "source",
+    "revision": "v1",
+    "operationalStatus": "demo_asset",
+    "description": "Picatinny mounting rail source model for apparatus fit, placement, and headset rendering evaluation."
+  },
+  {
+    "file": "models/FLIRThermalCamera_v1.glb",
+    "name": "FLIR Thermal Camera",
+    "type": "apparatus_component",
+    "lod": "source",
+    "revision": "v1",
+    "operationalStatus": "demo_asset",
+    "description": "FLIR thermal camera source model for apparatus fit, placement, and headset rendering evaluation."
   }
 ]

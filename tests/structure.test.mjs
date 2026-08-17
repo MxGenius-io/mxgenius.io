@@ -377,11 +377,28 @@ test('XR workspace uses one-grab translation and two-grab scale rotation', () =>
   assert.match(viewer, /distance \/ xrWorldGesture\.distance/);
 });
 
-test('owned and uploaded GLB models remain available without a Sketchfab catalog dependency', () => {
+test('owned and uploaded GLB models remain available without a Sketchfab catalog dependency', async () => {
   assert.ok(modelCatalog.some((model) => model.file?.endsWith('.glb')), 'local GLB models must remain available');
   assert.ok(
     modelCatalog.some((model) => model.file === 'models/SingleBoardComputer_Prototype_v1.glb'),
     'the single-board computer apparatus model must remain selectable'
+  );
+  assert.ok(
+    modelCatalog.some(
+      (model) => model.file === 'models/BlackPicatinnyRail_v1.glb' && model.name === 'Black Picatinny Rail'
+    ),
+    'the black Picatinny rail model must remain selectable'
+  );
+  assert.ok(
+    modelCatalog.some(
+      (model) => model.file === 'models/FLIRThermalCamera_v1.glb' && model.name === 'FLIR Thermal Camera'
+    ),
+    'the FLIR thermal camera model must remain selectable'
+  );
+  await Promise.all(
+    ['models/BlackPicatinnyRail_v1.glb', 'models/FLIRThermalCamera_v1.glb'].map((file) =>
+      access(new URL(`../3d-viewer/${file}`, import.meta.url))
+    )
   );
   assert.equal(modelCatalog.some((model) => model.provider === 'sketchfab'), false);
   assert.doesNotMatch(JSON.stringify(modelCatalog), /sketchfab/i);
