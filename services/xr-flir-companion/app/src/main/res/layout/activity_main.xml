@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Thermal and edge handoff"
+            android:text="Standalone thermal viewer"
             android:textColor="#F4FBFF"
             android:textSize="28sp"
             android:textStyle="bold" />
@@ -45,25 +45,20 @@
             android:layout_marginTop="8dp"
             android:textColor="#9DB1C6"
             android:textSize="15sp" />
-        <TextView
-            android:id="@+id/pi_status"
+        <ImageView
+            android:id="@+id/thermal_preview"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#9DB1C6"
-            android:textSize="15sp" />
+            android:layout_height="260dp"
+            android:layout_marginTop="18dp"
+            android:background="#02050D"
+            android:contentDescription="Live FLIR ONE thermal preview"
+            android:scaleType="fitCenter" />
         <Button
             android:id="@+id/connect_camera"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:text="Connect FLIR ONE" />
-        <Button
-            android:id="@+id/connect_pi"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Connect MxGenius Pi" />
         <Button
             android:id="@+id/return_to_browser"
             android:layout_width="match_parent"
@@ -80,7 +75,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="The foreground bridge stays active when you return to the headset browser. FLIR frames and normalized Pi diagnostics enter the assigned XR session; raw device reads and camera identifiers do not. Pair the MxGenius Pi in headset Bluetooth settings once before connecting."
+            android:text="The FLIR viewer works without the Pi, browser, or Azure. An optional WebXR connection may forward thermal frames after the local preview is already running."
             android:textColor="#718DA3"
             android:textSize="13sp" />
     </LinearLayout>

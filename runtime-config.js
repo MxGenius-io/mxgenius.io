@@ -6,7 +6,7 @@ globalThis.MXGENIUS_CONFIG = Object.freeze({
   sensorCompanionPackage: 'io.mxgenius.sensorbridge',
   sensorCompanionLaunchUrl: 'mxgenius://sensor-bridge',
   sensorCompanionDownloadUrl: 'https://www.oculus.com/experiences/1280760725126205/release-channels/1516125643598287/',
-  sensorCompanionVersion: '0.1.0-poc.3',
+  sensorCompanionVersion: '0.1.0-poc.4',
   sensorCompanionSdk: 'flir-atlas-android-2.22.0',
   sensorDiagnosticsSchemaUrl: '/schemas/edge-diagnostics-1.0.0.json',
   allowInsecurePilot: false,

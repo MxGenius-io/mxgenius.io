@@ -22,7 +22,9 @@ const companionManifest = await read('services/xr-flir-companion/app/src/main/An
 const companionGradle = await read('services/xr-flir-companion/app/build.gradle.kts');
 const companionBuild = await read('services/xr-flir-companion/build-local.ps1');
 const companionVerifier = await read('services/xr-flir-companion/verify-release.ps1');
-const piDiagnosticsClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/PiDiagnosticsClient.java');
+const companionActivity = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/MainActivity.java');
+const companionService = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/SensorBridgeService.java');
+const companionLayout = await read('services/xr-flir-companion/app/src/main/res/layout/activity_main.xml');
 const relayClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RelayClient.java');
 
 test('dated pivot names every canonical source and the baseline commit', () => {
@@ -67,20 +69,20 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
 });
 
 test('Quest companion config uses the published Alpha fallback and next build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.3'/);
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.4'/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.publishedBuild.versionCode, 3);
-  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.3');
+  assert.equal(metaRelease.publishedBuild.versionCode, 4);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.4');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.build.versionCode, 4);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.4');
+  assert.equal(metaRelease.build.versionCode, 5);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.5');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 4/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.4"/);
+  assert.match(companionGradle, /versionCode = 5/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.5"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -95,14 +97,15 @@ test('Quest companion config uses the published Alpha fallback and next build id
   ]) assert.match(companionVerifier, new RegExp(gate.replaceAll('.', '\\.')));
 });
 
-test('Quest companion bridges paired Pi RFCOMM diagnostics into the XR relay', () => {
-  assert.match(companionManifest, /android\.permission\.BLUETOOTH_CONNECT/);
-  assert.match(piDiagnosticsClient, /00001101-0000-1000-8000-00805F9B34FB/);
-  assert.match(piDiagnosticsClient, /getBondedDevices\(\)/);
-  assert.match(piDiagnosticsClient, /input\.readInt\(\)/);
-  assert.match(piDiagnosticsClient, /mxg\.edge\.diagnostics/);
-  assert.match(relayClient, /void sendDiagnostics\(JSONObject diagnostics\)/);
-  assert.match(relayClient, /message\.put\("sessionId", activation\.sessionId\)/);
+test('Quest FLIR companion is standalone and has no Pi runtime dependency', () => {
+  assert.doesNotMatch(companionManifest, /BLUETOOTH_CONNECT|hardware\.bluetooth/);
+  assert.match(companionActivity, /Standalone · local thermal preview/);
+  assert.match(companionActivity, /startForegroundService\(serviceIntent\)/);
+  assert.match(companionService, /void connectCamera\(Activity activity\) \{\s*camera\.discoverAndConnect\(activity\)/);
+  assert.doesNotMatch(companionService, /PiDiagnosticsClient|activation-required/);
+  assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
+  assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
+  assert.doesNotMatch(relayClient, /sendDiagnostics|pi-diagnostics-rfcomm|edge-diagnostics-1/);
 });
 
 test('legacy JetNet probes require runtime credentials and do not print token fragments', () => {

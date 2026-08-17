@@ -6,23 +6,18 @@
     "package": "io.mxgenius.sensorbridge"
   },
   "publishedBuild": {
-    "versionCode": 3,
-    "versionName": "0.1.0-poc.3",
-    "channel": "Alpha",
-    "status": "Published",
-    "publishedAt": "2026-08-16T07:24:13-04:00"
-  },
-  "build": {
     "versionCode": 4,
     "versionName": "0.1.0-poc.4",
     "channel": "Alpha",
-    "metaTestStatus": "ValidatedLocally",
-    "artifact": {
-      "path": "app/build/outputs/apk/release/app-release.apk",
-      "bytes": 103196116,
-      "sha256": "ba64dc3f3e55e2a449d0525af54c14fdd9474fdb715b7be37aff197894ad94d7",
-      "validatedAt": "2026-08-16T23:50:05-04:00"
-    }
+    "status": "Published",
+    "publishedAt": "2026-08-16T23:55:35-04:00"
+  },
+  "build": {
+    "versionCode": 5,
+    "versionName": "0.1.0-poc.5",
+    "channel": "Alpha",
+    "metaTestStatus": "InDevelopment",
+    "artifact": null
   },
   "releaseChannel": {
     "channelId": "1516125643598287",

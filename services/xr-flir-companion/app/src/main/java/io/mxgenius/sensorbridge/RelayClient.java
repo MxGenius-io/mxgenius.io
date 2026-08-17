@@ -98,20 +98,6 @@ final class RelayClient {
         });
     }
 
-    void sendDiagnostics(JSONObject diagnostics) {
-        if (!open || diagnostics == null) return;
-        try {
-            JSONObject message = new JSONObject(diagnostics.toString());
-            String type = message.getString("type");
-            if (!"diagnostics.state".equals(type) && !"diagnostics.delta".equals(type)) return;
-            if (!"mxg.edge.diagnostics".equals(message.getString("schema"))) return;
-            message.put("sessionId", activation.sessionId);
-            sendJson(message);
-        } catch (JSONException ignored) {
-            listener.onRelayState("failed");
-        }
-    }
-
     void close() {
         open = false;
         WebSocket current = socket;
@@ -130,8 +116,7 @@ final class RelayClient {
                     .put("nodeType", "quest-companion")
                     .put("nodeName", "MxGenius FLIR Companion")
                     .put("capabilities", List.of(
-                            "thermal-source", "flir-one-pro-usb-c", "mxgs-1", "thermal-jpeg",
-                            "pi-diagnostics-rfcomm", "edge-diagnostics-1"))
+                            "thermal-source", "flir-one-pro-usb-c", "mxgs-1", "thermal-jpeg"))
                     .put("sourceType", "flir-one-pro")
                     .put("softwareVersion", BuildConfig.VERSION_NAME)
                     .put("sdkVersion", BuildConfig.FLIR_SDK_VERSION));
