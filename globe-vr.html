@@ -752,6 +752,56 @@
 
     drawRotationButton();
 
+    const backCanvas = document.createElement('canvas');
+    backCanvas.width = 512;
+    backCanvas.height = 160;
+    const backContext = backCanvas.getContext('2d');
+    const backTexture = new THREE.CanvasTexture(backCanvas);
+    backTexture.colorSpace = THREE.SRGBColorSpace;
+    const backButton = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.42, 0.13125),
+      new THREE.MeshBasicMaterial({ map: backTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    backButton.name = 'BackToDashboard';
+    backButton.position.set(-0.46, 0.72, -1.12);
+    backButton.visible = false;
+    scene.add(backButton);
+    let dashboardNavigationPending = false;
+
+    function drawBackButton() {
+      backContext.clearRect(0, 0, backCanvas.width, backCanvas.height);
+      backContext.fillStyle = 'rgba(8, 24, 38, 0.96)';
+      backContext.fillRect(4, 4, 504, 152);
+      backContext.strokeStyle = '#22d3ee';
+      backContext.lineWidth = 6;
+      backContext.strokeRect(4, 4, 504, 152);
+      backContext.fillStyle = '#67e8f9';
+      backContext.font = '700 44px system-ui, sans-serif';
+      backContext.textAlign = 'center';
+      backContext.fillText('\u2190  BACK TO DASHBOARD', 256, 98);
+      backTexture.needsUpdate = true;
+    }
+
+    async function returnToDashboard(input) {
+      if (dashboardNavigationPending) return;
+      dashboardNavigationPending = true;
+      status.textContent = `Closing VR session \u00b7 ${input}`;
+      window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
+        detail: { action: 'back-to-dashboard', input, context: { surface: sceneSurface } }
+      }));
+      const session = renderer.xr.getSession();
+      if (session) {
+        try {
+          await session.end();
+        } catch (error) {
+          console.warn('Unable to end XR session cleanly', error);
+        }
+      }
+      window.location.assign('dashboard.html');
+    }
+
+    drawBackButton();
+
     const xrRaycaster = new THREE.Raycaster();
     const xrHands = [];
     const xrControllers = [];
@@ -763,6 +813,7 @@
     const markerWorldPoint = new THREE.Vector3();
     const panelLocalPoint = new THREE.Vector3();
     const rotateLocalPoint = new THREE.Vector3();
+    const backLocalPoint = new THREE.Vector3();
     const gesturePointA = new THREE.Vector3();
     const gesturePointB = new THREE.Vector3();
     const gestureMidpoint = new THREE.Vector3();
@@ -770,6 +821,7 @@
     let lastFingerCheck = 0;
     const panelFingerTargets = new Map();
     const rotateFingerTargets = new Map();
+    const backFingerTargets = new Map();
 
     function activateCluster(index, input) {
       if (sensorOnlyScene) return;
@@ -817,12 +869,14 @@
         xrRaycaster.setFromXRController(controller);
         const uiTargets = [
           ...xrVoice.interactiveObjects(),
-          ...xrSensors.interactiveObjects()
+          ...xrSensors.interactiveObjects(),
+          backButton
         ];
         if (!sensorOnlyScene) uiTargets.push(detailsSurface, rotateButton);
         const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
         if (uiHit && xrSensors.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
+        if (uiHit?.object === backButton) return returnToDashboard(`controller-${index}`);
         if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
         if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
         if (!sensorOnlyScene) {
@@ -941,6 +995,14 @@
         }
         voiceFingerTargets.set(handIndex, voiceTarget);
         if (voiceTarget) return;
+
+        backButton.updateMatrixWorld(true);
+        backButton.worldToLocal(backLocalPoint.copy(fingerPoint));
+        const overBack = Math.abs(backLocalPoint.z) < 0.035 && Math.abs(backLocalPoint.x) <= 0.21 && Math.abs(backLocalPoint.y) <= 0.065625;
+        const wasOverBack = backFingerTargets.get(handIndex) || false;
+        if (overBack && !wasOverBack) returnToDashboard(`finger-${handIndex}`);
+        backFingerTargets.set(handIndex, overBack);
+        if (overBack) return;
         if (sensorOnlyScene) return;
 
         let panelRegion = -1;
@@ -999,6 +1061,10 @@
 
     renderer.xr.addEventListener('sessionstart', () => {
       detailsTarget = 0;
+      dashboardNavigationPending = false;
+      backButton.visible = true;
+      camera.getWorldPosition(panelCameraPosition);
+      backButton.lookAt(panelCameraPosition);
       xrVoice.setPresenting(true);
       xrSensors.setPresenting(true);
       status.textContent = sensorOnlyScene
@@ -1007,6 +1073,7 @@
     });
     renderer.xr.addEventListener('sessionend', () => {
       detailsTarget = 0;
+      backButton.visible = false;
       xrVoice.setPresenting(false);
       xrSensors.setPresenting(false);
       xrActiveGrips.clear();

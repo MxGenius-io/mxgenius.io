@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
   XRSessionClient,
@@ -7,6 +8,15 @@ import {
   deriveSensorCompanionBridgeUrl,
   deriveSensorActivationState
 } from '../xr-session-client.js';
+
+const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
+
+test('immersive scene exits XR before returning to the dashboard', () => {
+  assert.match(globeVr, /backButton\.name = 'BackToDashboard'/);
+  assert.match(globeVr, /uiTargets = \[[\s\S]*backButton[\s\S]*intersectObjects\(uiTargets/);
+  assert.match(globeVr, /async function returnToDashboard[\s\S]*await session\.end\(\)[\s\S]*window\.location\.assign\('dashboard\.html'\)/);
+  assert.match(globeVr, /if \(overBack && !wasOverBack\) returnToDashboard\(`finger-\$\{handIndex\}`\)/);
+});
 
 test('companion launch binds an opaque session and negotiated relay URL', () => {
   assert.equal(
