@@ -1,6 +1,6 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated — 2026-08-17 Shared Patent Workspace
+Status: Deployed — 2026-08-17 Shared Patent Workspace
 
 ## Shared Patent Workspace Delta — 2026-08-17
 
@@ -131,7 +131,7 @@ or quota change is requested, so a quota increase is not applicable.
 - [x] Preserve tenant, identity, Blob privacy, and rollback boundaries.
 - [x] Mark this delta Ready for Validation.
 - [x] Run and record the complete validation proof.
-- [ ] Promote and verify the paired core/frontend release.
+- [x] Promote and verify the paired core/frontend release.
 
 ### Validation proof
 
@@ -148,6 +148,18 @@ or quota change is requested, so a quota increase is not applicable.
 - 2026-08-17: Live RBAC confirms the `mxg-core` managed identity retains
   `Storage Blob Data Contributor` on the private `documents` container. No
   role, infrastructure, region, SKU, or scaling change is required.
+- 2026-08-17: ACR build `cj1v` published
+  `mxg-core:patent-b99241d-20260817-0125` with digest
+  `sha256:e4ed8aa53594da0a9e90044a657eb908c0dc40e96c209a44d312457f7217437f`.
+- 2026-08-17: Startup logs proved the additive migration ran successfully, then
+  exposed pre-existing drift from the approved MiniLM cutover: the core lacked
+  its embedding settings and manual-pack ID. The existing
+  `mxg-manual-embeddings` credential was reused; no key was created, disclosed,
+  or committed.
+- 2026-08-17: Revision `mxg-core--patentb99241dv3` became healthy. `/healthz`
+  and `/readyz` returned HTTP 200, readiness identified
+  `manuals-authoritative-v2` and `mxg-cl350-starter-manuals-v1` as healthy, and
+  unauthenticated project-workspace access returned HTTP 401.
 
 ## Manual Retrieval Stabilization Delta — 2026-08-11
 
