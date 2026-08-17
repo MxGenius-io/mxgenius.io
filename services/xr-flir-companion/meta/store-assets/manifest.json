@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "applicationId": "1280760725126205",
+  "submissionId": "1280760741792870",
+  "dashboardRoute": "App submissions > v1 > App metadata > Assets",
+  "assets": [
+    {
+      "id": "cover-art-landscape",
+      "file": "cover-landscape-2560x1440.png",
+      "metaDashboardField": "Cover art > Landscape",
+      "canonicalUpload": true,
+      "requiredForRelease": true,
+      "mimeType": "image/png",
+      "pixelFormat": "24-bit RGB",
+      "width": 2560,
+      "height": 1440,
+      "sha256": "6df0d68a50b97dc3cbe22ef52a12b4eb3911787818bda816be2fe1d054e9f410"
+    },
+    {
+      "id": "cover-art-landscape-source",
+      "file": "cover-landscape-source-16x9.png",
+      "metaDashboardField": "Cover art > Landscape",
+      "canonicalUpload": false,
+      "requiredForRelease": false,
+      "purpose": "Local 16:9 composition source; upload the canonical 2560x1440 file instead.",
+      "mimeType": "image/png",
+      "pixelFormat": "24-bit RGB",
+      "width": 1672,
+      "height": 941,
+      "sha256": "c0e2826f3eecaaa0e8a83b3045718982baa89d53e3480c6b240b7044bd455eba"
+    }
+  ]
+}

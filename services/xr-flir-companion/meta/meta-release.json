@@ -1,15 +1,28 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "application": {
     "name": "MxGenius Sensor Bridge",
     "appId": "1280760725126205",
     "package": "io.mxgenius.sensorbridge"
   },
-  "build": {
+  "publishedBuild": {
     "versionCode": 3,
     "versionName": "0.1.0-poc.3",
     "channel": "Alpha",
-    "metaTestStatus": "PendingUpload"
+    "status": "Published",
+    "publishedAt": "2026-08-16T07:24:13-04:00"
+  },
+  "build": {
+    "versionCode": 4,
+    "versionName": "0.1.0-poc.4",
+    "channel": "Alpha",
+    "metaTestStatus": "ValidatedLocally",
+    "artifact": {
+      "path": "app/build/outputs/apk/release/app-release.apk",
+      "bytes": 103196116,
+      "sha256": "ba64dc3f3e55e2a449d0525af54c14fdd9474fdb715b7be37aff197894ad94d7",
+      "validatedAt": "2026-08-16T23:50:05-04:00"
+    }
   },
   "releaseChannel": {
     "channelId": "1516125643598287",
@@ -19,17 +32,11 @@
     "submissionId": "1280760741792870",
     "metadataId": "1280760735126204",
     "assetsUrl": "https://developers.meta.com/horizon/manage/applications/1280760725126205/submissions/1280760741792870/metadata/assets/",
-    "state": "draft-not-submitted"
+    "state": "draft-not-submitted",
+    "storeAssetsManifest": "store-assets/manifest.json"
   },
-  "assets": {
-    "landscape": {
-      "path": "mxgenius-sensor-bridge-cover-2560x1440.png",
-      "mimeType": "image/png",
-      "pixelFormat": "24-bit RGB",
-      "width": 2560,
-      "height": 1440,
-      "sha256": "6df0d68a50b97dc3cbe22ef52a12b4eb3911787818bda816be2fe1d054e9f410"
-    }
+  "signing": {
+    "certificateSha256": "c1b2c617ee79bab90e3b808ce5e52114c5c4eff351406b3902f03d1bb112c9ea"
   },
   "knownAdvisories": [
     {

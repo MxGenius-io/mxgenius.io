@@ -17,7 +17,11 @@ const manualService = await read('services/manual-retrieval/app.py');
 const jetnetProbe = await read('probe_jetnet.js');
 const jetnetDeepProbe = await read('probe_deep.js');
 const metaRelease = JSON.parse(await read('services/xr-flir-companion/meta/meta-release.json'));
+const storeAssetManifest = JSON.parse(await read('services/xr-flir-companion/meta/store-assets/manifest.json'));
 const companionManifest = await read('services/xr-flir-companion/app/src/main/AndroidManifest.xml');
+const companionGradle = await read('services/xr-flir-companion/app/build.gradle.kts');
+const companionBuild = await read('services/xr-flir-companion/build-local.ps1');
+const companionVerifier = await read('services/xr-flir-companion/verify-release.ps1');
 const piDiagnosticsClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/PiDiagnosticsClient.java');
 const relayClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RelayClient.java');
 
@@ -62,14 +66,33 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config uses the clean private Alpha fallback and accepted build identity', () => {
+test('Quest companion config uses the published Alpha fallback and next build identity', () => {
   assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.3'/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.build.versionCode, 3);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.3');
-  assert.equal(metaRelease.assets.landscape.width, 2560);
-  assert.equal(metaRelease.assets.landscape.height, 1440);
+  assert.equal(metaRelease.publishedBuild.versionCode, 3);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.3');
+  assert.equal(metaRelease.publishedBuild.status, 'Published');
+  assert.equal(metaRelease.build.versionCode, 4);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.4');
+  assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
+  assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
+  assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
+  assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
+  assert.match(companionGradle, /versionCode = 4/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.4"/);
+  const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
+  assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
+  assert.equal(canonicalCover.width, 2560);
+  assert.equal(canonicalCover.height, 1440);
+  assert.match(companionBuild, /verify-release\.ps1/);
+  for (const gate of [
+    'com.oculus.intent.category.2D',
+    'arm64-v8a',
+    'apksigner.bat',
+    'mipmap-anydpi-v26',
+    'storeAssetsManifest'
+  ]) assert.match(companionVerifier, new RegExp(gate.replaceAll('.', '\\.')));
 });
 
 test('Quest companion bridges paired Pi RFCOMM diagnostics into the XR relay', () => {

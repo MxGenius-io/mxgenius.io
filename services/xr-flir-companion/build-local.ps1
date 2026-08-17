@@ -78,4 +78,6 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $apkName = if ($Configuration -eq 'Release') { 'app-release.apk' } else { 'app-debug.apk' }
 $apk = Join-Path $projectRoot "app\build\outputs\apk\$($Configuration.ToLowerInvariant())\$apkName"
+& (Join-Path $projectRoot 'verify-release.ps1') -ApkPath $apk -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "APK ready: $apk"
