@@ -9,17 +9,17 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 
-test('Settings exposes the shared provisional patent workspace before the future build plan', () => {
+test('Settings exposes the shared provisional patent workspace and build board', () => {
   assert.match(dashboard, /id="settingsWorkspacesCard"/);
   assert.match(dashboard, /value="patent-workspace\.html">Provisional Patent Application/);
-  assert.match(dashboard, /Final Build Plan · coming next/);
+  assert.match(dashboard, /value="build-board\.html">Build Board/);
   assert.match(html, /Back to Settings/);
 });
 
 test('the patent workspace is authenticated and uses only the application client boundary', () => {
-  assert.match(auth, /dashboard\|progress\|patent-workspace/);
+  assert.match(auth, /dashboard\|progress\|patent-workspace\|build-board/);
   assert.match(auth, /mx_auth_protected_return/);
-  assert.match(auth, /progress\|patent-workspace/);
+  assert.match(auth, /progress\|patent-workspace\|build-board/);
   assert.match(html, /src="auth\.js\?v=\d+"/);
   assert.match(html, /src="application-client\.js\?v=\d+"/);
   assert.doesNotMatch(js, /fetch\(/);

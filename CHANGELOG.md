@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-08-17: Replaced the redundant Getting Started tracker link with one shared Build Board for open questions, current-sprint posts, updates, and completed work; preserved the former roadmap only at its legacy URL.
 - 2026-08-17: Added an authenticated, organization-shared provisional-patent workspace in Settings with structured inventor, disclosure, drawing, review, and filing-readiness fields; proposed inventors Dwayne Tillman, Joshua Millard, and Thomas Hagy; optimistic versioned saves; immutable revision archives; and private reference uploads.
 - 2026-08-16: Converted the Raspberry Pi path into an appliance-style boot flow with an MxGenius early splash, explicit desktop auto-login, prompt-free Chromium kiosk startup, local Wi-Fi and Bluetooth discovery/switching, and a guarded safe-shutdown control.
 - 2026-08-16: Isolated Pi radio and power mutations behind a root-owned allow-listed Unix-socket agent while keeping the diagnostics bridge unprivileged and its control endpoints loopback-only.

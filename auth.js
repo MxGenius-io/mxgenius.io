@@ -2,7 +2,7 @@
 // The API receives an access token; no client secret or provider key is stored here.
 (() => {
   const config = globalThis.MXGENIUS_CONFIG || {};
-  const isDashboard = /(?:^|\/)(dashboard|progress|patent-workspace)\.html$/i.test(location.pathname);
+  const isDashboard = /(?:^|\/)(dashboard|progress|patent-workspace|build-board)\.html$/i.test(location.pathname);
   const isLogin = /(?:^|\/)login\.html$/i.test(location.pathname);
   const isLanding = /(?:^|\/)(?:index\.html)?$/i.test(location.pathname);
   const clientId = String(config.entraClientId || '').trim();
@@ -29,7 +29,7 @@
     try {
       const target = new URL(pending, location.origin);
       if (target.origin !== location.origin) return null;
-      if (!/(?:^|\/)(progress|patent-workspace)\.html$/i.test(target.pathname)) return null;
+      if (!/(?:^|\/)(progress|patent-workspace|build-board)\.html$/i.test(target.pathname)) return null;
       return target.href;
     } catch {
       return null;

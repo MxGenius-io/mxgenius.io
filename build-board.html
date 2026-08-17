@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Build Board · MXGenius</title>
+  <meta name="description" content="Shared MXGenius apparatus build board">
+  <link rel="stylesheet" href="build-board.css?v=1">
+  <style id="auth-gate">body { visibility: hidden; }</style>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="board-header">
+    <a class="brand" href="dashboard.html#settings" aria-label="Back to MXGenius Settings">
+      <img src="assets/mxgenius_logo.png" alt="">
+      <span>MXGenius</span>
+    </a>
+    <div class="header-actions">
+      <span id="boardSaveState" class="save-state" role="status" aria-live="polite">Loading board…</span>
+      <a class="button button--quiet" href="dashboard.html#settings">Back to Settings</a>
+      <button id="boardSave" class="button button--primary" type="button" disabled>Save board</button>
+    </div>
+  </header>
+
+  <main class="board-shell">
+    <section class="board-intro" aria-labelledby="boardTitle">
+      <div>
+        <p class="eyebrow">One shared build conversation</p>
+        <h1 id="boardTitle">Build Board</h1>
+        <p>Post the question, name the owner when there is one, and move the card when the answer changes the work. The board is the current conversation—not another report to maintain.</p>
+      </div>
+      <div class="board-summary" aria-label="Board summary">
+        <div><strong id="questionTotal">0</strong><span>Open questions</span></div>
+        <div><strong id="sprintTotal">0</strong><span>Current sprint</span></div>
+        <div><strong id="completeTotal">0</strong><span>Complete</span></div>
+      </div>
+    </section>
+
+    <div id="boardError" class="board-error" role="alert" hidden>
+      <span id="boardErrorText"></span>
+      <button id="boardReload" class="button button--quiet" type="button">Reload team board</button>
+    </div>
+
+    <section class="composer" aria-labelledby="composerTitle">
+      <div class="composer-heading">
+        <div>
+          <p class="eyebrow">Add to the board</p>
+          <h2 id="composerTitle">What needs the team’s attention?</h2>
+        </div>
+        <p>Keep it concrete: one question, decision, or sprint result per post.</p>
+      </div>
+      <form id="boardComposer" class="composer-grid">
+        <label>
+          <span>Post as</span>
+          <select id="postLane">
+            <option value="question">Open question</option>
+            <option value="sprint">Current sprint</option>
+          </select>
+        </label>
+        <label class="composer-title">
+          <span>Short title</span>
+          <input id="postTitle" type="text" maxlength="140" required placeholder="What decision or work item is this?">
+        </label>
+        <label>
+          <span>Owner</span>
+          <input id="postOwner" type="text" maxlength="100" list="teamNames" placeholder="Unassigned">
+          <datalist id="teamNames">
+            <option value="Dwayne Tillman"></option>
+            <option value="Joshua Millard"></option>
+            <option value="Thomas Hagy"></option>
+          </datalist>
+        </label>
+        <label class="composer-message">
+          <span>Message</span>
+          <textarea id="postMessage" rows="3" maxlength="3000" required placeholder="What is known, what is still needed, and what would close this out?"></textarea>
+        </label>
+        <button id="postSubmit" class="button button--primary" type="submit">Post to board</button>
+      </form>
+    </section>
+
+    <section class="lanes" aria-label="Build board lanes">
+      <section class="lane lane--question" aria-labelledby="questionHeading">
+        <header>
+          <div><span class="lane-dot"></span><h2 id="questionHeading">Open questions</h2></div>
+          <span id="questionCount" class="lane-count">0</span>
+        </header>
+        <p class="lane-help">A specific answer or decision is still needed.</p>
+        <div id="questionCards" class="card-list"></div>
+      </section>
+
+      <section class="lane lane--sprint" aria-labelledby="sprintHeading">
+        <header>
+          <div><span class="lane-dot"></span><h2 id="sprintHeading">Current sprint</h2></div>
+          <span id="sprintCount" class="lane-count">0</span>
+        </header>
+        <p class="lane-help">Work the team has agreed is active now.</p>
+        <div id="sprintCards" class="card-list"></div>
+      </section>
+
+      <section class="lane lane--complete" aria-labelledby="completeHeading">
+        <header>
+          <div><span class="lane-dot"></span><h2 id="completeHeading">Complete</h2></div>
+          <span id="completeCount" class="lane-count">0</span>
+        </header>
+        <p class="lane-help">Closed work with enough context to remember what changed.</p>
+        <div id="completeCards" class="card-list"></div>
+      </section>
+    </section>
+
+    <footer class="board-footer">
+      <span>The previous milestone roadmap is preserved as an archive.</span>
+      <a href="progress.html">Open legacy roadmap</a>
+    </footer>
+  </main>
+
+  <script src="runtime-config.js?v=3"></script>
+  <script src="auth.js?v=8"></script>
+  <script src="application-client.js?v=20"></script>
+  <script src="build-board.js?v=1"></script>
+</body>
+</html>
