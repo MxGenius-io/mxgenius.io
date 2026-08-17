@@ -517,6 +517,28 @@
           <div class="settings-row"><div class="settings-label"><span>Fleet compatibility source</span><span class="settings-hint">Aerodex Live &middot; discovery context only</span></div><span class="badge badge-jet" style="font-size:0.7rem;">Aerodex</span></div>
         </div>
 
+        <!-- Shared Workspaces -->
+        <div class="settings-card" id="settingsWorkspacesCard">
+          <h3 class="settings-card-title">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M4 2h8l4 4v12H4V2zm7 1.5V7h3.5L11 3.5zM7 10h6v1.5H7V10zm0 3h6v1.5H7V13z"/></svg>
+            Shared Workspaces
+          </h3>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span>Team Document</span>
+              <span class="settings-hint" id="settingsWorkspaceStatus">Structured decisions, examples, and revision history shared across the organization</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              <select id="settingsWorkspaceSelect" class="search-input" style="width:auto;min-width:220px;">
+                <option value="patent-workspace.html">Provisional Patent Application</option>
+                <option value="progress.html">Project Tracker</option>
+                <option value="" disabled>Final Build Plan · coming next</option>
+              </select>
+              <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsWorkspaceOpen" type="button">Open</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Onboarding -->
         <div class="settings-card">
           <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>Getting Started</h3>
@@ -620,13 +642,13 @@
   <script src="auth.js?v=6"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=19"></script>
+<script src="application-client.js?v=20"></script>
   <script src="realtime-client.js?v=4"></script>
   <script src="case-workspace.js?v=3"></script>
   <script src="parts-workspace.js?v=3"></script>
     <script src="capability-workbench.js?v=5"></script>
   <script src="onboarding.js?v=4"></script>
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=34"></script>
   <div id="onboardingRoot"></div>
 </body>
 

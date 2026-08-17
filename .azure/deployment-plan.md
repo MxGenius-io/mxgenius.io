@@ -1,6 +1,153 @@
 # MXGenius Azure Deployment Plan
 
-Status: Approved — 2026-08-11 Manual Retrieval Stabilization
+Status: Validated — 2026-08-17 Shared Patent Workspace
+
+## Shared Patent Workspace Delta — 2026-08-17
+
+### Project overview and approval
+
+- **Goal:** publish the organization-shared provisional-patent completion
+  workspace requested in Settings, backed by the existing authenticated
+  application plane, Azure PostgreSQL database, and private `documents` Blob
+  container.
+- **Path:** MODIFY the existing small, cost-conscious production pilot.
+- **Approval:** the user approved implementation and publication in the current
+  task on August 17, 2026 and explicitly named Dwayne Tillman, Joshua Millard,
+  and Thomas Hagy as proposed inventors.
+- **Azure context:** reuse the previously approved `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), `centralus`, and resource group
+  `mxg-rg-50106`. No subscription, region, SKU, scale, or topology change is in
+  scope.
+
+### Components and recipe
+
+| Component | Type | Technology | Deployment target |
+| --- | --- | --- | --- |
+| Patent workspace | Static frontend | HTML, CSS, JavaScript | Existing GitHub Pages site |
+| Shared workspace API | Containerized API | Rust / Axum / SQLx | Existing `mxg-core` Container App |
+| Current document and revisions | Relational state | PostgreSQL JSONB | Existing production PostgreSQL database |
+| References and immutable save archives | Private files | Azure Blob Storage | Existing private `documents` container |
+
+- **Recipe:** existing Azure CLI + ACR + Container Apps release path.
+- **Rationale:** this is an application-only update to already-provisioned
+  resources. Creating or changing infrastructure would add risk without adding
+  capability.
+- **Specialized technology check:** no Copilot SDK, Azure Functions, APIM, new
+  AI gateway, or cross-cloud migration marker applies.
+
+### Architecture and security boundaries
+
+- The latest shared document is organization-scoped in PostgreSQL and every
+  save creates an immutable revision row with the authenticated user and
+  optimistic version number.
+- Each save also writes an immutable JSON archive under
+  `documents/project-workspaces/{organization}/{workspace}/revisions/`.
+- Uploaded references are stored under
+  `documents/project-workspaces/{organization}/{workspace}/assets/` and are
+  downloadable only through the authenticated tenant-scoped API.
+- Blob URLs, SAS values, credentials, and storage keys are never returned to
+  browser code. The existing `mxg-core` managed identity remains the preferred
+  read boundary; existing server-side storage configuration remains the write
+  fallback.
+- The frontend labels inventor names as proposed until residence,
+  contribution, ownership, and substantive review are confirmed. It does not
+  submit to USPTO or represent legal review as complete.
+
+### Resource inventory and capacity
+
+| Resource type | Number to deploy | Total after deployment | Limit / quota | Notes |
+| --- | ---: | ---: | --- | --- |
+| New Azure resources | 0 | unchanged | Not applicable | Existing resources only; no provisioning quota is consumed |
+| `Microsoft.App/containerApps` | 0 new / 1 revision | 1 existing app | Existing service envelope | New `mxg-core` image revision only |
+| PostgreSQL tables | 3 additive tables | Existing database | Existing database capacity | JSON document capped at 512 KiB; files remain in Blob |
+| Storage containers | 0 | 1 existing private `documents` container | Existing account | New tenant-scoped prefixes only |
+
+Capacity status: **within existing limits**. No resource, replica, SKU, region,
+or quota change is requested, so a quota increase is not applicable.
+
+### Files and changes
+
+- Add migration `0017_project_workspaces.sql` with tenant-scoped current,
+  revision, and asset metadata tables.
+- Add authenticated GET/PUT workspace routes plus private asset upload/download
+  routes to `mxg-core`.
+- Add `patent-workspace.html`, `patent-workspace.css`, and
+  `patent-workspace.js` plus the Settings selector and protected-page return
+  flow.
+- Add browser-contract, client-contract, migration, route, and validation tests.
+- No infrastructure file, secret, RBAC assignment, public ingress, database
+  deletion, or existing migration is changed.
+
+### Functional verification
+
+- JavaScript syntax checks passed.
+- Complete frontend suite passed: 130 tests.
+- Rust formatting and compile checks passed.
+- Complete Rust workspace suite passed: 121 tests across all test targets.
+- Local browser navigation exposed and corrected the protected-page return
+  handoff through the registered dashboard redirect URI.
+- The authenticated live visual/save check remains a post-deployment gate
+  because local Entra redirects intentionally return to the production origin.
+
+### Validation steps
+
+- `git diff --check`.
+- `npm test` and JavaScript syntax checks.
+- `cargo fmt --all -- --check`.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings`.
+- `cargo test --locked --workspace`.
+- `cargo build --locked --release -p mxgenius-mcp`.
+- Confirm Azure CLI subscription, current `mxg-core` revision/image, managed
+  identity, storage role, and current health/readiness before promotion.
+- Build the exact `services/mcp` source state in the existing ACR, create one
+  new `mxg-core` revision, and allow SQLx to apply only additive migration 0017.
+
+### Release gates
+
+- The new revision is latest-ready before traffic is accepted.
+- `/healthz` and `/readyz` return HTTP 200 after migration startup.
+- Unauthenticated project-workspace access fails closed.
+- The promoted frontend opens the protected patent workspace, displays all
+  three proposed inventor names, and can save/reload one tenant-shared version.
+- One small reference file can be uploaded and retrieved through the private
+  application API without exposing a Blob URL.
+- GitHub Pages publishes only after the core acceptance gates pass.
+
+### Rollback
+
+- Keep the current ready `mxg-core` revision and image available throughout.
+- If startup, migration, health, authentication, or storage gates fail, shift
+  traffic back to the previous ready revision and do not publish the frontend.
+- Additive migration tables may remain dormant. Rollback does not drop tables,
+  delete workspaces, delete Blob data, change RBAC, or remove revisions.
+- If frontend acceptance fails after publication, restore the prior Pages
+  commit while retaining the compatible backend revision.
+
+### Execution checklist
+
+- [x] Analyze and scan the existing application and deployment context.
+- [x] Confirm no new infrastructure or quota is required.
+- [x] Implement and locally verify the frontend, API, migration, and tests.
+- [x] Preserve tenant, identity, Blob privacy, and rollback boundaries.
+- [x] Mark this delta Ready for Validation.
+- [x] Run and record the complete validation proof.
+- [ ] Promote and verify the paired core/frontend release.
+
+### Validation proof
+
+- 2026-08-17: JavaScript syntax checks, `git diff --check`, and all 130 frontend
+  tests passed.
+- 2026-08-17: Rust formatting, strict workspace Clippy, all 121 Rust tests, and
+  the locked release build passed.
+- 2026-08-17: Azure CLI confirmed `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), the existing `centralus`
+  `mxg-core` Container App, successful provisioning, and current revision
+  `mxg-core--0000029`.
+- 2026-08-17: Pre-deployment `/healthz` and `/readyz` returned HTTP 200 with the
+  production database ready.
+- 2026-08-17: Live RBAC confirms the `mxg-core` managed identity retains
+  `Storage Blob Data Contributor` on the private `documents` container. No
+  role, infrastructure, region, SKU, or scaling change is required.
 
 ## Manual Retrieval Stabilization Delta — 2026-08-11
 

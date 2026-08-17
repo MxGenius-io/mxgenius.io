@@ -572,6 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Phase 1: UI + local engines (instant, no network)
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
+  const requestedTab = window.location.hash.slice(1);
+  if (document.getElementById(`tab-${requestedTab}`)) switchTab(requestedTab);
   setupCollapsibleSettings(); // Auto-collapse multi-row settings cards
   if (globalThis.MXGENIUS_CONFIG?.legacyStaticRag === true) {
     RAG.load();
@@ -2501,12 +2503,19 @@ function initSettings() {
   const loadDemoDataButton = document.getElementById('settingsLoadDemoData');
   const demoDataStatus = document.getElementById('settingsDemoDataStatus');
   const textModelSelect = document.getElementById('settingsTextModel');
+  const workspaceSelect = document.getElementById('settingsWorkspaceSelect');
+  const workspaceOpen = document.getElementById('settingsWorkspaceOpen');
   const serverSession = {
     accessToken: session.accessToken,
     organizationId: session.organizationId,
     correlationId: window.crypto?.randomUUID?.()
   };
   let profileImageObjectUrl = null;
+
+  workspaceOpen?.addEventListener('click', () => {
+    const destination = workspaceSelect?.value;
+    if (destination) window.location.href = destination;
+  });
 
   if (acct) {
     const displayName = acct.name || acct.username || 'User';

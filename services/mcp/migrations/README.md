@@ -27,3 +27,4 @@ release gates.
 | `0013_digital_twin_models.sql`            | uploaded GLB models, mesh manifests, and model/user highlight state |
 | `0015_parts_inventory.sql`                | tenant-owned stock units, receiving, assets, extraction review, ledger, and FAA provenance |
 | `0016_mro_tenant_scope.sql`               | tenant ownership and indexes for the MCP MRO directory |
+| `0017_project_workspaces.sql`              | shared project documents, revisions, and private blob-backed reference assets |

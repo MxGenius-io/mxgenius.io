@@ -50,6 +50,7 @@ const MAX_CONTENT_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
+const MAX_PROJECT_WORKSPACE_BYTES: usize = 512 * 1024;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
 
@@ -131,6 +132,18 @@ pub fn router_with_health_and_manual(
         .route("/chat", post(chat))
         .route("/api/chat/models", get(list_chat_models))
         .route("/api/content/uploads", post(upload_content))
+        .route(
+            "/api/project-workspaces/:workspace_key",
+            get(get_project_workspace).put(save_project_workspace),
+        )
+        .route(
+            "/api/project-workspaces/:workspace_key/assets",
+            post(upload_project_workspace_asset),
+        )
+        .route(
+            "/api/project-workspaces/:workspace_key/assets/:asset_id/content",
+            get(get_project_workspace_asset_content),
+        )
         .route("/api/demo-data", post(load_demo_data))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
@@ -553,6 +566,650 @@ async fn upload_content(
         })),
     )
         .into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct SaveProjectWorkspaceRequest {
+    title: String,
+    status: String,
+    expected_version: i64,
+    document: Value,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct ProjectWorkspaceRow {
+    id: Uuid,
+    workspace_key: String,
+    title: String,
+    status: String,
+    document: Value,
+    version: i64,
+    updated_by: Uuid,
+    updated_by_name: Option<String>,
+    created_at: OffsetDateTime,
+    updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct ProjectWorkspaceRevisionRow {
+    version: i64,
+    status: String,
+    saved_by: Uuid,
+    saved_by_name: Option<String>,
+    archive_state: String,
+    created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct ProjectWorkspaceAssetRow {
+    id: Uuid,
+    section_key: String,
+    original_filename: String,
+    media_type: String,
+    byte_size: i64,
+    content_hash: String,
+    note: Option<String>,
+    uploaded_by: Uuid,
+    uploaded_by_name: Option<String>,
+    created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProjectWorkspaceAssetQuery {
+    filename: String,
+    section: String,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+fn valid_project_workspace_key(value: &str) -> bool {
+    let length = value.chars().count();
+    (1..=64).contains(&length)
+        && value.chars().enumerate().all(|(index, character)| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || (character == '-' && index > 0)
+        })
+}
+
+fn valid_project_workspace_status(value: &str) -> bool {
+    matches!(
+        value,
+        "collecting" | "ready_for_review" | "review_complete" | "archived"
+    )
+}
+
+fn validate_project_workspace_save(
+    workspace_key: &str,
+    input: &SaveProjectWorkspaceRequest,
+) -> Result<(), (&'static str, &'static str)> {
+    if !valid_project_workspace_key(workspace_key) {
+        return Err((
+            "INVALID_WORKSPACE_KEY",
+            "workspace key must be a lowercase name containing only letters, numbers, and hyphens",
+        ));
+    }
+    let title = input.title.trim();
+    if title.is_empty() || title.chars().count() > 160 {
+        return Err((
+            "INVALID_WORKSPACE_TITLE",
+            "workspace title must contain between 1 and 160 characters",
+        ));
+    }
+    if !valid_project_workspace_status(&input.status) {
+        return Err(("INVALID_WORKSPACE_STATUS", "workspace status is invalid"));
+    }
+    if input.expected_version < 0 {
+        return Err((
+            "INVALID_WORKSPACE_VERSION",
+            "expected version cannot be negative",
+        ));
+    }
+    if !input.document.is_object()
+        || serde_json::to_vec(&input.document)
+            .map(|value| value.len() > MAX_PROJECT_WORKSPACE_BYTES)
+            .unwrap_or(true)
+    {
+        return Err((
+            "INVALID_WORKSPACE_DOCUMENT",
+            "workspace document must be a JSON object no larger than 512 KiB",
+        ));
+    }
+    Ok(())
+}
+
+async fn project_workspace_payload(
+    pool: &sqlx::PgPool,
+    organization_id: Uuid,
+    workspace_key: &str,
+) -> Result<Value, sqlx::Error> {
+    let workspace = sqlx::query_as::<_, ProjectWorkspaceRow>(
+        r#"SELECT w.id,w.workspace_key,w.title,w.status,w.document,w.version,
+                  w.updated_by,COALESCE(u.display_name,u.email) AS updated_by_name,
+                  w.created_at,w.updated_at
+           FROM project_workspaces w
+           LEFT JOIN users u ON u.id=w.updated_by
+           WHERE w.organization_id=$1 AND w.workspace_key=$2"#,
+    )
+    .bind(organization_id)
+    .bind(workspace_key)
+    .fetch_optional(pool)
+    .await?;
+    let Some(workspace) = workspace else {
+        return Ok(json!({"workspace": null, "assets": [], "revisions": []}));
+    };
+    let assets = sqlx::query_as::<_, ProjectWorkspaceAssetRow>(
+        r#"SELECT a.id,a.section_key,a.original_filename,a.media_type,a.byte_size,
+                  a.content_hash,a.note,a.uploaded_by,
+                  COALESCE(u.display_name,u.email) AS uploaded_by_name,a.created_at
+           FROM project_workspace_assets a
+           LEFT JOIN users u ON u.id=a.uploaded_by
+           WHERE a.organization_id=$1 AND a.workspace_id=$2
+           ORDER BY a.created_at DESC"#,
+    )
+    .bind(organization_id)
+    .bind(workspace.id)
+    .fetch_all(pool)
+    .await?;
+    let revisions = sqlx::query_as::<_, ProjectWorkspaceRevisionRow>(
+        r#"SELECT r.version,r.status,r.saved_by,
+                  COALESCE(u.display_name,u.email) AS saved_by_name,
+                  r.archive_state,r.created_at
+           FROM project_workspace_revisions r
+           LEFT JOIN users u ON u.id=r.saved_by
+           WHERE r.organization_id=$1 AND r.workspace_id=$2
+           ORDER BY r.version DESC LIMIT 25"#,
+    )
+    .bind(organization_id)
+    .bind(workspace.id)
+    .fetch_all(pool)
+    .await?;
+    Ok(json!({
+        "workspace": workspace,
+        "assets": assets,
+        "revisions": revisions
+    }))
+}
+
+async fn get_project_workspace(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(workspace_key): Path<String>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !valid_project_workspace_key(&workspace_key) {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_WORKSPACE_KEY",
+            "workspace key is invalid",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match project_workspace_payload(pool, context.organization_id.0, &workspace_key).await {
+        Ok(payload) => (StatusCode::OK, Json(payload)).into_response(),
+        Err(error) => persistence_error("project_workspace.get", error),
+    }
+}
+
+async fn save_project_workspace(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(workspace_key): Path<String>,
+    Json(mut input): Json<SaveProjectWorkspaceRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if let Err((code, message)) = validate_project_workspace_save(&workspace_key, &input) {
+        return realtime_error(StatusCode::BAD_REQUEST, code, message);
+    }
+    input.title = input.title.trim().to_owned();
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let mut transaction = match pool.begin().await {
+        Ok(value) => value,
+        Err(error) => return persistence_error("project_workspace.save.begin", error),
+    };
+    let existing: Option<(Uuid, i64)> = match sqlx::query_as(
+        r#"SELECT id,version FROM project_workspaces
+           WHERE organization_id=$1 AND workspace_key=$2 FOR UPDATE"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(&workspace_key)
+    .fetch_optional(&mut *transaction)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("project_workspace.save.lock", error),
+    };
+    let (workspace_id, version) = if let Some((workspace_id, current_version)) = existing {
+        if current_version != input.expected_version {
+            return realtime_error(
+                StatusCode::CONFLICT,
+                "WORKSPACE_VERSION_CONFLICT",
+                "a teammate saved a newer version; reload before saving",
+            );
+        }
+        let next_version = current_version + 1;
+        if let Err(error) = sqlx::query(
+            r#"UPDATE project_workspaces
+               SET title=$1,status=$2,document=$3,version=$4,updated_by=$5,updated_at=now()
+               WHERE organization_id=$6 AND id=$7"#,
+        )
+        .bind(&input.title)
+        .bind(&input.status)
+        .bind(&input.document)
+        .bind(next_version)
+        .bind(context.user_id.0)
+        .bind(context.organization_id.0)
+        .bind(workspace_id)
+        .execute(&mut *transaction)
+        .await
+        {
+            return persistence_error("project_workspace.save.update", error);
+        }
+        (workspace_id, next_version)
+    } else {
+        if input.expected_version != 0 {
+            return realtime_error(
+                StatusCode::CONFLICT,
+                "WORKSPACE_VERSION_CONFLICT",
+                "workspace does not exist at the expected version",
+            );
+        }
+        let workspace_id = Uuid::new_v4();
+        if let Err(error) = sqlx::query(
+            r#"INSERT INTO project_workspaces
+               (id,organization_id,workspace_key,title,status,document,version,
+                created_by,updated_by,created_at,updated_at)
+               VALUES ($1,$2,$3,$4,$5,$6,1,$7,$7,now(),now())"#,
+        )
+        .bind(workspace_id)
+        .bind(context.organization_id.0)
+        .bind(&workspace_key)
+        .bind(&input.title)
+        .bind(&input.status)
+        .bind(&input.document)
+        .bind(context.user_id.0)
+        .execute(&mut *transaction)
+        .await
+        {
+            return persistence_error("project_workspace.save.create", error);
+        }
+        (workspace_id, 1)
+    };
+    if let Err(error) = sqlx::query(
+        r#"INSERT INTO project_workspace_revisions
+           (workspace_id,organization_id,version,title,status,document,saved_by,
+            archive_state,created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',now())"#,
+    )
+    .bind(workspace_id)
+    .bind(context.organization_id.0)
+    .bind(version)
+    .bind(&input.title)
+    .bind(&input.status)
+    .bind(&input.document)
+    .bind(context.user_id.0)
+    .execute(&mut *transaction)
+    .await
+    {
+        return persistence_error("project_workspace.save.revision", error);
+    }
+    if let Err(error) = transaction.commit().await {
+        return persistence_error("project_workspace.save.commit", error);
+    }
+
+    let archive_id = Uuid::new_v4();
+    let archive_path = format!(
+        "documents/project-workspaces/{}/{}/revisions/{}-{}.json",
+        context.organization_id.0, workspace_key, version, archive_id
+    );
+    let archive_payload = serde_json::to_vec(&json!({
+        "workspace_key": workspace_key,
+        "title": input.title,
+        "status": input.status,
+        "version": version,
+        "saved_by": context.user_id.0,
+        "document": input.document
+    }))
+    .unwrap_or_default();
+    let archive_state = match parts_blob_access(&state.realtime_client, &archive_path).await {
+        Ok(access) => {
+            let mut request = state
+                .realtime_client
+                .put(access.url)
+                .header("x-ms-blob-type", "BlockBlob")
+                .header("x-ms-version", "2023-11-03")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(archive_payload);
+            if let Some(token) = access.bearer_token {
+                request = request.bearer_auth(token);
+            }
+            match request.send().await {
+                Ok(response) if response.status().is_success() => "stored",
+                Ok(response) => {
+                    tracing::warn!(target: "mxgenius.project_workspace", status=%response.status(), %workspace_id, version, "workspace revision archive rejected");
+                    "failed"
+                }
+                Err(error) => {
+                    tracing::warn!(target: "mxgenius.project_workspace", %error, %workspace_id, version, "workspace revision archive failed");
+                    "failed"
+                }
+            }
+        }
+        Err(_) => "failed",
+    };
+    let archive_reference =
+        (archive_state == "stored").then(|| format!("azure-blob://{archive_path}"));
+    if let Err(error) = sqlx::query(
+        r#"UPDATE project_workspace_revisions
+           SET archive_state=$1,archive_reference=$2
+           WHERE organization_id=$3 AND workspace_id=$4 AND version=$5"#,
+    )
+    .bind(archive_state)
+    .bind(archive_reference)
+    .bind(context.organization_id.0)
+    .bind(workspace_id)
+    .bind(version)
+    .execute(pool)
+    .await
+    {
+        tracing::warn!(target: "mxgenius.project_workspace", %error, %workspace_id, version, "workspace archive state could not be recorded");
+    }
+
+    match project_workspace_payload(pool, context.organization_id.0, &workspace_key).await {
+        Ok(payload) => (StatusCode::OK, Json(payload)).into_response(),
+        Err(error) => persistence_error("project_workspace.save.response", error),
+    }
+}
+
+async fn upload_project_workspace_asset(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(workspace_key): Path<String>,
+    Query(input): Query<ProjectWorkspaceAssetQuery>,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !valid_project_workspace_key(&workspace_key) || !valid_project_workspace_key(&input.section)
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_WORKSPACE_ASSET_SCOPE",
+            "workspace or section key is invalid",
+        );
+    }
+    if body.is_empty() || body.len() > MAX_CONTENT_UPLOAD_BYTES {
+        return realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "INVALID_WORKSPACE_ASSET_SIZE",
+            "reference file must be between 1 byte and 50 MiB",
+        );
+    }
+    let Some(filename) = safe_upload_filename(&input.filename) else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_WORKSPACE_ASSET_NAME",
+            "reference filename is invalid",
+        );
+    };
+    let supplied_media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    let Some(media_type) = content_upload_media_type(supplied_media_type, &filename) else {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_WORKSPACE_ASSET_TYPE",
+            "reference must be PDF, Word, text, Markdown, CSV, JSON, HTML, JPEG, PNG, or WebP",
+        );
+    };
+    let note = input.note.map(|value| value.trim().to_owned());
+    if note
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > 1000)
+    {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_WORKSPACE_ASSET_NOTE",
+            "reference note cannot exceed 1000 characters",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let workspace_id: Option<Uuid> = match sqlx::query_scalar(
+        "SELECT id FROM project_workspaces WHERE organization_id=$1 AND workspace_key=$2",
+    )
+    .bind(context.organization_id.0)
+    .bind(&workspace_key)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("project_workspace.asset.workspace", error),
+    };
+    let Some(workspace_id) = workspace_id else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "WORKSPACE_NOT_FOUND",
+            "save the workspace before adding reference files",
+        );
+    };
+    let asset_id = Uuid::new_v4();
+    let storage_key = format!(
+        "documents/project-workspaces/{}/{}/assets/{}-{}",
+        context.organization_id.0, workspace_key, asset_id, filename
+    );
+    let access = match parts_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(_) => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "WORKSPACE_STORAGE_NOT_CONFIGURED",
+                "private workspace storage is not configured",
+            )
+        }
+    };
+    let mut request = state
+        .realtime_client
+        .put(access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, media_type)
+        .body(body.clone());
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.project_workspace", %error, %asset_id, "workspace asset upload failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "WORKSPACE_ASSET_UPLOAD_FAILED",
+                "reference file could not be stored",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "WORKSPACE_ASSET_UPLOAD_REJECTED",
+            "private storage rejected the reference file",
+        );
+    }
+    let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    let result = sqlx::query(
+        r#"INSERT INTO project_workspace_assets
+           (id,organization_id,workspace_id,section_key,original_filename,media_type,
+            byte_size,content_hash,storage_key,note,uploaded_by,created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())"#,
+    )
+    .bind(asset_id)
+    .bind(context.organization_id.0)
+    .bind(workspace_id)
+    .bind(&input.section)
+    .bind(&filename)
+    .bind(media_type)
+    .bind(body.len() as i64)
+    .bind(&content_hash)
+    .bind(&storage_key)
+    .bind(note)
+    .bind(context.user_id.0)
+    .execute(pool)
+    .await;
+    match result {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(json!({
+                "asset": {
+                    "id": asset_id,
+                    "section_key": input.section,
+                    "original_filename": filename,
+                    "media_type": media_type,
+                    "byte_size": body.len(),
+                    "content_hash": content_hash,
+                    "content_url": format!("/api/project-workspaces/{workspace_key}/assets/{asset_id}/content")
+                }
+            })),
+        )
+            .into_response(),
+        Err(error) => persistence_error("project_workspace.asset.register", error),
+    }
+}
+
+async fn workspace_read_blob_access(
+    client: &reqwest::Client,
+    storage_key: &str,
+) -> Result<PartsBlobAccess, Response> {
+    let origin = std::env::var("MXGENIUS_CONTENT_UPLOAD_ORIGIN")
+        .or_else(|_| std::env::var("MXGENIUS_MANUAL_ASSET_ORIGIN"))
+        .unwrap_or_else(|_| "https://mxgstorage50106.blob.core.windows.net".into());
+    let base_url = format!(
+        "{}/{}",
+        origin.trim_end_matches('/'),
+        storage_key.trim_start_matches('/')
+    );
+    if let Ok(token) = managed_identity_token(client, "https://storage.azure.com/").await {
+        return Ok(PartsBlobAccess {
+            url: base_url,
+            bearer_token: Some(token),
+        });
+    }
+    let sas = std::env::var("MXGENIUS_MANUAL_ASSET_SAS")
+        .or_else(|_| std::env::var("MXGENIUS_CONTENT_UPLOAD_SAS"))
+        .ok()
+        .map(|value| value.replace("%26", "&"))
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "WORKSPACE_STORAGE_NOT_CONFIGURED",
+                "private workspace storage identity is not configured",
+            )
+        })?;
+    Ok(PartsBlobAccess {
+        url: format!("{}?{}", base_url, sas.trim_start_matches('?')),
+        bearer_token: None,
+    })
+}
+
+async fn get_project_workspace_asset_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((workspace_key, asset_id)): Path<(String, Uuid)>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let asset: Option<(String, String, String)> = match sqlx::query_as(
+        r#"SELECT a.storage_key,a.media_type,a.original_filename
+           FROM project_workspace_assets a
+           JOIN project_workspaces w
+             ON w.organization_id=a.organization_id AND w.id=a.workspace_id
+           WHERE a.organization_id=$1 AND w.workspace_key=$2 AND a.id=$3"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(&workspace_key)
+    .bind(asset_id)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("project_workspace.asset.get", error),
+    };
+    let Some((storage_key, media_type, filename)) = asset else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "WORKSPACE_ASSET_NOT_FOUND",
+            "reference file was not found",
+        );
+    };
+    let access = match workspace_read_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state.realtime_client.get(access.url);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.project_workspace", status=%value.status(), %asset_id, "workspace asset download rejected");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "WORKSPACE_ASSET_UNAVAILABLE",
+                "reference file could not be retrieved",
+            );
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.project_workspace", %error, %asset_id, "workspace asset download failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "WORKSPACE_ASSET_UNAVAILABLE",
+                "reference file could not be retrieved",
+            );
+        }
+    };
+    let content = match upstream.bytes().await {
+        Ok(value) if value.len() <= MAX_CONTENT_UPLOAD_BYTES => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "WORKSPACE_ASSET_INVALID",
+                "reference file exceeded the delivery limit",
+            )
+        }
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, media_type)
+        .header(header::CACHE_CONTROL, "private, max-age=300")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{filename}\""),
+        )
+        .body(Body::from(content))
+        .expect("valid project workspace asset response")
 }
 
 async fn readyz(State(state): State<AppState>) -> Response {
@@ -5458,6 +6115,31 @@ mod structured_advisory_tests {
         assert_eq!(
             content_upload_media_type("application/octet-stream", "payload.exe"),
             None
+        );
+    }
+
+    #[test]
+    fn project_workspace_documents_are_bounded_and_versioned() {
+        let valid = SaveProjectWorkspaceRequest {
+            title: "Provisional Patent Application".into(),
+            status: "collecting".into(),
+            expected_version: 0,
+            document: json!({"schema_version": 1}),
+        };
+        assert!(validate_project_workspace_save("provisional-patent", &valid).is_ok());
+        assert!(!valid_project_workspace_key("../patent"));
+        assert!(!valid_project_workspace_status("filed"));
+
+        let invalid_version = SaveProjectWorkspaceRequest {
+            expected_version: -1,
+            ..valid
+        };
+        assert_eq!(
+            validate_project_workspace_save("provisional-patent", &invalid_version),
+            Err((
+                "INVALID_WORKSPACE_VERSION",
+                "expected version cannot be negative"
+            ))
         );
     }
 

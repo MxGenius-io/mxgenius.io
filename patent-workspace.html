@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provisional Patent Workspace · MXGenius</title>
+  <meta name="description" content="Shared MXGenius provisional patent completion workspace">
+  <link rel="stylesheet" href="patent-workspace.css?v=1">
+  <style id="auth-gate">body { visibility: hidden; }</style>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="patent-header">
+    <a class="patent-brand" href="dashboard.html#settings" aria-label="Back to MXGenius Settings">
+      <img src="assets/mxgenius_logo.png" alt="">
+      <span>MXGenius</span>
+    </a>
+    <div class="patent-header__actions">
+      <span id="workspaceSaveState" class="save-state" role="status" aria-live="polite">Loading…</span>
+      <a class="button button--quiet" href="dashboard.html#settings">Back to Settings</a>
+      <button id="workspaceSave" class="button button--primary" type="button" disabled>Save progress</button>
+    </div>
+  </header>
+
+  <main class="patent-shell">
+    <section class="patent-intro" aria-labelledby="workspaceTitle">
+      <div>
+        <p class="eyebrow">Shared team document</p>
+        <h1 id="workspaceTitle">Provisional Patent Application</h1>
+        <p>Collect the missing decisions around the existing draft. Answer what you know, name an owner for what you do not, and mark an answer confirmed only when the team can rely on it.</p>
+      </div>
+      <div class="patent-intro__controls">
+        <label for="workspaceStatus">Document stage</label>
+        <select id="workspaceStatus">
+          <option value="collecting">Collecting input</option>
+          <option value="ready_for_review">Ready for counsel review</option>
+          <option value="review_complete">Review complete</option>
+          <option value="archived">Archived</option>
+        </select>
+        <div class="progress-line" aria-label="Completion progress"><span id="workspaceProgressBar"></span></div>
+        <span id="workspaceProgressText">0 of 0 decisions confirmed</span>
+      </div>
+    </section>
+
+    <aside class="patent-notice" role="note">
+      This workspace organizes drafting input; it is not legal advice and it does not file anything with the USPTO. “Review complete” means the team finished its review, not that an application was submitted.
+    </aside>
+
+    <div id="workspaceError" class="workspace-error" role="alert" hidden>
+      <span id="workspaceErrorText"></span>
+      <button id="workspaceReload" class="button button--quiet" type="button">Reload team version</button>
+    </div>
+
+    <div class="patent-layout">
+      <nav id="workspaceSections" class="section-nav" aria-label="Patent workspace sections"></nav>
+
+      <section class="section-panel">
+        <header class="section-panel__header">
+          <div>
+            <p id="sectionKicker" class="eyebrow"></p>
+            <h2 id="sectionTitle"></h2>
+            <p id="sectionDescription"></p>
+          </div>
+          <span id="sectionProgress" class="section-progress"></span>
+        </header>
+        <div id="sectionQuestions" class="question-list"></div>
+      </section>
+
+      <aside class="reference-panel">
+        <section>
+          <h2>Examples &amp; references</h2>
+          <p>Attach the current draft, drawings, screenshots, or a text example. Files stay private behind the application API.</p>
+          <label for="referenceSection">Applies to</label>
+          <select id="referenceSection"></select>
+          <label for="referenceNote">What should the team notice?</label>
+          <textarea id="referenceNote" rows="3" maxlength="1000" placeholder="Example: use this mount angle, but not this cable route."></textarea>
+          <input id="referenceFile" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.htm,.jpg,.jpeg,.png,.webp" hidden>
+          <button id="referenceChoose" class="button button--secondary" type="button">Add a reference</button>
+          <div id="referenceList" class="reference-list"></div>
+        </section>
+        <section>
+          <h2>Revision trail</h2>
+          <p id="revisionSummary">No team saves yet.</p>
+          <ol id="revisionList" class="revision-list"></ol>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script src="runtime-config.js?v=3"></script>
+  <script src="auth.js?v=7"></script>
+  <script src="application-client.js?v=20"></script>
+  <script src="patent-workspace.js?v=1"></script>
+</body>
+</html>

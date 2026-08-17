@@ -2,7 +2,7 @@
 // The API receives an access token; no client secret or provider key is stored here.
 (() => {
   const config = globalThis.MXGENIUS_CONFIG || {};
-  const isDashboard = /(?:^|\/)(dashboard|progress)\.html$/i.test(location.pathname);
+  const isDashboard = /(?:^|\/)(dashboard|progress|patent-workspace)\.html$/i.test(location.pathname);
   const isLogin = /(?:^|\/)login\.html$/i.test(location.pathname);
   const isLanding = /(?:^|\/)(?:index\.html)?$/i.test(location.pathname);
   const clientId = String(config.entraClientId || '').trim();
@@ -13,6 +13,28 @@
   let account = null;
   let accessToken = '';
   let accessState = 'initializing';
+  const protectedReturnKey = 'mx_auth_protected_return';
+
+  function rememberProtectedReturn() {
+    if (!isDashboard || /(?:^|\/)dashboard\.html$/i.test(location.pathname)) return;
+    globalThis.sessionStorage?.setItem(
+      protectedReturnKey,
+      `${location.origin}${location.pathname}${location.search}`
+    );
+  }
+
+  function protectedReturnUrl() {
+    const pending = globalThis.sessionStorage?.getItem(protectedReturnKey);
+    if (!pending) return null;
+    try {
+      const target = new URL(pending, location.origin);
+      if (target.origin !== location.origin) return null;
+      if (!/(?:^|\/)(progress|patent-workspace)\.html$/i.test(target.pathname)) return null;
+      return target.href;
+    } catch {
+      return null;
+    }
+  }
 
   function tokenRequest() {
     return {
@@ -137,6 +159,7 @@
           return accessToken;
         } catch (error) {
           if (isDashboard && interactionRequired(error)) {
+            rememberProtectedReturn();
             await instance.acquireTokenRedirect(tokenRequest());
             return '';
           }
@@ -145,6 +168,7 @@
       }
     };
     if (isDashboard && !account) {
+      rememberProtectedReturn();
       await instance.loginRedirect(tokenRequest());
       return null;
     }
@@ -192,6 +216,14 @@
           accessState = 'authenticated';
           publishIdentity(profile || account);
           publishLandingState('authenticated', profile || account);
+          const returnUrl = response && /(?:^|\/)dashboard\.html$/i.test(location.pathname)
+            ? protectedReturnUrl()
+            : null;
+          if (returnUrl) {
+            globalThis.sessionStorage?.removeItem(protectedReturnKey);
+            location.replace(returnUrl);
+            return account;
+          }
         }
       } catch (error) {
         if ((isLogin || isLanding) && interactionRequired(error)) {

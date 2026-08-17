@@ -383,6 +383,46 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function getProjectWorkspace(workspaceKey, session = {}) {
+    return applicationJson(`/api/project-workspaces/${encodeURIComponent(workspaceKey)}`, { session });
+  }
+
+  function saveProjectWorkspace(workspaceKey, workspace, session = {}) {
+    return applicationJson(`/api/project-workspaces/${encodeURIComponent(workspaceKey)}`, {
+      session,
+      method: 'PUT',
+      body: {
+        title: workspace?.title,
+        status: workspace?.status,
+        expected_version: Number(workspace?.expectedVersion || 0),
+        document: workspace?.document || {}
+      }
+    });
+  }
+
+  function uploadProjectWorkspaceAsset(workspaceKey, file, { section = 'general', note = '', session = {} } = {}) {
+    if (!(file instanceof Blob)) throw new TypeError('Workspace reference must be a Blob or File');
+    const filename = String(file.name || 'workspace-reference').slice(0, 180);
+    const query = new URLSearchParams({
+      filename,
+      section: String(section || 'general').slice(0, 64)
+    });
+    if (note) query.set('note', String(note).slice(0, 1000));
+    return applicationJson(`/api/project-workspaces/${encodeURIComponent(workspaceKey)}/assets?${query}`, {
+      session,
+      method: 'POST',
+      body: file,
+      contentType: file.type || 'application/octet-stream'
+    });
+  }
+
+  async function getProjectWorkspaceAsset(workspaceKey, assetId, session = {}) {
+    return (await applicationRequest(
+      `/api/project-workspaces/${encodeURIComponent(workspaceKey)}/assets/${encodeURIComponent(assetId)}/content`,
+      { session, contentType: null }
+    )).blob();
+  }
+
   async function exchangeRealtimeSdp({ sdp, session = {} }) {
     if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     if (typeof sdp !== 'string' || !sdp.startsWith('v=0')) {
@@ -890,6 +930,12 @@ const MXApplicationClient = (() => {
     }),
     content: Object.freeze({
       upload: uploadContent
+    }),
+    projectWorkspaces: Object.freeze({
+      get: getProjectWorkspace,
+      save: saveProjectWorkspace,
+      uploadAsset: uploadProjectWorkspaceAsset,
+      getAsset: getProjectWorkspaceAsset
     }),
     demoData: Object.freeze({
       load: loadDemoData

@@ -1504,7 +1504,12 @@ async fn application_state_routes_fail_closed_without_persistent_storage() {
 
     let (dispatcher, _, _) = fresh_dispatcher();
     let app = mxgenius_mcp::transport::http::router(dispatcher);
-    for path in ["/api/cases", "/api/threads", "/api/profile"] {
+    for path in [
+        "/api/cases",
+        "/api/threads",
+        "/api/profile",
+        "/api/project-workspaces/provisional-patent",
+    ] {
         let response = app
             .clone()
             .oneshot(Request::get(path).body(Body::empty()).unwrap())
@@ -1515,6 +1520,26 @@ async fn application_state_routes_fail_closed_without_persistent_storage() {
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["error"]["code"], "PERSISTENCE_NOT_CONFIGURED");
     }
+}
+
+#[test]
+fn project_workspace_migration_is_tenant_scoped_versioned_and_blob_backed() {
+    let migration = include_str!("../../migrations/0017_project_workspaces.sql");
+    for table in [
+        "project_workspaces",
+        "project_workspace_revisions",
+        "project_workspace_assets",
+    ] {
+        assert!(
+            migration.contains(&format!("CREATE TABLE IF NOT EXISTS {table}")),
+            "missing {table}"
+        );
+    }
+    assert!(migration.contains("organization_id uuid NOT NULL"));
+    assert!(migration.contains("UNIQUE (organization_id, workspace_key)"));
+    assert!(migration.contains("PRIMARY KEY (workspace_id, version)"));
+    assert!(migration.contains("storage_key"));
+    assert!(migration.contains("archive_reference"));
 }
 
 #[test]

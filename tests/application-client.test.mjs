@@ -15,6 +15,7 @@ function harness(outputs, orchestration = null) {
     Error,
     Blob,
     URL,
+    URLSearchParams,
     MXGENIUS_CONFIG: {
       mcpBase: '',
       fleetBase: '',
@@ -63,6 +64,7 @@ function harness(outputs, orchestration = null) {
           status: options.method === 'DELETE' ? 204 : 200,
           headers: { get: () => 'application/json' },
           json: async () => ({ ok: true, request }),
+          blob: async () => new Blob(['workspace-asset'], { type: 'application/pdf' }),
           text: async () => ''
         };
       }
@@ -277,6 +279,37 @@ test('chat sends bounded image inputs and content uploads use the authenticated 
   assert.equal(requests[1].options.headers.Authorization, 'Bearer oidc-token');
   assert.equal(requests[1].options.headers['Content-Type'], 'application/pdf');
   assert.equal(requests[1].request, file);
+});
+
+test('project workspaces use tenant-authenticated versioned saves and private assets', async () => {
+  const { client, requests } = harness({});
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+  const file = new Blob(['drawing'], { type: 'image/png' });
+  Object.defineProperty(file, 'name', { value: 'FIG 1.png' });
+
+  await client.projectWorkspaces.get('provisional-patent', session);
+  await client.projectWorkspaces.save('provisional-patent', {
+    title: 'Provisional Patent Application',
+    status: 'collecting',
+    expectedVersion: 3,
+    document: { schema_version: 1 }
+  }, session);
+  await client.projectWorkspaces.uploadAsset('provisional-patent', file, {
+    section: 'drawings',
+    note: 'Perspective example',
+    session
+  });
+  const blob = await client.projectWorkspaces.getAsset('provisional-patent', 'asset-1', session);
+
+  assert.equal(blob.type, 'application/pdf');
+  assert.deepEqual(requests.map(({ options }) => options.method), ['GET', 'PUT', 'POST', 'GET']);
+  assert.equal(requests[1].request.expected_version, 3);
+  assert.deepEqual(requests[1].request.document, { schema_version: 1 });
+  assert.match(requests[2].url, /\/api\/project-workspaces\/provisional-patent\/assets\?/);
+  assert.match(requests[2].url, /section=drawings/);
+  assert.match(requests[2].url, /note=Perspective\+example/);
+  assert.equal(requests[2].request, file);
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
 test('server persistence clients keep threads cases and profiles behind application identity', async () => {
