@@ -13,6 +13,12 @@ reportLoaded(`# Weekly Progress Report — Week 22
 
 The week closed with the local plumbing and release package ready for headset integration. It did **not** close with a claim that live FLIR pixels, simultaneous Pi diagnostics, thermal performance, or the complete wearable assembly had passed a physical Quest test.
 
+## Week 22 in motion
+
+🎬 **Video:** 817-walkthrough.mp4
+
+*Sprint-closing walkthrough recorded Aug 17, 2026. The reporting window and evidence cutoff remain Aug 10–16.*
+
 ## The XR edge hardware pivot gave every component one job
 
 The central decision was to stop treating the thermal camera, Pi, browser, and cloud as one shared socket. The architecture now assigns clear ownership:

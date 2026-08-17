@@ -94,12 +94,17 @@ test('progress banner identifies the latest published report', () => {
   assert.match(progress, /viewReport\(22\)/);
 });
 
-test('week 22 report separates validated plumbing from pending live headset tests', () => {
+test('week 22 report separates validated plumbing from pending live headset tests', async () => {
   assert.match(week22Report, /## Executive Summary/);
+  assert.match(week22Report, /## Week 22 in motion/);
+  assert.match(week22Report, /🎬 \*\*Video:\*\* 817-walkthrough\.mp4/);
   assert.match(week22Report, /XR edge hardware pivot/);
   assert.match(week22Report, /0\.1\.0-poc\.4/);
   assert.match(week22Report, /did \*\*not\*\* close with a claim that live FLIR pixels/);
   assert.match(week22Report, /Work committed on Aug 17 belongs to the next reporting period/);
+  assert.match(gitAttributes, /^\*\.mp4 filter=lfs diff=lfs merge=lfs -text$/m);
+  assert.match(reportDisplay, /https:\/\/media\.githubusercontent\.com\/media\/MxGenius-io\/mxgenius\.io\/main\//);
+  await access(new URL('../Generated Reports/week-22/817-walkthrough.mp4', import.meta.url));
 });
 
 test('week 19 screenshots stay paired with the sections they depict', async () => {
