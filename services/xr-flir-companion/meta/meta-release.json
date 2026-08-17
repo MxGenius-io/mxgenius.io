@@ -16,8 +16,13 @@
     "versionCode": 5,
     "versionName": "0.1.0-poc.5",
     "channel": "Alpha",
-    "metaTestStatus": "InDevelopment",
-    "artifact": null
+    "metaTestStatus": "ReadyForUpload",
+    "artifact": {
+      "path": "app/build/outputs/apk/release/app-release.apk",
+      "sizeBytes": 103228792,
+      "sha256": "07dfe442482098ebb4429188d7a344c53cce0e0246e95198c502bc2aeb1c1263",
+      "builtAt": "2026-08-17T02:49:24-04:00"
+    }
   },
   "releaseChannel": {
     "channelId": "1516125643598287",

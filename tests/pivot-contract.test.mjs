@@ -109,6 +109,9 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.doesNotMatch(companionService, /PiDiagnosticsClient|activation-required/);
   assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
   assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
+  assert.match(companionActivity, /if \(data != null\)[\s\S]*BridgeActivation\.fromIntent/);
+  assert.match(companionActivity, /Intent serviceIntent = new Intent\(this, SensorBridgeService\.class\)[\s\S]*startForegroundService\(serviceIntent\)/);
+  assert.match(companionActivity, /Standalone · local thermal preview/);
   assert.doesNotMatch(relayClient, /sendDiagnostics|pi-diagnostics-rfcomm|edge-diagnostics-1/);
   assert.match(localThermalBroker, /127\.0\.0\.1|allowedOrigins/);
   assert.match(localThermalBroker, /invalid thermal session/);

@@ -148,17 +148,23 @@ foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'a
     Assert-ReleaseRequirement (-not $manifestTree.Contains($forbiddenPackagedToken)) "packaged FLIR manifest still contains $forbiddenPackagedToken"
 }
 
-$packagedLayout = (& $aapt2 dump xmltree $resolvedApk --file res/layout/activity_main.xml 2>&1 | Out-String)
-Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect the packaged standalone panel layout'
-Assert-ReleaseRequirement ($packagedLayout.Contains('E: ImageView')) 'packaged standalone panel is missing its thermal ImageView'
-Assert-ReleaseRequirement ($packagedLayout.Contains('Live FLIR ONE thermal preview')) 'packaged standalone panel is missing its thermal preview description'
-
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {
     Assert-ReleaseRequirement (-not $packagedResources.Contains("id/$forbiddenPackagedLayoutToken")) "packaged standalone panel still contains id/$forbiddenPackagedLayoutToken"
 }
+$layoutResourceMatch = [regex]::Match(
+    $packagedResources,
+    '(?s)layout/activity_main\s+(?<body>.*?)(?=\r?\n\s+resource|\r?\n\s+type)')
+Assert-ReleaseRequirement ($layoutResourceMatch.Success) 'APK resource table has no layout/activity_main block'
+$layoutFileMatch = [regex]::Match($layoutResourceMatch.Groups['body'].Value, '\(file\)\s+(?<path>\S+)\s+type=XML')
+Assert-ReleaseRequirement ($layoutFileMatch.Success) 'APK resource table does not map layout/activity_main to compiled XML'
+$packagedLayoutPath = $layoutFileMatch.Groups['path'].Value
+$packagedLayout = (& $aapt2 dump xmltree $resolvedApk --file $packagedLayoutPath 2>&1 | Out-String)
+Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) "aapt2 could not inspect packaged standalone panel layout $packagedLayoutPath"
+Assert-ReleaseRequirement ($packagedLayout.Contains('E: ImageView')) 'packaged standalone panel is missing its thermal ImageView'
+Assert-ReleaseRequirement ($packagedLayout.Contains('Live FLIR ONE thermal preview')) 'packaged standalone panel is missing its thermal preview description'
 foreach ($requiredPackagedResource in @(
     'mipmap/mxgenius_launcher',
     'mipmap/mxgenius_launcher_round',
@@ -197,6 +203,11 @@ $signatureExitCode = $LASTEXITCODE
 Assert-ReleaseRequirement ($signatureExitCode -eq 0 -and $signatureOutput.Contains('Verifies')) 'APK signature verification failed'
 Assert-ReleaseRequirement ($signatureOutput -match 'Verified using v2 scheme \(APK Signature Scheme v2\): true') 'APK is not signed with APK Signature Scheme v2'
 if ($Configuration -eq 'Release') {
+    Assert-ReleaseRequirement ($null -ne $releaseMetadata.build.artifact) 'release metadata has no artifact record'
+    $artifactSize = (Get-Item -LiteralPath $resolvedApk).Length
+    $artifactHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedApk).Hash.ToLowerInvariant()
+    Assert-ReleaseRequirement ($artifactSize -eq $releaseMetadata.build.artifact.sizeBytes) 'release APK size does not match artifact metadata'
+    Assert-ReleaseRequirement ($artifactHash -eq $releaseMetadata.build.artifact.sha256.ToLowerInvariant()) 'release APK checksum does not match artifact metadata'
     $expectedCertificate = $releaseMetadata.signing.certificateSha256.ToLowerInvariant()
     $actualCertificate = $signatureOutput | Select-String -Pattern 'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)' |
         ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() } |

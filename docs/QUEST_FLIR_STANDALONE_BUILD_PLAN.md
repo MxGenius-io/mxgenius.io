@@ -56,8 +56,8 @@ This checklist covers software architecture, automated verification, packaging, 
 
 - [x] Add a packaged-layout assertion for the native thermal preview.
 - [x] Fail verification if Bluetooth permissions, Pi controls, or Pi capabilities return.
-- [ ] Add standalone-launch and optional-activation contract tests.
-- [ ] Build and verify the signed ARM64 release APK.
+- [x] Add standalone-launch and optional-activation contract tests.
+- [x] Build and verify the signed ARM64 release APK.
 - [x] Record `poc.4` code 4 as published to Alpha.
 
 ## 8. Meta landscape cover
@@ -70,8 +70,8 @@ This checklist covers software architecture, automated verification, packaging, 
 
 ## 9. Package and publish
 
-- [ ] Update release notes and artifact metadata for `poc.5` code 5.
-- [ ] Run the complete web, Android, schema, and APK verification suites.
-- [ ] Produce the signed release APK and record its size and SHA-256 digest.
+- [x] Update release notes and artifact metadata for `poc.5` code 5.
+- [x] Run the complete web, Android, schema, and APK verification suites.
+- [x] Produce the signed release APK and record its size and SHA-256 digest.
 - [ ] Upload code 5 to the Alpha channel.
 - [ ] Update the published-build record after Meta accepts it.

@@ -67,7 +67,7 @@ final class BridgeActivation {
         }
     }
 
-    private static BridgeActivation validated(
+    static BridgeActivation validated(
             String sessionId,
             String bridgeUrl,
             String localToken,
