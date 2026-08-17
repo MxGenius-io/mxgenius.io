@@ -3,38 +3,29 @@
 Status date: 2026-08-17
 Target release: `0.1.0-poc.5` (`versionCode 5`)
 
-## Definition of done
+This checklist covers software architecture, automated verification, packaging, and distribution plumbing. Hardware and headset field testing are intentionally not build blockers and are not tracked here.
 
-The FLIR companion works with the Pi powered off and Azure unavailable. The Pi diagnostics appliance works without the FLIR companion. The WebXR scene can show either source independently. Meta renders the intended landscape cover instead of its placeholder.
+## 1. Independent system boundaries
 
-## 1. Freeze independent system boundaries
-
-- [x] Audit the current Quest, Pi, WebXR, and optional relay paths.
-- [x] Identify the accidental shared-relay and automatic Pi dependencies.
-- [x] Document FLIR, Pi, WebXR, and remote-witness contracts as separate lanes.
+- [x] Define FLIR, Pi, WebXR, and remote-witness connections as separate lanes.
+- [x] Make Azure negotiation optional and unrelated to local camera readiness.
 - [x] Remove Pi messages and capabilities from the FLIR companion contract.
-- [x] Keep Azure negotiation optional and outside local camera readiness.
+- [x] Add automated assertions preventing Pi/Bluetooth dependencies from returning to the APK.
 
-Acceptance: no FLIR readiness state depends on Pi or Azure, and no Pi readiness state depends on FLIR.
-
-## 2. Standalone Quest FLIR companion
+## 2. Standalone Quest companion
 
 - [x] Permit launch from the Meta library without a browser deep link.
 - [x] Start the foreground camera service without a session or relay.
-- [x] Enable FLIR discovery and USB permission in standalone mode.
-- [x] Keep an optional relay activation additive instead of mandatory.
-- [ ] Handle USB denial, unplug, replug, sleep, and resume.
-
-Acceptance: launch, plug in FLIR, approve USB, and reach `streaming` with Pi and Azure unavailable.
+- [x] Enable FLIR discovery and USB permission without transport activation.
+- [x] Keep optional WebXR activation additive instead of mandatory.
+- [x] Reserve `0.1.0-poc.5` (`versionCode 5`) for the standalone implementation.
 
 ## 3. Native floating-panel preview
 
 - [x] Add an aspect-preserving thermal preview surface.
 - [x] Deliver throttled camera frames from the service to the Activity.
-- [x] Show explicit standby, permission, streaming, offline, and error states.
-- [x] Release camera and preview resources safely.
-
-Acceptance: the Meta floating panel visibly renders live FLIR pixels without the browser.
+- [x] Render standby, permission, streaming, offline, and failure status independently of transport.
+- [x] Clear the preview and camera resources during component teardown.
 
 ## 4. Remove Pi coupling from the APK
 
@@ -43,46 +34,44 @@ Acceptance: the Meta floating panel visibly renders live FLIR pixels without the
 - [x] Remove automatic Pi connection and Pi relay forwarding.
 - [x] Remove the Quest-side Pi diagnostics client and tests.
 
-Acceptance: the FLIR APK has no Pi or Bluetooth runtime dependency.
+## 5. Quest-owned WebXR thermal transport
 
-## 5. Independent WebXR thermal transport
+- [ ] Define a `ThermalTransport` boundary so capture never depends on a connection.
+- [ ] Move the existing WSS client behind that boundary as an optional remote adapter.
+- [ ] Implement a Quest-owned local transport adapter for the WebXR consumer.
+- [ ] Keep `MXGS/1` framing, throttling, and backpressure consistent across adapters.
+- [ ] Add deterministic producer/consumer tests using synthetic frames.
+- [ ] Ensure transport failure cannot stop or relabel the native camera preview.
 
-- [ ] Test an app-hosted Quest loopback WebSocket from Meta Browser.
-- [ ] Verify secure-context, background-service, and headset lifecycle behavior.
-- [ ] Implement the Quest-local route if supported.
-- [ ] If blocked by Horizon security, implement a separate authenticated thermal WSS relay.
-- [ ] Keep the Pi out of the thermal transport in either design.
+## 6. Frontend source separation
 
-Acceptance: the WebXR thermal orb renders frames while the Pi is powered off.
-
-## 6. Frontend separation
-
-- [ ] Split `thermalSource`, `thermalTransport`, `piDiagnostics`, and `remoteWitness` state.
-- [ ] Launch the FLIR companion independently from Pi diagnostics.
-- [ ] Allow VR entry with either, both, or neither source present.
+- [ ] Replace the shared sensor-chain state with `thermalSource`, `thermalTransport`, `piDiagnostics`, and `remoteWitness` state.
+- [ ] Give thermal and Pi connections separate configuration keys and URLs.
+- [ ] Launch the FLIR companion without negotiating or deriving a Pi endpoint.
+- [ ] Allow the scene to render with either, both, or neither source configured.
+- [ ] Add synthetic browser tests for all four source combinations.
 - [x] Provide an immersive controller- and hand-selectable Back to dashboard control.
 
-Acceptance: one unavailable source never blocks or mislabels another source.
+## 7. Automated APK and release gates
 
-## 7. Meta landscape cover
+- [ ] Add a packaged-layout assertion for the native thermal preview.
+- [ ] Fail verification if Bluetooth permissions, Pi controls, or Pi capabilities return.
+- [ ] Add standalone-launch and optional-activation contract tests.
+- [ ] Build and verify the signed ARM64 release APK.
+- [x] Record `poc.4` code 4 as published to Alpha.
+
+## 8. Meta landscape cover
 
 - [x] Create and validate the canonical 2560 x 1440, 24-bit PNG locally.
-- [x] Map the local file to `Cover art > Landscape` in the store-assets manifest.
-- [ ] Confirm the correct Meta submission and metadata record.
-- [ ] Upload and save the canonical asset in that record.
-- [ ] Confirm Meta finishes processing the image without an asset error.
-- [ ] Capture evidence that Developer Hub renders the intended cover instead of the placeholder.
+- [x] Map it to `Cover art > Landscape` in the store-assets manifest.
+- [ ] Confirm the asset is assigned to the active Meta submission metadata record.
+- [ ] Correct the upload or assignment if Meta still references the placeholder asset.
+- [ ] Record the resulting Meta asset identifier in local release metadata.
 
-Acceptance: Meta's application header visibly renders the intended landscape cover.
+## 9. Package and publish
 
-## 8. Physical and release verification
-
-- [ ] Test FLIR on / Pi off.
-- [ ] Test FLIR off / Pi on.
-- [ ] Test both on and both off.
-- [ ] Run USB reconnect, panel reopen, browser return, sleep/wake, and 30-minute soak tests.
-- [x] Record `poc.4` code 4 as published to Alpha.
-- [ ] Bump, build, sign, and verify `poc.5` code 5.
-- [ ] Upload code 5 to Alpha and repeat the independence matrix.
-
-Acceptance: all automated gates pass and the four-state physical matrix has recorded results.
+- [ ] Update release notes and artifact metadata for `poc.5` code 5.
+- [ ] Run the complete web, Android, schema, and APK verification suites.
+- [ ] Produce the signed release APK and record its size and SHA-256 digest.
+- [ ] Upload code 5 to the Alpha channel.
+- [ ] Update the published-build record after Meta accepts it.
