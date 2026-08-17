@@ -8,7 +8,8 @@ import {
   buildSensorLocalBridgeUrl,
   createSensorLocalToken,
   deriveSensorCompanionBridgeUrl,
-  deriveSensorActivationState
+  deriveSensorActivationState,
+  deriveSensorSourceState
 } from '../xr-session-client.js';
 
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
@@ -26,6 +27,29 @@ test('Quest-local thermal session binds browser and companion without a Pi route
   assert.match(createSensorLocalToken({ getRandomValues: (bytes) => bytes.fill(7) }), /^[a-f0-9]{64}$/);
   assert.match(globeVr, /buildSensorLocalBridgeUrl\(\{/);
   assert.doesNotMatch(globeVr, /deriveSensorCompanionBridgeUrl/);
+});
+
+test('thermal and Pi source state supports every independent configuration', () => {
+  assert.equal(deriveSensorSourceState().mode, 'none');
+  assert.equal(deriveSensorSourceState({ thermalBridgeUrl: 'ws://127.0.0.1:4109/thermal' }).mode, 'thermal-only');
+  assert.equal(deriveSensorSourceState({ piDiagnosticsBridgeUrl: 'wss://pi.example/diagnostics' }).mode, 'pi-only');
+  assert.deepEqual(
+    deriveSensorSourceState({
+      thermalBridgeUrl: 'ws://127.0.0.1:4109/thermal',
+      piDiagnosticsBridgeUrl: 'wss://pi.example/diagnostics',
+      remoteWitnessUrl: 'wss://witness.example/xr'
+    }),
+    {
+      mode: 'thermal-and-pi',
+      thermalTransport: 'configured',
+      thermalSource: 'standby',
+      piDiagnostics: 'configured',
+      remoteWitness: 'configured',
+      companion: 'unknown'
+    }
+  );
+  assert.match(globeVr, /piDiagnosticsBridgeUrl/);
+  assert.match(globeVr, /diagnosticsBridgeUrl: piDiagnosticsBridgeUrl/);
 });
 
 test('immersive scene exits XR before returning to the dashboard', () => {
@@ -93,7 +117,7 @@ test('activation state exposes the failing link in the browser-to-camera chain',
       relay: 'required',
       companion: 'blocked',
       camera: 'blocked',
-      message: 'A session relay is required before the Quest bridge can open.'
+      message: 'A thermal link is required before the Quest companion can stream into XR.'
     }
   );
   assert.equal(deriveSensorActivationState({

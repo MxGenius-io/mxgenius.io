@@ -45,6 +45,27 @@ export function buildSensorLocalBridgeUrl({ sessionId, localToken, port = LOCAL_
   return url.href;
 }
 
+export function deriveSensorSourceState({
+  thermalBridgeUrl = '',
+  piDiagnosticsBridgeUrl = '',
+  remoteWitnessUrl = ''
+} = {}) {
+  const thermalConfigured = Boolean(String(thermalBridgeUrl || '').trim());
+  const piConfigured = Boolean(String(piDiagnosticsBridgeUrl || '').trim());
+  return {
+    mode: thermalConfigured && piConfigured
+      ? 'thermal-and-pi'
+      : thermalConfigured
+        ? 'thermal-only'
+        : piConfigured ? 'pi-only' : 'none',
+    thermalTransport: thermalConfigured ? 'configured' : 'unconfigured',
+    thermalSource: 'standby',
+    piDiagnostics: piConfigured ? 'configured' : 'unconfigured',
+    remoteWitness: String(remoteWitnessUrl || '').trim() ? 'configured' : 'unconfigured',
+    companion: thermalConfigured ? 'unknown' : 'not-requested'
+  };
+}
+
 function companionQuery({ sessionId, bridgeUrl = '', localToken = '', allowInsecurePilot = false }) {
   const query = new URLSearchParams({ sessionId: validSessionId(sessionId) });
   if (localToken) query.set('localToken', validLocalToken(localToken));
@@ -117,7 +138,7 @@ export function deriveSensorActivationState({
       relay: 'required',
       companion: 'blocked',
       camera: 'blocked',
-      message: 'A session relay is required before the Quest bridge can open.'
+      message: 'A thermal link is required before the Quest companion can stream into XR.'
     };
   }
   if (companionStatus === 'ready' && sourceStatus === 'streaming') {
@@ -150,12 +171,12 @@ export function deriveSensorActivationState({
   if (['failed', 'disconnected'].includes(relayState)) {
     return {
       state: 'relay-unavailable', canActivate: true, relay: relayState, companion: 'unknown', camera: 'blocked',
-      message: 'The relay did not answer. The bridge can open, but it cannot deliver frames yet.'
+      message: 'The thermal link did not answer. The companion can open, but XR cannot receive frames yet.'
     };
   }
   return {
     state: 'ready-to-open', canActivate: true, relay: relayState, companion: companionStatus, camera: 'waiting',
-    message: 'Relay assigned. Open the Quest bridge, then approve the FLIR ONE connection.'
+    message: 'Thermal link assigned. Open the Quest companion, then approve the FLIR ONE connection.'
   };
 }
 

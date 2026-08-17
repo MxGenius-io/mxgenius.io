@@ -56,16 +56,16 @@
   </div>
   <a class="back" href="dashboard.html">Back to dashboard</a>
   <section class="sensor-setup" id="sensorSetup" aria-live="polite">
-    <strong>SENSOR CHAIN · REMOTE WITNESS</strong>
-    <span id="sensorSetupStatus">Checking the Quest companion and diagnostic bridge…</span>
+    <strong>FLIR THERMAL · QUEST LOCAL</strong>
+    <span id="sensorSetupStatus">Checking the independent Quest thermal link…</span>
     <ol class="sensor-chain" aria-label="Sensor connection stages">
       <li id="sensorRelayStep" data-state="required">1 · THERMAL LINK</li>
       <li id="sensorCompanionStep" data-state="blocked">2 · QUEST APP</li>
       <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
     </ol>
     <div class="sensor-actions">
-      <a id="openSensorCompanion" href="#">Open sensor bridge</a>
-      <a id="downloadSensorCompanion" href="#" download hidden>Install sensor bridge</a>
+      <a id="openSensorCompanion" href="#">Open FLIR companion</a>
+      <a id="downloadSensorCompanion" href="#" download hidden>Install FLIR companion</a>
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
   </section>
@@ -74,14 +74,15 @@
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=2';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=1';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=2';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
       buildSensorLocalBridgeUrl,
       createSensorLocalToken,
-      deriveSensorActivationState
-    } from './xr-session-client.js?v=2';
+      deriveSensorActivationState,
+      deriveSensorSourceState
+    } from './xr-session-client.js?v=3';
 
     const status = document.getElementById('fleetStatus');
     const sceneTitle = document.getElementById('sceneTitle');
@@ -107,14 +108,20 @@
     }
     const configuredThermalBridgeUrl = pageQuery.get('thermalBridge')
       || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
-      || pageQuery.get('sensorBridge')
-      || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
-      || localStorage.getItem('mxg_sensor_bridge_url')
+      || localStorage.getItem('mxg_thermal_bridge_url')
       || '';
-    const thermalBridgeUrl = configuredThermalBridgeUrl || buildSensorLocalBridgeUrl({
+    const thermalLocalEnabled = pageQuery.get('thermal') !== 'off';
+    const thermalBridgeUrl = configuredThermalBridgeUrl || (thermalLocalEnabled ? buildSensorLocalBridgeUrl({
       sessionId: xrSessionId,
       localToken: sensorLocalToken
-    });
+    }) : '');
+    const piDiagnosticsBridgeUrl = pageQuery.get('piDiagnosticsBridge')
+      || globalThis.MXGENIUS_CONFIG?.piDiagnosticsBridgeUrl
+      || localStorage.getItem('mxg_pi_diagnostics_bridge_url')
+      || '';
+    const remoteWitnessUrl = pageQuery.get('remoteWitnessBridge')
+      || globalThis.MXGENIUS_CONFIG?.remoteWitnessBridgeUrl
+      || '';
     const allowInsecurePilot = globalThis.MXGENIUS_CONFIG?.allowInsecurePilot === true
       || (location.protocol === 'http:' && (pageQuery.get('insecurePilot') === '1' || ['localhost', '127.0.0.1'].includes(location.hostname)));
     const sensorCompanionBridgeUrl = pageQuery.get('thermalIngest') || pageQuery.get('sensorIngest') || '';
@@ -122,7 +129,7 @@
     const companionPackage = globalThis.MXGENIUS_CONFIG?.sensorCompanionPackage || 'io.mxgenius.sensorbridge';
     const companionDownloadUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionDownloadUrl || '';
     let companionActivationPending = false;
-    let sensorSnapshot = { relayState: 'connecting', companionStatus: 'unknown', sourceStatus: 'standby' };
+    let sensorSources = deriveSensorSourceState({ thermalBridgeUrl, piDiagnosticsBridgeUrl, remoteWitnessUrl });
     let activationTimeout = null;
 
     try {
@@ -130,14 +137,14 @@
         base: companionLaunchBase,
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
-        localToken: sensorLocalToken,
+        localToken: thermalLocalEnabled ? sensorLocalToken : '',
         allowInsecurePilot
       });
       const intentLaunchUrl = buildSensorCompanionIntentUrl({
         packageName: companionPackage,
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
-        localToken: sensorLocalToken,
+        localToken: thermalLocalEnabled ? sensorLocalToken : '',
         fallbackUrl: companionDownloadUrl,
         allowInsecurePilot
       });
@@ -154,7 +161,9 @@
     function renderSensorSetup() {
       const activation = deriveSensorActivationState({
         bridgeUrl: thermalBridgeUrl,
-        ...sensorSnapshot,
+        relayState: sensorSources.thermalTransport,
+        companionStatus: sensorSources.companion,
+        sourceStatus: sensorSources.thermalSource,
         activating: companionActivationPending
       });
       sensorSetup.dataset.state = activation.state;
@@ -166,10 +175,10 @@
         : `${activation.message} Session ${xrSessionId.slice(0, 8)}.`;
       openSensorCompanion.setAttribute('aria-disabled', String(!activation.canActivate || Boolean(openSensorCompanion.dataset.activationError)));
       openSensorCompanion.textContent = activation.state === 'streaming'
-        ? 'Bridge connected'
+        ? 'Thermal connected'
         : activation.state === 'relay-required'
-          ? 'Relay required'
-          : companionActivationPending ? 'Opening bridge…' : 'Open sensor bridge';
+          ? 'Thermal link required'
+          : companionActivationPending ? 'Opening companion…' : 'Open FLIR companion';
     }
     openSensorCompanion.addEventListener('click', (event) => {
       if (openSensorCompanion.getAttribute('aria-disabled') === 'true') {
@@ -180,9 +189,9 @@
       renderSensorSetup();
       clearTimeout(activationTimeout);
       activationTimeout = setTimeout(() => {
-        if (sensorSnapshot.companionStatus !== 'ready') {
+        if (sensorSources.companion !== 'ready') {
           companionActivationPending = false;
-          sensorSnapshot.companionStatus = 'missing';
+          sensorSources.companion = 'missing';
           renderSensorSetup();
         }
       }, 12000);
@@ -224,18 +233,29 @@
     const xrSensors = new XRSensorOrb({
       sessionId: xrSessionId,
       bridgeUrl: thermalBridgeUrl,
+      diagnosticsBridgeUrl: piDiagnosticsBridgeUrl,
+      remoteWitnessUrl,
       surface: sceneSurface,
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
         detail: { action, input, target, context: { surface: sceneSurface } }
       })),
-      onStatus: ({ state, sourceStatus, companionStatus }) => {
-        sensorSnapshot = { relayState: state, sourceStatus, companionStatus };
+      onStatus: ({ thermalTransport, thermalSource, piDiagnostics, remoteWitness, companionStatus }) => {
+        sensorSources = {
+          ...sensorSources,
+          thermalTransport,
+          thermalSource,
+          piDiagnostics,
+          remoteWitness,
+          companion: companionStatus
+        };
         if (companionStatus === 'ready') {
           companionActivationPending = false;
           clearTimeout(activationTimeout);
         }
         renderSensorSetup();
-        if (renderer.xr.isPresenting && state !== 'connected') status.textContent = `Sensor chain ${state} · thermal ${sourceStatus}`;
+        if (renderer.xr.isPresenting && thermalTransport !== 'connected') {
+          status.textContent = `Thermal ${thermalTransport}/${thermalSource} · Pi ${piDiagnostics}`;
+        }
       }
     });
     scene.add(xrSensors.group);

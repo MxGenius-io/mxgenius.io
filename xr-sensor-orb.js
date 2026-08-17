@@ -6,24 +6,16 @@ import {
   loadDiagnosticsLayout
 } from './xr-diagnostics-layout.js';
 
-const BRIDGE_STORAGE_KEY = 'mxg_sensor_bridge_url';
-const TOKEN_STORAGE_KEY = 'mxg_sensor_bridge_token';
+const THERMAL_BRIDGE_STORAGE_KEY = 'mxg_thermal_bridge_url';
+const THERMAL_TOKEN_STORAGE_KEY = 'mxg_thermal_bridge_token';
+const PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY = 'mxg_pi_diagnostics_bridge_url';
 const FRAME_MAGIC = 0x4d584753;
 
 function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
 }
 
-function configuredBridge({ url: preferredUrl = '', token: preferredToken = '' } = {}) {
-  const query = new URLSearchParams(location.search);
-  const url = preferredUrl
-    || query.get('thermalBridge')
-    || query.get('sensorBridge')
-    || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
-    || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
-    || localStorage.getItem(BRIDGE_STORAGE_KEY)
-    || '';
-  const token = preferredToken || query.get('thermalToken') || query.get('sensorToken') || localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+function normalizedSocket(url, token = '') {
   if (!url) return { url: '', token };
   try {
     const parsed = new URL(url, location.href);
@@ -33,6 +25,26 @@ function configuredBridge({ url: preferredUrl = '', token: preferredToken = '' }
   } catch {
     return { url: '', token };
   }
+}
+
+function configuredThermalBridge({ url: preferredUrl = '', token: preferredToken = '' } = {}) {
+  const query = new URLSearchParams(location.search);
+  const url = preferredUrl
+    || query.get('thermalBridge')
+    || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
+    || localStorage.getItem(THERMAL_BRIDGE_STORAGE_KEY)
+    || '';
+  const token = preferredToken || query.get('thermalToken') || localStorage.getItem(THERMAL_TOKEN_STORAGE_KEY) || '';
+  return normalizedSocket(url, token);
+}
+
+function configuredDiagnosticsBridge({ url: preferredUrl = '' } = {}) {
+  const query = new URLSearchParams(location.search);
+  return normalizedSocket(preferredUrl
+    || query.get('piDiagnosticsBridge')
+    || globalThis.MXGENIUS_CONFIG?.piDiagnosticsBridgeUrl
+    || localStorage.getItem(PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY)
+    || '');
 }
 
 function configuredDiagnosticsSchemas() {
@@ -56,7 +68,16 @@ function ironColor(normalized) {
 }
 
 export class XRSensorOrb {
-  constructor({ sessionId = null, bridgeUrl = '', bridgeToken = '', surface = 'fleet-globe', onAction = () => {}, onStatus = () => {} } = {}) {
+  constructor({
+    sessionId = null,
+    bridgeUrl = '',
+    bridgeToken = '',
+    diagnosticsBridgeUrl = '',
+    remoteWitnessUrl = '',
+    surface = 'fleet-globe',
+    onAction = () => {},
+    onStatus = () => {}
+  } = {}) {
     this.sessionId = clean(sessionId) || null;
     this.surface = clean(surface, 'fleet-globe');
     this.onAction = onAction;
@@ -68,6 +89,10 @@ export class XRSensorOrb {
     this.socket = null;
     this.reconnectTimer = null;
     this.reconnectAttempt = 0;
+    this.diagnosticsState = 'unconfigured';
+    this.diagnosticsSocket = null;
+    this.diagnosticsReconnectTimer = null;
+    this.diagnosticsReconnectAttempt = 0;
     this.diagnostics = null;
     this.sourceStatus = 'standby';
     this.companionStatus = 'unknown';
@@ -81,7 +106,9 @@ export class XRSensorOrb {
     this.cameraQuaternion = new THREE.Quaternion();
     this.hitPosition = new THREE.Vector3();
     this.fallbackOffset = new THREE.Vector3(0.42, -0.2, -0.66);
-    this.bridge = configuredBridge({ url: bridgeUrl, token: bridgeToken });
+    this.bridge = configuredThermalBridge({ url: bridgeUrl, token: bridgeToken });
+    this.diagnosticsBridge = configuredDiagnosticsBridge({ url: diagnosticsBridgeUrl });
+    this.remoteWitnessState = remoteWitnessUrl ? 'configured' : 'unconfigured';
     this.diagnosticsSchemaUrls = configuredDiagnosticsSchemas();
     this.diagnosticsLayout = null;
     this.diagnosticsLayoutState = 'loading';
@@ -209,6 +236,11 @@ export class XRSensorOrb {
   }
 
   connect() {
+    this.connectThermal();
+    this.connectDiagnostics();
+  }
+
+  connectThermal() {
     if (!this.bridge.url || this.socket || (!this.presenting && !this.preflighting)) {
       if (!this.bridge.url) this.setState('unconfigured');
       return;
@@ -225,7 +257,7 @@ export class XRSensorOrb {
           type: 'node.announce',
           nodeType: 'xr-client',
           nodeName: this.surface === 'sensor-diagnostics' ? 'MXG Sensor Diagnostics' : 'MXG Fleet Globe',
-          capabilities: ['thermal-display', 'diagnostics-display', 'webxr'],
+          capabilities: ['thermal-display', 'webxr'],
           surface: this.surface
         }));
         if (this.sessionId) socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
@@ -244,6 +276,41 @@ export class XRSensorOrb {
     }
   }
 
+  connectDiagnostics() {
+    if (!this.diagnosticsBridge.url || this.diagnosticsSocket || (!this.presenting && !this.preflighting)) {
+      if (!this.diagnosticsBridge.url) this.setDiagnosticsState('unconfigured');
+      return;
+    }
+    this.setDiagnosticsState('connecting');
+    try {
+      const socket = new WebSocket(this.diagnosticsBridge.url);
+      this.diagnosticsSocket = socket;
+      socket.addEventListener('open', () => {
+        this.diagnosticsReconnectAttempt = 0;
+        this.setDiagnosticsState('connected');
+        socket.send(JSON.stringify({
+          type: 'node.announce',
+          nodeType: 'xr-client',
+          nodeName: this.surface === 'sensor-diagnostics' ? 'MXG Pi Diagnostics' : 'MXG Fleet Globe',
+          capabilities: ['diagnostics-display', 'webxr'],
+          surface: this.surface
+        }));
+        if (this.sessionId) socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
+      });
+      socket.addEventListener('message', (event) => this.handleDiagnosticsMessage(event));
+      socket.addEventListener('close', () => {
+        if (this.diagnosticsSocket === socket) this.diagnosticsSocket = null;
+        this.setDiagnosticsState('disconnected');
+        this.scheduleDiagnosticsReconnect();
+      });
+      socket.addEventListener('error', () => this.setDiagnosticsState('failed'));
+    } catch {
+      this.diagnosticsSocket = null;
+      this.setDiagnosticsState('failed');
+      this.scheduleDiagnosticsReconnect();
+    }
+  }
+
   scheduleReconnect() {
     if ((!this.presenting && !this.preflighting) || !this.bridge.url || this.reconnectTimer) return;
     const delay = Math.min(15000, 1000 * 2 ** this.reconnectAttempt);
@@ -254,11 +321,40 @@ export class XRSensorOrb {
     }, delay);
   }
 
+  scheduleDiagnosticsReconnect() {
+    if ((!this.presenting && !this.preflighting) || !this.diagnosticsBridge.url || this.diagnosticsReconnectTimer) return;
+    const delay = Math.min(15000, 1000 * 2 ** this.diagnosticsReconnectAttempt);
+    this.diagnosticsReconnectAttempt += 1;
+    this.diagnosticsReconnectTimer = setTimeout(() => {
+      this.diagnosticsReconnectTimer = null;
+      this.connectDiagnostics();
+    }, delay);
+  }
+
+  emitStatus() {
+    this.onStatus({
+      state: this.state,
+      sourceStatus: this.sourceStatus,
+      companionStatus: this.companionStatus,
+      thermalTransport: this.state,
+      thermalSource: this.sourceStatus,
+      piDiagnostics: this.diagnosticsState,
+      remoteWitness: this.remoteWitnessState,
+      frames: this.frames
+    });
+  }
+
   setState(state) {
     this.state = state;
     const colors = { unconfigured: 0x64748b, connecting: 0xf59e0b, connected: 0x22d3ee, streaming: 0xfb923c, disconnected: 0x64748b, failed: 0xfb7185 };
     this.ring.material.color.setHex(colors[state] || colors.disconnected);
-    this.onStatus({ state, sourceStatus: this.sourceStatus, companionStatus: this.companionStatus, frames: this.frames });
+    this.emitStatus();
+    this.drawPanel();
+  }
+
+  setDiagnosticsState(state) {
+    this.diagnosticsState = state;
+    this.emitStatus();
     this.drawPanel();
   }
 
@@ -269,28 +365,10 @@ export class XRSensorOrb {
         if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
           this.drawPanel();
-        } else if (message.type === 'diagnostics.snapshot' || message.type === 'diagnostics.summary' || message.type === 'diagnostics.state') {
-          this.diagnostics = message;
-          this.drawPanel();
-          window.dispatchEvent(new CustomEvent('mxgenius:sensor-diagnostics', { detail: message }));
-        } else if (message.type === 'diagnostics.delta') {
-          const next = applyDiagnosticsDelta(this.diagnostics, message);
-          if (!next) {
-            this.socket?.send(JSON.stringify({ type: 'diagnostics.resync' }));
-            return;
-          }
-          this.diagnostics = next;
-          this.drawPanel();
-          window.dispatchEvent(new CustomEvent('mxgenius:sensor-diagnostics', { detail: next }));
-        } else if (message.type === 'scan.observed') {
-          this.scans.unshift(message);
-          this.scans.splice(5);
-          this.drawPanel();
-          window.dispatchEvent(new CustomEvent('mxgenius:scan-observed', { detail: message }));
         } else if (message.type === 'source.status') {
           this.sourceStatus = message.status || 'unknown';
           if (message.sourceType === 'flir-one-pro') this.companionStatus = message.status === 'offline' ? 'offline' : 'ready';
-          this.onStatus({ state: this.state, sourceStatus: this.sourceStatus, companionStatus: this.companionStatus, frames: this.frames });
+          this.emitStatus();
           this.drawPanel();
         } else if (message.type === 'node.status' && message.node?.nodeId) {
           if (message.status === 'disconnected') this.nodes.delete(message.node.nodeId);
@@ -298,7 +376,7 @@ export class XRSensorOrb {
           const hasFlirCompanion = [...this.nodes.values()].some((node) =>
             Array.isArray(node.capabilities) && node.capabilities.includes('flir-one-pro-usb-c'));
           this.companionStatus = hasFlirCompanion ? 'ready' : 'missing';
-          this.onStatus({ state: this.state, sourceStatus: this.sourceStatus, companionStatus: this.companionStatus, frames: this.frames });
+          this.emitStatus();
           this.drawPanel();
         }
       } catch {
@@ -307,6 +385,34 @@ export class XRSensorOrb {
       return;
     }
     this.decodeFrame(event.data).catch(() => this.setState('failed'));
+  }
+
+  handleDiagnosticsMessage(event) {
+    if (typeof event.data !== 'string') return;
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === 'diagnostics.snapshot' || message.type === 'diagnostics.summary' || message.type === 'diagnostics.state') {
+        this.diagnostics = message;
+        this.setDiagnosticsState('receiving');
+        window.dispatchEvent(new CustomEvent('mxgenius:sensor-diagnostics', { detail: message }));
+      } else if (message.type === 'diagnostics.delta') {
+        const next = applyDiagnosticsDelta(this.diagnostics, message);
+        if (!next) {
+          this.diagnosticsSocket?.send(JSON.stringify({ type: 'diagnostics.resync' }));
+          return;
+        }
+        this.diagnostics = next;
+        this.setDiagnosticsState('receiving');
+        window.dispatchEvent(new CustomEvent('mxgenius:sensor-diagnostics', { detail: next }));
+      } else if (message.type === 'scan.observed') {
+        this.scans.unshift(message);
+        this.scans.splice(5);
+        this.setDiagnosticsState('receiving');
+        window.dispatchEvent(new CustomEvent('mxgenius:scan-observed', { detail: message }));
+      }
+    } catch {
+      this.setDiagnosticsState('failed');
+    }
   }
 
   async decodeFrame(buffer) {
@@ -387,19 +493,29 @@ export class XRSensorOrb {
     ctx.clearRect(0, 0, this.panelCanvas.width, this.panelCanvas.height);
     ctx.fillStyle = 'rgba(4, 13, 24, 0.96)';
     ctx.fillRect(0, 0, this.panelCanvas.width, this.panelCanvas.height);
-    ctx.strokeStyle = this.state === 'failed' ? '#fb7185' : this.state === 'streaming' ? '#fb923c' : '#22d3ee';
+    ctx.strokeStyle = this.state === 'failed' || this.diagnosticsState === 'failed'
+      ? '#fb7185'
+      : this.state === 'streaming' ? '#fb923c' : '#22d3ee';
     ctx.lineWidth = 7;
     ctx.strokeRect(4, 4, 1016, 632);
     ctx.fillStyle = '#67e8f9';
     ctx.font = '700 30px ui-monospace, monospace';
-    ctx.fillText(clean(this.diagnosticsLayout?.panel?.title, 'PI EDGE DIAGNOSTICS'), 42, 58);
+    ctx.fillText('FLIR THERMAL + PI DIAGNOSTICS', 42, 58);
     ctx.fillStyle = '#e9f8ff';
     ctx.font = '600 24px system-ui, sans-serif';
-    const contract = data.schemaVersion ? ` · CONTRACT ${clean(data.schemaVersion).toUpperCase()}` : '';
-    ctx.fillText(`${clean(this.state, 'offline').toUpperCase()} · ${clean(this.sourceStatus, 'standby').toUpperCase()}${contract}`, 42, 98);
-    const rows = this.diagnosticsLayout
+    ctx.fillText(
+      `THERMAL ${clean(this.state, 'offline').toUpperCase()}/${clean(this.sourceStatus, 'standby').toUpperCase()} · PI ${clean(this.diagnosticsState).toUpperCase()}`,
+      42,
+      98
+    );
+    const rows = this.diagnostics && this.diagnosticsLayout
       ? formatDiagnosticsLayout(this.diagnosticsLayout, data)
-      : [{ label: 'PI LAYOUT', value: this.diagnosticsLayoutState === 'loading' ? 'loading schema…' : 'schema unavailable' }];
+      : [{
+          label: 'PI DIAGNOSTICS',
+          value: this.diagnosticsBridge.url
+            ? this.diagnosticsLayoutState === 'loading' ? 'loading schema…' : this.diagnosticsState
+            : 'not configured'
+        }];
     let y = 158;
     for (const { label, value } of rows) {
       ctx.fillStyle = '#7f9daf';
@@ -412,7 +528,9 @@ export class XRSensorOrb {
     }
     ctx.fillStyle = '#8ba6b8';
     ctx.font = '20px system-ui, sans-serif';
-    ctx.fillText(this.bridge.url ? 'Independent FLIR stream · tap the orb to control the thermal source.' : 'Configure a thermal transport to connect.', 42, 600);
+    const thermalSummary = this.bridge.url ? 'FLIR independent' : 'FLIR not configured';
+    const piSummary = this.diagnosticsBridge.url ? 'Pi independent' : 'Pi not configured';
+    ctx.fillText(`${thermalSummary} · ${piSummary} · tap the orb for details.`, 42, 600);
     this.panelTexture.needsUpdate = true;
   }
 

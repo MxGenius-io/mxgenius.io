@@ -38,7 +38,7 @@ test('fleet globe mounts a hand-adjacent thermal and diagnostics sensor orb', ()
   assert.match(globe, /xrSensors\.setPresenting\(true\)/);
   assert.match(globe, /xrSensors\.startPreflight\(\)/);
   assert.match(globe, /mxgenius:\/\/sensor-bridge/);
-  assert.match(globe, /REMOTE WITNESS/);
+  assert.match(globe, /FLIR THERMAL · QUEST LOCAL/);
   assert.match(sensors, /MXGeniusSensorOrb/);
   assert.match(sensors, /MXGeniusDiagnosticsPanel/);
   assert.match(sensors, /diagnostics\.snapshot/);

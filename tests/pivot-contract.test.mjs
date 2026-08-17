@@ -114,6 +114,9 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(localThermalBroker, /invalid thermal session/);
   assert.match(localThermalTransport, /MxgsFrameEncoder\.jpeg/);
   assert.match(companionService, /localTransport\.sendFrame\(bitmap\)/);
+  assert.match(sensorOrb, /this\.diagnosticsSocket = socket/);
+  assert.match(sensorOrb, /this\.socket = socket/);
+  assert.match(sensorOrb, /piDiagnosticsBridge/);
 });
 
 test('legacy JetNet probes require runtime credentials and do not print token fragments', () => {

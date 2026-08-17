@@ -45,11 +45,11 @@ This checklist covers software architecture, automated verification, packaging, 
 
 ## 6. Frontend source separation
 
-- [ ] Replace the shared sensor-chain state with `thermalSource`, `thermalTransport`, `piDiagnostics`, and `remoteWitness` state.
-- [ ] Give thermal and Pi connections separate configuration keys and URLs.
+- [x] Replace the shared sensor-chain state with `thermalSource`, `thermalTransport`, `piDiagnostics`, and `remoteWitness` state.
+- [x] Give thermal and Pi connections separate configuration keys and URLs.
 - [x] Launch the FLIR companion without negotiating or deriving a Pi endpoint.
-- [ ] Allow the scene to render with either, both, or neither source configured.
-- [ ] Add synthetic browser tests for all four source combinations.
+- [x] Allow the scene to render with either, both, or neither source configured.
+- [x] Add synthetic browser tests for all four source combinations.
 - [x] Provide an immersive controller- and hand-selectable Back to dashboard control.
 
 ## 7. Automated APK and release gates
