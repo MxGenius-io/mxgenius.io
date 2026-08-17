@@ -59,7 +59,7 @@
     <strong>SENSOR CHAIN · REMOTE WITNESS</strong>
     <span id="sensorSetupStatus">Checking the Quest companion and diagnostic bridge…</span>
     <ol class="sensor-chain" aria-label="Sensor connection stages">
-      <li id="sensorRelayStep" data-state="required">1 · RELAY</li>
+      <li id="sensorRelayStep" data-state="required">1 · THERMAL LINK</li>
       <li id="sensorCompanionStep" data-state="blocked">2 · QUEST APP</li>
       <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
     </ol>
@@ -78,7 +78,8 @@
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
-      deriveSensorCompanionBridgeUrl,
+      buildSensorLocalBridgeUrl,
+      createSensorLocalToken,
       deriveSensorActivationState
     } from './xr-session-client.js?v=2';
 
@@ -99,25 +100,29 @@
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
-    const sensorBridgeUrl = pageQuery.get('sensorBridge')
+    let sensorLocalToken = sessionStorage.getItem('mxg_thermal_local_token') || '';
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(sensorLocalToken)) {
+      sensorLocalToken = createSensorLocalToken();
+      sessionStorage.setItem('mxg_thermal_local_token', sensorLocalToken);
+    }
+    const configuredThermalBridgeUrl = pageQuery.get('thermalBridge')
+      || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
+      || pageQuery.get('sensorBridge')
       || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
       || localStorage.getItem('mxg_sensor_bridge_url')
       || '';
+    const thermalBridgeUrl = configuredThermalBridgeUrl || buildSensorLocalBridgeUrl({
+      sessionId: xrSessionId,
+      localToken: sensorLocalToken
+    });
     const allowInsecurePilot = globalThis.MXGENIUS_CONFIG?.allowInsecurePilot === true
       || (location.protocol === 'http:' && (pageQuery.get('insecurePilot') === '1' || ['localhost', '127.0.0.1'].includes(location.hostname)));
-    let sensorCompanionBridgeUrl = pageQuery.get('sensorIngest') || '';
-    if (!sensorCompanionBridgeUrl && sensorBridgeUrl) {
-      try {
-        sensorCompanionBridgeUrl = deriveSensorCompanionBridgeUrl(sensorBridgeUrl, { allowInsecurePilot });
-      } catch {
-        // A production gateway must issue a separate producer-scoped URL.
-      }
-    }
+    const sensorCompanionBridgeUrl = pageQuery.get('thermalIngest') || pageQuery.get('sensorIngest') || '';
     const companionLaunchBase = globalThis.MXGENIUS_CONFIG?.sensorCompanionLaunchUrl || 'mxgenius://sensor-bridge';
     const companionPackage = globalThis.MXGENIUS_CONFIG?.sensorCompanionPackage || 'io.mxgenius.sensorbridge';
     const companionDownloadUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionDownloadUrl || '';
     let companionActivationPending = false;
-    let sensorSnapshot = { relayState: sensorBridgeUrl ? 'connecting' : 'unconfigured', companionStatus: 'unknown', sourceStatus: 'standby' };
+    let sensorSnapshot = { relayState: 'connecting', companionStatus: 'unknown', sourceStatus: 'standby' };
     let activationTimeout = null;
 
     try {
@@ -125,12 +130,14 @@
         base: companionLaunchBase,
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
+        localToken: sensorLocalToken,
         allowInsecurePilot
       });
       const intentLaunchUrl = buildSensorCompanionIntentUrl({
         packageName: companionPackage,
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
+        localToken: sensorLocalToken,
         fallbackUrl: companionDownloadUrl,
         allowInsecurePilot
       });
@@ -146,7 +153,7 @@
     }
     function renderSensorSetup() {
       const activation = deriveSensorActivationState({
-        bridgeUrl: sensorCompanionBridgeUrl,
+        bridgeUrl: thermalBridgeUrl,
         ...sensorSnapshot,
         activating: companionActivationPending
       });
@@ -216,6 +223,7 @@
     scene.add(xrVoice.group);
     const xrSensors = new XRSensorOrb({
       sessionId: xrSessionId,
+      bridgeUrl: thermalBridgeUrl,
       surface: sceneSurface,
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
         detail: { action, input, target, context: { surface: sceneSurface } }

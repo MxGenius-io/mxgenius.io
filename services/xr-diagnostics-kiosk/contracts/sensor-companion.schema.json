@@ -12,7 +12,11 @@
     "activation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "sessionId", "bridgeUrl"],
+      "required": ["version", "sessionId"],
+      "anyOf": [
+        { "required": ["localToken"] },
+        { "required": ["bridgeUrl"] }
+      ],
       "allOf": [
         {
           "if": { "properties": { "bridgeUrl": { "pattern": "^ws://" } } },
@@ -22,6 +26,7 @@
       "properties": {
         "version": { "const": 1 },
         "sessionId": { "$ref": "#/$defs/sessionId" },
+        "localToken": { "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" },
         "bridgeUrl": { "type": "string", "pattern": "^wss?://" },
         "pilot": { "type": "boolean", "default": false }
       }
@@ -53,7 +58,7 @@
       "properties": {
         "type": { "const": "source.status" },
         "sourceType": { "const": "flir-one-pro" },
-        "status": { "enum": ["discovering", "permission-required", "permission-denied", "connecting", "ready", "streaming", "offline", "failed"] },
+        "status": { "enum": ["standby", "discovering", "permission-required", "permission-denied", "connecting", "ready", "streaming", "offline", "failed"] },
         "sessionId": { "$ref": "#/$defs/sessionId" },
         "observedAtMs": { "type": "integer", "minimum": 0 },
         "reason": { "type": ["string", "null"], "maxLength": 240 }

@@ -5,11 +5,28 @@ import {
   XRSessionClient,
   buildSensorCompanionIntentUrl,
   buildSensorCompanionLaunchUrl,
+  buildSensorLocalBridgeUrl,
+  createSensorLocalToken,
   deriveSensorCompanionBridgeUrl,
   deriveSensorActivationState
 } from '../xr-session-client.js';
 
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
+
+test('Quest-local thermal session binds browser and companion without a Pi route', () => {
+  const localToken = 'a'.repeat(64);
+  assert.equal(
+    buildSensorLocalBridgeUrl({ sessionId: 'case-42', localToken }),
+    `ws://127.0.0.1:4109/thermal?sessionId=case-42&token=${localToken}`
+  );
+  assert.equal(
+    buildSensorCompanionLaunchUrl({ sessionId: 'case-42', localToken }),
+    `mxgenius://sensor-bridge?sessionId=case-42&localToken=${localToken}`
+  );
+  assert.match(createSensorLocalToken({ getRandomValues: (bytes) => bytes.fill(7) }), /^[a-f0-9]{64}$/);
+  assert.match(globeVr, /buildSensorLocalBridgeUrl\(\{/);
+  assert.doesNotMatch(globeVr, /deriveSensorCompanionBridgeUrl/);
+});
 
 test('immersive scene exits XR before returning to the dashboard', () => {
   assert.match(globeVr, /backButton\.name = 'BackToDashboard'/);

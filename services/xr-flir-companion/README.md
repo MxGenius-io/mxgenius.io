@@ -2,13 +2,15 @@
 
 This Android companion is a standalone native FLIR ONE viewer for Meta Quest. It starts from the Meta library, requests Android USB-host permission, and renders a live thermal preview in its floating panel without requiring the Pi, browser, Azure, or a relay.
 
-An optional WebXR handoff may open
+The WebXR page opens a token-bound Quest-local handoff:
 
 ```text
-mxgenius://sensor-bridge?sessionId=<opaque-id>&bridge=<short-lived-wss-url>
+mxgenius://sensor-bridge?sessionId=<opaque-id>&localToken=<ephemeral-token>
 ```
 
-on the Quest. That handoff adds an independent thermal transport after local preview is available; it is not a camera activation requirement. When assigned, the companion forwards throttled JPEG thermal frames in the `MXGS/1` envelope. The Raspberry Pi diagnostics appliance is a separate system and is not packaged into this APK.
+The companion hosts `ws://127.0.0.1:4109/thermal` for the Meta Browser on the same Quest. It accepts only the matching session/token and an approved MxGenius browser origin, then forwards throttled JPEG thermal frames in the `MXGS/1` envelope. This handoff is not a camera activation requirement. A separately issued `wss://` relay may still be included for remote witnessing. The Raspberry Pi diagnostics appliance is a separate system and is not packaged into this APK.
+
+The loopback design follows the browser secure-context model: `127.0.0.1` is a potentially trustworthy origin, while arbitrary LAN `ws://` endpoints are not. The ephemeral token stays in browser session storage and the Android activation intent; it is not persisted by the companion.
 
 ## Vendor boundary
 

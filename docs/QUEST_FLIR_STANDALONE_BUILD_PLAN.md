@@ -36,26 +36,26 @@ This checklist covers software architecture, automated verification, packaging, 
 
 ## 5. Quest-owned WebXR thermal transport
 
-- [ ] Define a `ThermalTransport` boundary so capture never depends on a connection.
-- [ ] Move the existing WSS client behind that boundary as an optional remote adapter.
-- [ ] Implement a Quest-owned local transport adapter for the WebXR consumer.
-- [ ] Keep `MXGS/1` framing, throttling, and backpressure consistent across adapters.
-- [ ] Add deterministic producer/consumer tests using synthetic frames.
-- [ ] Ensure transport failure cannot stop or relabel the native camera preview.
+- [x] Define a `ThermalTransport` boundary so capture never depends on a connection.
+- [x] Move the existing WSS client behind that boundary as an optional remote adapter.
+- [x] Implement a Quest-owned local transport adapter for the WebXR consumer.
+- [x] Keep `MXGS/1` framing, throttling, and backpressure consistent across adapters.
+- [x] Add deterministic producer/consumer tests using synthetic frames.
+- [x] Ensure transport failure cannot stop or relabel the native camera preview.
 
 ## 6. Frontend source separation
 
 - [ ] Replace the shared sensor-chain state with `thermalSource`, `thermalTransport`, `piDiagnostics`, and `remoteWitness` state.
 - [ ] Give thermal and Pi connections separate configuration keys and URLs.
-- [ ] Launch the FLIR companion without negotiating or deriving a Pi endpoint.
+- [x] Launch the FLIR companion without negotiating or deriving a Pi endpoint.
 - [ ] Allow the scene to render with either, both, or neither source configured.
 - [ ] Add synthetic browser tests for all four source combinations.
 - [x] Provide an immersive controller- and hand-selectable Back to dashboard control.
 
 ## 7. Automated APK and release gates
 
-- [ ] Add a packaged-layout assertion for the native thermal preview.
-- [ ] Fail verification if Bluetooth permissions, Pi controls, or Pi capabilities return.
+- [x] Add a packaged-layout assertion for the native thermal preview.
+- [x] Fail verification if Bluetooth permissions, Pi controls, or Pi capabilities return.
 - [ ] Add standalone-launch and optional-activation contract tests.
 - [ ] Build and verify the signed ARM64 release APK.
 - [x] Record `poc.4` code 4 as published to Alpha.

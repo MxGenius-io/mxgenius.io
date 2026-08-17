@@ -63,6 +63,26 @@ foreach ($requiredManifestToken in @(
 )) {
     Assert-ReleaseRequirement ($manifestSource.Contains($requiredManifestToken)) "Android manifest is missing $requiredManifestToken"
 }
+foreach ($forbiddenManifestToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+    Assert-ReleaseRequirement (-not $manifestSource.Contains($forbiddenManifestToken)) "FLIR companion must not depend on $forbiddenManifestToken"
+}
+
+$layoutSourcePath = Join-Path $projectRoot 'app\src\main\res\layout\activity_main.xml'
+$layoutSource = Get-Content -Raw -LiteralPath $layoutSourcePath
+Assert-ReleaseRequirement ($layoutSource.Contains('@+id/thermal_preview')) 'standalone panel is missing the native thermal preview'
+foreach ($forbiddenLayoutToken in @('@+id/connect_pi', '@+id/pi_status', 'Connect MxGenius Pi')) {
+    Assert-ReleaseRequirement (-not $layoutSource.Contains($forbiddenLayoutToken)) "standalone FLIR panel still contains $forbiddenLayoutToken"
+}
+
+$companionSources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'app\src\main\java') -Recurse -Filter '*.java' |
+    ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName } |
+    Out-String
+foreach ($forbiddenSourceToken in @('PiDiagnosticsClient', 'pi-diagnostics-rfcomm', 'edge-diagnostics-1')) {
+    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenSourceToken)) "standalone FLIR source still contains $forbiddenSourceToken"
+}
+foreach ($requiredTransportToken in @('LocalThermalBroker', 'ThermalTransport', '127.0.0.1')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredTransportToken)) "Quest-local thermal transport is missing $requiredTransportToken"
+}
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
 Assert-ReleaseRequirement (-not (Test-Path -LiteralPath (Join-Path $resourceRoot 'drawable-nodpi\mxgenius_launcher.png'))) 'obsolete drawable-nodpi launcher image is still packaged'
@@ -124,9 +144,21 @@ foreach ($requiredPackagedToken in @(
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
 }
+foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+    Assert-ReleaseRequirement (-not $manifestTree.Contains($forbiddenPackagedToken)) "packaged FLIR manifest still contains $forbiddenPackagedToken"
+}
+
+$packagedLayout = (& $aapt2 dump xmltree $resolvedApk --file res/layout/activity_main.xml 2>&1 | Out-String)
+Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect the packaged standalone panel layout'
+Assert-ReleaseRequirement ($packagedLayout.Contains('E: ImageView')) 'packaged standalone panel is missing its thermal ImageView'
+Assert-ReleaseRequirement ($packagedLayout.Contains('Live FLIR ONE thermal preview')) 'packaged standalone panel is missing its thermal preview description'
 
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
+Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
+foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {
+    Assert-ReleaseRequirement (-not $packagedResources.Contains("id/$forbiddenPackagedLayoutToken")) "packaged standalone panel still contains id/$forbiddenPackagedLayoutToken"
+}
 foreach ($requiredPackagedResource in @(
     'mipmap/mxgenius_launcher',
     'mipmap/mxgenius_launcher_round',

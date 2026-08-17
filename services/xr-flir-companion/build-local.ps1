@@ -72,8 +72,8 @@ $sampleWrapper = 'D:\AAog\Flir-SDK\samples-2.22.0\FlirOneCamera\gradlew.bat'
 if (-not (Test-Path -LiteralPath $sampleWrapper -PathType Leaf)) {
     throw "FLIR sample Gradle wrapper not found: $sampleWrapper"
 }
-$task = if ($Configuration -eq 'Release') { ':app:assembleRelease' } else { ':app:assembleDebug' }
-& $sampleWrapper --project-dir $projectRoot $task
+$assembleTask = if ($Configuration -eq 'Release') { ':app:assembleRelease' } else { ':app:assembleDebug' }
+& $sampleWrapper --project-dir $projectRoot ':app:testDebugUnitTest' $assembleTask
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $apkName = if ($Configuration -eq 'Release') { 'app-release.apk' } else { 'app-debug.apk' }

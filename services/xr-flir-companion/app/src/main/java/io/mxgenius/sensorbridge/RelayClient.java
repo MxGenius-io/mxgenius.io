@@ -17,7 +17,7 @@ import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
 
-final class RelayClient {
+final class RelayClient implements ThermalTransport {
     interface Listener {
         void onRelayState(String state);
     }
@@ -65,7 +65,11 @@ final class RelayClient {
         return open;
     }
 
-    void sendSourceStatus(String status, String reason) {
+    @Override public String label() {
+        return activation.relayLabel();
+    }
+
+    @Override public void sendSourceStatus(String status, String reason) {
         try {
             JSONObject message = new JSONObject()
                     .put("type", "source.status")
@@ -80,7 +84,7 @@ final class RelayClient {
         }
     }
 
-    void sendFrame(Bitmap bitmap) {
+    @Override public void sendFrame(Bitmap bitmap) {
         if (!open || bitmap == null) return;
         long now = System.currentTimeMillis();
         if (now - lastFrameAtMs < 125 || !encoding.compareAndSet(false, true)) return;
@@ -98,7 +102,7 @@ final class RelayClient {
         });
     }
 
-    void close() {
+    @Override public void close() {
         open = false;
         WebSocket current = socket;
         socket = null;

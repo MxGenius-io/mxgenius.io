@@ -29,6 +29,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private static final long PREVIEW_INTERVAL_MS = 100L;
     private final LocalBinder binder = new LocalBinder();
     private RelayClient relay;
+    private LocalThermalTransport localTransport;
     private FlirCameraController camera;
     private BridgeActivation activation;
     private StatusListener statusListener;
@@ -46,6 +47,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         camera = new FlirCameraController(this);
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, notification("Standalone FLIR viewer ready"));
+        localTransport = new LocalThermalTransport(stableNodeId(), this::onRelayState, BuildConfig.DEBUG);
+        localTransport.start();
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -56,7 +59,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
         boolean hasRelayActivation = intent != null
                 && intent.hasExtra(BridgeActivation.EXTRA_SESSION_ID)
-                && intent.hasExtra(BridgeActivation.EXTRA_BRIDGE_URL);
+                && (intent.hasExtra(BridgeActivation.EXTRA_LOCAL_TOKEN)
+                    || intent.hasExtra(BridgeActivation.EXTRA_BRIDGE_URL));
         if (!hasRelayActivation) {
             if (relay == null) relayState = "not connected (optional)";
             publishStatus();
@@ -66,10 +70,14 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
         try {
             BridgeActivation next = BridgeActivation.fromServiceIntent(intent, BuildConfig.DEBUG);
+            localTransport.activate(next);
             if (relay != null) relay.close();
             activation = next;
-            relay = new RelayClient(next, stableNodeId(), this::onRelayState);
-            relay.connect();
+            relay = null;
+            if (next.bridgeUrl != null) {
+                relay = new RelayClient(next, stableNodeId(), state -> updateNotification());
+                relay.connect();
+            }
             updateNotification();
             return START_REDELIVER_INTENT;
         } catch (RuntimeException error) {
@@ -91,6 +99,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         statusListener = null;
         if (camera != null) camera.shutdown();
         if (relay != null) relay.close();
+        if (localTransport != null) localTransport.close();
         super.onDestroy();
     }
 
@@ -112,11 +121,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     String relayLabel() {
-        return activation == null ? "not connected (optional)" : activation.relayLabel();
+        return activation == null ? localTransport.label() + " · waiting for scene" : activation.relayLabel();
     }
 
     @Override public void onCameraState(String state, String reason) {
         cameraState = state;
+        localTransport.sendSourceStatus(state, reason);
         RelayClient current = relay;
         if (current != null) current.sendSourceStatus(state, reason);
         publishStatus();
@@ -130,6 +140,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             lastPreviewAtMs = now;
             currentListener.onFrame(bitmap);
         }
+        localTransport.sendFrame(bitmap);
         RelayClient currentRelay = relay;
         if (currentRelay != null) currentRelay.sendFrame(bitmap);
     }

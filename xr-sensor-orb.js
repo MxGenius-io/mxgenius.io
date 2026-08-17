@@ -14,13 +14,16 @@ function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
 }
 
-function configuredBridge() {
+function configuredBridge({ url: preferredUrl = '', token: preferredToken = '' } = {}) {
   const query = new URLSearchParams(location.search);
-  const url = query.get('sensorBridge')
+  const url = preferredUrl
+    || query.get('thermalBridge')
+    || query.get('sensorBridge')
+    || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
     || globalThis.MXGENIUS_CONFIG?.sensorBridgeUrl
     || localStorage.getItem(BRIDGE_STORAGE_KEY)
     || '';
-  const token = query.get('sensorToken') || localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+  const token = preferredToken || query.get('thermalToken') || query.get('sensorToken') || localStorage.getItem(TOKEN_STORAGE_KEY) || '';
   if (!url) return { url: '', token };
   try {
     const parsed = new URL(url, location.href);
@@ -53,7 +56,7 @@ function ironColor(normalized) {
 }
 
 export class XRSensorOrb {
-  constructor({ sessionId = null, surface = 'fleet-globe', onAction = () => {}, onStatus = () => {} } = {}) {
+  constructor({ sessionId = null, bridgeUrl = '', bridgeToken = '', surface = 'fleet-globe', onAction = () => {}, onStatus = () => {} } = {}) {
     this.sessionId = clean(sessionId) || null;
     this.surface = clean(surface, 'fleet-globe');
     this.onAction = onAction;
@@ -78,7 +81,7 @@ export class XRSensorOrb {
     this.cameraQuaternion = new THREE.Quaternion();
     this.hitPosition = new THREE.Vector3();
     this.fallbackOffset = new THREE.Vector3(0.42, -0.2, -0.66);
-    this.bridge = configuredBridge();
+    this.bridge = configuredBridge({ url: bridgeUrl, token: bridgeToken });
     this.diagnosticsSchemaUrls = configuredDiagnosticsSchemas();
     this.diagnosticsLayout = null;
     this.diagnosticsLayoutState = 'loading';
@@ -409,7 +412,7 @@ export class XRSensorOrb {
     }
     ctx.fillStyle = '#8ba6b8';
     ctx.font = '20px system-ui, sans-serif';
-    ctx.fillText(this.bridge.url ? 'Schema-mapped Pi stream · tap the orb to control the thermal source.' : 'Configure ?sensorBridge=wss://host/ws/xr to connect.', 42, 600);
+    ctx.fillText(this.bridge.url ? 'Independent FLIR stream · tap the orb to control the thermal source.' : 'Configure a thermal transport to connect.', 42, 600);
     this.panelTexture.needsUpdate = true;
   }
 

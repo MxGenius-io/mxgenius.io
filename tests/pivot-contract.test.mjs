@@ -25,6 +25,8 @@ const companionVerifier = await read('services/xr-flir-companion/verify-release.
 const companionActivity = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/MainActivity.java');
 const companionService = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/SensorBridgeService.java');
 const companionLayout = await read('services/xr-flir-companion/app/src/main/res/layout/activity_main.xml');
+const localThermalBroker = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/LocalThermalBroker.java');
+const localThermalTransport = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/LocalThermalTransport.java');
 const relayClient = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RelayClient.java');
 
 test('dated pivot names every canonical source and the baseline commit', () => {
@@ -49,6 +51,8 @@ test('browser Pi and evidence contracts agree on session and scanner identity', 
   assert.match(sessionPattern, /128/);
   assert.ok(evidence.properties.source.properties.kind.enum.includes('barcode-scanner'));
   assert.equal(companion.$defs.activation.properties.sessionId.$ref, '#/$defs/sessionId');
+  assert.equal(companion.$defs.activation.properties.localToken.pattern, '^[A-Za-z0-9_-]{32,128}$');
+  assert.ok(companion.$defs.activation.anyOf.some((option) => option.required?.includes('localToken')));
   assert.equal(companion.$defs.announce.properties.nodeType.const, 'quest-companion');
   assert.equal(companion.$defs.announce.properties.capabilities.contains.const, 'flir-one-pro-usb-c');
   assert.match(sensorOrb, /message\.type === 'scan\.observed'/);
@@ -106,6 +110,10 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
   assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
   assert.doesNotMatch(relayClient, /sendDiagnostics|pi-diagnostics-rfcomm|edge-diagnostics-1/);
+  assert.match(localThermalBroker, /127\.0\.0\.1|allowedOrigins/);
+  assert.match(localThermalBroker, /invalid thermal session/);
+  assert.match(localThermalTransport, /MxgsFrameEncoder\.jpeg/);
+  assert.match(companionService, /localTransport\.sendFrame\(bitmap\)/);
 });
 
 test('legacy JetNet probes require runtime credentials and do not print token fragments', () => {

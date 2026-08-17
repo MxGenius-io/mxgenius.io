@@ -53,6 +53,9 @@ dependencies {
     implementation("", name = "androidsdk-release", ext = "aar")
     implementation("", name = "thermalsdk-release", ext = "aar")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    implementation("org.java-websocket:Java-WebSocket:1.6.0") {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")
 }

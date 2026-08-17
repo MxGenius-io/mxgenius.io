@@ -1,4 +1,6 @@
 const SESSION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const LOCAL_TOKEN = /^[A-Za-z0-9_-]{32,128}$/;
+const LOCAL_THERMAL_PORT = 4109;
 
 function normalizedBase(value) {
   const parsed = new URL(String(value || ''));
@@ -20,13 +22,38 @@ function validBridgeUrl(value, { allowInsecurePilot = false } = {}) {
   return parsed.href;
 }
 
-function companionQuery({ sessionId, bridgeUrl = '', allowInsecurePilot = false }) {
+function validLocalToken(value) {
+  const token = String(value || '');
+  if (!LOCAL_TOKEN.test(token)) throw new Error('Invalid Quest-local thermal token');
+  return token;
+}
+
+export function createSensorLocalToken(cryptoImpl = globalThis.crypto) {
+  if (!cryptoImpl?.getRandomValues) throw new Error('Secure random token generation is unavailable');
+  const bytes = cryptoImpl.getRandomValues(new Uint8Array(32));
+  return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+export function buildSensorLocalBridgeUrl({ sessionId, localToken, port = LOCAL_THERMAL_PORT }) {
+  const numericPort = Number(port);
+  if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
+    throw new Error('Invalid Quest-local thermal port');
+  }
+  const url = new URL(`ws://127.0.0.1:${numericPort}/thermal`);
+  url.searchParams.set('sessionId', validSessionId(sessionId));
+  url.searchParams.set('token', validLocalToken(localToken));
+  return url.href;
+}
+
+function companionQuery({ sessionId, bridgeUrl = '', localToken = '', allowInsecurePilot = false }) {
   const query = new URLSearchParams({ sessionId: validSessionId(sessionId) });
+  if (localToken) query.set('localToken', validLocalToken(localToken));
   if (bridgeUrl) {
     const normalized = validBridgeUrl(bridgeUrl, { allowInsecurePilot });
     query.set('bridge', normalized);
     if (normalized.startsWith('ws:')) query.set('pilot', '1');
   }
+  if (!localToken && !bridgeUrl) throw new Error('A Quest-local token or optional relay is required');
   return query;
 }
 
@@ -34,13 +61,14 @@ export function buildSensorCompanionLaunchUrl({
   base = 'mxgenius://sensor-bridge',
   sessionId,
   bridgeUrl = '',
+  localToken = '',
   allowInsecurePilot = false
 }) {
   const parsed = new URL(String(base || ''));
   if (parsed.protocol !== 'mxgenius:' || parsed.hostname !== 'sensor-bridge') {
     throw new Error('Unsupported sensor companion launch target');
   }
-  const query = companionQuery({ sessionId, bridgeUrl, allowInsecurePilot });
+  const query = companionQuery({ sessionId, bridgeUrl, localToken, allowInsecurePilot });
   return `${base}?${query}`;
 }
 
@@ -48,6 +76,7 @@ export function buildSensorCompanionIntentUrl({
   packageName = 'io.mxgenius.sensorbridge',
   sessionId,
   bridgeUrl = '',
+  localToken = '',
   fallbackUrl = '',
   allowInsecurePilot = false
 }) {
@@ -55,7 +84,7 @@ export function buildSensorCompanionIntentUrl({
   if (!/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(applicationId)) {
     throw new Error('Invalid Android companion package');
   }
-  const query = companionQuery({ sessionId, bridgeUrl, allowInsecurePilot });
+  const query = companionQuery({ sessionId, bridgeUrl, localToken, allowInsecurePilot });
   let fallback = '';
   if (fallbackUrl) {
     const parsed = new URL(String(fallbackUrl));
