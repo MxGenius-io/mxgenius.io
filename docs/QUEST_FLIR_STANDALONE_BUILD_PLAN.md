@@ -64,9 +64,9 @@ This checklist covers software architecture, automated verification, packaging, 
 
 - [x] Create and validate the canonical 2560 x 1440, 24-bit PNG locally.
 - [x] Map it to `Cover art > Landscape` in the store-assets manifest.
-- [ ] Confirm the asset is assigned to the active Meta submission metadata record.
-- [ ] Correct the upload or assignment if Meta still references the placeholder asset.
-- [ ] Record the resulting Meta asset identifier in local release metadata.
+- [x] Confirm the asset is assigned to the active Meta submission metadata record.
+- [x] Correct the upload or assignment if Meta still references the placeholder asset.
+- [x] Record the resulting Meta asset identifier in local release metadata.
 
 ## 9. Package and publish
 

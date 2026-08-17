@@ -33,7 +33,13 @@
     "metadataId": "1280760735126204",
     "assetsUrl": "https://developers.meta.com/horizon/manage/applications/1280760725126205/submissions/1280760741792870/metadata/assets/",
     "state": "draft-not-submitted",
-    "storeAssetsManifest": "store-assets/manifest.json"
+    "storeAssetsManifest": "store-assets/manifest.json",
+    "landscapeCover": {
+      "file": "store-assets/cover-landscape-2560x1440.png",
+      "status": "AssignedAndSaved",
+      "metaCdnObjectId": "1621932682844039",
+      "savedAt": "2026-08-17T02:57:50-04:00"
+    }
   },
   "signing": {
     "certificateSha256": "c1b2c617ee79bab90e3b808ce5e52114c5c4eff351406b3902f03d1bb112c9ea"
