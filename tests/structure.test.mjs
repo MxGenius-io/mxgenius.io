@@ -28,6 +28,7 @@ const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', 
 const reportDisplay = await readFile(new URL('../report-display.html', import.meta.url), 'utf8');
 const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
 const week19Report = await readFile(new URL('../Generated Reports/week-19/week-19-report.md', import.meta.url), 'utf8');
+const week22Report = await readFile(new URL('../Generated Reports/week-22/week-22-report.md', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -86,8 +87,19 @@ test('report display preserves external image schemes and constrains report medi
 });
 
 test('progress banner identifies the latest published report', () => {
-  assert.match(progress, />Week 19 Ready</);
-  assert.doesNotMatch(progress, />Week 20 Ready</);
+  assert.match(progress, />Week 22 Ready</);
+  assert.match(progress, /Workflow Hardening &amp; Parts/);
+  assert.match(progress, /Fleet, Market &amp; Demo Integration/);
+  assert.doesNotMatch(progress, /viewReport\(20\)|viewReport\(21\)/);
+  assert.match(progress, /viewReport\(22\)/);
+});
+
+test('week 22 report separates validated plumbing from pending live headset tests', () => {
+  assert.match(week22Report, /## Executive Summary/);
+  assert.match(week22Report, /XR edge hardware pivot/);
+  assert.match(week22Report, /0\.1\.0-poc\.4/);
+  assert.match(week22Report, /did \*\*not\*\* close with a claim that live FLIR pixels/);
+  assert.match(week22Report, /Work committed on Aug 17 belongs to the next reporting period/);
 });
 
 test('week 19 screenshots stay paired with the sections they depict', async () => {
