@@ -83,6 +83,8 @@
     .nav-links a { color: #b9c2d9; text-decoration: none; font-size: .89rem; font-weight: 600; transition: color .2s ease; }
     .nav-links a:hover { color: #fff; }
     .nav-links .nav-cta { color: var(--ink); background: var(--teal); border-radius: 999px; padding: 10px 18px; }
+    .nav-links .gpt-icon { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; color: #dbe3f5; background: rgba(255,255,255,.04); font-family: "Space Grotesk", sans-serif; font-size: .72rem; letter-spacing: -.06em; }
+    .nav-links .gpt-icon:hover { color: var(--teal); border-color: var(--line-strong); }
     .landing-identity { color: var(--muted); font-size: .76rem; }
     .landing-identity strong { color: #fff; }
     .menu-toggle { display: none; background: transparent; border: 0; color: #fff; width: 42px; height: 42px; font-size: 1.35rem; }
@@ -101,6 +103,9 @@
     .hero-note { display: flex; align-items: center; gap: 10px; margin-top: 30px; color: #8490ac; font-size: .78rem; }
     .signal-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 14px var(--teal); }
     .hero-visual { min-height: 620px; position: relative; }
+    .hero-carousel { position: absolute; inset: 0; }
+    .hero-slide { position: absolute; inset: 0; opacity: 0; transform: translateX(18px) scale(.985); pointer-events: none; transition: opacity .65s ease, transform .65s ease; }
+    .hero-slide.active { opacity: 1; transform: none; pointer-events: auto; z-index: 2; }
     .hero-frame { position: absolute; inset: 0 0 0 42px; border-radius: 180px 24px 180px 24px; overflow: hidden; border: 1px solid rgba(84,216,255,.18); box-shadow: var(--shadow); background: #10152b; }
     .hero-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(6,8,27,.84)); }
     .hero-frame img { width: 100%; height: 100%; object-fit: cover; }
@@ -112,6 +117,15 @@
     .float-label { color: #8390ad; font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
     .float-value { font-family: "Space Grotesk", sans-serif; font-size: 1.4rem; font-weight: 700; }
     .float-detail { color: #9ca8c3; font-size: .7rem; margin-top: 3px; }
+    .slide-caption { position: absolute; z-index: 4; left: 76px; right: 34px; bottom: 32px; padding: 18px 19px; border-left: 2px solid var(--teal); background: linear-gradient(90deg, rgba(6,8,27,.9), rgba(6,8,27,.28)); backdrop-filter: blur(8px); }
+    .slide-caption strong { display: block; font-family: "Space Grotesk", sans-serif; font-size: 1.08rem; }
+    .slide-caption span { display: block; color: #aab5cc; font-size: .72rem; margin-top: 2px; }
+    .carousel-controls { position: absolute; z-index: 8; right: 22px; bottom: -20px; display: flex; align-items: center; gap: 8px; }
+    .carousel-arrow { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(8,11,32,.9); color: #fff; cursor: pointer; font-size: 1.05rem; }
+    .carousel-arrow:hover { border-color: var(--teal); color: var(--teal); }
+    .carousel-dots { display: flex; gap: 6px; padding: 0 5px; }
+    .carousel-dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: #49536d; cursor: pointer; transition: width .25s ease, background .25s ease; }
+    .carousel-dot.active { width: 24px; border-radius: 999px; background: var(--teal); }
 
     .metrics { border-block: 1px solid var(--line); background: rgba(11,14,38,.68); }
     .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -241,6 +255,7 @@
       .nav-links.open { display: flex; }
       .nav-links a { display: block; padding: 11px 8px; }
       .nav-links .nav-cta { text-align: center; margin-top: 7px; }
+      .nav-links .gpt-icon { width: 36px; padding: 0; margin: 5px 8px; }
       .landing-identity { padding: 8px; }
       .hero { padding-top: 112px; }
       .hero-grid { gap: 40px; }
@@ -249,6 +264,8 @@
       .hero-frame { inset: 0 18px 0 18px; border-radius: 100px 20px 100px 20px; }
       .float-card.top { right: 0; top: 55px; }
       .float-card.bottom { left: 0; bottom: 35px; }
+      .slide-caption { left: 38px; right: 26px; bottom: 28px; }
+      .carousel-controls { right: 12px; bottom: -18px; }
       .metrics-grid { grid-template-columns: 1fr 1fr; }
       .metric:nth-child(2) { border-right: 0; }
       .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
@@ -285,6 +302,7 @@
         <li><a href="#workflow">How it works</a></li>
         <li><a href="#operators">Who it's for</a></li>
         <li id="signedInAs" class="landing-identity" hidden>Signed in as <strong id="signedInAsName"></strong></li>
+        <li><a class="gpt-icon" href="https://chatgpt.com/g/g-6a429ffc124081918858168d19260045-mxgenius" target="_blank" rel="noopener noreferrer" aria-label="Open MxGenius in ChatGPT" title="MxGenius in ChatGPT">AI</a></li>
         <li><a id="landingAuthLink" class="nav-cta" href="login.html">Open platform</a></li>
       </ul>
     </div>
@@ -303,11 +321,32 @@
           </div>
           <div class="hero-note"><span class="signal-dot"></span> Designed with mechanics. Built for the realities of AOG.</div>
         </div>
-        <div class="hero-visual" aria-label="Technician servicing an aircraft on the ramp">
+        <div class="hero-visual" aria-label="MxGenius featured content carousel" aria-roledescription="carousel">
           <div class="radar" aria-hidden="true"></div>
-          <div class="hero-frame"><img src="media/deck-hero.jpg" alt="Aircraft maintenance technician working beside a business jet"></div>
-          <div class="float-card top"><div class="float-label">Expert connection</div><div class="float-value"><span class="accent">Live</span> / 24-7</div><div class="float-detail">Remote viewing command center</div></div>
-          <div class="float-card bottom"><div class="float-label">Case objective</div><div class="float-value">Minutes, not hours</div><div class="float-detail">From discrepancy to guided resolution</div></div>
+          <div class="hero-carousel" id="heroCarousel" aria-live="polite">
+            <article class="hero-slide active" data-slide-type="image" aria-label="1 of 3: Maintenance intelligence">
+              <div class="hero-frame"><img src="media/deck-hero.jpg" alt="Aircraft maintenance technician working beside a business jet"></div>
+              <div class="float-card top"><div class="float-label">Expert connection</div><div class="float-value"><span class="accent">Live</span> / 24-7</div><div class="float-detail">Remote viewing command center</div></div>
+              <div class="float-card bottom"><div class="float-label">Case objective</div><div class="float-value">Minutes, not hours</div><div class="float-detail">From discrepancy to guided resolution</div></div>
+            </article>
+            <article class="hero-slide" data-slide-type="image" aria-label="2 of 3: Remote viewing">
+              <div class="hero-frame"><img src="media/deck-mechanic.jpg" alt="Mechanic using connected tools beside an aircraft engine"></div>
+              <div class="slide-caption"><strong>Eyes on the aircraft, anywhere.</strong><span>Live remote expertise carries the full case context into the moment of work.</span></div>
+            </article>
+            <article class="hero-slide" data-slide-type="image" aria-label="3 of 3: Parts intelligence">
+              <div class="hero-frame"><img src="media/deck-parts.jpg" alt="Organized aviation parts warehouse"></div>
+              <div class="slide-caption"><strong>One search across the supply network.</strong><span>This slide structure also accepts muted inline video for future launches and product updates.</span></div>
+            </article>
+          </div>
+          <div class="carousel-controls" aria-label="Featured content controls">
+            <button class="carousel-arrow" type="button" data-carousel-prev aria-label="Previous slide">&#8592;</button>
+            <div class="carousel-dots" role="tablist" aria-label="Choose featured slide">
+              <button class="carousel-dot active" type="button" role="tab" aria-selected="true" aria-label="Show slide 1" data-slide-to="0"></button>
+              <button class="carousel-dot" type="button" role="tab" aria-selected="false" aria-label="Show slide 2" data-slide-to="1"></button>
+              <button class="carousel-dot" type="button" role="tab" aria-selected="false" aria-label="Show slide 3" data-slide-to="2"></button>
+            </div>
+            <button class="carousel-arrow" type="button" data-carousel-next aria-label="Next slide">&#8594;</button>
+          </div>
         </div>
       </div>
     </section>
@@ -454,6 +493,55 @@
       navLinks.classList.remove('open');
       menuToggle?.setAttribute('aria-expanded', 'false');
     }));
+
+    const heroCarousel = document.getElementById('heroCarousel');
+    const heroSlides = [...document.querySelectorAll('.hero-slide')];
+    const heroDots = [...document.querySelectorAll('.carousel-dot')];
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let activeHeroSlide = 0;
+    let heroTimer;
+    let touchStartX = 0;
+
+    function showHeroSlide(nextIndex) {
+      activeHeroSlide = (nextIndex + heroSlides.length) % heroSlides.length;
+      heroSlides.forEach((slide, index) => {
+        const isActive = index === activeHeroSlide;
+        slide.classList.toggle('active', isActive);
+        slide.setAttribute('aria-hidden', String(!isActive));
+        const video = slide.querySelector('video');
+        if (video && !isActive) video.pause();
+        if (video && isActive && video.muted) video.play().catch(() => {});
+      });
+      heroDots.forEach((dot, index) => {
+        const isActive = index === activeHeroSlide;
+        dot.classList.toggle('active', isActive);
+        dot.setAttribute('aria-selected', String(isActive));
+      });
+    }
+
+    function stopHeroTimer() { window.clearInterval(heroTimer); }
+    function startHeroTimer() {
+      stopHeroTimer();
+      if (!reduceMotion && heroSlides.length > 1) heroTimer = window.setInterval(() => showHeroSlide(activeHeroSlide + 1), 6500);
+    }
+
+    document.querySelector('[data-carousel-prev]')?.addEventListener('click', () => { showHeroSlide(activeHeroSlide - 1); startHeroTimer(); });
+    document.querySelector('[data-carousel-next]')?.addEventListener('click', () => { showHeroSlide(activeHeroSlide + 1); startHeroTimer(); });
+    heroDots.forEach((dot) => dot.addEventListener('click', () => { showHeroSlide(Number(dot.dataset.slideTo)); startHeroTimer(); }));
+    heroCarousel?.addEventListener('mouseenter', stopHeroTimer);
+    heroCarousel?.addEventListener('mouseleave', startHeroTimer);
+    heroCarousel?.addEventListener('focusin', stopHeroTimer);
+    heroCarousel?.addEventListener('focusout', startHeroTimer);
+    heroCarousel?.addEventListener('touchstart', (event) => { touchStartX = event.changedTouches[0].clientX; }, { passive: true });
+    heroCarousel?.addEventListener('touchend', (event) => {
+      const travel = event.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(travel) > 48) showHeroSlide(activeHeroSlide + (travel < 0 ? 1 : -1));
+      startHeroTimer();
+    }, { passive: true });
+    document.addEventListener('visibilitychange', () => document.hidden ? stopHeroTimer() : startHeroTimer());
+    showHeroSlide(0);
+    startHeroTimer();
+
     if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
