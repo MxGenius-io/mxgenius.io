@@ -1,6 +1,6 @@
 # MX Genius — Open Source Software Notices
 
-**Last updated:** July 23, 2026
+**Last updated:** August 17, 2026
 
 MX Genius incorporates the following open-source software components. We gratefully acknowledge the work of the developers and communities behind these projects.
 
@@ -12,6 +12,8 @@ MX Genius incorporates the following open-source software components. We gratefu
 |-----------|---------|---------|------------|
 | Globe.gl | 2.45.3 | MIT | [github.com/vasturiano/globe.gl](https://github.com/vasturiano/globe.gl) |
 | Three.js | 0.184.0 | MIT | [github.com/mrdoob/three.js](https://github.com/mrdoob/three.js) |
+| html2canvas | 1.4.1 | MIT | [github.com/niklasvh/html2canvas](https://github.com/niklasvh/html2canvas) |
+| Lucide icons (inlined SVG paths) | 1.31.0 | ISC | [github.com/lucide-icons/lucide](https://github.com/lucide-icons/lucide) |
 | Inter (Google Font) | Variable | SIL Open Font License 1.1 | [github.com/rsms/inter](https://github.com/rsms/inter) |
 
 Globe.gl bundles the following dependencies under their respective licenses:
@@ -89,6 +91,10 @@ Redistribution and use in source and binary forms, with or without modification,
 ### SIL Open Font License 1.1
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: https://scripts.sil.org/OFL
+
+### ISC License
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies. THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
