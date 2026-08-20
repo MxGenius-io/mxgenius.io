@@ -135,6 +135,26 @@ test('Parts Frontend Shell requirements', async (t) => {
     }
   });
 
+  await t.test('open case demand is set against free stock', () => {
+    assert.match(client, /listShortages: async/);
+    assert.match(client, /\/api\/parts\/shortages/);
+    assert.match(js, /id="partsShortageView"/);
+    assert.match(js, /client\.listShortages\(/);
+    // AOG and urgent work must be visually distinguishable in the list.
+    assert.match(js, /priority-\$\{escapeHtml\(row\.casePriority\)\}/);
+    assert.match(css, /\.shortage-priority\.priority-aog/);
+  });
+
+  await t.test('only genuinely free stock counts against a requirement', () => {
+    const repository = readFileSync('services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+    // Quarantined stock has not passed inspection; reserved and issued stock
+    // is already committed, so none of it may cover a new requirement.
+    assert.match(repository, /su\.status='available'/);
+    assert.match(repository, /acceptable_conditions \? fs\.condition_code/);
+    // Closed and cancelled cases no longer demand anything.
+    assert.match(repository, /mc\.status NOT IN \('closed', 'cancelled'\)/);
+  });
+
   await t.test('inventory can be filtered by status and location', () => {
     assert.match(js, /id="partsStatusFilter"/);
     assert.match(js, /id="partsLocationFilter"/);

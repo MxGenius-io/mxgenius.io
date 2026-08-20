@@ -59,6 +59,21 @@
     parts: {
       search: async () => [unit],
       getUnit: async () => ({ unit, assets: [], events: [] }),
+      listShortages: async ({ includeCovered }) => {
+        const rows = [
+          { requirementId:'r1', caseId:'c1', caseStatus:'awaiting_parts', casePriority:'aog',
+            aircraftId:'N441TT', partId:'p1', partNumber:'MS21042L3', description:'NUT, SELF-LOCKING',
+            requiredQuantity:12, requiredBy:'2026-08-22T00:00:00Z', acceptableConditions:['NE','SV'],
+            availableQuantity:4, shortfall:8 },
+          { requirementId:'r2', caseId:'c2', caseStatus:'planning', casePriority:'routine',
+            aircraftId:'N908BX', partId:'p2', partNumber:'AN960-10', description:'WASHER, FLAT',
+            requiredQuantity:20, requiredBy:null, acceptableConditions:[],
+            availableQuantity:60, shortfall:0 }
+        ];
+        const visible = includeCovered ? rows : rows.filter(r => r.shortfall > 0);
+        log(`listShortages includeCovered=${!!includeCovered} rows=${visible.length}`);
+        return { shortages: visible, outstanding: rows.filter(r => r.shortfall > 0).length };
+      },
       listLocations: async () => ([
         { id: 'l1', code: 'RECEIVING', name: 'Receiving dock' },
         { id: 'l2', code: 'STOCK-A12', name: 'Bonded shelf A12' },

@@ -14,8 +14,70 @@ const MXPartsWorkspace = (() => {
     candidates: [],
     locations: [],
     status: '',
-    location: ''
+    location: '',
+    view: 'inventory'
   };
+
+  function switchView(view) {
+    state.view = view;
+    document.querySelectorAll('[data-view]').forEach((tab) => {
+      const active = tab.dataset.view === view;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    const inventory = byId('partsInventoryGrid');
+    const shortages = byId('partsShortageView');
+    const searchBar = document.querySelector('.parts-search-bar');
+    if (inventory) inventory.hidden = view !== 'inventory';
+    if (shortages) shortages.hidden = view !== 'shortages';
+    if (searchBar) searchBar.hidden = view !== 'inventory';
+    if (view === 'shortages') loadShortages();
+  }
+
+  function shortageRow(row) {
+    const short = row.shortfall > 0;
+    const due = row.requiredBy ? new Date(row.requiredBy).toLocaleDateString() : 'No date set';
+    const conditions = Array.isArray(row.acceptableConditions) && row.acceptableConditions.length
+      ? row.acceptableConditions.join(', ')
+      : 'Any condition';
+    return `
+      <article class="shortage-row${short ? ' is-short' : ''}">
+        <div class="shortage-head">
+          <span class="shortage-part">${escapeHtml(row.partNumber)}</span>
+          <span class="shortage-priority priority-${escapeHtml(row.casePriority)}">${escapeHtml(row.casePriority)}</span>
+        </div>
+        <p class="shortage-description">${escapeHtml(row.description)}</p>
+        <dl class="shortage-figures">
+          <div><dt>Needed</dt><dd>${escapeHtml(row.requiredQuantity)}</dd></div>
+          <div><dt>Free stock</dt><dd>${escapeHtml(row.availableQuantity)}</dd></div>
+          <div><dt>Short by</dt><dd>${short ? escapeHtml(row.shortfall) : 'Covered'}</dd></div>
+        </dl>
+        <p class="shortage-meta">Aircraft ${escapeHtml(row.aircraftId)} · case ${escapeHtml(row.caseStatus.replace('_', ' '))} · needed by ${escapeHtml(due)} · accepts ${escapeHtml(conditions)}</p>
+      </article>`;
+  }
+
+  async function loadShortages() {
+    const list = byId('partsShortageList');
+    if (!list || !client.listShortages) return;
+    list.innerHTML = '<div class="empty-state">Checking demand against stock…</div>';
+    try {
+      const payload = await client.listShortages({
+        includeCovered: byId('shortageIncludeCovered')?.checked || false,
+        session: await session()
+      });
+      const rows = payload.shortages || [];
+      const badge = byId('shortageCount');
+      if (badge) {
+        badge.hidden = !payload.outstanding;
+        badge.textContent = payload.outstanding || '';
+      }
+      list.innerHTML = rows.length
+        ? rows.map(shortageRow).join('')
+        : '<div class="empty-state">Every open requirement is covered by free stock.</div>';
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
 
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
@@ -71,6 +133,10 @@ const MXPartsWorkspace = (() => {
               <p class="parts-subtitle">Traceable receiving, documents, and inventory history</p>
             </div>
             <div class="parts-toolbar">
+              <div class="parts-view-switch" role="tablist" aria-label="Parts view">
+                <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
+                <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
+              </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
             </div>
           </header>
@@ -93,6 +159,10 @@ const MXPartsWorkspace = (() => {
           <div class="parts-content">
             <div id="partsStatus" class="parts-inline-status" aria-live="polite"></div>
             <div id="partsInventoryGrid" class="inventory-grid"></div>
+            <div id="partsShortageView" hidden>
+              <label class="shortage-toggle"><input type="checkbox" id="shortageIncludeCovered"> Show requirements stock already covers</label>
+              <div id="partsShortageList"></div>
+            </div>
           </div>
           <datalist id="partsLocationOptions"></datalist>
         </main>
@@ -169,6 +239,7 @@ const MXPartsWorkspace = (() => {
     bindEvents();
     performSearch();
     loadLocations();
+    loadShortages();
     handleRouting();
   }
 
@@ -193,6 +264,10 @@ const MXPartsWorkspace = (() => {
         performSearch();
       }
     });
+    document.querySelectorAll('[data-view]').forEach((tab) => {
+      tab.addEventListener('click', () => switchView(tab.dataset.view));
+    });
+    byId('shortageIncludeCovered')?.addEventListener('change', loadShortages);
     byId('btnReceivePart')?.addEventListener('click', openWizard);
     byId('btnCancelWizard')?.addEventListener('click', closeWizard);
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);

@@ -518,3 +518,104 @@
     inset: 0;
   }
 }
+
+.parts-view-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  overflow: hidden;
+  margin-right: 10px;
+}
+
+.parts-view-tab {
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.parts-view-tab.active {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.shortage-count {
+  min-width: 1.35em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #b3382c;
+  color: #fff;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.shortage-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-bottom: 14px;
+}
+
+.shortage-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: var(--bg-card);
+}
+
+.shortage-row.is-short { border-left-color: #b3382c; }
+
+.shortage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shortage-part { font-weight: 600; letter-spacing: 0.02em; }
+
+.shortage-priority {
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.shortage-priority.priority-aog { color: #e06a5c; border-color: #e06a5c; }
+.shortage-priority.priority-urgent { color: #d08b2c; border-color: #d08b2c; }
+
+.shortage-description {
+  margin: 4px 0 10px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.shortage-figures { display: flex; gap: 22px; margin: 0 0 8px; flex-wrap: wrap; }
+.shortage-figures div { display: grid; gap: 2px; }
+
+.shortage-figures dt {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.shortage-figures dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.shortage-meta { margin: 0; color: var(--text-muted); font-size: 0.76rem; }

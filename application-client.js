@@ -935,6 +935,11 @@ const MXApplicationClient = (() => {
     getLabel: async ({ unitId, session = {} }) => {
       return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
     },
+    listShortages: async ({ includeCovered = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (includeCovered) params.set('includeCovered', 'true');
+      return applicationJson(`/api/parts/shortages?${params}`, { session });
+    },
     listLocations: async ({ includeInactive = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeInactive) params.set('includeInactive', 'true');

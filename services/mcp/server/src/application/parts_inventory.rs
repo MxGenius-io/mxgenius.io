@@ -197,6 +197,26 @@ pub struct InventoryEventDto {
     pub created_at: OffsetDateTime,
 }
 
+/// One open maintenance case's demand for a part, set against the stock that
+/// is actually free to satisfy it.
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct PartShortageDto {
+    pub requirement_id: Uuid,
+    pub case_id: Uuid,
+    pub case_status: String,
+    pub case_priority: String,
+    pub aircraft_id: String,
+    pub part_id: Uuid,
+    pub part_number: String,
+    pub description: String,
+    pub required_quantity: f64,
+    pub required_by: Option<OffsetDateTime>,
+    pub acceptable_conditions: Value,
+    pub available_quantity: f64,
+    pub shortfall: f64,
+}
+
 #[derive(Debug, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct InventoryLocationDto {
@@ -1139,6 +1159,87 @@ impl<'a> PartsInventoryRepository<'a> {
         .await?;
         tx.commit().await?;
         self.get_unit(context, unit_id).await
+    }
+
+    /// Sets open-case demand against free stock. Stock counts as free only
+    /// when it is `available`: quarantined stock has not passed inspection,
+    /// and reserved or issued stock is already committed elsewhere. Condition
+    /// codes the requirement will not accept are excluded from the supply.
+    pub async fn list_shortages(
+        &self,
+        context: &ExecutionContext,
+        only_short: bool,
+    ) -> Result<Vec<PartShortageDto>, PartsInventoryError> {
+        let rows = sqlx::query_as::<_, PartShortageDto>(
+            r#"WITH free_stock AS (
+                   SELECT su.part_id, su.condition_code,
+                          sum(su.quantity)::double precision AS quantity
+                   FROM stock_units su
+                   WHERE su.organization_id=$1 AND su.status='available'
+                   GROUP BY su.part_id, su.condition_code
+               )
+               SELECT pr.id AS requirement_id,
+                      mc.case_id,
+                      mc.status AS case_status,
+                      mc.priority AS case_priority,
+                      mc.aircraft_id,
+                      p.id AS part_id,
+                      p.part_number,
+                      p.description,
+                      pr.quantity::double precision AS required_quantity,
+                      pr.required_by,
+                      pr.acceptable_conditions,
+                      COALESCE((
+                          SELECT sum(fs.quantity)
+                          FROM free_stock fs
+                          WHERE fs.part_id = pr.part_id
+                            AND (
+                                jsonb_array_length(pr.acceptable_conditions) = 0
+                                OR pr.acceptable_conditions ? fs.condition_code
+                            )
+                      ), 0)::double precision AS available_quantity,
+                      greatest(
+                          pr.quantity::double precision - COALESCE((
+                              SELECT sum(fs.quantity)
+                              FROM free_stock fs
+                              WHERE fs.part_id = pr.part_id
+                                AND (
+                                    jsonb_array_length(pr.acceptable_conditions) = 0
+                                    OR pr.acceptable_conditions ? fs.condition_code
+                                )
+                          ), 0)::double precision,
+                          0
+                      ) AS shortfall
+               FROM part_requirements pr
+               JOIN maintenance_cases mc ON mc.case_id = pr.case_id
+               JOIN parts p ON p.id = pr.part_id
+               WHERE mc.organization_id = $1
+                 AND mc.status NOT IN ('closed', 'cancelled')
+                 AND (NOT $2 OR pr.quantity::double precision > COALESCE((
+                         SELECT sum(fs.quantity)
+                         FROM free_stock fs
+                         WHERE fs.part_id = pr.part_id
+                           AND (
+                               jsonb_array_length(pr.acceptable_conditions) = 0
+                               OR pr.acceptable_conditions ? fs.condition_code
+                           )
+                     ), 0)::double precision)
+               ORDER BY
+                   CASE mc.priority
+                       WHEN 'aog' THEN 0
+                       WHEN 'urgent' THEN 1
+                       WHEN 'routine' THEN 2
+                       ELSE 3
+                   END,
+                   pr.required_by NULLS LAST,
+                   p.part_number
+               LIMIT 250"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(only_short)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
     }
 
     pub async fn list_locations(

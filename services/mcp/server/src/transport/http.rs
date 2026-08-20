@@ -24,9 +24,9 @@ use uuid::Uuid;
 
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
-    ExtractionProposal, PartsInventoryError, PartsInventoryRepository, RegisterAssetInput,
-    ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction, TransitionUnitInput,
-    UpsertLocationInput,
+    ExtractionProposal, PartShortageDto, PartsInventoryError, PartsInventoryRepository,
+    RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction,
+    TransitionUnitInput, UpsertLocationInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -164,6 +164,7 @@ pub fn router_with_health_and_manual(
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
+        .route("/api/parts/shortages", get(list_parts_shortages))
         .route(
             "/api/parts/receiving-drafts",
             post(create_parts_receiving_draft),
@@ -2214,6 +2215,13 @@ struct ListLocationsQuery {
     include_inactive: Option<bool>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ShortagesQuery {
+    /// Default hides requirements stock already covers.
+    include_covered: Option<bool>,
+}
+
 /// Parts ledger mutations that accept a signed single-use confirmation grant
 /// without appearing in the locked capability registry.
 const PARTS_CONFIRMABLE_OPERATIONS: [&str; 5] = [
@@ -3005,6 +3013,38 @@ async fn confirm_parts_receiving(
     {
         Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.receiving.confirm"),
+    }
+}
+
+async fn list_parts_shortages(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ShortagesQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let only_short = !query.include_covered.unwrap_or(false);
+    match PartsInventoryRepository::new(pool)
+        .list_shortages(&context, only_short)
+        .await
+    {
+        Ok(shortages) => {
+            let outstanding = shortages
+                .iter()
+                .filter(|row: &&PartShortageDto| row.shortfall > 0.0)
+                .count();
+            (
+                StatusCode::OK,
+                Json(json!({"shortages": shortages, "outstanding": outstanding})),
+            )
+                .into_response()
+        }
+        Err(error) => parts_error(error, "parts.shortages.list"),
     }
 }
 
