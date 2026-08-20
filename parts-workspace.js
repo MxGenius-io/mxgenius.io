@@ -12,8 +12,25 @@ const MXPartsWorkspace = (() => {
     asset: null,
     extractionRun: null,
     candidates: [],
-    locations: []
+    locations: [],
+    status: '',
+    location: ''
   };
+
+  function captureFilters() {
+    state.query = byId('partsSearchInput')?.value.trim() || '';
+    state.status = byId('partsStatusFilter')?.value || '';
+    state.location = byId('partsLocationFilter')?.value.trim() || '';
+  }
+
+  function emptyResultMessage() {
+    const filters = [
+      state.query && `matching "${state.query}"`,
+      state.status && `in ${state.status.replace('_', ' ')}`,
+      state.location && `at ${state.location}`
+    ].filter(Boolean);
+    return filters.length ? `No units ${filters.join(' ')}.` : 'No units found.';
+  }
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -59,6 +76,18 @@ const MXPartsWorkspace = (() => {
           </header>
           <div class="parts-search-bar">
             <input type="search" id="partsSearchInput" class="search-input" placeholder="Part number, description, or serial number" aria-label="Search parts">
+            <select id="partsStatusFilter" aria-label="Filter by status">
+              <option value="">Any status</option>
+              <option value="quarantine">Quarantine</option>
+              <option value="available">Available</option>
+              <option value="reserved">Reserved</option>
+              <option value="issued">Issued</option>
+              <option value="rejected">Rejected</option>
+              <option value="in_repair">In repair</option>
+              <option value="shipped">Shipped</option>
+              <option value="scrapped">Scrapped</option>
+            </select>
+            <input id="partsLocationFilter" list="partsLocationOptions" placeholder="Any location" aria-label="Filter by location">
             <button id="btnPartsSearch" class="btn-primary">Search</button>
           </div>
           <div class="parts-content">
@@ -145,12 +174,22 @@ const MXPartsWorkspace = (() => {
 
   function bindEvents() {
     byId('btnPartsSearch')?.addEventListener('click', () => {
-      state.query = byId('partsSearchInput')?.value.trim() || '';
+      captureFilters();
+      performSearch();
+    });
+    byId('partsStatusFilter')?.addEventListener('change', () => {
+      captureFilters();
       performSearch();
     });
     byId('partsSearchInput')?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
-        state.query = event.currentTarget.value.trim();
+        captureFilters();
+        performSearch();
+      }
+    });
+    byId('partsLocationFilter')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        captureFilters();
         performSearch();
       }
     });
@@ -185,9 +224,14 @@ const MXPartsWorkspace = (() => {
     grid.innerHTML = '<div class="empty-state">Loading inventory…</div>';
     setStatus('');
     try {
-      const units = await client.search({ query: state.query, session: await session() });
+      const units = await client.search({
+        query: state.query,
+        status: state.status,
+        location: state.location,
+        session: await session()
+      });
       if (!units.length) {
-        grid.innerHTML = '<div class="empty-state">No units found.</div>';
+        grid.innerHTML = `<div class="empty-state">${escapeHtml(emptyResultMessage())}</div>`;
         return;
       }
       grid.replaceChildren(...units.map(unitCard));
@@ -397,6 +441,43 @@ const MXPartsWorkspace = (() => {
       </section>`;
   }
 
+  function renderCountBlock(unit) {
+    // Serialized units always hold exactly one; they are counted by presence.
+    if (unit.serialNumber) return '';
+    return `
+      <section class="unit-action-block">
+        <h3>Cycle count</h3>
+        <p class="unit-action-hint">Record what is physically on the shelf. The difference from the recorded ${escapeHtml(unit.quantity)} is booked as a variance.</p>
+        <div class="parts-form-grid">
+          <label>Counted quantity<input type="number" min="0.001" step="0.001" id="countedQuantity" value="${escapeHtml(unit.quantity)}"></label>
+          <label>Reason<input id="countReason" placeholder="Cycle count, damage, miscount"></label>
+        </div>
+        <label>Notes <input id="countNotes" placeholder="Optional remarks"></label>
+        <button class="btn-quiet" id="btnAdjustQuantity">Book the count</button>
+      </section>`;
+  }
+
+  async function adjustQuantity(unit) {
+    const button = byId('btnAdjustQuantity');
+    button.disabled = true;
+    unitActionStatus('Booking the counted quantity…');
+    try {
+      await client.adjustQuantity({
+        unitId: unit.id,
+        version: unit.version,
+        countedQuantity: Number(byId('countedQuantity').value),
+        reason: byId('countReason').value.trim(),
+        notes: byId('countNotes').value.trim() || null,
+        session: await session()
+      });
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      button.disabled = false;
+    }
+  }
+
   function renderUnitActions(unit) {
     if (unit.status === 'issued') {
       return `
@@ -429,6 +510,7 @@ const MXPartsWorkspace = (() => {
     return `
       ${inspection}
       ${renderMovementBlock(unit)}
+      ${renderCountBlock(unit)}
       <section class="unit-action-block">
         <h3>Correct details</h3>
         <p class="unit-action-hint">Corrections are recorded against this unit with the previous values. Quantity, status, and location change through their own actions.</p>
@@ -459,6 +541,7 @@ const MXPartsWorkspace = (() => {
     byId('btnInspectPass')?.addEventListener('click', () => disposition(unit, 'inspect_pass'));
     byId('btnInspectReject')?.addEventListener('click', () => disposition(unit, 'inspect_reject'));
     byId('btnCorrectUnit')?.addEventListener('click', () => correctUnit(unit));
+    byId('btnAdjustQuantity')?.addEventListener('click', () => adjustQuantity(unit));
     byId('drawerContent')?.querySelectorAll('[data-movement]').forEach((button) => {
       button.addEventListener('click', () => moveStock(unit, button.dataset.movement));
     });

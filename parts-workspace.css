@@ -46,6 +46,7 @@
 
 .parts-search-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 16px 24px;
   background: var(--bg-card);
@@ -53,7 +54,7 @@
 }
 
 .parts-search-bar .search-input {
-  flex: 1;
+  flex: 1 1 14rem;
 }
 
 .parts-inline-status {
@@ -311,6 +312,25 @@
 
 .wizard-step-content .btn-primary {
   margin-top: 16px;
+}
+
+.parts-search-bar #partsStatusFilter,
+.parts-search-bar #partsLocationFilter {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.86rem;
+  min-width: 9rem;
+}
+
+@media (max-width: 720px) {
+  .parts-search-bar #partsStatusFilter,
+  .parts-search-bar #partsLocationFilter {
+    min-width: 0;
+    flex: 1 1 8rem;
+  }
 }
 
 .unit-action-block {

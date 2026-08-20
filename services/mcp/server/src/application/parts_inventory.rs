@@ -357,6 +357,16 @@ impl StockAction {
     }
 }
 
+/// Counted quantity for a lot, as found on the shelf. The ledger records the
+/// signed difference from the quantity the system believed it held.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdjustQuantityInput {
+    pub counted_quantity: f64,
+    pub reason: String,
+    pub notes: Option<String>,
+}
+
 /// Human correction of confirmed metadata. Quantity, status, and location are
 /// deliberately excluded: those move through ledger events, not corrections.
 #[derive(Debug, Deserialize)]
@@ -1387,6 +1397,110 @@ impl<'a> PartsInventoryRepository<'a> {
                 .filter(|value| !value.is_empty()),
         )
         .bind(json!({"fromStatus": source.as_str(), "toStatus": target.as_str()}))
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        self.get_unit(context, unit_id).await
+    }
+
+    /// Books a counted quantity against a lot. Serialized units always hold
+    /// exactly one, so they are counted by presence, not by quantity.
+    pub async fn adjust_quantity(
+        &self,
+        context: &ExecutionContext,
+        unit_id: Uuid,
+        expected_version: i64,
+        input: &AdjustQuantityInput,
+    ) -> Result<StockUnitDto, PartsInventoryError> {
+        let reason = input.reason.trim();
+        if reason.is_empty() {
+            return Err(PartsInventoryError::Invalid(
+                "reason is required so the variance can be explained".into(),
+            ));
+        }
+        if !input.counted_quantity.is_finite() || input.counted_quantity <= 0.0 {
+            return Err(PartsInventoryError::Invalid(
+                "countedQuantity must be greater than zero; scrap the unit instead of counting it to nil"
+                    .into(),
+            ));
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let current: Option<(String, i64, f64, Option<String>, Uuid)> = sqlx::query_as(
+            r#"SELECT status,version,quantity::double precision,serial_number,location_id
+               FROM stock_units
+               WHERE organization_id=$1 AND id=$2 FOR UPDATE"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((status, version, quantity, serial_number, location_id)) = current else {
+            return Err(PartsInventoryError::NotFound);
+        };
+        if version != expected_version {
+            return Err(PartsInventoryError::Conflict(format!(
+                "expected version {expected_version}, current version is {version}"
+            )));
+        }
+        let state = StockUnitStatus::parse(&status).ok_or_else(|| {
+            PartsInventoryError::Conflict(format!("unit holds unknown status {status}"))
+        })?;
+        if state.is_terminal() {
+            return Err(PartsInventoryError::Conflict(format!(
+                "a unit in {} is no longer on the shelf to count",
+                state.as_str()
+            )));
+        }
+        if serial_number.is_some() {
+            return Err(PartsInventoryError::Invalid(
+                "a serialized unit always holds exactly one; disposition it instead".into(),
+            ));
+        }
+        let delta = input.counted_quantity - quantity;
+        if delta == 0.0 {
+            return Err(PartsInventoryError::Invalid(
+                "the counted quantity matches the recorded quantity".into(),
+            ));
+        }
+
+        sqlx::query(
+            r#"UPDATE stock_units
+               SET quantity=$3,version=version+1,updated_at=now()
+               WHERE organization_id=$1 AND id=$2"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(input.counted_quantity)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"INSERT INTO inventory_events
+               (id,organization_id,stock_unit_id,event_type,quantity_delta,
+                from_location_id,to_location_id,reference_type,reference_id,
+                actor_user_id,correlation_id,notes,payload,created_at)
+               VALUES ($1,$2,$3,'adjust',$4,$5,$5,'cycle_count',$6,$7,$8,$9,$10,now())"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(delta)
+        .bind(location_id)
+        .bind(reason)
+        .bind(context.user_id.0)
+        .bind(context.correlation_id.0)
+        .bind(
+            input
+                .notes
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .bind(json!({
+            "recordedQuantity": quantity,
+            "countedQuantity": input.counted_quantity,
+            "reason": reason
+        }))
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;

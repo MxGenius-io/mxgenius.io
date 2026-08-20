@@ -974,6 +974,23 @@ const MXApplicationClient = (() => {
       });
       return payload.unit;
     },
+    adjustQuantity: async ({ unitId, version, countedQuantity, reason, notes = null, session = {} }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.adjust',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/quantity`, {
+        session,
+        method: 'POST',
+        body: { countedQuantity, reason, notes },
+        headers: {
+          'If-Match': `"${version}"`,
+          'X-MXG-Confirmation-Grant': confirmation.token
+        }
+      });
+      return payload.unit;
+    },
     correctUnit: async ({ unitId, version, values, session = {} }) => {
       const confirmation = await issueConfirmation({
         toolName: 'mxg.parts.correct',

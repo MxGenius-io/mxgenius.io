@@ -51,7 +51,7 @@ test('Parts Frontend Shell requirements', async (t) => {
 
   await t.test('parts-workspace.js implements authenticated routing, search, OCR review, and receiving', () => {
     assert.match(js, /switchTab\?\.\('parts'\)/);
-    assert.match(js, /client\.search\(\{ query: state\.query, session: await session\(\) \}\)/);
+    assert.match(js, /client\.search\(\{[\s\S]*?query: state\.query,[\s\S]*?session: await session\(\)[\s\S]*?\}\)/);
     assert.match(js, /client\.reviewExtraction\(/);
     assert.match(js, /client\.confirmReceiving\(/);
     assert.match(js, /crypto\.subtle\.digest\('SHA-256'/);
@@ -104,6 +104,21 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /issued', 'shipped', 'scrapped', 'archived/);
     // An issued unit is the one terminal state that can still come back.
     assert.match(js, /data-movement="return"/);
+  });
+
+  await t.test('lots can be cycle counted but serialized units cannot', () => {
+    assert.match(js, /client\.adjustQuantity\(/);
+    assert.match(js, /id="btnAdjustQuantity"/);
+    // A serialized unit always holds exactly one, so the block is suppressed.
+    assert.match(js, /if \(unit\.serialNumber\) return '';/);
+    assert.match(client, /toolName: 'mxg\.parts\.adjust'/);
+  });
+
+  await t.test('inventory can be filtered by status and location', () => {
+    assert.match(js, /id="partsStatusFilter"/);
+    assert.match(js, /id="partsLocationFilter"/);
+    assert.match(js, /status: state\.status/);
+    assert.match(js, /location: state\.location/);
   });
 
   await t.test('destination fields suggest real locations', () => {

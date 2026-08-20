@@ -36,9 +36,9 @@
     partNumber: 'MS21042L3',
     description: 'NUT, SELF-LOCKING, REDUCED HEX',
     manufacturer: 'Monogram Aerospace',
-    serialNumber: 'SN-40199',
-    lotNumber: null,
-    quantity: 1,
+    serialNumber: null,
+    lotNumber: 'LOT-7781',
+    quantity: 24,
     conditionCode: 'SV',
     status: 'quarantine',
     traceType: 'form_8130',
@@ -78,6 +78,11 @@
           location: locationCode || unit.location,
           version: unit.version + 1
         };
+        return unit;
+      },
+      adjustQuantity: async ({ countedQuantity, reason, notes, version }) => {
+        log(`adjustQuantity version=${version} counted=${countedQuantity} reason=${reason} notes=${notes || '(none)'}`);
+        unit = { ...unit, quantity: countedQuantity, version: unit.version + 1 };
         return unit;
       },
       correctUnit: async ({ values, version }) => {
