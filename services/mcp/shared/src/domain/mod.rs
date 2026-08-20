@@ -16,6 +16,7 @@ pub mod ids;
 pub mod organization;
 pub mod part;
 pub mod scheduling;
+pub mod stock_unit_transition_test;
 
 pub use case::{CasePriority, CaseStatus, Discrepancy, Location, MaintenanceCase, Observation};
 pub use compliance::{AdvisoryNotice, AirworthinessDirective, ApplicabilityState};
@@ -25,5 +26,5 @@ pub use evidence::{Confidence, ConfidenceBasis, Evidence, EvidenceKind, SourceTy
 pub use facility::{FacilityCapability, MROFacility};
 pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
-pub use part::{Part, PartRequirement, Supplier};
+pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
 pub use scheduling::{ScheduleOption, WeatherContext};

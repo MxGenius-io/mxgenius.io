@@ -10,7 +10,7 @@ use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -23,8 +23,9 @@ use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
 use crate::application::parts_inventory::{
-    ConfirmReceivingInput, CreateReceivingDraftInput, ExtractionProposal, PartsInventoryError,
-    PartsInventoryRepository, RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery,
+    ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput, ExtractionProposal,
+    PartsInventoryError, PartsInventoryRepository, RegisterAssetInput, ReviewExtractionInput,
+    SearchPartsQuery, TransitionUnitInput, UpsertLocationInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -186,7 +187,22 @@ pub fn router_with_health_and_manual(
             "/api/parts/receiving-drafts/:draft_id/confirm",
             post(confirm_parts_receiving),
         )
-        .route("/api/parts/units/:unit_id", get(get_parts_unit))
+        .route(
+            "/api/parts/locations",
+            get(list_parts_locations).post(create_parts_location),
+        )
+        .route(
+            "/api/parts/locations/:location_id",
+            patch(update_parts_location),
+        )
+        .route(
+            "/api/parts/units/:unit_id",
+            get(get_parts_unit).patch(correct_parts_unit),
+        )
+        .route(
+            "/api/parts/units/:unit_id/transitions",
+            post(transition_parts_unit),
+        )
         .route(
             "/api/parts/units/:unit_id/assets",
             get(list_parts_unit_assets),
@@ -1928,7 +1944,7 @@ async fn issue_confirmation(
         .registry()
         .tool(&input.tool_name)
         .map(|tool| tool.spec());
-    let is_parts_receiving = input.tool_name == "mxg.parts.receive";
+    let is_parts_receiving = PARTS_CONFIRMABLE_OPERATIONS.contains(&input.tool_name.as_str());
     if spec.is_none() && !is_parts_receiving {
         return realtime_error(
             StatusCode::BAD_REQUEST,
@@ -1949,6 +1965,7 @@ async fn issue_confirmation(
         .or_else(|| input.arguments.get("aircraft_id"))
         .or_else(|| input.arguments.get("part_id"))
         .or_else(|| input.arguments.get("draft_id"))
+        .or_else(|| input.arguments.get("unit_id"))
         .and_then(Value::as_str);
     let Some(object_id) = object_id else {
         return realtime_error(
@@ -2183,6 +2200,32 @@ async fn load_demo_data(
         Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
         Err(error) => persistence_error("demo_data.load", error),
     }
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ListLocationsQuery {
+    include_inactive: Option<bool>,
+}
+
+/// Parts ledger mutations that accept a signed single-use confirmation grant
+/// without appearing in the locked capability registry.
+const PARTS_CONFIRMABLE_OPERATIONS: [&str; 3] = [
+    "mxg.parts.receive",
+    "mxg.parts.inspect",
+    "mxg.parts.correct",
+];
+
+/// Releasing stock from quarantine onto the serviceable shelf is an inspection
+/// buy-off, so it is held to the qualified roles. Rejecting a part moves in the
+/// conservative direction and stays open to anyone who may receive one.
+fn parts_inspection_release_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Quality
+            | mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
 }
 
 fn parts_write_allowed(context: &ExecutionContext) -> bool {
@@ -2954,6 +2997,181 @@ async fn confirm_parts_receiving(
     {
         Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.receiving.confirm"),
+    }
+}
+
+async fn list_parts_locations(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListLocationsQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .list_locations(&context, query.include_inactive.unwrap_or(false))
+        .await
+    {
+        Ok(locations) => (StatusCode::OK, Json(json!({"locations": locations}))).into_response(),
+        Err(error) => parts_error(error, "parts.locations.list"),
+    }
+}
+
+async fn create_parts_location(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<UpsertLocationInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot manage inventory locations",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .create_location(&context, &input)
+        .await
+    {
+        Ok(location) => (StatusCode::CREATED, Json(json!({"location": location}))).into_response(),
+        Err(error) => parts_error(error, "parts.locations.create"),
+    }
+}
+
+async fn update_parts_location(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(location_id): Path<Uuid>,
+    Json(input): Json<UpsertLocationInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot manage inventory locations",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .update_location(&context, location_id, &input)
+        .await
+    {
+        Ok(location) => (StatusCode::OK, Json(json!({"location": location}))).into_response(),
+        Err(error) => parts_error(error, "parts.locations.update"),
+    }
+}
+
+async fn transition_parts_unit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+    Json(input): Json<TransitionUnitInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot disposition parts",
+        );
+    }
+    if input.action == "inspect_pass" && !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_INSPECTION_DENIED",
+            "only a quality, manager, or administrator role can release stock from quarantine",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.inspect"
+            && grant.object_id == unit_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this unit and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .transition_unit(&context, unit_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"unit": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.unit.transition"),
+    }
+}
+
+async fn correct_parts_unit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+    Json(input): Json<CorrectUnitInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot correct parts records",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.correct"
+            && grant.object_id == unit_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this unit and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .correct_unit(&context, unit_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"unit": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.unit.correct"),
     }
 }
 
@@ -6714,6 +6932,50 @@ mod structured_advisory_tests {
             Ok(None)
         );
         assert_eq!(validated_feedback_severity("feature", None), Ok(None));
+    }
+
+    fn context_with_role(
+        role: mxgenius_shared::application::policy::Role,
+    ) -> mxgenius_shared::application::context::ExecutionContext {
+        mxgenius_shared::application::context::ExecutionContext::new(
+            mxgenius_shared::domain::ids::OrganizationId(Uuid::new_v4()),
+            mxgenius_shared::domain::ids::UserId(Uuid::new_v4()),
+            role,
+            mxgenius_shared::application::context::ClientIdentity {
+                name: "test".into(),
+                version: "0".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn parts_confirmable_operations_cover_every_ledger_mutation_route() {
+        // Each of these writes an inventory_events row, so each must be able to
+        // carry a signed single-use confirmation grant.
+        assert!(PARTS_CONFIRMABLE_OPERATIONS.contains(&"mxg.parts.receive"));
+        assert!(PARTS_CONFIRMABLE_OPERATIONS.contains(&"mxg.parts.inspect"));
+        assert!(PARTS_CONFIRMABLE_OPERATIONS.contains(&"mxg.parts.correct"));
+        // Location management touches no ledger and must not be confirmable.
+        assert!(!PARTS_CONFIRMABLE_OPERATIONS.contains(&"mxg.parts.locations"));
+    }
+
+    #[test]
+    fn quarantine_release_is_restricted_to_qualified_inspection_roles() {
+        use mxgenius_shared::application::policy::Role;
+        for role in [Role::Quality, Role::Manager, Role::Administrator] {
+            assert!(
+                parts_inspection_release_allowed(&context_with_role(role)),
+                "{role:?} should be able to release stock from quarantine"
+            );
+        }
+        for role in [Role::Technician, Role::Procurement] {
+            assert!(
+                !parts_inspection_release_allowed(&context_with_role(role)),
+                "{role:?} must not release stock from quarantine"
+            );
+            // The same role may still receive and reject.
+            assert!(parts_write_allowed(&context_with_role(role)));
+        }
     }
 
     #[test]

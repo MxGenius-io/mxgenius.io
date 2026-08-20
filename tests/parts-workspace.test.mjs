@@ -57,6 +57,12 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /crypto\.randomUUID\(\)/);
   });
 
+  await t.test('receiving can proceed to details without uploading evidence', () => {
+    assert.match(js, /id="btnWizardSkipCapture"/);
+    assert.match(js, /async function skipCapture/);
+    assert.match(js, /client\.createReceivingDraft\(\{ session: await session\(\) \}\)/);
+  });
+
   await t.test('parts workspace has no simulated success or mock rendering path', () => {
     assert.doesNotMatch(js, /mock content|simulate async/i);
     assert.doesNotMatch(client, /mock/i);

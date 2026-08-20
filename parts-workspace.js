@@ -93,7 +93,10 @@ const MXPartsWorkspace = (() => {
               <h3>Capture evidence</h3>
               <p>Upload a PDF, packing slip, 8130-3, placard, or part photo. OCR suggestions will require review.</p>
               <input type="file" id="wizardFileInput" accept="application/pdf,image/jpeg,image/png,image/webp">
-              <button class="btn-primary" id="btnWizardProcessCapture">Upload and extract</button>
+              <div class="wizard-capture-actions">
+                <button class="btn-primary" id="btnWizardProcessCapture">Upload and extract</button>
+                <button class="btn-quiet" id="btnWizardSkipCapture">Enter details manually</button>
+              </div>
             </section>
             <section class="wizard-step-content" id="wizardStep2">
               <h3>Review extracted values</h3>
@@ -149,6 +152,7 @@ const MXPartsWorkspace = (() => {
     byId('btnCancelWizard')?.addEventListener('click', closeWizard);
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);
     byId('btnWizardProcessCapture')?.addEventListener('click', processCapture);
+    byId('btnWizardSkipCapture')?.addEventListener('click', skipCapture);
     byId('btnWizardApproveData')?.addEventListener('click', approveExtraction);
     byId('btnWizardReviewConfirm')?.addEventListener('click', showConfirmation);
     byId('btnWizardSubmit')?.addEventListener('click', submitReceiving);
@@ -400,6 +404,22 @@ const MXPartsWorkspace = (() => {
       renderCandidates();
       setWizardStep(2);
       wizardMessage(state.candidates.length ? 'Review every suggestion.' : 'No fields were recognized. Enter details manually.');
+    } catch (error) {
+      wizardMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function skipCapture() {
+    const button = byId('btnWizardSkipCapture');
+    button.disabled = true;
+    wizardMessage('Creating a secure receiving draft…');
+    try {
+      state.draft = await client.createReceivingDraft({ session: await session() });
+      state.candidates = [];
+      setWizardStep(3);
+      wizardMessage('Enter the inventory details. Evidence can be attached to the unit later.');
     } catch (error) {
       wizardMessage(errorMessage(error), 'error');
     } finally {

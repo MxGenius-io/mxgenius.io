@@ -10,6 +10,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::domain::part::StockUnitStatus;
 
 #[derive(Debug, Deserialize, Default)]
 pub struct SearchPartsQuery {
@@ -195,6 +196,73 @@ pub struct InventoryEventDto {
     pub payload: Value,
     pub created_at: OffsetDateTime,
 }
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct InventoryLocationDto {
+    pub id: Uuid,
+    pub code: String,
+    pub name: Option<String>,
+    pub location_type: String,
+    pub barcode: Option<String>,
+    pub active: bool,
+    pub metadata: Value,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertLocationInput {
+    pub code: Option<String>,
+    pub name: Option<String>,
+    pub location_type: Option<String>,
+    pub barcode: Option<String>,
+    pub active: Option<bool>,
+}
+
+/// Receiving inspection outcome. Phase 1 exposes only the two dispositions
+/// that release a unit from quarantine.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransitionUnitInput {
+    pub action: String,
+    pub location_code: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// Human correction of confirmed metadata. Quantity, status, and location are
+/// deliberately excluded: those move through ledger events, not corrections.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorrectUnitInput {
+    pub serial_number: Option<String>,
+    pub lot_number: Option<String>,
+    pub condition_code: Option<String>,
+    pub trace_type: Option<String>,
+    pub certificate_number: Option<String>,
+    pub notes: Option<String>,
+}
+
+pub const LOCATION_TYPES: [&str; 6] = [
+    "stock",
+    "quarantine",
+    "bonded",
+    "scrap",
+    "shipping",
+    "receiving",
+];
+
+pub const CONDITION_CODES: [&str; 8] = ["NE", "NS", "OH", "SV", "RP", "AR", "US", "SC"];
+
+pub const TRACE_TYPES: [&str; 6] = [
+    "form_8130",
+    "easa_form1",
+    "dual_release",
+    "coc",
+    "teardown",
+    "none",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum PartsInventoryError {
@@ -926,4 +994,475 @@ impl<'a> PartsInventoryRepository<'a> {
         tx.commit().await?;
         self.get_unit(context, unit_id).await
     }
+
+    pub async fn list_locations(
+        &self,
+        context: &ExecutionContext,
+        include_inactive: bool,
+    ) -> Result<Vec<InventoryLocationDto>, PartsInventoryError> {
+        let rows = sqlx::query_as::<_, InventoryLocationDto>(
+            r#"SELECT id,code,name,location_type,barcode,active,metadata,created_at,updated_at
+               FROM inventory_locations
+               WHERE organization_id=$1 AND ($2 OR active)
+               ORDER BY code"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(include_inactive)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn create_location(
+        &self,
+        context: &ExecutionContext,
+        input: &UpsertLocationInput,
+    ) -> Result<InventoryLocationDto, PartsInventoryError> {
+        let code = normalized_location_code(input.code.as_deref())?;
+        let location_type = input.location_type.as_deref().unwrap_or("stock");
+        if !LOCATION_TYPES.contains(&location_type) {
+            return Err(PartsInventoryError::Invalid(format!(
+                "locationType must be one of {}",
+                LOCATION_TYPES.join(", ")
+            )));
+        }
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM inventory_locations WHERE organization_id=$1 AND code=$2)",
+        )
+        .bind(context.organization_id.0)
+        .bind(&code)
+        .fetch_one(self.pool)
+        .await?;
+        if exists {
+            return Err(PartsInventoryError::Conflict(format!(
+                "location {code} already exists"
+            )));
+        }
+        sqlx::query_as::<_, InventoryLocationDto>(
+            r#"INSERT INTO inventory_locations
+               (id,organization_id,code,name,location_type,barcode,active,created_at,updated_at)
+               VALUES ($1,$2,$3,$4,$5,$6,true,now(),now())
+               RETURNING id,code,name,location_type,barcode,active,metadata,created_at,updated_at"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(context.organization_id.0)
+        .bind(&code)
+        .bind(
+            input
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(&code),
+        )
+        .bind(location_type)
+        .bind(
+            input
+                .barcode
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .fetch_one(self.pool)
+        .await
+        .map_err(PartsInventoryError::from)
+    }
+
+    pub async fn update_location(
+        &self,
+        context: &ExecutionContext,
+        location_id: Uuid,
+        input: &UpsertLocationInput,
+    ) -> Result<InventoryLocationDto, PartsInventoryError> {
+        if let Some(location_type) = input.location_type.as_deref() {
+            if !LOCATION_TYPES.contains(&location_type) {
+                return Err(PartsInventoryError::Invalid(format!(
+                    "locationType must be one of {}",
+                    LOCATION_TYPES.join(", ")
+                )));
+            }
+        }
+        // A location still holding stock cannot be retired out from under it.
+        if input.active == Some(false) {
+            let occupied: i64 = sqlx::query_scalar(
+                r#"SELECT count(*) FROM stock_units
+                   WHERE organization_id=$1 AND location_id=$2 AND status <> 'archived'"#,
+            )
+            .bind(context.organization_id.0)
+            .bind(location_id)
+            .fetch_one(self.pool)
+            .await?;
+            if occupied > 0 {
+                return Err(PartsInventoryError::Conflict(format!(
+                    "location still holds {occupied} unit(s); move them before deactivating it"
+                )));
+            }
+        }
+        sqlx::query_as::<_, InventoryLocationDto>(
+            r#"UPDATE inventory_locations
+               SET name=COALESCE($3,name),
+                   location_type=COALESCE($4,location_type),
+                   barcode=COALESCE($5,barcode),
+                   active=COALESCE($6,active),
+                   updated_at=now()
+               WHERE organization_id=$1 AND id=$2
+               RETURNING id,code,name,location_type,barcode,active,metadata,created_at,updated_at"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(location_id)
+        .bind(
+            input
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .bind(input.location_type.as_deref())
+        .bind(
+            input
+                .barcode
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .bind(input.active)
+        .fetch_optional(self.pool)
+        .await?
+        .ok_or(PartsInventoryError::NotFound)
+    }
+
+    /// Records a receiving-inspection disposition. The unit's status and the
+    /// append-only ledger move together or not at all.
+    pub async fn transition_unit(
+        &self,
+        context: &ExecutionContext,
+        unit_id: Uuid,
+        expected_version: i64,
+        input: &TransitionUnitInput,
+    ) -> Result<StockUnitDto, PartsInventoryError> {
+        let (target, event_type) = match input.action.as_str() {
+            "inspect_pass" => (StockUnitStatus::Available, "inspect_pass"),
+            "inspect_reject" => (StockUnitStatus::Rejected, "inspect_reject"),
+            other => {
+                return Err(PartsInventoryError::Invalid(format!(
+                    "action must be inspect_pass or inspect_reject, received {other}"
+                )))
+            }
+        };
+
+        let mut tx = self.pool.begin().await?;
+        let current: Option<(String, i64, Uuid, f64)> = sqlx::query_as(
+            r#"SELECT status,version,location_id,quantity::double precision
+               FROM stock_units
+               WHERE organization_id=$1 AND id=$2 FOR UPDATE"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((status, version, current_location, _quantity)) = current else {
+            return Err(PartsInventoryError::NotFound);
+        };
+        if version != expected_version {
+            return Err(PartsInventoryError::Conflict(format!(
+                "expected version {expected_version}, current version is {version}"
+            )));
+        }
+        let source = StockUnitStatus::parse(&status).ok_or_else(|| {
+            PartsInventoryError::Conflict(format!("unit holds unknown status {status}"))
+        })?;
+        if !source.can_transition_to(target) {
+            return Err(PartsInventoryError::Conflict(format!(
+                "a unit in {} cannot move to {}",
+                source.as_str(),
+                target.as_str()
+            )));
+        }
+
+        // A passed inspection may also move the unit off the receiving dock.
+        let destination = match input.location_code.as_deref().map(str::trim) {
+            Some(code) if !code.is_empty() => {
+                resolve_location(&mut tx, context, code, "stock").await?
+            }
+            _ => current_location,
+        };
+
+        sqlx::query(
+            r#"UPDATE stock_units
+               SET status=$3,location_id=$4,version=version+1,updated_at=now()
+               WHERE organization_id=$1 AND id=$2"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(target.as_str())
+        .bind(destination)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"INSERT INTO inventory_events
+               (id,organization_id,stock_unit_id,event_type,quantity_delta,
+                from_location_id,to_location_id,actor_user_id,correlation_id,
+                notes,payload,created_at)
+               VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,now())"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(event_type)
+        .bind(current_location)
+        .bind(destination)
+        .bind(context.user_id.0)
+        .bind(context.correlation_id.0)
+        .bind(
+            input
+                .notes
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .bind(json!({"fromStatus": source.as_str(), "toStatus": target.as_str()}))
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        self.get_unit(context, unit_id).await
+    }
+
+    /// Applies a human correction to confirmed metadata and records the
+    /// `metadata_corrected` event carrying the before/after values.
+    pub async fn correct_unit(
+        &self,
+        context: &ExecutionContext,
+        unit_id: Uuid,
+        expected_version: i64,
+        input: &CorrectUnitInput,
+    ) -> Result<StockUnitDto, PartsInventoryError> {
+        if let Some(code) = input.condition_code.as_deref() {
+            if !CONDITION_CODES.contains(&code) {
+                return Err(PartsInventoryError::Invalid(format!(
+                    "conditionCode must be one of {}",
+                    CONDITION_CODES.join(", ")
+                )));
+            }
+        }
+        if let Some(trace) = input.trace_type.as_deref() {
+            if !TRACE_TYPES.contains(&trace) {
+                return Err(PartsInventoryError::Invalid(format!(
+                    "traceType must be one of {}",
+                    TRACE_TYPES.join(", ")
+                )));
+            }
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let current: Option<CorrectableUnitRow> = sqlx::query_as(
+            r#"SELECT status,version,serial_number,lot_number,condition_code,
+                          trace_type,certificate_number
+                   FROM stock_units
+                   WHERE organization_id=$1 AND id=$2 FOR UPDATE"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((
+            status,
+            version,
+            serial_number,
+            lot_number,
+            condition_code,
+            trace_type,
+            certificate_number,
+        )) = current
+        else {
+            return Err(PartsInventoryError::NotFound);
+        };
+        if version != expected_version {
+            return Err(PartsInventoryError::Conflict(format!(
+                "expected version {expected_version}, current version is {version}"
+            )));
+        }
+        let state = StockUnitStatus::parse(&status).ok_or_else(|| {
+            PartsInventoryError::Conflict(format!("unit holds unknown status {status}"))
+        })?;
+        if state.is_terminal() {
+            return Err(PartsInventoryError::Conflict(format!(
+                "a unit in {} can no longer be corrected",
+                state.as_str()
+            )));
+        }
+
+        let next_serial = corrected(input.serial_number.as_deref(), serial_number.as_deref());
+        let next_lot = corrected(input.lot_number.as_deref(), lot_number.as_deref());
+        let next_condition = input
+            .condition_code
+            .as_deref()
+            .unwrap_or(&condition_code)
+            .to_owned();
+        let next_trace = input
+            .trace_type
+            .as_deref()
+            .unwrap_or(&trace_type)
+            .to_owned();
+        let next_certificate = corrected(
+            input.certificate_number.as_deref(),
+            certificate_number.as_deref(),
+        );
+
+        let mut changed = serde_json::Map::new();
+        record_change(
+            &mut changed,
+            "serialNumber",
+            serial_number.as_deref(),
+            next_serial.as_deref(),
+        );
+        record_change(
+            &mut changed,
+            "lotNumber",
+            lot_number.as_deref(),
+            next_lot.as_deref(),
+        );
+        record_change(
+            &mut changed,
+            "conditionCode",
+            Some(&condition_code),
+            Some(&next_condition),
+        );
+        record_change(
+            &mut changed,
+            "traceType",
+            Some(&trace_type),
+            Some(&next_trace),
+        );
+        record_change(
+            &mut changed,
+            "certificateNumber",
+            certificate_number.as_deref(),
+            next_certificate.as_deref(),
+        );
+        if changed.is_empty() {
+            return Err(PartsInventoryError::Invalid(
+                "no field was changed by this correction".into(),
+            ));
+        }
+        let changed = Value::Object(changed);
+
+        sqlx::query(
+            r#"UPDATE stock_units
+               SET serial_number=$3,lot_number=$4,condition_code=$5,trace_type=$6,
+                   certificate_number=$7,version=version+1,updated_at=now()
+               WHERE organization_id=$1 AND id=$2"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(next_serial.as_deref())
+        .bind(next_lot.as_deref())
+        .bind(&next_condition)
+        .bind(&next_trace)
+        .bind(next_certificate.as_deref())
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"INSERT INTO inventory_events
+               (id,organization_id,stock_unit_id,event_type,quantity_delta,
+                actor_user_id,correlation_id,notes,payload,created_at)
+               VALUES ($1,$2,$3,'metadata_corrected',0,$4,$5,$6,$7,now())"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(context.user_id.0)
+        .bind(context.correlation_id.0)
+        .bind(
+            input
+                .notes
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        )
+        .bind(&changed)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        self.get_unit(context, unit_id).await
+    }
+}
+
+/// `(status, version, serial_number, lot_number, condition_code, trace_type,
+/// certificate_number)` as selected for a correction.
+type CorrectableUnitRow = (
+    String,
+    i64,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    Option<String>,
+);
+
+fn normalized_location_code(code: Option<&str>) -> Result<String, PartsInventoryError> {
+    let code = code.map(str::trim).unwrap_or_default().to_uppercase();
+    if code.is_empty() {
+        return Err(PartsInventoryError::Invalid("code is required".into()));
+    }
+    if code.len() > 64 {
+        return Err(PartsInventoryError::Invalid(
+            "code must be 64 characters or fewer".into(),
+        ));
+    }
+    Ok(code)
+}
+
+/// An omitted field keeps its stored value; an explicit empty string clears it.
+fn corrected(proposed: Option<&str>, stored: Option<&str>) -> Option<String> {
+    match proposed {
+        Some(value) => {
+            let trimmed = value.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_owned())
+        }
+        None => stored.map(str::to_owned),
+    }
+}
+
+fn record_change(
+    target: &mut serde_json::Map<String, Value>,
+    field: &str,
+    before: Option<&str>,
+    after: Option<&str>,
+) {
+    if before == after {
+        return;
+    }
+    target.insert(field.to_owned(), json!({"from": before, "to": after}));
+}
+
+async fn resolve_location(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    context: &ExecutionContext,
+    code: &str,
+    default_type: &str,
+) -> Result<Uuid, PartsInventoryError> {
+    let code = normalized_location_code(Some(code))?;
+    if let Some(id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM inventory_locations WHERE organization_id=$1 AND code=$2 AND active",
+    )
+    .bind(context.organization_id.0)
+    .bind(&code)
+    .fetch_optional(&mut **tx)
+    .await?
+    {
+        return Ok(id);
+    }
+    let id = Uuid::new_v4();
+    sqlx::query(
+        r#"INSERT INTO inventory_locations
+           (id,organization_id,code,name,location_type,created_at,updated_at)
+           VALUES ($1,$2,$3,$3,$4,now(),now())"#,
+    )
+    .bind(id)
+    .bind(context.organization_id.0)
+    .bind(&code)
+    .bind(default_type)
+    .execute(&mut **tx)
+    .await?;
+    Ok(id)
 }

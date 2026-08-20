@@ -313,6 +313,34 @@
   margin-top: 16px;
 }
 
+.wizard-capture-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-quiet {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.btn-quiet:hover {
+  color: var(--text);
+  border-color: var(--accent-cyan);
+}
+
+.btn-quiet:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .parts-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
