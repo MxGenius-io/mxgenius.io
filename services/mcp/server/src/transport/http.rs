@@ -1458,7 +1458,11 @@ async fn submit_feedback_report(
     let severity = match validated_feedback_severity(report_type, input.severity.as_deref()) {
         Ok(value) => value,
         Err(message) => {
-            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_FEEDBACK_SEVERITY", message)
+            return realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_FEEDBACK_SEVERITY",
+                message,
+            )
         }
     };
     let description = clamped_feedback_text(input.description.as_deref(), 5000);
@@ -1487,13 +1491,9 @@ async fn submit_feedback_report(
             "documents/feedback/{}/{}.{}",
             context.organization_id.0, report_id, extension
         );
-        let uploaded = upload_feedback_screenshot(
-            &state.realtime_client,
-            &storage_key,
-            media_type,
-            bytes,
-        )
-        .await;
+        let uploaded =
+            upload_feedback_screenshot(&state.realtime_client, &storage_key, media_type, bytes)
+                .await;
         if uploaded {
             screenshot_storage_key = Some(storage_key);
             screenshot_uploaded = true;
@@ -1565,7 +1565,10 @@ async fn list_feedback_reports(State(state): State<AppState>, headers: HeaderMap
 /// scopes to the caller's own submissions for the "My Feedback" page), this
 /// returns every report in the org regardless of who filed it, gated by
 /// `feedback_admin_allowed`.
-async fn list_feedback_reports_admin(State(state): State<AppState>, headers: HeaderMap) -> Response {
+async fn list_feedback_reports_admin(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
     let context = match application_context(&state, &headers).await {
         Ok(value) => value,
         Err(response) => return response,
@@ -1766,7 +1769,10 @@ async fn get_feedback_report_screenshot(
     };
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, feedback_screenshot_media_type(&storage_key))
+        .header(
+            header::CONTENT_TYPE,
+            feedback_screenshot_media_type(&storage_key),
+        )
         .header(header::CACHE_CONTROL, "private, max-age=300")
         .body(Body::from(content))
         .expect("valid feedback screenshot response")
@@ -6682,7 +6688,10 @@ mod structured_advisory_tests {
     fn feedback_report_type_is_limited_to_bug_or_feature() {
         assert_eq!(validated_feedback_report_type(None), Ok("bug"));
         assert_eq!(validated_feedback_report_type(Some("bug")), Ok("bug"));
-        assert_eq!(validated_feedback_report_type(Some("feature")), Ok("feature"));
+        assert_eq!(
+            validated_feedback_report_type(Some("feature")),
+            Ok("feature")
+        );
         assert_eq!(
             validated_feedback_report_type(Some("ui")),
             Err("type must be bug or feature")
@@ -6700,7 +6709,10 @@ mod structured_advisory_tests {
             validated_feedback_severity("bug", Some("critical")),
             Err("severity must be low, medium, or high")
         );
-        assert_eq!(validated_feedback_severity("feature", Some("high")), Ok(None));
+        assert_eq!(
+            validated_feedback_severity("feature", Some("high")),
+            Ok(None)
+        );
         assert_eq!(validated_feedback_severity("feature", None), Ok(None));
     }
 
@@ -6761,8 +6773,9 @@ mod structured_advisory_tests {
             decoded_feedback_screenshot("not-a-data-url"),
             Err("screenshot must be a base64 data URL")
         );
-        let oversized = base64::engine::general_purpose::STANDARD
-            .encode(vec![0u8; MAX_FEEDBACK_SCREENSHOT_BYTES + 1]);
+        let oversized =
+            base64::engine::general_purpose::STANDARD
+                .encode(vec![0u8; MAX_FEEDBACK_SCREENSHOT_BYTES + 1]);
         assert_eq!(
             decoded_feedback_screenshot(&format!("data:image/png;base64,{oversized}")),
             Err("screenshot must be no larger than 8 MiB")
