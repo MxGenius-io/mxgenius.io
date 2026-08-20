@@ -478,6 +478,43 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  function renderSplitBlock(unit) {
+    // Only a lot holding more than one can give a quantity away.
+    if (unit.serialNumber || !(unit.quantity > 1)) return '';
+    return `
+      <section class="unit-action-block">
+        <h3>Split this lot</h3>
+        <p class="unit-action-hint">Breaks a quantity off into its own unit so it can move independently. The remainder stays here.</p>
+        <div class="parts-form-grid">
+          <label>Quantity to split off<input type="number" min="0.001" step="0.001" id="splitQuantity" placeholder="Less than ${escapeHtml(unit.quantity)}"></label>
+          <label>Destination<input id="splitLocation" list="partsLocationOptions" placeholder="Leave blank to keep ${escapeHtml(unit.location)}"></label>
+        </div>
+        <label>Notes <input id="splitNotes" placeholder="Optional remarks"></label>
+        <button class="btn-quiet" id="btnSplitUnit">Split the lot</button>
+      </section>`;
+  }
+
+  async function splitUnit(unit) {
+    const button = byId('btnSplitUnit');
+    button.disabled = true;
+    unitActionStatus('Splitting the lot…');
+    try {
+      const created = await client.splitUnit({
+        unitId: unit.id,
+        version: unit.version,
+        quantity: Number(byId('splitQuantity').value),
+        locationCode: byId('splitLocation').value.trim() || null,
+        notes: byId('splitNotes').value.trim() || null,
+        session: await session()
+      });
+      await performSearch();
+      await openUnit(created.id);
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      button.disabled = false;
+    }
+  }
+
   function renderUnitActions(unit) {
     if (unit.status === 'issued') {
       return `
@@ -511,6 +548,7 @@ const MXPartsWorkspace = (() => {
       ${inspection}
       ${renderMovementBlock(unit)}
       ${renderCountBlock(unit)}
+      ${renderSplitBlock(unit)}
       <section class="unit-action-block">
         <h3>Correct details</h3>
         <p class="unit-action-hint">Corrections are recorded against this unit with the previous values. Quantity, status, and location change through their own actions.</p>
@@ -542,6 +580,7 @@ const MXPartsWorkspace = (() => {
     byId('btnInspectReject')?.addEventListener('click', () => disposition(unit, 'inspect_reject'));
     byId('btnCorrectUnit')?.addEventListener('click', () => correctUnit(unit));
     byId('btnAdjustQuantity')?.addEventListener('click', () => adjustQuantity(unit));
+    byId('btnSplitUnit')?.addEventListener('click', () => splitUnit(unit));
     byId('drawerContent')?.querySelectorAll('[data-movement]').forEach((button) => {
       button.addEventListener('click', () => moveStock(unit, button.dataset.movement));
     });

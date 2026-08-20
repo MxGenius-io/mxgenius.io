@@ -85,6 +85,12 @@
         unit = { ...unit, quantity: countedQuantity, version: unit.version + 1 };
         return unit;
       },
+      splitUnit: async ({ quantity, locationCode, version }) => {
+        log(`splitUnit version=${version} qty=${quantity} to=${locationCode || '(same)'}`);
+        const remainder = unit.quantity - quantity;
+        unit = { ...unit, quantity: remainder, version: unit.version + 1 };
+        return { ...unit, id: 'split-child', quantity, location: locationCode || unit.location, version: 1 };
+      },
       correctUnit: async ({ values, version }) => {
         log(`correctUnit version=${version} ${JSON.stringify(values)}`);
         unit = { ...unit, ...values, version: unit.version + 1 };

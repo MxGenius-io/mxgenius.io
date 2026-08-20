@@ -991,6 +991,23 @@ const MXApplicationClient = (() => {
       });
       return payload.unit;
     },
+    splitUnit: async ({ unitId, version, quantity, locationCode = null, notes = null, session = {} }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.split',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/splits`, {
+        session,
+        method: 'POST',
+        body: { quantity, locationCode, notes },
+        headers: {
+          'If-Match': `"${version}"`,
+          'X-MXG-Confirmation-Grant': confirmation.token
+        }
+      });
+      return payload.unit;
+    },
     correctUnit: async ({ unitId, version, values, session = {} }) => {
       const confirmation = await issueConfirmation({
         toolName: 'mxg.parts.correct',

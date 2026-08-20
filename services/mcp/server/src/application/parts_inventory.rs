@@ -367,6 +367,16 @@ pub struct AdjustQuantityInput {
     pub notes: Option<String>,
 }
 
+/// Breaks a quantity off a lot into its own unit, so part of a lot can be
+/// issued, shipped, or quarantined without dragging the remainder with it.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitUnitInput {
+    pub quantity: f64,
+    pub location_code: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Human correction of confirmed metadata. Quantity, status, and location are
 /// deliberately excluded: those move through ledger events, not corrections.
 #[derive(Debug, Deserialize)]
@@ -1403,6 +1413,157 @@ impl<'a> PartsInventoryRepository<'a> {
         self.get_unit(context, unit_id).await
     }
 
+    /// Splits a quantity off a lot into a new unit. Both the remainder and the
+    /// new unit carry a `split` event naming the other, so the ledger explains
+    /// where the stock came from and where it went.
+    pub async fn split_unit(
+        &self,
+        context: &ExecutionContext,
+        unit_id: Uuid,
+        expected_version: i64,
+        input: &SplitUnitInput,
+    ) -> Result<StockUnitDto, PartsInventoryError> {
+        if !input.quantity.is_finite() || input.quantity <= 0.0 {
+            return Err(PartsInventoryError::Invalid(
+                "quantity must be greater than zero".into(),
+            ));
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let current: Option<SplittableUnitRow> = sqlx::query_as(
+            r#"SELECT status,version,quantity::double precision,serial_number,lot_number,
+                      part_id,condition_code,trace_type,certificate_number,location_id,
+                      owner_type,metadata
+               FROM stock_units
+               WHERE organization_id=$1 AND id=$2 FOR UPDATE"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((
+            status,
+            version,
+            quantity,
+            serial_number,
+            lot_number,
+            part_id,
+            condition_code,
+            trace_type,
+            certificate_number,
+            location_id,
+            owner_type,
+            metadata,
+        )) = current
+        else {
+            return Err(PartsInventoryError::NotFound);
+        };
+        if version != expected_version {
+            return Err(PartsInventoryError::Conflict(format!(
+                "expected version {expected_version}, current version is {version}"
+            )));
+        }
+        let state = StockUnitStatus::parse(&status).ok_or_else(|| {
+            PartsInventoryError::Conflict(format!("unit holds unknown status {status}"))
+        })?;
+        if state.is_terminal() {
+            return Err(PartsInventoryError::Conflict(format!(
+                "a unit in {} can no longer be split",
+                state.as_str()
+            )));
+        }
+        if serial_number.is_some() {
+            return Err(PartsInventoryError::Invalid(
+                "a serialized unit is a single item and cannot be split".into(),
+            ));
+        }
+        if input.quantity >= quantity {
+            return Err(PartsInventoryError::Invalid(format!(
+                "quantity must be less than the {quantity} on hand; move the whole unit instead"
+            )));
+        }
+
+        let destination = match input.location_code.as_deref().map(str::trim) {
+            Some(code) if !code.is_empty() => {
+                resolve_location(&mut tx, context, code, "stock").await?
+            }
+            _ => location_id,
+        };
+        let remainder = quantity - input.quantity;
+        let new_unit_id = Uuid::new_v4();
+        let notes = input
+            .notes
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+
+        sqlx::query(
+            r#"INSERT INTO stock_units
+               (id,organization_id,part_id,serial_number,lot_number,quantity,
+                condition_code,status,trace_type,certificate_number,location_id,
+                owner_type,received_at,created_by,metadata,version,created_at,updated_at)
+               VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,$11,now(),$12,$13,1,now(),now())"#,
+        )
+        .bind(new_unit_id)
+        .bind(context.organization_id.0)
+        .bind(part_id)
+        .bind(lot_number.as_deref())
+        .bind(input.quantity)
+        .bind(&condition_code)
+        .bind(state.as_str())
+        .bind(&trace_type)
+        .bind(certificate_number.as_deref())
+        .bind(destination)
+        .bind(&owner_type)
+        .bind(context.user_id.0)
+        .bind(&metadata)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"UPDATE stock_units
+               SET quantity=$3,version=version+1,updated_at=now()
+               WHERE organization_id=$1 AND id=$2"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(unit_id)
+        .bind(remainder)
+        .execute(&mut *tx)
+        .await?;
+
+        for (subject, delta, counterpart, to_location) in [
+            (unit_id, -input.quantity, new_unit_id, location_id),
+            (new_unit_id, input.quantity, unit_id, destination),
+        ] {
+            sqlx::query(
+                r#"INSERT INTO inventory_events
+                   (id,organization_id,stock_unit_id,event_type,quantity_delta,
+                    from_location_id,to_location_id,reference_type,reference_id,
+                    actor_user_id,correlation_id,notes,payload,created_at)
+                   VALUES ($1,$2,$3,'split',$4,$5,$6,'stock_unit',$7,$8,$9,$10,$11,now())"#,
+            )
+            .bind(Uuid::new_v4())
+            .bind(context.organization_id.0)
+            .bind(subject)
+            .bind(delta)
+            .bind(location_id)
+            .bind(to_location)
+            .bind(counterpart.to_string())
+            .bind(context.user_id.0)
+            .bind(context.correlation_id.0)
+            .bind(notes)
+            .bind(json!({
+                "originalQuantity": quantity,
+                "splitQuantity": input.quantity,
+                "remainder": remainder,
+                "counterpartUnitId": counterpart
+            }))
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        self.get_unit(context, new_unit_id).await
+    }
+
     /// Books a counted quantity against a lot. Serialized units always hold
     /// exactly one, so they are counted by presence, not by quantity.
     pub async fn adjust_quantity(
@@ -1669,6 +1830,24 @@ impl<'a> PartsInventoryRepository<'a> {
 
 /// `(status, version, serial_number, lot_number, condition_code, trace_type,
 /// certificate_number)` as selected for a correction.
+/// `(status, version, quantity, serial_number, lot_number, part_id,
+/// condition_code, trace_type, certificate_number, location_id, owner_type,
+/// metadata)` as selected for a split.
+type SplittableUnitRow = (
+    String,
+    i64,
+    f64,
+    Option<String>,
+    Option<String>,
+    Uuid,
+    String,
+    String,
+    Option<String>,
+    Uuid,
+    String,
+    Value,
+);
+
 type CorrectableUnitRow = (
     String,
     i64,

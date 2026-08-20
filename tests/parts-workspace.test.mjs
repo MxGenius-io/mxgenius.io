@@ -114,6 +114,27 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(client, /toolName: 'mxg\.parts\.adjust'/);
   });
 
+  await t.test('lots can be split so part of a lot moves independently', () => {
+    assert.match(js, /client\.splitUnit\(/);
+    assert.match(js, /id="btnSplitUnit"/);
+    // A serialized item is one thing, and a lot of one has nothing to give.
+    assert.match(js, /if \(unit\.serialNumber \|\| !\(unit\.quantity > 1\)\) return '';/);
+    assert.match(client, /toolName: 'mxg\.parts\.split'/);
+  });
+
+  await t.test('every inventory event type the schema defines is reachable', () => {
+    const repository = readFileSync('services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+    for (const event of [
+      'receive', 'inspect_pass', 'inspect_reject', 'issue', 'transfer',
+      'adjust', 'return', 'ship', 'scrap', 'split', 'metadata_corrected'
+    ]) {
+      assert.ok(
+        repository.includes(`'${event}'`) || repository.includes(`"${event}"`),
+        `${event} should be written by some code path`
+      );
+    }
+  });
+
   await t.test('inventory can be filtered by status and location', () => {
     assert.match(js, /id="partsStatusFilter"/);
     assert.match(js, /id="partsLocationFilter"/);

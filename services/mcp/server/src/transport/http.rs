@@ -25,7 +25,8 @@ use uuid::Uuid;
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
     ExtractionProposal, PartsInventoryError, PartsInventoryRepository, RegisterAssetInput,
-    ReviewExtractionInput, SearchPartsQuery, StockAction, TransitionUnitInput, UpsertLocationInput,
+    ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction, TransitionUnitInput,
+    UpsertLocationInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -207,6 +208,7 @@ pub fn router_with_health_and_manual(
             "/api/parts/units/:unit_id/quantity",
             post(adjust_parts_unit_quantity),
         )
+        .route("/api/parts/units/:unit_id/splits", post(split_parts_unit))
         .route(
             "/api/parts/units/:unit_id/assets",
             get(list_parts_unit_assets),
@@ -2214,11 +2216,12 @@ struct ListLocationsQuery {
 
 /// Parts ledger mutations that accept a signed single-use confirmation grant
 /// without appearing in the locked capability registry.
-const PARTS_CONFIRMABLE_OPERATIONS: [&str; 4] = [
+const PARTS_CONFIRMABLE_OPERATIONS: [&str; 5] = [
     "mxg.parts.receive",
     "mxg.parts.inspect",
     "mxg.parts.correct",
     "mxg.parts.adjust",
+    "mxg.parts.split",
 ];
 
 /// Releasing stock from quarantine onto the serviceable shelf is an inspection
@@ -3224,6 +3227,51 @@ async fn adjust_parts_unit_quantity(
     {
         Ok(unit) => (StatusCode::OK, Json(json!({"unit": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.unit.adjust"),
+    }
+}
+
+async fn split_parts_unit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+    Json(input): Json<SplitUnitInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot split inventory lots",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.split"
+            && grant.object_id == unit_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this unit and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartsInventoryRepository::new(pool)
+        .split_unit(&context, unit_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.unit.split"),
     }
 }
 
