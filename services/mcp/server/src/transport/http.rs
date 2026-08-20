@@ -51,6 +51,7 @@ const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
 const MAX_PROJECT_WORKSPACE_BYTES: usize = 512 * 1024;
+const MAX_FEEDBACK_SCREENSHOT_BYTES: usize = 8 * 1024 * 1024;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
 
@@ -143,6 +144,19 @@ pub fn router_with_health_and_manual(
         .route(
             "/api/project-workspaces/:workspace_key/assets/:asset_id/content",
             get(get_project_workspace_asset_content),
+        )
+        .route(
+            "/api/feedback",
+            get(list_feedback_reports).post(submit_feedback_report),
+        )
+        .route("/api/feedback/admin", get(list_feedback_reports_admin))
+        .route(
+            "/api/feedback/:report_id",
+            get(get_feedback_report).patch(update_feedback_report),
+        )
+        .route(
+            "/api/feedback/:report_id/screenshot",
+            get(get_feedback_report_screenshot),
         )
         .route("/api/demo-data", post(load_demo_data))
         .route("/api/cases", get(list_cases))
@@ -1210,6 +1224,552 @@ async fn get_project_workspace_asset_content(
         )
         .body(Body::from(content))
         .expect("valid project workspace asset response")
+}
+
+#[derive(Debug, Serialize, FromRow)]
+struct FeedbackReportApiRow {
+    id: Uuid,
+    report_number: i64,
+    title: String,
+    report_type: String,
+    severity: Option<String>,
+    description: Option<String>,
+    status: String,
+    page_url: Option<String>,
+    page_title: Option<String>,
+    has_screenshot: bool,
+    created_at: OffsetDateTime,
+}
+
+/// Same shape as `FeedbackReportApiRow` plus the fields only a triager
+/// needs: who filed it (name and, so they can be contacted directly, their
+/// email) and the admin-only triage notes. Used by the admin queue and by
+/// the detail/screenshot routes once they're serving an admin (who may be
+/// looking at someone else's report). `admin_notes` is nulled out in SQL
+/// for non-admin callers — it must never reach the submitter.
+#[derive(Debug, Serialize, FromRow)]
+struct FeedbackReportAdminApiRow {
+    id: Uuid,
+    report_number: i64,
+    title: String,
+    report_type: String,
+    severity: Option<String>,
+    description: Option<String>,
+    status: String,
+    admin_notes: Option<String>,
+    page_url: Option<String>,
+    page_title: Option<String>,
+    has_screenshot: bool,
+    created_at: OffsetDateTime,
+    reporter_name: String,
+    reporter_email: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SubmitFeedbackReportRequest {
+    title: String,
+    #[serde(default)]
+    report_type: Option<String>,
+    #[serde(default)]
+    severity: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    page_url: Option<String>,
+    #[serde(default)]
+    page_title: Option<String>,
+    #[serde(default)]
+    screenshot_data_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateFeedbackReportRequest {
+    status: String,
+    #[serde(default)]
+    admin_notes: Option<String>,
+}
+
+fn normalized_feedback_title(value: &str) -> Option<String> {
+    let title = value.trim();
+    if title.is_empty() || title.chars().count() > 200 {
+        return None;
+    }
+    Some(title.to_owned())
+}
+
+/// The reporter UI offers exactly two independent entry points (Report a
+/// Bug / Request a Feature) rather than a type picker, so only these two
+/// values are accepted.
+fn validated_feedback_report_type(value: Option<&str>) -> Result<&'static str, &'static str> {
+    match value.unwrap_or("bug") {
+        "bug" => Ok("bug"),
+        "feature" => Ok("feature"),
+        _ => Err("type must be bug or feature"),
+    }
+}
+
+/// Severity only applies to bug reports — the feature-request flow has no
+/// severity control, so any non-bug report is stored with no severity
+/// regardless of what was supplied.
+fn validated_feedback_severity(
+    report_type: &str,
+    value: Option<&str>,
+) -> Result<Option<&'static str>, &'static str> {
+    if report_type != "bug" {
+        return Ok(None);
+    }
+    match value.unwrap_or("medium") {
+        "low" => Ok(Some("low")),
+        "medium" => Ok(Some("medium")),
+        "high" => Ok(Some("high")),
+        _ => Err("severity must be low, medium, or high"),
+    }
+}
+
+fn clamped_feedback_text(value: Option<&str>, max_chars: usize) -> Option<String> {
+    let trimmed = value.map(str::trim).filter(|value| !value.is_empty())?;
+    Some(trimmed.chars().take(max_chars).collect())
+}
+
+/// Triage status an admin can move a report through. `needs_info` sits
+/// between `in_progress` and `resolved`/`declined` for "parked on the
+/// submitter" — distinct from `in_progress` so the queue can tell "we're
+/// working on it" apart from "we're waiting on you" at a glance.
+fn validated_feedback_status(value: &str) -> Result<&'static str, &'static str> {
+    match value {
+        "new" => Ok("new"),
+        "in_progress" => Ok("in_progress"),
+        "needs_info" => Ok("needs_info"),
+        "resolved" => Ok("resolved"),
+        "declined" => Ok("declined"),
+        _ => Err("status must be new, in_progress, needs_info, resolved, or declined"),
+    }
+}
+
+/// Gate for the org-wide feedback queue: same Manager/Administrator bar as
+/// `beta_admin_allowed`, kept as a separate named check so call sites read
+/// as "feedback triage access" rather than borrowing the beta-data name.
+fn feedback_admin_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn decoded_feedback_screenshot(
+    data_url: &str,
+) -> Result<(Vec<u8>, &'static str, &'static str), &'static str> {
+    let Some((prefix, encoded)) = data_url.split_once(";base64,") else {
+        return Err("screenshot must be a base64 data URL");
+    };
+    let (media_type, extension): (&'static str, &'static str) = match prefix {
+        "data:image/png" => ("image/png", "png"),
+        "data:image/jpeg" => ("image/jpeg", "jpg"),
+        "data:image/webp" => ("image/webp", "webp"),
+        _ => return Err("screenshot must be PNG, JPEG, or WebP"),
+    };
+    if encoded.len() > (MAX_FEEDBACK_SCREENSHOT_BYTES * 4 / 3) + 8 {
+        return Err("screenshot must be no larger than 8 MiB");
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| "screenshot must contain valid base64")?;
+    if decoded.is_empty() || decoded.len() > MAX_FEEDBACK_SCREENSHOT_BYTES {
+        return Err("screenshot must be between 1 byte and 8 MiB");
+    }
+    Ok((decoded, media_type, extension))
+}
+
+fn feedback_screenshot_media_type(storage_key: &str) -> &'static str {
+    match storage_key.rsplit('.').next() {
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "image/png",
+    }
+}
+
+/// Uploads the screenshot and reports success rather than an error: per the
+/// feedback subsystem's invariant, a blob-storage failure must never lose
+/// the report itself (see `submit_feedback_report`).
+async fn upload_feedback_screenshot(
+    client: &reqwest::Client,
+    storage_key: &str,
+    media_type: &str,
+    bytes: Vec<u8>,
+) -> bool {
+    let access = match parts_blob_access(client, storage_key).await {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    let mut request = client
+        .put(access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, media_type)
+        .body(bytes);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    match request.send().await {
+        Ok(response) if response.status().is_success() => true,
+        Ok(response) => {
+            tracing::warn!(
+                target: "mxgenius.feedback",
+                status = %response.status(),
+                storage_key,
+                "feedback screenshot upload rejected"
+            );
+            false
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.feedback", %error, storage_key, "feedback screenshot upload failed");
+            false
+        }
+    }
+}
+
+async fn submit_feedback_report(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<SubmitFeedbackReportRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let Some(title) = normalized_feedback_title(&input.title) else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_FEEDBACK_TITLE",
+            "title must contain between 1 and 200 characters",
+        );
+    };
+    let report_type = match validated_feedback_report_type(input.report_type.as_deref()) {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_FEEDBACK_TYPE", message)
+        }
+    };
+    let severity = match validated_feedback_severity(report_type, input.severity.as_deref()) {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_FEEDBACK_SEVERITY", message)
+        }
+    };
+    let description = clamped_feedback_text(input.description.as_deref(), 5000);
+    let page_url = clamped_feedback_text(input.page_url.as_deref(), 2000);
+    let page_title = clamped_feedback_text(input.page_title.as_deref(), 200);
+
+    let report_id = Uuid::new_v4();
+    let mut screenshot_storage_key: Option<String> = None;
+    let mut screenshot_uploaded = false;
+    if let Some(data_url) = input
+        .screenshot_data_url
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        let (bytes, media_type, extension) = match decoded_feedback_screenshot(data_url) {
+            Ok(value) => value,
+            Err(message) => {
+                return realtime_error(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_FEEDBACK_SCREENSHOT",
+                    message,
+                )
+            }
+        };
+        let storage_key = format!(
+            "documents/feedback/{}/{}.{}",
+            context.organization_id.0, report_id, extension
+        );
+        let uploaded = upload_feedback_screenshot(
+            &state.realtime_client,
+            &storage_key,
+            media_type,
+            bytes,
+        )
+        .await;
+        if uploaded {
+            screenshot_storage_key = Some(storage_key);
+            screenshot_uploaded = true;
+        }
+    }
+
+    let report = match sqlx::query_as::<_, FeedbackReportApiRow>(
+        r#"INSERT INTO feedback_reports
+           (id, organization_id, reporter_user_id, title, report_type, severity, description,
+            status, page_url, page_title, screenshot_storage_key, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'new',$8,$9,$10,now())
+           RETURNING id, report_number, title, report_type, severity, description, status,
+                     page_url, page_title,
+                     (screenshot_storage_key IS NOT NULL) AS has_screenshot, created_at"#,
+    )
+    .bind(report_id)
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .bind(&title)
+    .bind(report_type)
+    .bind(severity)
+    .bind(&description)
+    .bind(&page_url)
+    .bind(&page_title)
+    .bind(&screenshot_storage_key)
+    .fetch_one(pool)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("feedback.submit", error),
+    };
+
+    (
+        StatusCode::CREATED,
+        Json(json!({"report": report, "screenshot_uploaded": screenshot_uploaded})),
+    )
+        .into_response()
+}
+
+async fn list_feedback_reports(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, FeedbackReportApiRow>(
+        r#"SELECT id, report_number, title, report_type, severity, description, status,
+                  page_url, page_title,
+                  (screenshot_storage_key IS NOT NULL) AS has_screenshot, created_at
+           FROM feedback_reports
+           WHERE organization_id=$1 AND reporter_user_id=$2
+           ORDER BY created_at DESC
+           LIMIT 200"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(context.user_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(reports) => (StatusCode::OK, Json(json!({"reports": reports}))).into_response(),
+        Err(error) => persistence_error("feedback.list", error),
+    }
+}
+
+/// Org-wide feedback queue for triage. Unlike `list_feedback_reports` (which
+/// scopes to the caller's own submissions for the "My Feedback" page), this
+/// returns every report in the org regardless of who filed it, gated by
+/// `feedback_admin_allowed`.
+async fn list_feedback_reports_admin(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !feedback_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "FEEDBACK_ADMIN_REQUIRED",
+            "manager or administrator access is required",
+        );
+    }
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, FeedbackReportAdminApiRow>(
+        r#"SELECT f.id, f.report_number, f.title, f.report_type, f.severity, f.description,
+                  f.status, f.admin_notes, f.page_url, f.page_title,
+                  (f.screenshot_storage_key IS NOT NULL) AS has_screenshot, f.created_at,
+                  COALESCE(u.display_name, u.email) AS reporter_name, u.email AS reporter_email
+           FROM feedback_reports f
+           LEFT JOIN users u ON u.id = f.reporter_user_id
+           WHERE f.organization_id=$1
+           ORDER BY f.created_at DESC
+           LIMIT 500"#,
+    )
+    .bind(context.organization_id.0)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(reports) => (StatusCode::OK, Json(json!({"reports": reports}))).into_response(),
+        Err(error) => persistence_error("feedback.list_admin", error),
+    }
+}
+
+async fn get_feedback_report(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(report_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let is_admin = feedback_admin_allowed(&context);
+    match sqlx::query_as::<_, FeedbackReportAdminApiRow>(
+        r#"SELECT f.id, f.report_number, f.title, f.report_type, f.severity, f.description,
+                  f.status, CASE WHEN $3 THEN f.admin_notes ELSE NULL END AS admin_notes,
+                  f.page_url, f.page_title,
+                  (f.screenshot_storage_key IS NOT NULL) AS has_screenshot, f.created_at,
+                  COALESCE(u.display_name, u.email) AS reporter_name, u.email AS reporter_email
+           FROM feedback_reports f
+           LEFT JOIN users u ON u.id = f.reporter_user_id
+           WHERE f.id=$1 AND f.organization_id=$2 AND ($3 OR f.reporter_user_id=$4)"#,
+    )
+    .bind(report_id)
+    .bind(context.organization_id.0)
+    .bind(is_admin)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(report)) => (StatusCode::OK, Json(json!({"report": report}))).into_response(),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "FEEDBACK_REPORT_NOT_FOUND",
+            "feedback report not found",
+        ),
+        Err(error) => persistence_error("feedback.get", error),
+    }
+}
+
+/// Admin-only triage update: change status and/or replace the internal
+/// notes. Always sends both fields (mirrors `update_profile`'s full-replace
+/// semantics) rather than a sparse patch, so the client always submits the
+/// dropdown's and textarea's current values together.
+async fn update_feedback_report(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(report_id): Path<Uuid>,
+    Json(input): Json<UpdateFeedbackReportRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !feedback_admin_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "FEEDBACK_ADMIN_REQUIRED",
+            "manager or administrator access is required",
+        );
+    }
+    let status = match validated_feedback_status(&input.status) {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(StatusCode::BAD_REQUEST, "INVALID_FEEDBACK_STATUS", message)
+        }
+    };
+    let admin_notes = clamped_feedback_text(input.admin_notes.as_deref(), 5000);
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    match sqlx::query_as::<_, FeedbackReportAdminApiRow>(
+        r#"UPDATE feedback_reports f
+           SET status=$3, admin_notes=$4, updated_at=now()
+           FROM users u
+           WHERE f.id=$1 AND f.organization_id=$2 AND u.id=f.reporter_user_id
+           RETURNING f.id, f.report_number, f.title, f.report_type, f.severity, f.description,
+                     f.status, f.admin_notes, f.page_url, f.page_title,
+                     (f.screenshot_storage_key IS NOT NULL) AS has_screenshot, f.created_at,
+                     COALESCE(u.display_name, u.email) AS reporter_name, u.email AS reporter_email"#,
+    )
+    .bind(report_id)
+    .bind(context.organization_id.0)
+    .bind(status)
+    .bind(&admin_notes)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(Some(report)) => (StatusCode::OK, Json(json!({"report": report}))).into_response(),
+        Ok(None) => realtime_error(
+            StatusCode::NOT_FOUND,
+            "FEEDBACK_REPORT_NOT_FOUND",
+            "feedback report not found",
+        ),
+        Err(error) => persistence_error("feedback.update", error),
+    }
+}
+
+async fn get_feedback_report_screenshot(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(report_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pool = match postgres_pool(&state) {
+        Some(value) => value,
+        None => return persistence_not_configured(),
+    };
+    let is_admin = feedback_admin_allowed(&context);
+    let storage_key: Option<String> = match sqlx::query_scalar(
+        r#"SELECT screenshot_storage_key FROM feedback_reports
+           WHERE id=$1 AND organization_id=$2 AND ($3 OR reporter_user_id=$4)"#,
+    )
+    .bind(report_id)
+    .bind(context.organization_id.0)
+    .bind(is_admin)
+    .bind(context.user_id.0)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(value) => value.flatten(),
+        Err(error) => return persistence_error("feedback.screenshot", error),
+    };
+    let Some(storage_key) = storage_key else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "FEEDBACK_SCREENSHOT_NOT_FOUND",
+            "feedback report has no screenshot",
+        );
+    };
+    let access = match workspace_read_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state.realtime_client.get(access.url);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "FEEDBACK_SCREENSHOT_UNAVAILABLE",
+                "screenshot could not be retrieved",
+            )
+        }
+    };
+    let content = match upstream.bytes().await {
+        Ok(value) if value.len() <= MAX_FEEDBACK_SCREENSHOT_BYTES => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "FEEDBACK_SCREENSHOT_INVALID",
+                "screenshot exceeded the delivery limit",
+            )
+        }
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, feedback_screenshot_media_type(&storage_key))
+        .header(header::CACHE_CONTROL, "private, max-age=300")
+        .body(Body::from(content))
+        .expect("valid feedback screenshot response")
 }
 
 async fn readyz(State(state): State<AppState>) -> Response {
@@ -6115,6 +6675,113 @@ mod structured_advisory_tests {
         assert_eq!(
             content_upload_media_type("application/octet-stream", "payload.exe"),
             None
+        );
+    }
+
+    #[test]
+    fn feedback_report_type_is_limited_to_bug_or_feature() {
+        assert_eq!(validated_feedback_report_type(None), Ok("bug"));
+        assert_eq!(validated_feedback_report_type(Some("bug")), Ok("bug"));
+        assert_eq!(validated_feedback_report_type(Some("feature")), Ok("feature"));
+        assert_eq!(
+            validated_feedback_report_type(Some("ui")),
+            Err("type must be bug or feature")
+        );
+    }
+
+    #[test]
+    fn feedback_severity_is_bug_only_with_three_levels() {
+        assert_eq!(validated_feedback_severity("bug", None), Ok(Some("medium")));
+        assert_eq!(
+            validated_feedback_severity("bug", Some("low")),
+            Ok(Some("low"))
+        );
+        assert_eq!(
+            validated_feedback_severity("bug", Some("critical")),
+            Err("severity must be low, medium, or high")
+        );
+        assert_eq!(validated_feedback_severity("feature", Some("high")), Ok(None));
+        assert_eq!(validated_feedback_severity("feature", None), Ok(None));
+    }
+
+    #[test]
+    fn feedback_status_is_limited_to_the_admin_triage_workflow() {
+        assert_eq!(validated_feedback_status("new"), Ok("new"));
+        assert_eq!(validated_feedback_status("in_progress"), Ok("in_progress"));
+        assert_eq!(validated_feedback_status("needs_info"), Ok("needs_info"));
+        assert_eq!(validated_feedback_status("resolved"), Ok("resolved"));
+        assert_eq!(validated_feedback_status("declined"), Ok("declined"));
+        assert_eq!(
+            validated_feedback_status("archived"),
+            Err("status must be new, in_progress, needs_info, resolved, or declined")
+        );
+    }
+
+    #[test]
+    fn feedback_titles_are_bounded() {
+        assert_eq!(
+            normalized_feedback_title("  Globe stutters on Safari  "),
+            Some("Globe stutters on Safari".into())
+        );
+        assert!(normalized_feedback_title("   ").is_none());
+        assert!(normalized_feedback_title(&"x".repeat(201)).is_none());
+        assert!(normalized_feedback_title(&"x".repeat(200)).is_some());
+    }
+
+    #[test]
+    fn feedback_free_text_fields_are_clamped_not_rejected() {
+        assert_eq!(clamped_feedback_text(Some("  "), 10), None);
+        assert_eq!(clamped_feedback_text(None, 10), None);
+        assert_eq!(
+            clamped_feedback_text(Some(" hello "), 10),
+            Some("hello".into())
+        );
+        assert_eq!(
+            clamped_feedback_text(Some(&"x".repeat(20)), 10),
+            Some("x".repeat(10))
+        );
+    }
+
+    #[test]
+    fn feedback_screenshots_must_be_a_supported_bounded_data_url() {
+        let pixel = base64::engine::general_purpose::STANDARD.encode([0u8, 1, 2, 3]);
+        assert_eq!(
+            decoded_feedback_screenshot(&format!("data:image/png;base64,{pixel}")),
+            Ok((vec![0, 1, 2, 3], "image/png", "png"))
+        );
+        assert_eq!(
+            decoded_feedback_screenshot(&format!("data:image/jpeg;base64,{pixel}")),
+            Ok((vec![0, 1, 2, 3], "image/jpeg", "jpg"))
+        );
+        assert_eq!(
+            decoded_feedback_screenshot("data:text/plain;base64,aGVsbG8="),
+            Err("screenshot must be PNG, JPEG, or WebP")
+        );
+        assert_eq!(
+            decoded_feedback_screenshot("not-a-data-url"),
+            Err("screenshot must be a base64 data URL")
+        );
+        let oversized = base64::engine::general_purpose::STANDARD
+            .encode(vec![0u8; MAX_FEEDBACK_SCREENSHOT_BYTES + 1]);
+        assert_eq!(
+            decoded_feedback_screenshot(&format!("data:image/png;base64,{oversized}")),
+            Err("screenshot must be no larger than 8 MiB")
+        );
+    }
+
+    #[test]
+    fn feedback_screenshot_media_type_is_read_from_the_storage_key_extension() {
+        assert_eq!(
+            feedback_screenshot_media_type("documents/feedback/org/report.png"),
+            "image/png"
+        );
+        assert_eq!(
+            feedback_screenshot_media_type("documents/feedback/org/report.jpg"),
+            "image/jpeg"
+        );
+        assert_eq!(
+            feedback_screenshot_media_type("documents/feedback/org/report.webp"),
+            "image/webp"
         );
     }
 

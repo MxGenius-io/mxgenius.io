@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Feedback admin queue — local preview (not part of the app)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="feedback.css?v=1">
+<style>
+  .demo-banner {
+    background: #7c2d12;
+    color: #fff;
+    text-align: center;
+    padding: 8px 12px;
+    font: 600 13px/1.4 var(--font, sans-serif);
+  }
+</style>
+</head>
+<body>
+  <div class="demo-banner">
+    LOCAL PREVIEW — mocked auth &amp; API, loads the real feedback-admin.js unmodified. Not the live app.
+  </div>
+
+  <header class="feedback-page__header">
+    <a class="feedback-page__brand" href="_local-preview.html" aria-label="Back to reporter demo">
+      <span>MXGenius (local preview)</span>
+    </a>
+    <div class="feedback-page__header-actions">
+      <span id="feedbackListState" class="feedback-page__state" role="status" aria-live="polite">Loading…</span>
+      <a class="button button--quiet" href="_local-preview.html">Back to reporter demo</a>
+    </div>
+  </header>
+
+  <main class="feedback-page__shell">
+    <section class="feedback-page__intro">
+      <p class="eyebrow">Manager / Administrator</p>
+      <h1>Feedback Queue</h1>
+      <p>Every bug report and feature request submitted across the organization, newest first, referenced by ticket number. Update status and leave internal triage notes from the detail view.</p>
+    </section>
+
+    <div id="feedbackListError" class="feedback-page__error" role="alert" hidden>
+      <span id="feedbackListErrorText"></span>
+      <button id="feedbackListReload" class="button button--quiet" type="button">Reload</button>
+    </div>
+
+    <div class="feedback-admin__filters">
+      <label>Type
+        <select id="feedbackFilterType">
+          <option value="">All</option>
+          <option value="bug">Bug</option>
+          <option value="feature">Feature request</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="feedbackFilterStatus">
+          <option value="">All</option>
+          <option value="new">New</option>
+          <option value="in_progress">In progress</option>
+          <option value="needs_info">Needs info</option>
+          <option value="resolved">Resolved</option>
+          <option value="declined">Declined</option>
+        </select>
+      </label>
+      <label class="feedback-admin__filters-checkbox">
+        <input type="checkbox" id="feedbackFilterOpenOnly" checked>
+        Hide resolved &amp; declined
+      </label>
+    </div>
+
+    <div id="feedbackListEmpty" class="feedback-page__empty" hidden>
+      No feedback reports match the current filters.
+    </div>
+
+    <div id="feedbackList" class="feedback-page__list"></div>
+  </main>
+
+  <div id="feedbackDetailModal" class="feedback-detail hidden">
+    <div class="feedback-detail__backdrop" id="feedbackDetailBackdrop"></div>
+    <div class="feedback-detail__content">
+      <button class="feedback-detail__close" id="feedbackDetailClose" aria-label="Close report detail">&times;</button>
+      <p class="eyebrow" id="feedbackDetailKicker"></p>
+      <h2 id="feedbackDetailTitle"></h2>
+      <p id="feedbackDetailMeta" class="feedback-detail__meta"></p>
+      <a id="feedbackDetailContact" class="button button--quiet feedback-admin__contact" href="#" hidden>Contact submitter</a>
+      <img id="feedbackDetailScreenshot" class="feedback-detail__screenshot" alt="Submitted screenshot" hidden>
+      <p id="feedbackDetailScreenshotState" class="feedback-detail__screenshot-state" hidden></p>
+      <p id="feedbackDetailDescription" class="feedback-detail__description"></p>
+
+      <div class="feedback-admin__triage">
+        <label>Status
+          <select id="feedbackDetailStatus">
+            <option value="new">New</option>
+            <option value="in_progress">In progress</option>
+            <option value="needs_info">Needs info</option>
+            <option value="resolved">Resolved</option>
+            <option value="declined">Declined</option>
+          </select>
+        </label>
+        <label>Internal notes <span class="feedback-admin__hint">(never shown to the submitter)</span>
+          <textarea id="feedbackDetailNotes" rows="3" maxlength="5000" placeholder="Triage context, repro steps, decisions…"></textarea>
+        </label>
+        <div class="feedback-admin__triage-actions">
+          <span id="feedbackDetailSaveStatus" class="feedback-page__state" role="status" aria-live="polite"></span>
+          <button type="button" class="button" id="feedbackDetailSave">Save changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Mocked auth + API boundary so the real feedback-admin.js can run
+    // without the live Entra tenant or the Rust/Postgres backend. Reads
+    // from the same localStorage bucket _local-preview.html writes to, so
+    // reports submitted there show up here too.
+    const DEMO_KEY = 'mx-local-preview-feedback';
+    const seeded = [
+      {
+        id: 'demo-seed-1', report_number: 1001, title: 'Globe stutters when zooming past 40 aircraft', report_type: 'bug',
+        severity: 'high', status: 'new', description: 'Frame rate drops below 10fps once the fleet count crosses ~40 markers.',
+        admin_notes: null, page_url: 'https://mxgenius.io/dashboard.html', page_title: 'Fleet Dashboard', has_screenshot: false,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), reporter_name: 'Dana Lin', reporter_email: 'dana.lin@example-org.test'
+      },
+      {
+        id: 'demo-seed-2', report_number: 1002, title: 'Add bulk export for parts inventory', report_type: 'feature',
+        severity: null, status: 'needs_info', description: 'Would like to export the full parts list to CSV for the quarterly audit.',
+        admin_notes: 'Asked which columns are required for the audit — waiting to hear back.',
+        page_url: 'https://mxgenius.io/dashboard.html', page_title: 'Parts', has_screenshot: false,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(), reporter_name: 'Marcus Webb', reporter_email: 'marcus.webb@example-org.test'
+      },
+      {
+        id: 'demo-seed-3', report_number: 1003, title: 'Case status badge shows wrong color for "Resolved"', report_type: 'bug',
+        severity: 'low', status: 'resolved', description: 'Cosmetic only — resolved cases still render with the amber "in progress" badge.',
+        admin_notes: 'Fixed in the badge color map, shipped 8/16.',
+        page_url: 'https://mxgenius.io/dashboard.html', page_title: 'Cases', has_screenshot: false,
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), reporter_name: 'Priya Shah', reporter_email: 'priya.shah@example-org.test'
+      }
+    ];
+
+    function loadSubmitted() {
+      try {
+        return JSON.parse(localStorage.getItem(DEMO_KEY) || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    window.MXGENIUS_CONFIG = {
+      ready: Promise.resolve(),
+      getSession: () => ({ accessToken: 'demo-token', organizationId: 'demo-org' })
+    };
+    window.MXGENIUS_AUTH = { getToken: async () => 'demo-token' };
+    window.MXApplicationClient = {
+      feedback: {
+        listAdmin: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const submitted = loadSubmitted();
+          return { reports: [...submitted, ...seeded].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) };
+        },
+        updateAdmin: async (reportId, update) => {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const submitted = loadSubmitted();
+          const submittedIndex = submitted.findIndex((candidate) => candidate.id === reportId);
+          if (submittedIndex !== -1) {
+            submitted[submittedIndex] = { ...submitted[submittedIndex], status: update.status, admin_notes: update.adminNotes || null };
+            localStorage.setItem(DEMO_KEY, JSON.stringify(submitted));
+            return { report: submitted[submittedIndex] };
+          }
+          const seedIndex = seeded.findIndex((candidate) => candidate.id === reportId);
+          if (seedIndex !== -1) {
+            seeded[seedIndex] = { ...seeded[seedIndex], status: update.status, admin_notes: update.adminNotes || null };
+            return { report: seeded[seedIndex] };
+          }
+          throw new Error('Report not found (demo).');
+        },
+        getScreenshot: async () => {
+          throw new Error('No screenshot in this demo record.');
+        }
+      }
+    };
+  </script>
+  <script src="feedback-admin.js?v=1"></script>
+</body>
+</html>

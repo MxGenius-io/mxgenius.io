@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Feedback reporter — local preview (not part of the app)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="app-styles.css?v=5">
+<link rel="stylesheet" href="feedback-reporter.css?v=1">
+<style>
+  .demo-banner {
+    background: #7c2d12;
+    color: #fff;
+    text-align: center;
+    padding: 8px 12px;
+    font: 600 13px/1.4 var(--font, sans-serif);
+  }
+  #content {
+    padding: 32px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  #content h1 { margin-top: 0; }
+  .fake-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 10px);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .fake-stat-row { display: flex; gap: 16px; margin-bottom: 20px; }
+  .fake-stat { flex: 1; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .fake-stat b { display: block; font-size: 1.6rem; color: var(--accent-cyan); }
+  header.demo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+</style>
+</head>
+<body style="overflow:auto;">
+  <div class="demo-banner">
+    LOCAL PREVIEW — mocked auth &amp; API, not the live app. Real submit/persist needs the deployed backend.
+  </div>
+  <header class="demo-header">
+    <strong>MXGenius (local preview)</strong>
+    <div class="header-right">
+      <button class="nav-icon-btn" id="feedbackReporterBtn" title="Report a Bug (b)" aria-label="Report a Bug">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20v-9" /><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z" /><path d="M14.12 3.88 16 2" /><path d="M21 21a4 4 0 0 0-3.81-4" /><path d="M21 5a4 4 0 0 1-3.55 3.97" /><path d="M22 13h-4" /><path d="M3 21a4 4 0 0 1 3.81-4" /><path d="M3 5a4 4 0 0 0 3.55 3.97" /><path d="M6 13H2" /><path d="m8 2 1.88 1.88" /><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13" />
+        </svg>
+      </button>
+      <button class="nav-icon-btn" id="featureReporterBtn" title="Request a Feature" aria-label="Request a Feature">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+      </button>
+      <a href="_local-preview-admin.html" style="margin-left:8px;white-space:nowrap;color:var(--accent-cyan,#6ea8ff);font-size:0.82rem;text-decoration:none;">View Feedback Queue (Admin demo) →</a>
+    </div>
+  </header>
+
+  <main id="content">
+    <h1>Fleet Dashboard (fake content for screenshot capture)</h1>
+    <div class="fake-stat-row">
+      <div class="fake-stat"><b>128</b>Aircraft tracked</div>
+      <div class="fake-stat"><b>7</b>Open cases</div>
+      <div class="fake-stat"><b>42</b>Parts in stock</div>
+    </div>
+    <div class="fake-card">
+      <h3>Recent activity</h3>
+      <p>This panel stands in for the real dashboard so html2canvas has something
+      to capture. Click the bug icon top-right, or press <kbd>b</kbd>, to open the
+      real feedback reporter.</p>
+    </div>
+    <div class="fake-card">
+      <h3>Try it</h3>
+      <ol>
+        <li>Press <kbd>b</kbd> (or click the bug icon) — the modal opens and captures this page.</li>
+        <li>Draw / Rect / Arrow / Text to annotate the screenshot; pick a color; Undo / Clear.</li>
+        <li>Fill in a title, pick a type/severity, optionally a description.</li>
+        <li>Submit — this preview logs the payload to the console and reports success
+            instead of calling a real backend.</li>
+      </ol>
+    </div>
+  </main>
+
+  <!-- Feedback Reporter Modal — copied verbatim from dashboard.html -->
+  <div id="feedbackReporterModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content feedback-reporter">
+      <button class="modal-close" id="feedbackReporterClose" aria-label="Close feedback form">&times;</button>
+      <h2 class="feedback-reporter__title" id="feedbackReporterHeading">Report a Bug</h2>
+
+      <div class="feedback-reporter__body">
+        <div class="feedback-reporter__capture">
+          <div class="feedback-reporter__toolbar" id="feedbackAnnotationToolbar" role="toolbar" aria-label="Annotation tools">
+            <button type="button" class="feedback-tool-btn" data-tool="draw" title="Freehand draw" aria-pressed="true">Draw</button>
+            <button type="button" class="feedback-tool-btn" data-tool="rect" title="Highlight rectangle">Rect</button>
+            <button type="button" class="feedback-tool-btn" data-tool="arrow" title="Arrow">Arrow</button>
+            <button type="button" class="feedback-tool-btn" data-tool="text" title="Add text">Text</button>
+            <span class="feedback-toolbar__colors" id="feedbackColorSwatches"></span>
+            <button type="button" class="feedback-tool-btn" id="feedbackUndoBtn" title="Undo last annotation">Undo</button>
+            <button type="button" class="feedback-tool-btn" id="feedbackClearBtn" title="Clear all annotations">Clear</button>
+            <span class="feedback-toolbar__spacer"></span>
+            <button type="button" class="feedback-tool-btn" id="feedbackPasteBtn" title="Paste an image from the clipboard">Paste from Clipboard</button>
+          </div>
+          <div class="feedback-reporter__canvas-wrap">
+            <canvas id="feedbackCanvas"></canvas>
+            <div id="feedbackCaptureStatus" class="feedback-reporter__capture-status" hidden></div>
+          </div>
+        </div>
+
+        <form class="feedback-reporter__form" id="feedbackReporterForm">
+          <label for="feedbackTitle">Title</label>
+          <input type="text" id="feedbackTitle" maxlength="200" required placeholder="Short summary of the issue">
+
+          <div id="feedbackSeverityField">
+            <label for="feedbackSeverity">Severity
+              <select id="feedbackSeverity">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
+
+          <label for="feedbackDescription">Description <span class="feedback-reporter__optional">(optional)</span></label>
+          <textarea id="feedbackDescription" rows="4" maxlength="5000" placeholder="What happened? What did you expect instead?"></textarea>
+
+          <div id="feedbackReporterError" class="feedback-reporter__error" role="alert" hidden></div>
+
+          <div class="feedback-reporter__actions">
+            <span id="feedbackReporterStatus" class="feedback-reporter__status" role="status" aria-live="polite"></span>
+            <button type="button" class="btn-primary" style="background:#64748b;" id="feedbackReporterCancel">Cancel</button>
+            <button type="submit" class="btn-primary" id="feedbackReporterSubmit">Submit report</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback Confirmation Modal — copied verbatim from dashboard.html -->
+  <div id="feedbackConfirmationModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content feedback-confirmation">
+      <button class="modal-close" id="feedbackConfirmationClose" aria-label="Close confirmation">&times;</button>
+      <h2 id="feedbackConfirmationHeading">Thank you!</h2>
+      <p id="feedbackConfirmationMessage"></p>
+    </div>
+  </div>
+
+  <script>
+    // Mocked auth + API boundary so the real feedback-reporter.js can run
+    // without the live Entra tenant or the Rust/Postgres backend.
+    window.MXGENIUS_CONFIG = {
+      ready: Promise.resolve(),
+      getSession: () => ({ accessToken: 'demo-token', organizationId: 'demo-org' })
+    };
+    window.MXGENIUS_AUTH = { getToken: async () => 'demo-token' };
+    const DEMO_KEY = 'mx-local-preview-feedback';
+    const DEMO_COUNTER_KEY = 'mx-local-preview-feedback-counter';
+    function nextTicketNumber() {
+      const next = Number(localStorage.getItem(DEMO_COUNTER_KEY) || '2000') + 1;
+      localStorage.setItem(DEMO_COUNTER_KEY, String(next));
+      return next;
+    }
+    function persistSubmission(report) {
+      let submitted = [];
+      try {
+        submitted = JSON.parse(localStorage.getItem(DEMO_KEY) || '[]');
+      } catch { /* ignore malformed storage */ }
+      const record = {
+        id: 'demo-' + Date.now(),
+        report_number: nextTicketNumber(),
+        title: report.title,
+        report_type: report.reportType,
+        severity: report.reportType === 'bug' ? (report.severity || 'medium') : null,
+        description: report.description || '',
+        status: 'new',
+        admin_notes: null,
+        page_url: report.pageUrl,
+        page_title: report.pageTitle,
+        has_screenshot: Boolean(report.screenshotDataUrl),
+        created_at: new Date().toISOString(),
+        reporter_name: 'You (this browser)',
+        reporter_email: 'you@example-org.test'
+      };
+      submitted.unshift(record);
+      localStorage.setItem(DEMO_KEY, JSON.stringify(submitted.slice(0, 50)));
+      return record;
+    }
+    window.MXApplicationClient = {
+      feedback: {
+        submit: async (report) => {
+          console.log('[demo] POST /api/feedback payload:', report);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const record = persistSubmission(report);
+          return {
+            report: record,
+            screenshot_uploaded: Boolean(report.screenshotDataUrl)
+          };
+        }
+      }
+    };
+  </script>
+  <script src="html2canvas.js"></script>
+  <script src="feedback-reporter.js?v=1"></script>
+</body>
+</html>

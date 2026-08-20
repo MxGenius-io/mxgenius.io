@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Feedback · MXGenius</title>
+  <meta name="description" content="Bug reports and feedback you have submitted to MXGenius">
+  <link rel="stylesheet" href="feedback.css?v=1">
+  <style id="auth-gate">body { visibility: hidden; }</style>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="feedback-page__header">
+    <a class="feedback-page__brand" href="dashboard.html#settings" aria-label="Back to MXGenius Settings">
+      <img src="assets/mxgenius_logo.png" alt="">
+      <span>MXGenius</span>
+    </a>
+    <div class="feedback-page__header-actions">
+      <span id="feedbackListState" class="feedback-page__state" role="status" aria-live="polite">Loading…</span>
+      <a class="button button--quiet" href="dashboard.html#settings">Back to Settings</a>
+    </div>
+  </header>
+
+  <main class="feedback-page__shell">
+    <section class="feedback-page__intro">
+      <p class="eyebrow">Your reports</p>
+      <h1>My Feedback</h1>
+      <p>Bugs, UI issues, performance reports, and feature requests you have submitted from anywhere in MXGenius.</p>
+    </section>
+
+    <div id="feedbackListError" class="feedback-page__error" role="alert" hidden>
+      <span id="feedbackListErrorText"></span>
+      <button id="feedbackListReload" class="button button--quiet" type="button">Reload</button>
+    </div>
+
+    <div id="feedbackListEmpty" class="feedback-page__empty" hidden>
+      You have not submitted any feedback yet. Press <kbd>b</kbd>, or use the bug or lightbulb icon in the dashboard header, to report a bug or request a feature.
+    </div>
+
+    <div id="feedbackList" class="feedback-page__list"></div>
+  </main>
+
+  <div id="feedbackDetailModal" class="feedback-detail hidden">
+    <div class="feedback-detail__backdrop" id="feedbackDetailBackdrop"></div>
+    <div class="feedback-detail__content">
+      <button class="feedback-detail__close" id="feedbackDetailClose" aria-label="Close report detail">&times;</button>
+      <p class="eyebrow" id="feedbackDetailKicker"></p>
+      <h2 id="feedbackDetailTitle"></h2>
+      <p id="feedbackDetailMeta" class="feedback-detail__meta"></p>
+      <img id="feedbackDetailScreenshot" class="feedback-detail__screenshot" alt="Submitted screenshot" hidden>
+      <p id="feedbackDetailScreenshotState" class="feedback-detail__screenshot-state" hidden></p>
+      <p id="feedbackDetailDescription" class="feedback-detail__description"></p>
+    </div>
+  </div>
+
+  <script src="runtime-config.js?v=3"></script>
+  <script src="auth.js?v=10"></script>
+  <script src="application-client.js?v=22"></script>
+  <script src="feedback.js?v=1"></script>
+</body>
+</html>

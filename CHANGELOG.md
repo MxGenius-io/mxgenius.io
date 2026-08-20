@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-08-18: Added a full triage workflow to the org-wide Feedback Queue: every report now gets a stable ticket number (`FB-1042`, shown to the submitter too, including in the post-submit confirmation), a Manager/Administrator-gated `PATCH /api/feedback/:id` route moves a report through status (New / In progress / Needs info / Resolved / Declined) and records admin-only internal notes (never returned to the submitter), and the Feedback Queue (Admin) page exposes both from the detail view alongside a one-click "Contact submitter" mailto link and a "hide resolved & declined" filter on by default. The `GET /api/feedback/admin` route (added earlier today) backs the queue itself. Assignee and in-app notifications remain out of scope.
+- 2026-08-17: Added lean v1 "Report a Bug" and "Request a Feature" feedback entry points: two independent header icons (and a `b` shortcut for bugs) open a dashboard-wide reporter modal with automatic viewport screenshot capture, freehand/rectangle/arrow/text annotation, clipboard-paste image replacement, and a title/description form (severity, Low/Medium/High, applies to bug reports only); submissions persist to a new `feedback_reports` table with an optional private blob-backed screenshot, a dismissable post-submit confirmation message, and a My Feedback page in Settings listing a reporter's own submissions. AI enrichment, dedup, notifications, an admin queue, and mockups are explicitly deferred to a later phase.
 - 2026-08-17: Replaced the redundant Getting Started tracker link with one shared Build Board for open questions, current-sprint posts, updates, and completed work; preserved the former roadmap only at its legacy URL.
 - 2026-08-17: Added an authenticated, organization-shared provisional-patent workspace in Settings with structured inventor, disclosure, drawing, review, and filing-readiness fields; proposed inventors Dwayne Tillman, Joshua Millard, and Thomas Hagy; optimistic versioned saves; immutable revision archives; and private reference uploads.
 - 2026-08-16: Converted the Raspberry Pi path into an appliance-style boot flow with an MxGenius early splash, explicit desktop auto-login, prompt-free Chromium kiosk startup, local Wi-Fi and Bluetooth discovery/switching, and a guarded safe-shutdown control.
@@ -13,6 +15,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ---
 
 ## [Unreleased]
+
+### Changed — Landing page hero and carousel
+
+- Updated the hero headline to "The Complete Toolkit for Aviation Maintenance" and replaced the flat gradient hero background with the hangar/jet-engine photo (`media/hero-banner.png`) under a tinted overlay.
+- Added themed SVG backgrounds (`assets/landing/`) behind the AI Troubleshooting, Eyes on the Aircraft, Inventory, and Arsenal-roadmap carousel slides, each tinted to match the existing dark theme.
 
 ### Added — XR edge hardware pivot
 

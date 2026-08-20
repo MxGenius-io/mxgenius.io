@@ -423,6 +423,52 @@ const MXApplicationClient = (() => {
     )).blob();
   }
 
+  function submitFeedback(report, session = {}) {
+    return applicationJson('/api/feedback', {
+      session,
+      method: 'POST',
+      body: {
+        title: report?.title,
+        report_type: report?.reportType,
+        severity: report?.severity,
+        description: report?.description,
+        page_url: report?.pageUrl,
+        page_title: report?.pageTitle,
+        screenshot_data_url: report?.screenshotDataUrl
+      }
+    });
+  }
+
+  function listFeedback(session = {}) {
+    return applicationJson('/api/feedback', { session });
+  }
+
+  function listFeedbackAdmin(session = {}) {
+    return applicationJson('/api/feedback/admin', { session });
+  }
+
+  function getFeedbackReport(reportId, session = {}) {
+    return applicationJson(`/api/feedback/${encodeURIComponent(reportId)}`, { session });
+  }
+
+  function updateFeedbackReportAdmin(reportId, update, session = {}) {
+    return applicationJson(`/api/feedback/${encodeURIComponent(reportId)}`, {
+      session,
+      method: 'PATCH',
+      body: {
+        status: update?.status,
+        admin_notes: update?.adminNotes
+      }
+    });
+  }
+
+  async function getFeedbackScreenshot(reportId, session = {}) {
+    return (await applicationRequest(
+      `/api/feedback/${encodeURIComponent(reportId)}/screenshot`,
+      { session, contentType: null }
+    )).blob();
+  }
+
   async function exchangeRealtimeSdp({ sdp, session = {} }) {
     if (!session.accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     if (typeof sdp !== 'string' || !sdp.startsWith('v=0')) {
@@ -936,6 +982,14 @@ const MXApplicationClient = (() => {
       save: saveProjectWorkspace,
       uploadAsset: uploadProjectWorkspaceAsset,
       getAsset: getProjectWorkspaceAsset
+    }),
+    feedback: Object.freeze({
+      submit: submitFeedback,
+      list: listFeedback,
+      listAdmin: listFeedbackAdmin,
+      get: getFeedbackReport,
+      updateAdmin: updateFeedbackReportAdmin,
+      getScreenshot: getFeedbackScreenshot
     }),
     demoData: Object.freeze({
       load: loadDemoData

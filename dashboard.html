@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=7">
   <link rel="stylesheet" href="onboarding.css?v=2">
+  <link rel="stylesheet" href="feedback-reporter.css?v=1">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
 </head>
@@ -73,6 +74,14 @@
       </button>
     </nav>
     <div class="header-right">
+      <button class="nav-icon-btn" id="feedbackReporterBtn" title="Report a Bug (b)" aria-label="Report a Bug">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20v-9" /><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z" /><path d="M14.12 3.88 16 2" /><path d="M21 21a4 4 0 0 0-3.81-4" /><path d="M21 5a4 4 0 0 1-3.55 3.97" /><path d="M22 13h-4" /><path d="M3 21a4 4 0 0 1 3.81-4" /><path d="M3 5a4 4 0 0 0 3.55 3.97" /><path d="M6 13H2" /><path d="m8 2 1.88 1.88" /><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13" />
+        </svg>
+      </button>
+      <button class="nav-icon-btn" id="featureReporterBtn" title="Request a Feature" aria-label="Request a Feature">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+      </button>
       <div class="api-status" id="apiStatus">
         <span class="status-dot"></span>
         <span>Connecting...</span>
@@ -533,6 +542,8 @@
                 <option value="patent-workspace.html">Provisional Patent Application</option>
                 <option value="build-board.html">Build Board</option>
                 <option value="progress.html">Reports</option>
+                <option value="feedback.html">My Feedback</option>
+                <option value="feedback-admin.html">Feedback Queue (Admin)</option>
               </select>
               <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsWorkspaceOpen" type="button">Open</button>
             </div>
@@ -576,6 +587,71 @@
     <div class="modal-content">
       <button class="modal-close" id="acDetailClose" aria-label="Close aircraft detail">&times;</button>
       <div id="acDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- Feedback Reporter Modal (global overlay) -->
+  <div id="feedbackReporterModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content feedback-reporter">
+      <button class="modal-close" id="feedbackReporterClose" aria-label="Close feedback form">&times;</button>
+      <h2 class="feedback-reporter__title" id="feedbackReporterHeading">Report a Bug</h2>
+
+      <div class="feedback-reporter__body">
+        <div class="feedback-reporter__capture">
+          <div class="feedback-reporter__toolbar" id="feedbackAnnotationToolbar" role="toolbar" aria-label="Annotation tools">
+            <button type="button" class="feedback-tool-btn" data-tool="draw" title="Freehand draw" aria-pressed="true">Draw</button>
+            <button type="button" class="feedback-tool-btn" data-tool="rect" title="Highlight rectangle">Rect</button>
+            <button type="button" class="feedback-tool-btn" data-tool="arrow" title="Arrow">Arrow</button>
+            <button type="button" class="feedback-tool-btn" data-tool="text" title="Add text">Text</button>
+            <span class="feedback-toolbar__colors" id="feedbackColorSwatches"></span>
+            <button type="button" class="feedback-tool-btn" id="feedbackUndoBtn" title="Undo last annotation">Undo</button>
+            <button type="button" class="feedback-tool-btn" id="feedbackClearBtn" title="Clear all annotations">Clear</button>
+            <span class="feedback-toolbar__spacer"></span>
+            <button type="button" class="feedback-tool-btn" id="feedbackPasteBtn" title="Paste an image from the clipboard">Paste from Clipboard</button>
+          </div>
+          <div class="feedback-reporter__canvas-wrap">
+            <canvas id="feedbackCanvas"></canvas>
+            <div id="feedbackCaptureStatus" class="feedback-reporter__capture-status" hidden></div>
+          </div>
+        </div>
+
+        <form class="feedback-reporter__form" id="feedbackReporterForm">
+          <label for="feedbackTitle">Title</label>
+          <input type="text" id="feedbackTitle" maxlength="200" required placeholder="Short summary of the issue">
+
+          <div id="feedbackSeverityField">
+            <label for="feedbackSeverity">Severity
+              <select id="feedbackSeverity">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
+
+          <label for="feedbackDescription">Description <span class="feedback-reporter__optional">(optional)</span></label>
+          <textarea id="feedbackDescription" rows="4" maxlength="5000" placeholder="What happened? What did you expect instead?"></textarea>
+
+          <div id="feedbackReporterError" class="feedback-reporter__error" role="alert" hidden></div>
+
+          <div class="feedback-reporter__actions">
+            <span id="feedbackReporterStatus" class="feedback-reporter__status" role="status" aria-live="polite"></span>
+            <button type="button" class="btn-primary" style="background:#64748b;" id="feedbackReporterCancel">Cancel</button>
+            <button type="submit" class="btn-primary" id="feedbackReporterSubmit">Submit report</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback Confirmation Modal (global overlay) -->
+  <div id="feedbackConfirmationModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content feedback-confirmation">
+      <button class="modal-close" id="feedbackConfirmationClose" aria-label="Close confirmation">&times;</button>
+      <h2 id="feedbackConfirmationHeading">Thank you!</h2>
+      <p id="feedbackConfirmationMessage"></p>
     </div>
   </div>
   <!-- AI Chat Panel -->
@@ -638,15 +714,17 @@
 
 
   <script src="runtime-config.js?v=3"></script>
-  <script src="auth.js?v=8"></script>
+  <script src="auth.js?v=10"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=20"></script>
+<script src="application-client.js?v=22"></script>
   <script src="realtime-client.js?v=4"></script>
   <script src="case-workspace.js?v=3"></script>
   <script src="parts-workspace.js?v=3"></script>
     <script src="capability-workbench.js?v=5"></script>
   <script src="onboarding.js?v=4"></script>
+  <script src="html2canvas.js"></script>
+  <script src="feedback-reporter.js?v=1"></script>
   <script src="app.js?v=34"></script>
   <div id="onboardingRoot"></div>
 </body>

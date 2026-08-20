@@ -1,0 +1,170 @@
+.feedback-reporter {
+  max-width: min(1200px, calc(100vw - 32px));
+  width: 100%;
+}
+
+.feedback-confirmation {
+  max-width: min(420px, calc(100vw - 32px));
+  width: 100%;
+  text-align: center;
+  padding-top: 40px;
+}
+
+.feedback-confirmation h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.feedback-confirmation p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.feedback-reporter__title {
+  margin: 0 0 16px;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.feedback-reporter__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.feedback-reporter__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.feedback-tool-btn {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.feedback-tool-btn:hover { color: var(--text-primary); border-color: var(--border-glow); }
+.feedback-tool-btn[aria-pressed="true"] { color: #0a0e1a; background: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+.feedback-toolbar__colors { display: flex; align-items: center; gap: 4px; margin: 0 4px; }
+.feedback-toolbar__spacer { flex: 1 1 auto; }
+
+.feedback-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.feedback-color-swatch[aria-pressed="true"] { border-color: var(--text-primary); }
+
+.feedback-reporter__canvas-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-primary);
+  min-height: 200px;
+  max-height: 60vh;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#feedbackCanvas {
+  display: block;
+  max-width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.feedback-reporter__capture-status {
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  background: rgba(10, 14, 26, 0.6);
+}
+
+/* `display: flex` must not apply while the [hidden] attribute is set, or it
+   wins the cascade over the UA stylesheet's `[hidden] { display: none }`
+   and the element never actually disappears. */
+.feedback-reporter__capture-status:not([hidden]) {
+  display: flex;
+}
+
+.feedback-reporter__form {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.feedback-reporter__form label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: grid;
+  gap: 6px;
+}
+
+.feedback-reporter__optional { font-weight: 400; color: var(--text-muted); }
+
+.feedback-reporter__form input[type="text"],
+.feedback-reporter__form select,
+.feedback-reporter__form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.feedback-reporter__form textarea { resize: vertical; min-height: 72px; }
+
+.feedback-reporter__error {
+  color: var(--accent-red);
+  font-size: 0.78rem;
+  padding: 8px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.feedback-reporter__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.feedback-reporter__status {
+  flex: 1 1 auto;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 860px) {
+  .feedback-reporter__body { grid-template-columns: 1fr; }
+  .feedback-reporter__canvas-wrap { max-height: 42vh; }
+}
