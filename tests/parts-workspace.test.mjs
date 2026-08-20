@@ -25,7 +25,8 @@ test('Parts Frontend Shell requirements', async (t) => {
       'search', 'getUnit', 'createReceivingDraft', 'registerAssetUpload',
       'uploadAsset', 'requestExtraction', 'reviewExtraction',
       'confirmReceiving', 'listDocuments', 'listTransactions',
-      'getFaaCandidates', 'getLabel'
+      'getFaaCandidates', 'getLabel', 'listLocations', 'createLocation',
+      'updateLocation', 'dispositionUnit', 'correctUnit'
     ]) {
       assert.match(client, new RegExp(`${operation}: async`), `${operation} should be exposed`);
     }
@@ -61,6 +62,33 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /id="btnWizardSkipCapture"/);
     assert.match(js, /async function skipCapture/);
     assert.match(js, /client\.createReceivingDraft\(\{ session: await session\(\) \}\)/);
+  });
+
+  await t.test('quarantined stock can be dispositioned out of the drawer', () => {
+    assert.match(js, /id="btnInspectPass"/);
+    assert.match(js, /id="btnInspectReject"/);
+    assert.match(js, /client\.dispositionUnit\(/);
+    assert.match(js, /unit\.status === 'quarantine'/);
+  });
+
+  await t.test('confirmed records can be corrected without touching the ledger fields', () => {
+    assert.match(js, /client\.correctUnit\(/);
+    assert.match(js, /id="btnCorrectUnit"/);
+    // Quantity, status, and location move through their own ledger events.
+    assert.doesNotMatch(js, /correctQuantity|correctStatus|correctLocation/);
+  });
+
+  await t.test('terminal units expose no mutating action', () => {
+    assert.match(js, /TERMINAL_STATUSES/);
+    assert.match(js, /issued', 'shipped', 'scrapped', 'archived/);
+  });
+
+  await t.test('ledger mutations carry a bound single-use confirmation grant', () => {
+    assert.match(client, /toolName: 'mxg\.parts\.inspect'/);
+    assert.match(client, /toolName: 'mxg\.parts\.correct'/);
+    const grantBindings = client.match(/expected_version: version/g) || [];
+    assert.ok(grantBindings.length >= 3, 'each confirmable operation binds the version');
+    assert.match(client, /'X-MXG-Confirmation-Grant': confirmation\.token/);
   });
 
   await t.test('parts workspace has no simulated success or mock rendering path', () => {

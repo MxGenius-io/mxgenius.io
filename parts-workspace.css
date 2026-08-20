@@ -313,6 +313,60 @@
   margin-top: 16px;
 }
 
+.unit-action-block {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+}
+
+.unit-action-block h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.unit-action-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.unit-action-block label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.unit-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.unit-action-row .btn-primary,
+.unit-action-row .btn-quiet {
+  margin-top: 0;
+}
+
+.unit-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.unit-status.status-quarantine { color: #d08b2c; border-color: #d08b2c; }
+.unit-status.status-available  { color: #3fa37a; border-color: #3fa37a; }
+.unit-status.status-rejected   { color: #d05a4c; border-color: #d05a4c; }
+
 .wizard-capture-actions {
   display: flex;
   align-items: center;

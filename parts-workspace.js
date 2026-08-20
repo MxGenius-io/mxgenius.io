@@ -32,8 +32,11 @@ const MXPartsWorkspace = (() => {
   }
 
   function errorMessage(error) {
+    if (error?.code === 'PARTS_INSPECTION_DENIED' || error?.code === 'PARTS_WRITE_DENIED') {
+      return error.message;
+    }
     if (error?.status === 403) return 'Your account does not have access to this organization.';
-    if (error?.status === 409) return 'This record changed. Refresh it before trying again.';
+    if (error?.status === 409) return error?.message || 'This record changed. Refresh it before trying again.';
     if (error?.status >= 500) return 'The parts service is temporarily unavailable.';
     return error?.message || 'The operation could not be completed.';
   }
@@ -253,11 +256,14 @@ const MXPartsWorkspace = (() => {
           <dt>Serial</dt><dd>${escapeHtml(unit.serialNumber || 'Not serialized')}</dd>
           <dt>Quantity</dt><dd>${escapeHtml(unit.quantity)}</dd>
           <dt>Condition</dt><dd>${escapeHtml(unit.conditionCode)}</dd>
-          <dt>Status</dt><dd>${escapeHtml(unit.status)}</dd>
+          <dt>Status</dt><dd><span class="unit-status status-${escapeHtml(unit.status)}">${escapeHtml(unit.status)}</span></dd>
           <dt>Trace</dt><dd>${escapeHtml(unit.traceType)}</dd>
           <dt>Location</dt><dd>${escapeHtml(unit.location)}</dd>
           <dt>Version</dt><dd>${escapeHtml(unit.version)}</dd>
-        </dl>`;
+        </dl>
+        <div id="unitActionStatus" class="parts-inline-status" aria-live="polite"></div>
+        ${renderUnitActions(unit)}`;
+      bindUnitActions(unit);
       return;
     }
     if (tab === 'documents') {
@@ -307,6 +313,122 @@ const MXPartsWorkspace = (() => {
       } catch (error) {
         content.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
       }
+    }
+  }
+
+  const TERMINAL_STATUSES = new Set(['issued', 'shipped', 'scrapped', 'archived']);
+
+  const CONDITION_CODES = ['NE', 'NS', 'OH', 'SV', 'RP', 'AR', 'US', 'SC'];
+  const TRACE_TYPES = [
+    ['none', 'None'],
+    ['form_8130', 'FAA 8130-3'],
+    ['easa_form1', 'EASA Form 1'],
+    ['dual_release', 'Dual release'],
+    ['coc', 'CoC'],
+    ['teardown', 'Teardown']
+  ];
+
+  function optionList(values, selected) {
+    return values
+      .map(([value, label]) => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`)
+      .join('');
+  }
+
+  function renderUnitActions(unit) {
+    if (TERMINAL_STATUSES.has(unit.status)) {
+      return `<p class="parts-inline-status">This unit is ${escapeHtml(unit.status)} and can no longer be changed.</p>`;
+    }
+    const inspection = unit.status === 'quarantine'
+      ? `
+        <section class="unit-action-block">
+          <h3>Receiving inspection</h3>
+          <p class="unit-action-hint">This unit is held in quarantine. Passing inspection releases it to serviceable stock; rejecting it holds it for disposition.</p>
+          <label>Move to location <input id="dispositionLocation" placeholder="Leave blank to keep ${escapeHtml(unit.location)}"></label>
+          <label>Notes <input id="dispositionNotes" placeholder="Inspection remarks"></label>
+          <div class="unit-action-row">
+            <button class="btn-primary" id="btnInspectPass">Pass inspection</button>
+            <button class="btn-quiet" id="btnInspectReject">Reject</button>
+          </div>
+        </section>`
+      : '';
+    return `
+      ${inspection}
+      <section class="unit-action-block">
+        <h3>Correct details</h3>
+        <p class="unit-action-hint">Corrections are recorded against this unit with the previous values. Quantity, status, and location change through their own actions.</p>
+        <div class="parts-form-grid">
+          <label>Serial number<input id="correctSerialNumber" value="${escapeHtml(unit.serialNumber || '')}"></label>
+          <label>Lot number<input id="correctLotNumber" value="${escapeHtml(unit.lotNumber || '')}"></label>
+          <label>Condition
+            <select id="correctConditionCode">${optionList(CONDITION_CODES.map((code) => [code, code]), unit.conditionCode)}</select>
+          </label>
+          <label>Trace
+            <select id="correctTraceType">${optionList(TRACE_TYPES, unit.traceType)}</select>
+          </label>
+          <label>Certificate number<input id="correctCertificateNumber" value="${escapeHtml(unit.certificateNumber || '')}"></label>
+          <label>Reason<input id="correctNotes" placeholder="Why this record is being corrected"></label>
+        </div>
+        <button class="btn-quiet" id="btnCorrectUnit">Save correction</button>
+      </section>`;
+  }
+
+  function unitActionStatus(message, kind = '') {
+    const element = byId('unitActionStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function bindUnitActions(unit) {
+    byId('btnInspectPass')?.addEventListener('click', () => disposition(unit, 'inspect_pass'));
+    byId('btnInspectReject')?.addEventListener('click', () => disposition(unit, 'inspect_reject'));
+    byId('btnCorrectUnit')?.addEventListener('click', () => correctUnit(unit));
+  }
+
+  async function disposition(unit, action) {
+    const buttons = [byId('btnInspectPass'), byId('btnInspectReject')].filter(Boolean);
+    buttons.forEach((button) => { button.disabled = true; });
+    unitActionStatus(action === 'inspect_pass' ? 'Releasing to stock…' : 'Recording rejection…');
+    try {
+      await client.dispositionUnit({
+        unitId: unit.id,
+        version: unit.version,
+        action,
+        locationCode: byId('dispositionLocation')?.value.trim() || null,
+        notes: byId('dispositionNotes')?.value.trim() || null,
+        session: await session()
+      });
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      buttons.forEach((button) => { button.disabled = false; });
+    }
+  }
+
+  async function correctUnit(unit) {
+    const button = byId('btnCorrectUnit');
+    button.disabled = true;
+    unitActionStatus('Recording the correction…');
+    try {
+      await client.correctUnit({
+        unitId: unit.id,
+        version: unit.version,
+        values: {
+          serialNumber: byId('correctSerialNumber').value.trim(),
+          lotNumber: byId('correctLotNumber').value.trim(),
+          conditionCode: byId('correctConditionCode').value,
+          traceType: byId('correctTraceType').value,
+          certificateNumber: byId('correctCertificateNumber').value.trim(),
+          notes: byId('correctNotes').value.trim() || null
+        },
+        session: await session()
+      });
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      button.disabled = false;
     }
   }
 

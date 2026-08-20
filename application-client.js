@@ -935,6 +935,62 @@ const MXApplicationClient = (() => {
     getLabel: async ({ unitId, session = {} }) => {
       return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
     },
+    listLocations: async ({ includeInactive = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (includeInactive) params.set('includeInactive', 'true');
+      const payload = await applicationJson(`/api/parts/locations?${params}`, { session });
+      return payload.locations || [];
+    },
+    createLocation: async ({ code, name, locationType, barcode, session = {} }) => {
+      const payload = await applicationJson('/api/parts/locations', {
+        session,
+        method: 'POST',
+        body: { code, name, locationType, barcode }
+      });
+      return payload.location;
+    },
+    updateLocation: async ({ locationId, name, locationType, barcode, active, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/locations/${encodeURIComponent(locationId)}`, {
+        session,
+        method: 'PATCH',
+        body: { name, locationType, barcode, active }
+      });
+      return payload.location;
+    },
+    dispositionUnit: async ({ unitId, version, action, locationCode = null, notes = null, session = {} }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.inspect',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/transitions`, {
+        session,
+        method: 'POST',
+        body: { action, locationCode, notes },
+        headers: {
+          'If-Match': `"${version}"`,
+          'X-MXG-Confirmation-Grant': confirmation.token
+        }
+      });
+      return payload.unit;
+    },
+    correctUnit: async ({ unitId, version, values, session = {} }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.correct',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}`, {
+        session,
+        method: 'PATCH',
+        body: values,
+        headers: {
+          'If-Match': `"${version}"`,
+          'X-MXG-Confirmation-Grant': confirmation.token
+        }
+      });
+      return payload.unit;
+    },
   });
 
   return Object.freeze({
