@@ -6778,7 +6778,7 @@ mod structured_advisory_tests {
                 .encode(vec![0u8; MAX_FEEDBACK_SCREENSHOT_BYTES + 1]);
         assert_eq!(
             decoded_feedback_screenshot(&format!("data:image/png;base64,{oversized}")),
-            Err("screenshot must be no larger than 8 MiB")
+            Err("screenshot must be between 1 byte and 8 MiB")
         );
     }
 
