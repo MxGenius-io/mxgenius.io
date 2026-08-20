@@ -155,6 +155,15 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(repository, /mc\.status NOT IN \('closed', 'cancelled'\)/);
   });
 
+  await t.test('a shop can define its own bins from the workspace', () => {
+    assert.match(js, /id="partsLocationsView"/);
+    assert.match(js, /client\.createLocation\(/);
+    assert.match(js, /client\.updateLocation\(/);
+    // Retiring is a soft state, never a delete: stock history must survive.
+    assert.doesNotMatch(js, /deleteLocation/);
+    assert.match(js, /Reinstate/);
+  });
+
   await t.test('inventory can be filtered by status and location', () => {
     assert.match(js, /id="partsStatusFilter"/);
     assert.match(js, /id="partsLocationFilter"/);

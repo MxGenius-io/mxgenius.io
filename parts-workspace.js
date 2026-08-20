@@ -27,11 +27,14 @@ const MXPartsWorkspace = (() => {
     });
     const inventory = byId('partsInventoryGrid');
     const shortages = byId('partsShortageView');
+    const locations = byId('partsLocationsView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
+    if (locations) locations.hidden = view !== 'locations';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
+    if (view === 'locations') renderLocations();
   }
 
   function shortageRow(row) {
@@ -76,6 +79,86 @@ const MXPartsWorkspace = (() => {
         : '<div class="empty-state">Every open requirement is covered by free stock.</div>';
     } catch (error) {
       list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  function locationStatus(message, kind = '') {
+    const element = byId('locationStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  async function renderLocations() {
+    const list = byId('partsLocationList');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state">Loading locations…</div>';
+    try {
+      const locations = await client.listLocations({
+        includeInactive: byId('locationsIncludeInactive')?.checked || false,
+        session: await session()
+      });
+      if (!locations.length) {
+        list.innerHTML = '<div class="empty-state">No locations defined yet.</div>';
+        return;
+      }
+      list.innerHTML = locations.map((location) => `
+        <article class="location-row${location.active ? '' : ' is-retired'}" data-location-id="${escapeHtml(location.id)}">
+          <div class="location-identity">
+            <span class="location-code">${escapeHtml(location.code)}</span>
+            <span class="location-type">${escapeHtml(location.locationType)}</span>
+            ${location.active ? '' : '<span class="location-type">retired</span>'}
+          </div>
+          <p class="location-name">${escapeHtml(location.name || '')}</p>
+          <div class="unit-action-row">
+            <button class="btn-quiet" data-toggle-location="${escapeHtml(location.id)}" data-active="${location.active}">${location.active ? 'Retire' : 'Reinstate'}</button>
+          </div>
+        </article>`).join('');
+      list.querySelectorAll('[data-toggle-location]').forEach((button) => {
+        button.addEventListener('click', () => toggleLocation(button.dataset.toggleLocation, button.dataset.active !== 'true'));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function createLocation() {
+    const button = byId('btnCreateLocation');
+    const code = byId('newLocationCode').value.trim();
+    if (!code) {
+      locationStatus('Enter a code for the new location.', 'error');
+      return;
+    }
+    button.disabled = true;
+    locationStatus('Adding the location…');
+    try {
+      await client.createLocation({
+        code,
+        name: byId('newLocationName').value.trim() || code,
+        locationType: byId('newLocationType').value,
+        barcode: byId('newLocationBarcode').value.trim() || null,
+        session: await session()
+      });
+      ['newLocationCode', 'newLocationName', 'newLocationBarcode'].forEach((id) => { byId(id).value = ''; });
+      locationStatus('');
+      await renderLocations();
+      await loadLocations();
+    } catch (error) {
+      locationStatus(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function toggleLocation(locationId, active) {
+    locationStatus(active ? 'Reinstating the location…' : 'Retiring the location…');
+    try {
+      await client.updateLocation({ locationId, active, session: await session() });
+      locationStatus('');
+      await renderLocations();
+      await loadLocations();
+    } catch (error) {
+      locationStatus(errorMessage(error), 'error');
     }
   }
 
@@ -136,6 +219,7 @@ const MXPartsWorkspace = (() => {
               <div class="parts-view-switch" role="tablist" aria-label="Parts view">
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
+                <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
             </div>
@@ -162,6 +246,31 @@ const MXPartsWorkspace = (() => {
             <div id="partsShortageView" hidden>
               <label class="shortage-toggle"><input type="checkbox" id="shortageIncludeCovered"> Show requirements stock already covers</label>
               <div id="partsShortageList"></div>
+            </div>
+            <div id="partsLocationsView" hidden>
+              <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
+              <section class="unit-action-block location-create">
+                <h3>Add a location</h3>
+                <p class="unit-action-hint">Codes are stored uppercase and must be unique within your organization.</p>
+                <div class="parts-form-grid">
+                  <label>Code<input id="newLocationCode" placeholder="STOCK-A12"></label>
+                  <label>Name<input id="newLocationName" placeholder="Bonded shelf A12"></label>
+                  <label>Type
+                    <select id="newLocationType">
+                      <option value="stock">Stock</option>
+                      <option value="receiving">Receiving</option>
+                      <option value="quarantine">Quarantine</option>
+                      <option value="bonded">Bonded</option>
+                      <option value="shipping">Shipping</option>
+                      <option value="scrap">Scrap</option>
+                    </select>
+                  </label>
+                  <label>Barcode<input id="newLocationBarcode" placeholder="Optional"></label>
+                </div>
+                <button class="btn-primary" id="btnCreateLocation">Add location</button>
+              </section>
+              <label class="shortage-toggle"><input type="checkbox" id="locationsIncludeInactive"> Show retired locations</label>
+              <div id="partsLocationList"></div>
             </div>
           </div>
           <datalist id="partsLocationOptions"></datalist>
@@ -268,6 +377,8 @@ const MXPartsWorkspace = (() => {
       tab.addEventListener('click', () => switchView(tab.dataset.view));
     });
     byId('shortageIncludeCovered')?.addEventListener('change', loadShortages);
+    byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
+    byId('btnCreateLocation')?.addEventListener('click', createLocation);
     byId('btnReceivePart')?.addEventListener('click', openWizard);
     byId('btnCancelWizard')?.addEventListener('click', closeWizard);
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);

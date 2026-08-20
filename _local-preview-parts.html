@@ -74,11 +74,22 @@
         log(`listShortages includeCovered=${!!includeCovered} rows=${visible.length}`);
         return { shortages: visible, outstanding: rows.filter(r => r.shortfall > 0).length };
       },
-      listLocations: async () => ([
-        { id: 'l1', code: 'RECEIVING', name: 'Receiving dock' },
-        { id: 'l2', code: 'STOCK-A12', name: 'Bonded shelf A12' },
-        { id: 'l3', code: 'SCRAP', name: 'Scrap bin' }
-      ]),
+      listLocations: async ({ includeInactive } = {}) => {
+        const all = [
+          { id: 'l1', code: 'RECEIVING', name: 'Receiving dock', locationType: 'receiving', active: true },
+          { id: 'l2', code: 'STOCK-A12', name: 'Bonded shelf A12', locationType: 'stock', active: true },
+          { id: 'l3', code: 'SCRAP', name: 'Scrap bin', locationType: 'scrap', active: false }
+        ];
+        return includeInactive ? all : all.filter(l => l.active);
+      },
+      createLocation: async ({ code, locationType }) => {
+        log(`createLocation code=${code} type=${locationType}`);
+        return { id: 'new', code, locationType, active: true };
+      },
+      updateLocation: async ({ locationId, active }) => {
+        log(`updateLocation id=${locationId} active=${active}`);
+        return { id: locationId, active };
+      },
       dispositionUnit: async ({ action, locationCode, referenceId, notes, version }) => {
         log(`dispositionUnit action=${action} version=${version} location=${locationCode || '(unchanged)'} ref=${referenceId || '(none)'} notes=${notes || '(none)'}`);
         const NEXT = {
