@@ -228,7 +228,133 @@ pub struct UpsertLocationInput {
 pub struct TransitionUnitInput {
     pub action: String,
     pub location_code: Option<String>,
+    pub reference_id: Option<String>,
     pub notes: Option<String>,
+}
+
+/// One stock movement: what it writes to the ledger, where it leaves the unit,
+/// and what the caller must supply for it to be meaningful.
+pub struct StockAction {
+    pub event_type: &'static str,
+    /// `None` relocates the unit without changing its status.
+    pub target_status: Option<StockUnitStatus>,
+    /// Multiplied by the unit quantity to form the ledger delta.
+    pub quantity_delta: f64,
+    pub requires_location: bool,
+    pub requires_reference: bool,
+    pub reference_type: Option<&'static str>,
+    /// Location type used when the destination code is not yet on file.
+    pub location_type: &'static str,
+}
+
+impl StockAction {
+    pub fn parse(action: &str) -> Option<Self> {
+        use StockUnitStatus::*;
+        let spec = match action {
+            "inspect_pass" => Self {
+                event_type: "inspect_pass",
+                target_status: Some(Available),
+                quantity_delta: 0.0,
+                requires_location: false,
+                requires_reference: false,
+                reference_type: None,
+                location_type: "stock",
+            },
+            "inspect_reject" => Self {
+                event_type: "inspect_reject",
+                target_status: Some(Rejected),
+                quantity_delta: 0.0,
+                requires_location: false,
+                requires_reference: false,
+                reference_type: None,
+                location_type: "quarantine",
+            },
+            "transfer" => Self {
+                event_type: "transfer",
+                target_status: None,
+                quantity_delta: 0.0,
+                requires_location: true,
+                requires_reference: false,
+                reference_type: None,
+                location_type: "stock",
+            },
+            "reserve" => Self {
+                event_type: "adjust",
+                target_status: Some(Reserved),
+                quantity_delta: 0.0,
+                requires_location: false,
+                requires_reference: true,
+                reference_type: Some("maintenance_case"),
+                location_type: "stock",
+            },
+            "unreserve" => Self {
+                event_type: "adjust",
+                target_status: Some(Available),
+                quantity_delta: 0.0,
+                requires_location: false,
+                requires_reference: false,
+                reference_type: Some("maintenance_case"),
+                location_type: "stock",
+            },
+            "issue" => Self {
+                event_type: "issue",
+                target_status: Some(Issued),
+                quantity_delta: -1.0,
+                requires_location: false,
+                requires_reference: true,
+                reference_type: Some("maintenance_case"),
+                location_type: "stock",
+            },
+            "return" => Self {
+                event_type: "return",
+                target_status: Some(Available),
+                quantity_delta: 1.0,
+                requires_location: true,
+                requires_reference: false,
+                reference_type: Some("maintenance_case"),
+                location_type: "stock",
+            },
+            "scrap" => Self {
+                event_type: "scrap",
+                target_status: Some(Scrapped),
+                quantity_delta: -1.0,
+                requires_location: false,
+                requires_reference: false,
+                reference_type: None,
+                location_type: "scrap",
+            },
+            "ship" => Self {
+                event_type: "ship",
+                target_status: Some(Shipped),
+                quantity_delta: -1.0,
+                requires_location: true,
+                requires_reference: true,
+                reference_type: Some("shipment"),
+                location_type: "shipping",
+            },
+            _ => return None,
+        };
+        Some(spec)
+    }
+
+    pub fn names() -> [&'static str; 9] {
+        [
+            "inspect_pass",
+            "inspect_reject",
+            "transfer",
+            "reserve",
+            "unreserve",
+            "issue",
+            "return",
+            "scrap",
+            "ship",
+        ]
+    }
+
+    /// Releasing stock to serviceable condition is an inspection buy-off.
+    pub fn is_quarantine_release(action: &str) -> bool {
+        action == "inspect_pass"
+    }
 }
 
 /// Human correction of confirmed metadata. Quantity, status, and location are
@@ -1131,8 +1257,8 @@ impl<'a> PartsInventoryRepository<'a> {
         .ok_or(PartsInventoryError::NotFound)
     }
 
-    /// Records a receiving-inspection disposition. The unit's status and the
-    /// append-only ledger move together or not at all.
+    /// Applies one stock movement. The unit row and the append-only ledger
+    /// move together or not at all.
     pub async fn transition_unit(
         &self,
         context: &ExecutionContext,
@@ -1140,15 +1266,24 @@ impl<'a> PartsInventoryRepository<'a> {
         expected_version: i64,
         input: &TransitionUnitInput,
     ) -> Result<StockUnitDto, PartsInventoryError> {
-        let (target, event_type) = match input.action.as_str() {
-            "inspect_pass" => (StockUnitStatus::Available, "inspect_pass"),
-            "inspect_reject" => (StockUnitStatus::Rejected, "inspect_reject"),
-            other => {
-                return Err(PartsInventoryError::Invalid(format!(
-                    "action must be inspect_pass or inspect_reject, received {other}"
-                )))
-            }
-        };
+        let spec = StockAction::parse(&input.action).ok_or_else(|| {
+            PartsInventoryError::Invalid(format!(
+                "action must be one of {}, received {}",
+                StockAction::names().join(", "),
+                input.action
+            ))
+        })?;
+        let reference = input
+            .reference_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if spec.requires_reference && reference.is_none() {
+            return Err(PartsInventoryError::Invalid(format!(
+                "{} requires referenceId identifying the job or order it serves",
+                input.action
+            )));
+        }
 
         let mut tx = self.pool.begin().await?;
         let current: Option<(String, i64, Uuid, f64)> = sqlx::query_as(
@@ -1160,7 +1295,7 @@ impl<'a> PartsInventoryRepository<'a> {
         .bind(unit_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let Some((status, version, current_location, _quantity)) = current else {
+        let Some((status, version, current_location, quantity)) = current else {
             return Err(PartsInventoryError::NotFound);
         };
         if version != expected_version {
@@ -1171,21 +1306,49 @@ impl<'a> PartsInventoryRepository<'a> {
         let source = StockUnitStatus::parse(&status).ok_or_else(|| {
             PartsInventoryError::Conflict(format!("unit holds unknown status {status}"))
         })?;
-        if !source.can_transition_to(target) {
-            return Err(PartsInventoryError::Conflict(format!(
-                "a unit in {} cannot move to {}",
-                source.as_str(),
-                target.as_str()
+        let target = match spec.target_status {
+            Some(target) => {
+                if !source.can_transition_to(target) {
+                    return Err(PartsInventoryError::Conflict(format!(
+                        "a unit in {} cannot move to {}",
+                        source.as_str(),
+                        target.as_str()
+                    )));
+                }
+                target
+            }
+            // A transfer relocates stock without changing what the stock is.
+            None => {
+                if source.is_terminal() {
+                    return Err(PartsInventoryError::Conflict(format!(
+                        "a unit in {} can no longer be moved",
+                        source.as_str()
+                    )));
+                }
+                source
+            }
+        };
+
+        let requested_location = input
+            .location_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if spec.requires_location && requested_location.is_none() {
+            return Err(PartsInventoryError::Invalid(format!(
+                "{} requires locationCode naming the destination",
+                input.action
             )));
         }
-
-        // A passed inspection may also move the unit off the receiving dock.
-        let destination = match input.location_code.as_deref().map(str::trim) {
-            Some(code) if !code.is_empty() => {
-                resolve_location(&mut tx, context, code, "stock").await?
-            }
-            _ => current_location,
+        let destination = match requested_location {
+            Some(code) => resolve_location(&mut tx, context, code, spec.location_type).await?,
+            None => current_location,
         };
+        if spec.requires_location && destination == current_location {
+            return Err(PartsInventoryError::Invalid(
+                "the destination is the location the unit already occupies".into(),
+            ));
+        }
 
         sqlx::query(
             r#"UPDATE stock_units
@@ -1201,16 +1364,19 @@ impl<'a> PartsInventoryRepository<'a> {
         sqlx::query(
             r#"INSERT INTO inventory_events
                (id,organization_id,stock_unit_id,event_type,quantity_delta,
-                from_location_id,to_location_id,actor_user_id,correlation_id,
-                notes,payload,created_at)
-               VALUES ($1,$2,$3,$4,0,$5,$6,$7,$8,$9,$10,now())"#,
+                from_location_id,to_location_id,reference_type,reference_id,
+                actor_user_id,correlation_id,notes,payload,created_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())"#,
         )
         .bind(Uuid::new_v4())
         .bind(context.organization_id.0)
         .bind(unit_id)
-        .bind(event_type)
+        .bind(spec.event_type)
+        .bind(spec.quantity_delta * quantity)
         .bind(current_location)
         .bind(destination)
+        .bind(spec.reference_type)
+        .bind(reference)
         .bind(context.user_id.0)
         .bind(context.correlation_id.0)
         .bind(

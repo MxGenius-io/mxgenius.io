@@ -78,9 +78,38 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.doesNotMatch(js, /correctQuantity|correctStatus|correctLocation/);
   });
 
-  await t.test('terminal units expose no mutating action', () => {
+  await t.test('the daily loop is reachable from the unit drawer', () => {
+    assert.match(js, /const MOVEMENTS = \{/);
+    for (const action of ['issue', 'transfer', 'reserve', 'scrap', 'ship']) {
+      assert.match(js, new RegExp(`action: '${action}'`), `${action} should be offered`);
+    }
+    // Return is offered from the issued state rather than the movement table.
+    assert.match(js, /data-movement="return"/);
+    assert.match(js, /client\.dispositionUnit\(/);
+    assert.match(js, /referenceId:/);
+  });
+
+  await t.test('movements are offered only from a status that permits them', () => {
+    // Quarantined stock is inspected, never issued straight to a job.
+    assert.match(js, /unit\.status === 'quarantine'/);
+    assert.match(js, /id="btnInspectPass"/);
+    assert.doesNotMatch(js, /^\s*quarantine: \[/m, 'quarantine must not be in the movement table');
+    for (const status of ['available', 'reserved', 'rejected', 'in_repair']) {
+      assert.match(js, new RegExp(`^\\s*${status}: \\[`, 'm'), `${status} should have movements`);
+    }
+  });
+
+  await t.test('spent units expose nothing beyond returning an issued part', () => {
     assert.match(js, /TERMINAL_STATUSES/);
     assert.match(js, /issued', 'shipped', 'scrapped', 'archived/);
+    // An issued unit is the one terminal state that can still come back.
+    assert.match(js, /data-movement="return"/);
+  });
+
+  await t.test('destination fields suggest real locations', () => {
+    assert.match(js, /id="partsLocationOptions"/);
+    assert.match(js, /client\.listLocations\(/);
+    assert.match(js, /list="partsLocationOptions"/);
   });
 
   await t.test('ledger mutations carry a bound single-use confirmation grant', () => {

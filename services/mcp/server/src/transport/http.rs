@@ -25,7 +25,7 @@ use uuid::Uuid;
 use crate::application::parts_inventory::{
     ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput, ExtractionProposal,
     PartsInventoryError, PartsInventoryRepository, RegisterAssetInput, ReviewExtractionInput,
-    SearchPartsQuery, TransitionUnitInput, UpsertLocationInput,
+    SearchPartsQuery, StockAction, TransitionUnitInput, UpsertLocationInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -3099,7 +3099,9 @@ async fn transition_parts_unit(
             "role cannot disposition parts",
         );
     }
-    if input.action == "inspect_pass" && !parts_inspection_release_allowed(&context) {
+    if StockAction::is_quarantine_release(&input.action)
+        && !parts_inspection_release_allowed(&context)
+    {
         return realtime_error(
             StatusCode::FORBIDDEN,
             "PARTS_INSPECTION_DENIED",
@@ -6946,6 +6948,45 @@ mod structured_advisory_tests {
                 version: "0".into(),
             },
         )
+    }
+
+    #[test]
+    fn stock_actions_declare_what_each_movement_needs() {
+        // Issuing to a job must name the job; scrapping needs no reference.
+        let issue = StockAction::parse("issue").expect("issue is a known action");
+        assert!(issue.requires_reference);
+        assert_eq!(issue.reference_type, Some("maintenance_case"));
+        assert_eq!(issue.quantity_delta, -1.0);
+
+        // A transfer relocates without changing what the stock is.
+        let transfer = StockAction::parse("transfer").expect("transfer is a known action");
+        assert!(transfer.target_status.is_none());
+        assert!(transfer.requires_location);
+        assert_eq!(transfer.quantity_delta, 0.0);
+
+        // Returning stock puts quantity back and must say where it lands.
+        let returned = StockAction::parse("return").expect("return is a known action");
+        assert_eq!(returned.quantity_delta, 1.0);
+        assert!(returned.requires_location);
+
+        assert!(StockAction::parse("teleport").is_none());
+        for action in StockAction::names() {
+            assert!(
+                StockAction::parse(action).is_some(),
+                "{action} is advertised but not parseable"
+            );
+        }
+    }
+
+    #[test]
+    fn only_quarantine_release_is_gated_on_inspection_authority() {
+        assert!(StockAction::is_quarantine_release("inspect_pass"));
+        for action in ["inspect_reject", "transfer", "issue", "return", "scrap"] {
+            assert!(
+                !StockAction::is_quarantine_release(action),
+                "{action} must not require inspection authority"
+            );
+        }
     }
 
     #[test]

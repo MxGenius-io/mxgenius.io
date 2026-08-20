@@ -59,11 +59,22 @@
     parts: {
       search: async () => [unit],
       getUnit: async () => ({ unit, assets: [], events: [] }),
-      dispositionUnit: async ({ action, locationCode, notes, version }) => {
-        log(`dispositionUnit action=${action} version=${version} location=${locationCode || '(unchanged)'} notes=${notes || '(none)'}`);
+      listLocations: async () => ([
+        { id: 'l1', code: 'RECEIVING', name: 'Receiving dock' },
+        { id: 'l2', code: 'STOCK-A12', name: 'Bonded shelf A12' },
+        { id: 'l3', code: 'SCRAP', name: 'Scrap bin' }
+      ]),
+      dispositionUnit: async ({ action, locationCode, referenceId, notes, version }) => {
+        log(`dispositionUnit action=${action} version=${version} location=${locationCode || '(unchanged)'} ref=${referenceId || '(none)'} notes=${notes || '(none)'}`);
+        const NEXT = {
+          inspect_pass: 'available', inspect_reject: 'rejected',
+          reserve: 'reserved', unreserve: 'available', issue: 'issued',
+          return: 'available', scrap: 'scrapped', ship: 'shipped',
+          transfer: unit.status
+        };
         unit = {
           ...unit,
-          status: action === 'inspect_pass' ? 'available' : 'rejected',
+          status: NEXT[action],
           location: locationCode || unit.location,
           version: unit.version + 1
         };

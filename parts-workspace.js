@@ -11,7 +11,8 @@ const MXPartsWorkspace = (() => {
     draft: null,
     asset: null,
     extractionRun: null,
-    candidates: []
+    candidates: [],
+    locations: []
   };
 
   function escapeHtml(value) {
@@ -64,6 +65,7 @@ const MXPartsWorkspace = (() => {
             <div id="partsStatus" class="parts-inline-status" aria-live="polite"></div>
             <div id="partsInventoryGrid" class="inventory-grid"></div>
           </div>
+          <datalist id="partsLocationOptions"></datalist>
         </main>
         <aside id="partsDrawer" class="parts-drawer" aria-label="Part unit details" aria-hidden="true">
           <div class="drawer-header">
@@ -137,6 +139,7 @@ const MXPartsWorkspace = (() => {
       </div>`;
     bindEvents();
     performSearch();
+    loadLocations();
     handleRouting();
   }
 
@@ -318,6 +321,24 @@ const MXPartsWorkspace = (() => {
 
   const TERMINAL_STATUSES = new Set(['issued', 'shipped', 'scrapped', 'archived']);
 
+  // Populates the destination datalist so movement fields suggest real bins
+  // rather than relying on the operator to type a code from memory.
+  async function loadLocations() {
+    const list = byId('partsLocationOptions');
+    if (!list || !client.listLocations) return;
+    try {
+      state.locations = await client.listLocations({ session: await session() });
+      list.replaceChildren(...state.locations.map((location) => {
+        const option = document.createElement('option');
+        option.value = location.code;
+        option.label = location.name && location.name !== location.code ? location.name : '';
+        return option;
+      }));
+    } catch {
+      // A missing location list only costs autocomplete; typing still works.
+    }
+  }
+
   const CONDITION_CODES = ['NE', 'NS', 'OH', 'SV', 'RP', 'AR', 'US', 'SC'];
   const TRACE_TYPES = [
     ['none', 'None'],
@@ -334,7 +355,61 @@ const MXPartsWorkspace = (() => {
       .join('');
   }
 
+  // What a unit can do next, by the status it currently holds.
+  const MOVEMENTS = {
+    available: [
+      { action: 'issue', label: 'Issue to a job', primary: true, reference: 'Job or case', location: false },
+      { action: 'reserve', label: 'Reserve', reference: 'Job or case', location: false },
+      { action: 'transfer', label: 'Transfer', location: true },
+      { action: 'scrap', label: 'Scrap', location: false },
+      { action: 'ship', label: 'Ship out', reference: 'Shipment', location: true }
+    ],
+    reserved: [
+      { action: 'issue', label: 'Issue to a job', primary: true, reference: 'Job or case', location: false },
+      { action: 'unreserve', label: 'Release reservation', location: false },
+      { action: 'transfer', label: 'Transfer', location: true }
+    ],
+    rejected: [
+      { action: 'scrap', label: 'Scrap', primary: true, location: false },
+      { action: 'ship', label: 'Ship out', reference: 'Shipment', location: true },
+      { action: 'transfer', label: 'Transfer', location: true }
+    ],
+    in_repair: [
+      { action: 'transfer', label: 'Transfer', location: true }
+    ]
+  };
+
+  function renderMovementBlock(unit) {
+    const movements = MOVEMENTS[unit.status];
+    if (!movements) return '';
+    const needsReference = movements.some((movement) => movement.reference);
+    const needsLocation = movements.some((movement) => movement.location);
+    return `
+      <section class="unit-action-block">
+        <h3>Move this stock</h3>
+        <p class="unit-action-hint">Each movement is recorded against this unit as an inventory event.</p>
+        ${needsReference ? '<label>Job, case, or order reference <input id="movementReference" placeholder="Required to issue, reserve, or ship"></label>' : ''}
+        ${needsLocation ? `<label>Destination location <input id="movementLocation" list="partsLocationOptions" placeholder="Required to transfer, return, or ship"></label>` : ''}
+        <label>Notes <input id="movementNotes" placeholder="Optional remarks"></label>
+        <div class="unit-action-row">
+          ${movements.map((movement) => `<button class="${movement.primary ? 'btn-primary' : 'btn-quiet'}" data-movement="${escapeHtml(movement.action)}">${escapeHtml(movement.label)}</button>`).join('')}
+        </div>
+      </section>`;
+  }
+
   function renderUnitActions(unit) {
+    if (unit.status === 'issued') {
+      return `
+        <section class="unit-action-block">
+          <h3>Issued</h3>
+          <p class="unit-action-hint">This unit was issued to a job. If it came back unused, return it to stock.</p>
+          <label>Return to location <input id="movementLocation" list="partsLocationOptions" placeholder="Where it goes back on the shelf"></label>
+          <label>Notes <input id="movementNotes" placeholder="Optional remarks"></label>
+          <div class="unit-action-row">
+            <button class="btn-primary" data-movement="return">Return to stock</button>
+          </div>
+        </section>`;
+    }
     if (TERMINAL_STATUSES.has(unit.status)) {
       return `<p class="parts-inline-status">This unit is ${escapeHtml(unit.status)} and can no longer be changed.</p>`;
     }
@@ -343,7 +418,7 @@ const MXPartsWorkspace = (() => {
         <section class="unit-action-block">
           <h3>Receiving inspection</h3>
           <p class="unit-action-hint">This unit is held in quarantine. Passing inspection releases it to serviceable stock; rejecting it holds it for disposition.</p>
-          <label>Move to location <input id="dispositionLocation" placeholder="Leave blank to keep ${escapeHtml(unit.location)}"></label>
+          <label>Move to location <input id="dispositionLocation" list="partsLocationOptions" placeholder="Leave blank to keep ${escapeHtml(unit.location)}"></label>
           <label>Notes <input id="dispositionNotes" placeholder="Inspection remarks"></label>
           <div class="unit-action-row">
             <button class="btn-primary" id="btnInspectPass">Pass inspection</button>
@@ -353,6 +428,7 @@ const MXPartsWorkspace = (() => {
       : '';
     return `
       ${inspection}
+      ${renderMovementBlock(unit)}
       <section class="unit-action-block">
         <h3>Correct details</h3>
         <p class="unit-action-hint">Corrections are recorded against this unit with the previous values. Quantity, status, and location change through their own actions.</p>
@@ -383,6 +459,31 @@ const MXPartsWorkspace = (() => {
     byId('btnInspectPass')?.addEventListener('click', () => disposition(unit, 'inspect_pass'));
     byId('btnInspectReject')?.addEventListener('click', () => disposition(unit, 'inspect_reject'));
     byId('btnCorrectUnit')?.addEventListener('click', () => correctUnit(unit));
+    byId('drawerContent')?.querySelectorAll('[data-movement]').forEach((button) => {
+      button.addEventListener('click', () => moveStock(unit, button.dataset.movement));
+    });
+  }
+
+  async function moveStock(unit, action) {
+    const buttons = [...byId('drawerContent').querySelectorAll('[data-movement]')];
+    buttons.forEach((button) => { button.disabled = true; });
+    unitActionStatus('Recording the movement…');
+    try {
+      await client.dispositionUnit({
+        unitId: unit.id,
+        version: unit.version,
+        action,
+        locationCode: byId('movementLocation')?.value.trim() || null,
+        referenceId: byId('movementReference')?.value.trim() || null,
+        notes: byId('movementNotes')?.value.trim() || null,
+        session: await session()
+      });
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      buttons.forEach((button) => { button.disabled = false; });
+    }
   }
 
   async function disposition(unit, action) {

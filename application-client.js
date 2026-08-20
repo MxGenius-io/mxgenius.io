@@ -957,7 +957,7 @@ const MXApplicationClient = (() => {
       });
       return payload.location;
     },
-    dispositionUnit: async ({ unitId, version, action, locationCode = null, notes = null, session = {} }) => {
+    dispositionUnit: async ({ unitId, version, action, locationCode = null, referenceId = null, notes = null, session = {} }) => {
       const confirmation = await issueConfirmation({
         toolName: 'mxg.parts.inspect',
         arguments: { unit_id: unitId, expected_version: version },
@@ -966,7 +966,7 @@ const MXApplicationClient = (() => {
       const payload = await applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/transitions`, {
         session,
         method: 'POST',
-        body: { action, locationCode, notes },
+        body: { action, locationCode, referenceId, notes },
         headers: {
           'If-Match': `"${version}"`,
           'X-MXG-Confirmation-Grant': confirmation.token

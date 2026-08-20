@@ -11,6 +11,9 @@ mod tests {
             (Quarantine, Available),
             (Quarantine, Rejected),
             (Available, Reserved),
+            // Stock is commonly issued straight off the shelf without a
+            // reservation step.
+            (Available, Issued),
             (Available, InRepair),
             (Available, Shipped),
             (Available, Scrapped),

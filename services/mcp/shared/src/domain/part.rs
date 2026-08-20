@@ -67,6 +67,7 @@ impl StockUnitStatus {
             (Quarantine, Available)
                 | (Quarantine, Rejected)
                 | (Available, Reserved)
+                | (Available, Issued)
                 | (Available, InRepair)
                 | (Available, Shipped)
                 | (Available, Scrapped)
