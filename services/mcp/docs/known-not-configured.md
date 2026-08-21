@@ -15,7 +15,6 @@ when the live source is mounted.
 | `AviationWeatherAdapter` | `mxg.weather.airport_now`, `mxg.weather.maintenance_window`, `mxg.weather.ramp_risk`, `mxg.weather.ferry_assessment`, `mxg.weather.hazard_overlay` | NOT_CONFIGURED. `build_context` returns a typed `WeatherSlice` with `not_configured: true`. |
 | `PartsInventoryAdapter` | `mxg.parts.inventory`, `mxg.parts.rank_options` | NOT_CONFIGURED |
 | `SupplierAdapter` | `mxg.parts.inventory`, `mxg.parts.rank_options`, `mxg.analytics.parts_risk` | NOT_CONFIGURED |
-| `MroDirectoryAdapter` | `mxg.mro.search`, `mxg.mro.capability_match`, `mxg.mro.rank`, `mxg.mro.contact_pack`, `mxg.mro.route_eta` | NOT_CONFIGURED. Company/contact data must remain candidate, never confirmed capability. |
 | `SchedulingAdapter` | `mxg.scheduling.resource_match`, `mxg.scheduling.window_options`, `mxg.scheduling.publish_plan` | NOT_CONFIGURED |
 | `DigitalTwinCatalogAdapter` | `mxg.digital_twin.list_models`, `mxg.digital_twin.component_state`, `mxg.digital_twin.highlight_zone`, `mxg.digital_twin.link_documents` | NOT_CONFIGURED — 3D catalog path not provided |
 | `DigitalTwinMarkerRepository` | `mxg.digital_twin.attach_case_marker` | CONFIGURED — local mode uses in-memory persistence; production uses a tenant-scoped Postgres transaction with audit and trace. Catalog/component mapping remains separately gated. |

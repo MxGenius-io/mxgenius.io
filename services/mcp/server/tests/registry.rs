@@ -61,22 +61,22 @@ async fn dispatch(d: &Dispatcher, method: &str, params: serde_json::Value) -> se
 }
 
 #[test]
-fn registry_has_50_unique_tools() {
+fn registry_has_45_unique_tools() {
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 50);
-    assert_eq!(info.resource_count, 16);
+    assert_eq!(info.tool_count, 45);
+    assert_eq!(info.resource_count, 15);
     assert_eq!(info.prompt_count, 8);
 
     let names: std::collections::BTreeSet<String> =
         reg.list_tools().into_iter().map(|t| t.name).collect();
-    assert_eq!(names.len(), 50, "tool names must be unique");
+    assert_eq!(names.len(), 45, "tool names must be unique");
 }
 
 #[test]
-fn all_50_tool_names_match_the_locked_catalog() {
+fn all_45_tool_names_match_the_locked_catalog() {
     use std::collections::BTreeSet;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -100,11 +100,6 @@ fn all_50_tool_names_match_the_locked_catalog() {
         "mxg.parts.inventory",
         "mxg.parts.rank_options",
         "mxg.parts.attach_certificate",
-        "mxg.mro.search",
-        "mxg.mro.capability_match",
-        "mxg.mro.rank",
-        "mxg.mro.contact_pack",
-        "mxg.mro.route_eta",
         "mxg.weather.airport_now",
         "mxg.weather.maintenance_window",
         "mxg.weather.ramp_risk",
@@ -175,7 +170,7 @@ fn role_action_matrix_for_all_capabilities_matches_the_locked_snapshot() {
     snapshot.sort_by_key(serde_json::Value::to_string);
     let actual = hex::encode(sha2::Sha256::digest(serde_json::to_vec(&snapshot).unwrap()));
     assert_eq!(
-        actual, "0df096cfd349015424d50729a5a7074011808f12ab77d4a88fe617a1f0d9c65a",
+        actual, "61368ac47c165d0b8760a81624c931d1c3a68ef58db7df2fb862f4f7411d0e0d",
         "RBAC snapshot changed: {actual}"
     );
 }
@@ -259,11 +254,6 @@ async fn not_configured_factories_do_not_invent_scores_risk_or_generation_metada
                 "work_type": "inspection"
             }),
             "risk_level",
-        ),
-        (
-            "mxg.mro.capability_match",
-            serde_json::json!({"case_id": case_id, "facility_id": Uuid::new_v4()}),
-            "match_score",
         ),
         (
             "mxg.compliance.return_to_service_pack",
@@ -495,7 +485,7 @@ async fn aircraft_lookup_conflicting_identifiers_returns_ambiguous_match() {
 }
 
 #[test]
-fn all_50_tool_schemas_match_the_locked_snapshot() {
+fn all_45_tool_schemas_match_the_locked_snapshot() {
     use sha2::Digest;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -517,7 +507,7 @@ fn all_50_tool_schemas_match_the_locked_snapshot() {
     let encoded = serde_json::to_vec(&snapshot).unwrap();
     let actual = hex::encode(sha2::Sha256::digest(encoded));
     assert_eq!(
-        actual, "798ca46f4fc43d4a0ce0e196683a6b4ef6734021050eaf8fe489f71ced503e9f",
+        actual, "5263214f6fc219c652141823f4678a576a41ffbc00ea14df49d1d2d0499fd1a1",
         "schema snapshot changed: {actual}"
     );
 }
@@ -1616,7 +1606,7 @@ async fn streamable_http_handles_malformed_content_auth_resources_and_prompts() 
     );
 
     for (method, collection, expected_len) in [
-        ("resources/list", "resources", 16_u64),
+        ("resources/list", "resources", 15_u64),
         ("prompts/list", "prompts", 8_u64),
     ] {
         let response = app

@@ -35,7 +35,7 @@ Identity, tenant, role, approval, and confirmation never appear in tool argument
 | Manuals | sanitized excerpts | Azure AI Search/manual corpus adapter |
 | FAA | fictional fixture context or `NOT_CONFIGURED` | AD, DRS, and SAIB adapters |
 | Weather | `NOT_CONFIGURED` | operational aviation weather adapter |
-| Parts/MRO/scheduling | `NOT_CONFIGURED` | typed source adapters |
+| Parts/scheduling | `NOT_CONFIGURED` | typed source adapters |
 | Digital twin | `NOT_CONFIGURED` contract outputs | model catalog, component/zone mapping, raycast IDs |
 
 ## Mount gate

@@ -8,7 +8,7 @@
 
 I wanted to wrap up this first full month with a clear update to the plan.
 When I started, I didn’t fully appreciate some of the real-world constraints around gated manuals, regulatory data, and how the established players actually deliver value. I’ve learned a lot in the last 30 days, and I now feel completely aligned with the original business plan vision you laid out.
-More importantly, I’ve mapped out exactly what we have to do to give CAMP, Veryon, Skywise, and the rest a real run for their money — without over-promising or running into licensing issues.
+More importantly, I’ve mapped out exactly what we have to do to give CAMP, Skywise, and the rest a real run for their money — without over-promising or running into licensing issues.
 Here’s the tightened competitive checklist I’m now working against:
 1. Core AI Decision Layer
 

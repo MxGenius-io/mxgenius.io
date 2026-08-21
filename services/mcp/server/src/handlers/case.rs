@@ -21,14 +21,13 @@ use mxgenius_shared::application::envelope::EnvelopeStatus;
 use mxgenius_shared::application::errors::StableErrorCode;
 use mxgenius_shared::application::policy::Action;
 use mxgenius_shared::contracts::{
-    CaseDto, DocumentRef, EvidenceLink, FacilitySlice, LocationDto,
-    MaintenanceCaseAttachObservationRequest, MaintenanceCaseAttachObservationResponse,
-    MaintenanceCaseBuildContextRequest, MaintenanceCaseBuildContextResponse,
-    MaintenanceCaseCreateRequest, MaintenanceCaseCreateResponse, MaintenanceCaseGetRequest,
-    MaintenanceCaseGetResponse, MaintenanceCaseSimilarCasesRequest,
-    MaintenanceCaseSimilarCasesResponse, MaintenanceCaseUpdateStatusRequest,
-    MaintenanceCaseUpdateStatusResponse, ManualRetrievalSummary, PartsSlice, PriorityDto,
-    RegulatoryRef, TimelineEntry, WeatherSlice,
+    CaseDto, DocumentRef, EvidenceLink, LocationDto, MaintenanceCaseAttachObservationRequest,
+    MaintenanceCaseAttachObservationResponse, MaintenanceCaseBuildContextRequest,
+    MaintenanceCaseBuildContextResponse, MaintenanceCaseCreateRequest,
+    MaintenanceCaseCreateResponse, MaintenanceCaseGetRequest, MaintenanceCaseGetResponse,
+    MaintenanceCaseSimilarCasesRequest, MaintenanceCaseSimilarCasesResponse,
+    MaintenanceCaseUpdateStatusRequest, MaintenanceCaseUpdateStatusResponse,
+    ManualRetrievalSummary, PartsSlice, PriorityDto, RegulatoryRef, TimelineEntry, WeatherSlice,
 };
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceKind, SourceType};
 use mxgenius_shared::domain::ids::{AircraftId, EvidenceId};
@@ -325,16 +324,6 @@ impl Tool for MaintenanceCaseBuildContextTool {
             None
         };
 
-        let facility_state: Option<FacilitySlice> = if flags.facilities {
-            Some(FacilitySlice {
-                candidates: vec![],
-                best_match: None,
-                not_configured: true,
-            })
-        } else {
-            None
-        };
-
         let timeline: Vec<TimelineEntry> = if flags.timeline {
             self.service
                 .timeline(ctx.organization_id, input.case_id)
@@ -357,7 +346,6 @@ impl Tool for MaintenanceCaseBuildContextTool {
             regulatory_items,
             weather,
             parts_state,
-            facility_state,
             timeline,
             unresolved_conflicts: vec![],
             evidence_map,

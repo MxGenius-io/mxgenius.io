@@ -24,11 +24,11 @@ deployed and configured.
 | Globe | Live supporting view | Compatibility aircraft/base coordinates plus active case | Keep inside fleet context; colors describe source attributes only |
 | Aircraft triage/search/cards | Live supporting view | Compatibility aircraft source | Keep AOG only when reported; AFTT is descriptive, not due status |
 | Aircraft detail | Live supporting view | Compatibility aircraft bundle | Keep; case creation and evidence retrieval remain canonical actions |
-| Operator and facility directory | Live compatibility primitive | Company/contact compatibility endpoints | Keep collapsed and honestly named; not typed MRO facilities yet |
+| Operator directory | Live compatibility primitive | Company/contact compatibility endpoints | Keep collapsed and honestly named; company/contact records are not capability evidence |
 | Fleet charts | Live compatibility analytics | Compatibility bulk export | Keep secondary; no predictive-maintenance claims |
 | FAA AD/SAIB candidates | Case/chat consumer surfaced; backend deployment pending | Official DRS adapters plus canonical aircraft | Candidate only; final applicability remains a qualified human determination |
 | Manual diagrams | Evidence renderer contract exists; direct acceptance surface pending | Authoritative Search evidence assets in controlled Blob storage | Add a cited figure viewer inside case evidence; never expose a parallel browser corpus |
-| Parts, typed MRO, weather, and scheduling | Not yet surfaced as complete workflows | Locked MCP contracts and authoritative adapters when configured | Add case-scoped acceptance flows after the backend mount; do not create disconnected tabs |
+| Parts, weather, and scheduling | Not yet surfaced as complete workflows | Locked MCP contracts and authoritative adapters when configured | Add case-scoped acceptance flows after the backend mount; do not create disconnected tabs |
 | Approval, supersession, closure, and derived work artifacts | Partially surfaced | Canonical case lifecycle and trusted confirmation/approval records | Complete inside the Case workspace before pilot acceptance |
 | 3D inspection | Renderer and raycast selection live; operational marker backend pending | Viewer catalog plus canonical component/zone/marker capabilities | Keep lazy-loaded; operational markers require an active case and approval |
 | Appearance and cache settings | Live local preference | Browser-local state/cache | Keep small and non-operational |
@@ -58,7 +58,7 @@ deployed and configured.
 - Live OIDC session, text chat, microphone permission, Realtime audio, interruption, and confirmation flow.
 - Deployed dashboard checks through the production gateway and custom domain.
 - Azure AI Search/manual corpus plus FAA AD, DRS, and SAIB adapter health and provenance.
-- Case-scoped acceptance surfaces for parts, typed MRO, weather, scheduling,
+- Case-scoped acceptance surfaces for parts, weather, scheduling,
   manual diagrams/currency, supersession, approval, closure, and derived work
   artifacts. A registered MCP tool does not count as frontend acceptance by itself.
 

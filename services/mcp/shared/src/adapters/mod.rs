@@ -6,7 +6,6 @@
 
 pub mod digital_twin;
 pub mod faa;
-pub mod facility;
 pub mod jetnet;
 pub mod manual;
 pub mod parts;

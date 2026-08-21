@@ -11,7 +11,6 @@ pub mod datetime;
 pub mod digital_twin;
 pub mod document;
 pub mod evidence;
-pub mod facility;
 pub mod ids;
 pub mod organization;
 pub mod part;
@@ -23,7 +22,6 @@ pub use compliance::{AdvisoryNotice, AirworthinessDirective, ApplicabilityState}
 pub use digital_twin::{DigitalTwinMarker, DigitalTwinModel};
 pub use document::{DocumentRevision, TechnicalDocument};
 pub use evidence::{Confidence, ConfidenceBasis, Evidence, EvidenceKind, SourceType};
-pub use facility::{FacilityCapability, MROFacility};
 pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
 pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};

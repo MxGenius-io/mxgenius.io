@@ -62,7 +62,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
       <p>Explain the product clearly, demonstrate what is actually live, and keep every operational claim attached to evidence and qualified human authority.</p>
       <div class="status-strip"><span class="pill live">Live system</span><span class="pill evidence">Evidence first</span><span class="pill human">Human approval</span></div>
       <div class="metrics">
-        <div class="metric"><strong>50</strong><span>Typed MCP capabilities</span></div>
+        <div class="metric"><strong>45</strong><span>Typed MCP capabilities</span></div>
         <div class="metric"><strong>1</strong><span>Maintenance Case spine</span></div>
         <div class="metric"><strong>0</strong><span>Invented operational records</span></div>
       </div>
@@ -80,7 +80,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 -&gt; observed discrepancy
 -&gt; Maintenance Case
 -&gt; documents and regulatory candidates
--&gt; weather, parts, MRO, and schedule
+-&gt; weather, parts, and schedule
 -&gt; actions, evidence, and approvals
 -&gt; closure by an authorized person
 </code></pre>
@@ -140,9 +140,9 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <tr>
 <td>MCP</td>
 <td>Model Context Protocol capability service</td>
-<td>Gives UI and AI the same 50 typed operations and safety rules</td>
+<td>Gives UI and AI the same 45 typed operations and safety rules</td>
 <td>Rust service, Postgres, trusted application context</td>
-<td><strong>Live and discoverable:</strong> exactly 50 tools. A tool being listed does not mean its external adapter is configured.</td>
+<td><strong>Live and discoverable:</strong> exactly 45 tools. A tool being listed does not mean its external adapter is configured.</td>
 </tr>
 <tr>
 <td>Evidence envelope</td>
@@ -164,13 +164,6 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <td>Resolve part numbers, alternates/supersessions, stock, ETA, condition, and certificate presence</td>
 <td>Inventory and supplier sources</td>
 <td>Contract complete; not configured.</td>
-</tr>
-<tr>
-<td>MRO directory</td>
-<td>Typed Maintenance, Repair, and Overhaul facility model</td>
-<td>Find candidate facilities, check documented capability, rank options, contacts, and route ETA</td>
-<td>Authoritative facility/capability sources</td>
-<td>Contract complete; not configured. A company/contact record is not automatically proof of repair-station capability.</td>
 </tr>
 <tr>
 <td>Scheduling adapter</td>
@@ -234,11 +227,6 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <td>IA</td>
 <td>Inspection Authorization held by an eligible mechanic</td>
 <td>“Required approvals stay with appropriately authorized personnel.”</td>
-</tr>
-<tr>
-<td>MRO</td>
-<td>Maintenance, Repair, and Overhaul organization/facility</td>
-<td>“These are candidate MRO options until capability and ratings evidence is verified.”</td>
 </tr>
 <tr>
 <td>AOG</td>
@@ -336,7 +324,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <td>“The tool only assesses information and constraints; it does not issue a permit or dispatch the flight.”</td>
 </tr>
 </tbody></table>
-<h2>The complete 50-capability catalog</h2>
+<h2>The complete 45-capability catalog</h2>
 <p>The public Operations workspace discovers this catalog directly from the deployed MCP. Names are frozen; UI, chat, and voice are expected to call these exact contracts.</p>
 <h3>Aircraft — 6</h3>
 <ol>
@@ -364,16 +352,8 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <li><code>mxg.parts.rank_options</code> — compare ETA, location, condition, certificate, and confidence.</li>
 <li><code>mxg.parts.attach_certificate</code> — record that a certificate file exists separately from whether it has been validated.</li>
 </ol>
-<h3>MRO discovery — 5</h3>
-<ol start="18">
-<li><code>mxg.mro.search</code> — return candidate facilities with source completeness.</li>
-<li><code>mxg.mro.capability_match</code> — compare a case’s required work with documented facility capabilities and gaps.</li>
-<li><code>mxg.mro.rank</code> — rank candidates using capability, distance, hours, weather, parts, performance, and completeness.</li>
-<li><code>mxg.mro.contact_pack</code> — return verified contact and escalation information.</li>
-<li><code>mxg.mro.route_eta</code> — estimate route distance/time with assumptions, constraints, and weather links.</li>
-</ol>
 <h3>Weather — 5</h3>
-<ol start="23">
+<ol start="18">
 <li><code>mxg.weather.airport_now</code> — return METAR, TAF, flight category, and decoded airport weather.</li>
 <li><code>mxg.weather.maintenance_window</code> — identify candidate outdoor-work windows and their drivers.</li>
 <li><code>mxg.weather.ramp_risk</code> — summarize wind, precipitation, lightning, temperature, icing, and visibility risk.</li>
@@ -381,7 +361,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <li><code>mxg.weather.hazard_overlay</code> — return geospatial weather objects for the globe.</li>
 </ol>
 <h3>Compliance — 5</h3>
-<ol start="28">
+<ol start="23">
 <li><code>mxg.compliance.applicable_ads</code> — return evidence-backed AD candidates for qualified applicability review.</li>
 <li><code>mxg.compliance.saib_search</code> — search official DRS SAIB metadata by aircraft, component, or terms.</li>
 <li><code>mxg.compliance.manual_currency</code> — report known revision, effective date, supersession state, and warnings.</li>
@@ -389,7 +369,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <li><code>mxg.compliance.return_to_service_pack</code> — assemble a review pack; it never performs the approval.</li>
 </ol>
 <h3>Digital twin / 3D — 5</h3>
-<ol start="33">
+<ol start="28">
 <li><code>mxg.digital_twin.list_models</code> — list versioned visual models and their stated applicability.</li>
 <li><code>mxg.digital_twin.component_state</code> — retrieve the canonical component, installation, observations, cases, and evidence.</li>
 <li><code>mxg.digital_twin.highlight_zone</code> — resolve a zone to model/mesh IDs, camera position, and annotations.</li>
@@ -397,7 +377,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <li><code>mxg.digital_twin.attach_case_marker</code> — persist a confirmed case marker for a canonical component or zone.</li>
 </ol>
 <h3>Scheduling — 5</h3>
-<ol start="38">
+<ol start="33">
 <li><code>mxg.scheduling.window_options</code> — return candidate start/end windows, constraints, and readiness.</li>
 <li><code>mxg.scheduling.resource_match</code> — compare required labor, bays, tooling, and facility capabilities.</li>
 <li><code>mxg.scheduling.conflict_scan</code> — identify deterministic conflicts, affected records, and possible resolutions.</li>
@@ -405,14 +385,14 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <li><code>mxg.scheduling.publish_plan</code> — persist an approved, versioned plan; never book a facility or purchase a part.</li>
 </ol>
 <h3>Evidence — 4</h3>
-<ol start="43">
+<ol start="38">
 <li><code>mxg.evidence.collect</code> — normalize, hash, and de-duplicate evidence from typed sources.</li>
 <li><code>mxg.evidence.trace_case</code> — return the evidence graph, derivations, supersessions, conflicts, and decisions.</li>
 <li><code>mxg.evidence.citation_pack</code> — package references, locators, exclusions, and license warnings.</li>
 <li><code>mxg.evidence.conflict_check</code> — expose contradictory values, revisions, and unresolved conflicts.</li>
 </ol>
 <h3>Analytics — 4</h3>
-<ol start="47">
+<ol start="42">
 <li><code>mxg.analytics.fleet_health</code> — return defined fleet-health metrics with freshness, limitations, and drill-through IDs.</li>
 <li><code>mxg.analytics.repeat_defects</code> — return recurring normalized discrepancies with counts, intervals, outcomes, and sample size.</li>
 <li><code>mxg.analytics.parts_risk</code> — report shortage, lead-time, certificate, and supplier risks with uncertainty.</li>
@@ -423,7 +403,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <ol>
 <li>Open <code>https://mxgenius.io/dashboard.html</code> in a clean desktop browser and allow the initial fleet load to finish once.</li>
 <li>Confirm the globe shows aircraft clusters and that one aircraft detail opens with text and images.</li>
-<li>Confirm the Operations tab reports <strong>50 available operations</strong>.</li>
+<li>Confirm the Operations tab reports <strong>45 available operations</strong>.</li>
 <li>Run <strong>Search SAIBs</strong> with query <code>Bombardier fuel</code>; expect FAA item <code>NM-09-03</code> and an official DRS link.</li>
 <li>Run <strong>Current airport weather</strong> with ICAO <code>KATL</code>; until the adapter is mounted, expect an honest unavailable/partial result. This is a useful truth-safety demonstration, not a weather demo.</li>
 <li>Confirm text chat answers. Treat voice as optional until the microphone/WebRTC device check passes in that browser.</li>
@@ -448,7 +428,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <p>Action: open Operations and show the job-oriented groups rather than raw JSON.</p>
 <p>Say:</p>
 <blockquote>
-<p>“These are not 50 unrelated buttons. They are one typed operating vocabulary shared by the UI, chat, and voice. Each result has a status, evidence, confidence, warnings, and a trace ID.”</p>
+<p>“These are not 45 unrelated buttons. They are one typed operating vocabulary shared by the UI, chat, and voice. Each result has a status, evidence, confidence, warnings, and a trace ID.”</p>
 </blockquote>
 <p><strong>4. Prove an authoritative regulatory source.</strong></p>
 <p>Action: choose <strong>Search SAIBs</strong>, enter <code>Bombardier fuel</code>, and run it. Open the returned FAA link if appropriate.</p>
@@ -520,7 +500,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 </tr>
 <tr>
 <td>MCP catalog</td>
-<td>50 tools returned from deployed <code>tools/list</code></td>
+<td>45 tools returned from deployed <code>tools/list</code></td>
 </tr>
 <tr>
 <td>Fleet proxy</td>

@@ -27,7 +27,6 @@ pub struct DemoSeedSummary {
     pub dataset: &'static str,
     pub aircraft: i64,
     pub cases: i64,
-    pub facilities: i64,
     pub stock_units: i64,
     pub evidence: i64,
     pub aircraft_id: &'static str,
@@ -52,12 +51,11 @@ pub async fn seed_demo_data(
     let seed_sql = tenant_seed_sql(organization_id);
     sqlx::query(&seed_sql).execute(&mut *transaction).await?;
 
-    let (aircraft, cases, facilities, stock_units, evidence): (i64, i64, i64, i64, i64) =
+    let (aircraft, cases, stock_units, evidence): (i64, i64, i64, i64) =
         sqlx::query_as(
             r#"SELECT
                 (SELECT count(*) FROM aircraft_canonical WHERE organization_id=$1 AND metadata->>'dataset'='mxgenius_complete_demo'),
                 (SELECT count(*) FROM maintenance_cases WHERE organization_id=$1 AND normalized_discrepancy->>'dataset'='mxgenius_complete_demo'),
-                (SELECT count(*) FROM mro_facilities WHERE organization_id=$1 AND source_reference LIKE 'demo://%'),
                 (SELECT count(*) FROM stock_units WHERE organization_id=$1 AND metadata->>'dataset'='mxgenius_complete_demo'),
                 (SELECT count(*) FROM evidence WHERE organization_id=$1 AND source_type='demo')"#,
         )
@@ -71,7 +69,6 @@ pub async fn seed_demo_data(
         dataset: "mxgenius_complete_demo",
         aircraft,
         cases,
-        facilities,
         stock_units,
         evidence,
         aircraft_id: "MXG-DEMO-N350MX",
@@ -123,8 +120,6 @@ mod tests {
             "stock_units",
             "inventory_events",
             "faa_candidate_queries",
-            "mro_facilities",
-            "facility_capabilities",
             "schedule_options",
             "evidence",
             "approvals",

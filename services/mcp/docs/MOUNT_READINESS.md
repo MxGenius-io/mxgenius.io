@@ -22,6 +22,6 @@ The clean artifact lives at `services/mcp`. The repository-level `docs/PRODUCTIO
 - production case/evidence transactions and tenant-safe foreign keys;
 - container/runtime health checks;
 - deployed MCP smoke test;
-- live JetNet, manuals, FAA, weather, parts, MRO, scheduling, and twin adapters.
+- live JetNet, manuals, FAA, weather, parts, scheduling, and twin adapters.
 
 A compiling adapter is not reported as a deployed capability. Local fixtures require `--insecure-local`; production stdio is rejected because it lacks authenticated HTTP request metadata.

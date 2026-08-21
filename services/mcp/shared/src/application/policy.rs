@@ -48,8 +48,6 @@ pub enum Action {
     // Parts
     PartsRead,
     PartsAttachCertificate,
-    // MRO
-    MroRead,
     // Weather
     WeatherRead,
     // Compliance
@@ -93,7 +91,6 @@ impl PolicyMatrix {
                     AircraftRead
                         | CaseRead
                         | PartsRead
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -111,7 +108,6 @@ impl PolicyMatrix {
                         | CaseRead
                         | CaseAttachObservation
                         | PartsRead
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -132,7 +128,6 @@ impl PolicyMatrix {
                         | CaseCreate
                         | CaseUpdateStatus
                         | PartsRead
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -151,7 +146,6 @@ impl PolicyMatrix {
                         | CaseRead
                         | CaseUpdateStatus
                         | PartsRead
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -169,7 +163,6 @@ impl PolicyMatrix {
                         | CaseRead
                         | PartsRead
                         | PartsAttachCertificate
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -187,7 +180,6 @@ impl PolicyMatrix {
                         | CaseRead
                         | PartsRead
                         | PartsAttachCertificate
-                        | MroRead
                         | WeatherRead
                         | ComplianceRead
                         | ComplianceReturnToService

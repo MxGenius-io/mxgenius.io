@@ -79,8 +79,10 @@ typed_uuid!(
 );
 typed_uuid!(SupplierId, "Supplier identifier.");
 typed_uuid!(CertificateId, "Certificate record identifier.");
-typed_uuid!(FacilityId, "MRO facility identifier.");
-typed_uuid!(FacilityCapabilityId, "MRO facility capability identifier.");
+typed_uuid!(
+    FacilityId,
+    "Maintenance site identifier used by scheduling."
+);
 typed_uuid!(ScheduleOptionId, "Schedule option identifier.");
 typed_uuid!(MarkerId, "Digital twin marker identifier.");
 typed_uuid!(TwinModelId, "Digital twin model identifier.");
@@ -94,5 +96,5 @@ typed_uuid!(CorrelationId, "Cross-invocation correlation identifier.");
 typed_uuid!(ContactId, "Contact identifier (linked to a Company).");
 typed_uuid!(
     CompanyId,
-    "Company identifier (may be an operator, owner, MRO, etc.)."
+    "Company identifier (may be an operator, owner, maintenance provider, etc.)."
 );

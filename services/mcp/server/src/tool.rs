@@ -38,7 +38,6 @@ pub fn is_read_only_action(action: Action) -> bool {
         Action::AircraftRead
             | Action::CaseRead
             | Action::PartsRead
-            | Action::MroRead
             | Action::WeatherRead
             | Action::ComplianceRead
             | Action::TwinRead

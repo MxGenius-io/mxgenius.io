@@ -2,7 +2,7 @@
 //! request and response contract from `mxgenius-shared::contracts::*`.
 //!
 //! Tools that need a Postgres-backed source (parts inventory, parts
-//! certificate persistence, compliance return-to-service pack, MRO search
+//! certificate persistence, compliance return-to-service pack,
 //! and ranking) register a `NotConfiguredTool` when the application pool
 //! is absent, so the `tools/list` metadata reports `not_configured` while
 //! the runtime envelope emits a typed partial response with a
@@ -33,7 +33,6 @@ pub mod case;
 pub mod compliance;
 pub mod digital_twin;
 pub mod evidence;
-pub mod mro;
 pub mod parts;
 pub mod scheduling;
 pub mod weather;
@@ -58,7 +57,6 @@ pub fn register_all(
         adapters.allow_fixture_compliance,
     );
     parts::register(reg, adapters.pool.clone());
-    mro::register(reg, adapters.pool.clone());
     weather::register(reg, adapters.weather);
     compliance::register(
         reg,

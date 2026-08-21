@@ -228,20 +228,9 @@ BEGIN
     ) ON CONFLICT (organization_id, id) DO UPDATE SET
         state=EXCLUDED.state, candidates=EXCLUDED.candidates, retrieved_at=now();
 
-    INSERT INTO mro_facilities (id, organization_id, name, source_reference, icao, city, country) VALUES
-        ('d0000000-0000-4000-8000-000000000701', demo_org, '[DEMO] Dallas Business Aircraft Center', 'demo://mro/dallas-center', 'KDAL', 'Dallas', 'US'),
-        ('d0000000-0000-4000-8000-000000000702', demo_org, '[DEMO] Fort Worth Mobile Response', 'demo://mro/fort-worth-mobile', 'KFTW', 'Fort Worth', 'US')
-    ON CONFLICT (id) DO UPDATE SET organization_id=EXCLUDED.organization_id, name=EXCLUDED.name;
-
-    INSERT INTO facility_capabilities (id, facility_id, task_code, rating, evidence_reference) VALUES
-        ('d0000000-0000-4000-8000-000000000711', 'd0000000-0000-4000-8000-000000000701', 'ATA-29-HYDRAULICS', 'DEMO-AIRFRAME-RATING', 'demo://mro/dallas-center/ratings'),
-        ('d0000000-0000-4000-8000-000000000712', 'd0000000-0000-4000-8000-000000000701', 'CHALLENGER-350', 'DEMO-MODEL-CAPABILITY', 'demo://mro/dallas-center/capabilities'),
-        ('d0000000-0000-4000-8000-000000000713', 'd0000000-0000-4000-8000-000000000702', 'AOG-MOBILE-RESPONSE', 'DEMO-MOBILE', 'demo://mro/fort-worth-mobile/capabilities')
-    ON CONFLICT (facility_id, task_code) DO UPDATE SET rating=EXCLUDED.rating, evidence_reference=EXCLUDED.evidence_reference;
-
-    INSERT INTO schedule_options (id, case_id, facility_id, start_at, end_at, notes) VALUES
-        ('d0000000-0000-4000-8000-000000000721', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000701', now() + interval '8 hours', now() + interval '20 hours', '[DEMO] Primary plan after pump delivery and trace review.'),
-        ('d0000000-0000-4000-8000-000000000722', 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000701', now() + interval '2 days', now() + interval '2 days 4 hours', '[DEMO] Cabin filter replacement window.')
+    INSERT INTO schedule_options (id, case_id, start_at, end_at, notes) VALUES
+        ('d0000000-0000-4000-8000-000000000721', 'd0000000-0000-4000-8000-000000000101', now() + interval '8 hours', now() + interval '20 hours', '[DEMO] Primary plan after pump delivery and trace review.'),
+        ('d0000000-0000-4000-8000-000000000722', 'd0000000-0000-4000-8000-000000000103', now() + interval '2 days', now() + interval '2 days 4 hours', '[DEMO] Cabin filter replacement window.')
     ON CONFLICT (id) DO UPDATE SET start_at=EXCLUDED.start_at, end_at=EXCLUDED.end_at, notes=EXCLUDED.notes;
 
     INSERT INTO recommendations (id, case_id, body) VALUES

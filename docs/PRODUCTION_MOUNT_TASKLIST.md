@@ -215,7 +215,7 @@ Exit gate: the pilot is observable, reversible, evidence-backed, and operational
 ## Current work order
 
 1. Deploy the authenticated Rust application/MCP service with Postgres and secret-backed adapters; until then new operational controls must fail closed.
-2. Add case-scoped acceptance surfaces for parts, typed MRO, weather, scheduling, manual diagrams/currency, supersession, approval, closure, and derived work artifacts.
+2. Add case-scoped acceptance surfaces for parts, weather, scheduling, manual diagrams/currency, supersession, approval, closure, and derived work artifacts.
 3. Complete automated degraded-source/response fixtures and `UI-104`, `UI-108`, and `UI-109` against the deployed full stack.
 4. Resolve the 46 quarantined diagram lineage keys and run the 162-manual backfill as a separate, reversible data migration.
 

@@ -1,12 +1,9 @@
-//! Tests for Wave 3 external-source limitations: weather stays
-//! `not_configured`, and MRO tools degrade gracefully (search, capability
-//! match, and rank become real when a pool is mounted; contact_pack and
-//! route_eta remain `not_configured`).
+//! Wave 3 limit tests: weather tools remain typed but `not_configured`,
+//! and every weather tool returns a `partial` envelope carrying a
+//! `NOT_CONFIGURED` warning rather than inventing an observation.
 //!
-//! In default_registry (no Postgres pool) every MRO tool is `not_configured`
-//! and every weather tool is `not_configured`. The tests here also
-//! exercise the existing `not_configured` factories to lock the typed
-//! partial behavior for the weather and MRO tool families.
+//! In default_registry (no Postgres pool) the weather family is
+//! `not_configured`, so tools/list metadata and runtime behavior must agree.
 
 use mxgenius_mcp::application::case_service::InMemoryCaseService;
 use mxgenius_mcp::application::evidence_service::EvidenceService;
@@ -15,7 +12,6 @@ use mxgenius_mcp::registry::{default_registry, server_info};
 use mxgenius_mcp::Dispatcher;
 use mxgenius_shared::application::policy::Role;
 use std::sync::Arc;
-use uuid::Uuid;
 
 fn rpc(method: &str, params: serde_json::Value) -> mxgenius_mcp::dispatcher::JsonRpcRequest {
     mxgenius_mcp::dispatcher::JsonRpcRequest {
@@ -49,7 +45,7 @@ fn all_five_weather_tools_remain_not_configured_in_default_registry() {
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 50);
+    assert_eq!(info.tool_count, 45);
     let availability: std::collections::BTreeMap<String, String> = reg
         .list_tools()
         .into_iter()
@@ -66,31 +62,6 @@ fn all_five_weather_tools_remain_not_configured_in_default_registry() {
             availability.get(name).map(String::as_str),
             Some("not_configured"),
             "{name} must be not_configured"
-        );
-    }
-}
-
-#[test]
-fn all_five_mro_tools_remain_not_configured_in_default_registry() {
-    let ev = Arc::new(EvidenceService::new());
-    let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
-    let reg = default_registry(cs, ev);
-    let availability: std::collections::BTreeMap<String, String> = reg
-        .list_tools()
-        .into_iter()
-        .map(|t| (t.name.clone(), t.availability.clone()))
-        .collect();
-    for name in [
-        "mxg.mro.search",
-        "mxg.mro.capability_match",
-        "mxg.mro.rank",
-        "mxg.mro.contact_pack",
-        "mxg.mro.route_eta",
-    ] {
-        assert_eq!(
-            availability.get(name).map(String::as_str),
-            Some("not_configured"),
-            "{name} must be not_configured in local mode"
         );
     }
 }
@@ -116,107 +87,6 @@ async fn weather_ramp_risk_emits_typed_partial_with_null_score() {
     assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
     assert!(r["output"]["risk_level"].is_null());
     assert_eq!(r["output"]["advisory_only"], true);
-}
-
-#[tokio::test]
-async fn mro_capability_match_emits_typed_partial_with_null_match_score() {
-    let d = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.mro.capability_match",
-            "arguments": {
-                "case_id": Uuid::new_v4(),
-                "facility_id": Uuid::new_v4()
-            }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert!(r["output"]["match_score"].is_null());
-    assert_eq!(r["output"]["completeness"], "unknown");
-    assert!(r["output"]["supported_tasks"]
-        .as_array()
-        .unwrap()
-        .is_empty());
-}
-
-#[tokio::test]
-async fn mro_contact_pack_emits_typed_partial_with_no_contacts() {
-    let d = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.mro.contact_pack",
-            "arguments": { "facility_id": Uuid::new_v4() }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert!(r["output"]["contacts"].as_array().unwrap().is_empty());
-    assert!(r["output"]["facility_name"].as_str().unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn mro_route_eta_emits_typed_partial_with_unknown_uncertainty() {
-    let d = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.mro.route_eta",
-            "arguments": {
-                "origin": "KBOS",
-                "destination_facility": "KJFK",
-                "mode": "ground"
-            }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert_eq!(r["output"]["uncertainty"], "unknown");
-    assert!(r["output"]["distance_nm"].is_null());
-    assert!(r["output"]["estimated_duration_minutes"].is_null());
-}
-
-#[tokio::test]
-async fn mro_rank_emits_typed_partial_with_empty_ranked_list() {
-    let d = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.mro.rank",
-            "arguments": { "case_id": Uuid::new_v4() }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert!(r["output"]["ranked"].as_array().unwrap().is_empty());
-    assert_eq!(r["output"]["advisory"], true);
-}
-
-#[tokio::test]
-async fn mro_search_invocation_agrees_with_metadata() {
-    let d = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.mro.search",
-            "arguments": {}
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert!(r["output"]["facilities"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -308,7 +178,7 @@ async fn weather_maintenance_window_returns_typed_partial() {
 }
 
 #[tokio::test]
-async fn tools_list_continues_to_agree_with_invocation_for_weather_and_mro() {
+async fn tools_list_continues_to_agree_with_invocation_for_weather() {
     // tools/list metadata and runtime behavior must agree. We verify this by
     // checking that every `not_configured` tool produces a `partial` envelope
     // with a `NOT_CONFIGURED` warning.
@@ -345,27 +215,6 @@ async fn tools_list_continues_to_agree_with_invocation_for_weather_and_mro() {
             serde_json::json!({
                 "bounding_box": {"min_lat": 40.0, "min_lon": -75.0, "max_lat": 45.0, "max_lon": -70.0},
                 "time": "2026-07-19T08:00:00Z", "kinds": ["convective"]
-            }),
-        ),
-        ("mxg.mro.search", serde_json::json!({})),
-        (
-            "mxg.mro.capability_match",
-            serde_json::json!({
-                "case_id": Uuid::new_v4(), "facility_id": Uuid::new_v4()
-            }),
-        ),
-        (
-            "mxg.mro.rank",
-            serde_json::json!({"case_id": Uuid::new_v4()}),
-        ),
-        (
-            "mxg.mro.contact_pack",
-            serde_json::json!({"facility_id": Uuid::new_v4()}),
-        ),
-        (
-            "mxg.mro.route_eta",
-            serde_json::json!({
-                "origin": "KBOS", "destination_facility": "KJFK", "mode": "ground"
             }),
         ),
     ];

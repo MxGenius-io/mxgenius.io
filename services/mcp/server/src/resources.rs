@@ -74,11 +74,6 @@ pub fn register_all(reg: &mut Registry) {
             "Document Revision",
             "application/json",
         ),
-        res(
-            "mxg://facilities/{facility_id}",
-            "MRO Facility",
-            "application/json",
-        ),
         res("mxg://parts/{part_id}", "Part", "application/json"),
         res(
             "mxg://schemas/domain",

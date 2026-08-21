@@ -9,7 +9,7 @@ const productionStyles = await readFile(new URL('../production-ui.css', import.m
 const backend = await readFile(new URL('../services/mcp/server/src/transport/http.rs', import.meta.url), 'utf8');
 const manualAdapter = await readFile(new URL('../services/mcp/server/src/adapters/manual.rs', import.meta.url), 'utf8');
 
-test('chat requests strict MRO structured output and retrieves 33 manual records', () => {
+test('chat requests strict maintenance structured output and retrieves 33 manual records', () => {
   assert.match(backend, /"type": "json_schema"/);
   assert.match(backend, /"strict": true/);
   assert.match(backend, /limit: Some\(33\)/);

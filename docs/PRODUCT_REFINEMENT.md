@@ -57,8 +57,7 @@ unwired.
 | Compliance / FAA | `[~]` | AD and SAIB lookup wired behind an adapter that silently degrades. See below. |
 | Fleet (JetNet) | `[~]` | Same silent-degradation pattern. |
 | Weather | `[~]` | Same silent-degradation pattern. |
-| Scheduling | `[~]` | Handlers exist; parts-readiness can now draw on the real shortage view. |
-| MRO facilities | `[~]` | Pool-backed tools wire in production; `route_eta` and `contact_pack` still return typed partials. |
+| Scheduling | `[~]` | Handlers exist; parts-readiness can now draw on the real shortage view. Retains a nullable `facility_id` no longer backed by a directory. |
 | Analytics / KPIs | `[ ]` | Handlers exist, no surface consumes them. |
 | Project workspaces | `[x]` | Build board and patent workspace shipped. |
 | Trust center / waitlist | `[x]` | Static, current. |
@@ -161,6 +160,24 @@ software and should not be modeled from a best guess in code.
 - [ ] Min/max/reorder thresholds and stock-on-hand rollups
 - [ ] Reserve directly from a shortage row
 - [ ] Partial issue from a lot without a manual split first
+
+## Retired: the facility directory
+
+The MRO facility directory was removed on 2026-08-20. Its five `mxg.mro.*`
+tools, `MroDirectoryAdapter`, `MROFacility`/`FacilityCapability` domain types,
+the `MroRead` policy action, and the `FacilitySlice` stub in case
+`build_context` are all gone; the locked registry is now 45 tools and 15
+resources.
+
+The database was deliberately left in place: `0008` and `0016` are already
+applied in production, so their tables remain, unread and unwritten, rather
+than diverging the migration ledger from the live schema.
+
+- [ ] Decide whether `schedule_options.facility_id` should be dropped in a
+      later migration or repurposed as an opaque site reference. Nothing
+      writes it today, so the foreign key is inert rather than wrong.
+- [ ] If a facility directory returns, it should arrive with a real source
+      behind it rather than a typed contract answering `not_configured`.
 
 ## Analytics — unconsumed surface `[ ]`
 

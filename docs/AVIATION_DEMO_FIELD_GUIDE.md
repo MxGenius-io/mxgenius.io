@@ -15,7 +15,7 @@ Aircraft
 -> observed discrepancy
 -> Maintenance Case
 -> documents and regulatory candidates
--> weather, parts, MRO, and schedule
+-> weather, parts, and schedule
 -> actions, evidence, and approvals
 -> closure by an authorized person
 ```
@@ -30,11 +30,10 @@ Aircraft
 | SAIB | Special Airworthiness Information Bulletin | FAA advisory information; generally not the same legal status as an AD | DRS adapter | Live metadata search; results remain advisory candidates. |
 | Authoritative manual corpus | Indexed maintenance-manual text and linked figures | Evidence retrieval for the case brief | Azure AI Search, embeddings, authoritative filter, controlled Blob assets | Adapter and versioned index are built and were live-smoked. Deployment health is not currently exposed accurately enough to claim it in a live demo without a preflight query. Revision, currency, and applicability remain unknown when the source cannot prove them. |
 | Maintenance Case | The operational record joining the whole job | Discrepancy, timeline, observations, evidence, status, approvals, and closure | Postgres plus the MCP case service | Postgres core is ready. The full aircraft-to-case slice is presently blocked by the pilot organization/canonical-aircraft join. |
-| MCP | Model Context Protocol capability service | Gives UI and AI the same 50 typed operations and safety rules | Rust service, Postgres, trusted application context | **Live and discoverable:** exactly 50 tools. A tool being listed does not mean its external adapter is configured. |
+| MCP | Model Context Protocol capability service | Gives UI and AI the same 45 typed operations and safety rules | Rust service, Postgres, trusted application context | **Live and discoverable:** exactly 45 tools. A tool being listed does not mean its external adapter is configured. |
 | Evidence envelope | Standard result wrapper | Carries source, hash, time, confidence, warnings, partial state, and trace ID with every capability result | Built into every MCP tool | Live contract behavior. Unavailable sources return `partial` / `NOT_CONFIGURED`, not invented records. |
 | Weather adapter | Aviation weather normalized for maintenance planning | METAR, TAF, ramp risk, outdoor work windows, ferry constraints, and globe hazards | Operational aviation-weather source | Contract complete; **not configured**. A live `KATL` request correctly returns `partial` with `NOT_CONFIGURED`. |
 | Parts adapters | Typed parts and supplier information | Resolve part numbers, alternates/supersessions, stock, ETA, condition, and certificate presence | Inventory and supplier sources | Contract complete; not configured. |
-| MRO directory | Typed Maintenance, Repair, and Overhaul facility model | Find candidate facilities, check documented capability, rank options, contacts, and route ETA | Authoritative facility/capability sources | Contract complete; not configured. A company/contact record is not automatically proof of repair-station capability. |
 | Scheduling adapter | Maintenance planning data | Windows, labor, bays, tooling, conflicts, parts readiness, and approved plan record | Scheduling/resource sources | Contract complete; not configured. Publishing a plan never books a facility or part. |
 | 3D/WebXR | Three.js aircraft/component visualization | Inspect, raycast-select, highlight a zone, attach a case marker, and view linked material | Browser WebXR; Quest uses its native browser for immersive VR | Viewer, raycasting, XR globe interaction, image panels, and 3D compatibility surfaces are live. Canonical component/zone mappings and digital-twin catalog adapter are not configured. Visual geometry alone is not configuration evidence. |
 | OpenAI text chat | Conversational interface over case and fleet context | Ask for a brief and invoke typed tools | Server-held `OPENAI_API_KEY` | **Live-smoked** against `gpt-5.6-sol` on 2026-07-19. |
@@ -50,7 +49,6 @@ Never display, paste, log, or commit any provider key. The DRS and OpenAI keys b
 | --- | --- | --- |
 | A&P | FAA-certificated Airframe and Powerplant mechanic | “The system supports the A&P; it does not replace their determination.” |
 | IA | Inspection Authorization held by an eligible mechanic | “Required approvals stay with appropriately authorized personnel.” |
-| MRO | Maintenance, Repair, and Overhaul organization/facility | “These are candidate MRO options until capability and ratings evidence is verified.” |
 | AOG | Aircraft on Ground; an aircraft unable to operate, usually time-critical | “This record is reported as AOG by the source.” Do not infer AOG from a red color or open case. |
 | Discrepancy | The observed unsatisfactory condition | “We record the observed condition before proposing a diagnosis.” |
 | Corrective action | What was actually done to resolve a discrepancy | “The action becomes part of the case timeline and evidence record.” |
@@ -71,7 +69,7 @@ Never display, paste, log, or commit any provider key. The DRS and OpenAI keys b
 | Effectivity | The exact models, serials, configurations, or dates to which an instruction applies | “Search narrows candidates; effectivity still has to be verified.” |
 | Ferry flight | A flight conducted under defined conditions to reposition an aircraft that may not meet normal airworthiness requirements | “The tool only assesses information and constraints; it does not issue a permit or dispatch the flight.” |
 
-## The complete 50-capability catalog
+## The complete 45-capability catalog
 
 The public Operations workspace discovers this catalog directly from the deployed MCP. Names are frozen; UI, chat, and voice are expected to call these exact contracts.
 
@@ -101,59 +99,51 @@ The public Operations workspace discovers this catalog directly from the deploye
 16. `mxg.parts.rank_options` — compare ETA, location, condition, certificate, and confidence.
 17. `mxg.parts.attach_certificate` — record that a certificate file exists separately from whether it has been validated.
 
-### MRO discovery — 5
-
-18. `mxg.mro.search` — return candidate facilities with source completeness.
-19. `mxg.mro.capability_match` — compare a case’s required work with documented facility capabilities and gaps.
-20. `mxg.mro.rank` — rank candidates using capability, distance, hours, weather, parts, performance, and completeness.
-21. `mxg.mro.contact_pack` — return verified contact and escalation information.
-22. `mxg.mro.route_eta` — estimate route distance/time with assumptions, constraints, and weather links.
-
 ### Weather — 5
 
-23. `mxg.weather.airport_now` — return METAR, TAF, flight category, and decoded airport weather.
-24. `mxg.weather.maintenance_window` — identify candidate outdoor-work windows and their drivers.
-25. `mxg.weather.ramp_risk` — summarize wind, precipitation, lightning, temperature, icing, and visibility risk.
-26. `mxg.weather.ferry_assessment` — identify weather constraints, hazards, missing data, and an advisory feasibility state.
-27. `mxg.weather.hazard_overlay` — return geospatial weather objects for the globe.
+18. `mxg.weather.airport_now` — return METAR, TAF, flight category, and decoded airport weather.
+19. `mxg.weather.maintenance_window` — identify candidate outdoor-work windows and their drivers.
+20. `mxg.weather.ramp_risk` — summarize wind, precipitation, lightning, temperature, icing, and visibility risk.
+21. `mxg.weather.ferry_assessment` — identify weather constraints, hazards, missing data, and an advisory feasibility state.
+22. `mxg.weather.hazard_overlay` — return geospatial weather objects for the globe.
 
 ### Compliance — 5
 
-28. `mxg.compliance.applicable_ads` — return evidence-backed AD candidates for qualified applicability review.
-29. `mxg.compliance.saib_search` — search official DRS SAIB metadata by aircraft, component, or terms.
-30. `mxg.compliance.manual_currency` — report known revision, effective date, supersession state, and warnings.
-31. `mxg.compliance.record_audit` — identify missing fields, evidence, approvals, and completeness issues.
-32. `mxg.compliance.return_to_service_pack` — assemble a review pack; it never performs the approval.
+23. `mxg.compliance.applicable_ads` — return evidence-backed AD candidates for qualified applicability review.
+24. `mxg.compliance.saib_search` — search official DRS SAIB metadata by aircraft, component, or terms.
+25. `mxg.compliance.manual_currency` — report known revision, effective date, supersession state, and warnings.
+26. `mxg.compliance.record_audit` — identify missing fields, evidence, approvals, and completeness issues.
+27. `mxg.compliance.return_to_service_pack` — assemble a review pack; it never performs the approval.
 
 ### Digital twin / 3D — 5
 
-33. `mxg.digital_twin.list_models` — list versioned visual models and their stated applicability.
-34. `mxg.digital_twin.component_state` — retrieve the canonical component, installation, observations, cases, and evidence.
-35. `mxg.digital_twin.highlight_zone` — resolve a zone to model/mesh IDs, camera position, and annotations.
-36. `mxg.digital_twin.link_documents` — retrieve document sections, diagrams, and mapping confidence for a component/model.
-37. `mxg.digital_twin.attach_case_marker` — persist a confirmed case marker for a canonical component or zone.
+28. `mxg.digital_twin.list_models` — list versioned visual models and their stated applicability.
+29. `mxg.digital_twin.component_state` — retrieve the canonical component, installation, observations, cases, and evidence.
+30. `mxg.digital_twin.highlight_zone` — resolve a zone to model/mesh IDs, camera position, and annotations.
+31. `mxg.digital_twin.link_documents` — retrieve document sections, diagrams, and mapping confidence for a component/model.
+32. `mxg.digital_twin.attach_case_marker` — persist a confirmed case marker for a canonical component or zone.
 
 ### Scheduling — 5
 
-38. `mxg.scheduling.window_options` — return candidate start/end windows, constraints, and readiness.
-39. `mxg.scheduling.resource_match` — compare required labor, bays, tooling, and facility capabilities.
-40. `mxg.scheduling.conflict_scan` — identify deterministic conflicts, affected records, and possible resolutions.
-41. `mxg.scheduling.parts_readiness` — summarize blockers, ETA gaps, and certificate gaps.
-42. `mxg.scheduling.publish_plan` — persist an approved, versioned plan; never book a facility or purchase a part.
+33. `mxg.scheduling.window_options` — return candidate start/end windows, constraints, and readiness.
+34. `mxg.scheduling.resource_match` — compare required labor, bays, tooling, and facility capabilities.
+35. `mxg.scheduling.conflict_scan` — identify deterministic conflicts, affected records, and possible resolutions.
+36. `mxg.scheduling.parts_readiness` — summarize blockers, ETA gaps, and certificate gaps.
+37. `mxg.scheduling.publish_plan` — persist an approved, versioned plan; never book a facility or purchase a part.
 
 ### Evidence — 4
 
-43. `mxg.evidence.collect` — normalize, hash, and de-duplicate evidence from typed sources.
-44. `mxg.evidence.trace_case` — return the evidence graph, derivations, supersessions, conflicts, and decisions.
-45. `mxg.evidence.citation_pack` — package references, locators, exclusions, and license warnings.
-46. `mxg.evidence.conflict_check` — expose contradictory values, revisions, and unresolved conflicts.
+38. `mxg.evidence.collect` — normalize, hash, and de-duplicate evidence from typed sources.
+39. `mxg.evidence.trace_case` — return the evidence graph, derivations, supersessions, conflicts, and decisions.
+40. `mxg.evidence.citation_pack` — package references, locators, exclusions, and license warnings.
+41. `mxg.evidence.conflict_check` — expose contradictory values, revisions, and unresolved conflicts.
 
 ### Analytics — 4
 
-47. `mxg.analytics.fleet_health` — return defined fleet-health metrics with freshness, limitations, and drill-through IDs.
-48. `mxg.analytics.repeat_defects` — return recurring normalized discrepancies with counts, intervals, outcomes, and sample size.
-49. `mxg.analytics.parts_risk` — report shortage, lead-time, certificate, and supplier risks with uncertainty.
-50. `mxg.analytics.exec_kpis` — return defined downtime, turnaround-time, AOG, open-case, blocker, and approval-latency KPIs.
+42. `mxg.analytics.fleet_health` — return defined fleet-health metrics with freshness, limitations, and drill-through IDs.
+43. `mxg.analytics.repeat_defects` — return recurring normalized discrepancies with counts, intervals, outcomes, and sample size.
+44. `mxg.analytics.parts_risk` — report shortage, lead-time, certificate, and supplier risks with uncertainty.
+45. `mxg.analytics.exec_kpis` — return defined downtime, turnaround-time, AOG, open-case, blocker, and approval-latency KPIs.
 
 ## A credible 8-minute demo
 
@@ -161,7 +151,7 @@ The public Operations workspace discovers this catalog directly from the deploye
 
 1. Open `https://mxgenius.io/dashboard.html` in a clean desktop browser and allow the initial fleet load to finish once.
 2. Confirm the globe shows aircraft clusters and that one aircraft detail opens with text and images.
-3. Confirm the Operations tab reports **50 available operations**.
+3. Confirm the Operations tab reports **45 available operations**.
 4. Run **Search SAIBs** with query `Bombardier fuel`; expect FAA item `NM-09-03` and an official DRS link.
 5. Run **Current airport weather** with ICAO `KATL`; until the adapter is mounted, expect an honest unavailable/partial result. This is a useful truth-safety demonstration, not a weather demo.
 6. Confirm text chat answers. Treat voice as optional until the microphone/WebRTC device check passes in that browser.
@@ -194,7 +184,7 @@ Action: open Operations and show the job-oriented groups rather than raw JSON.
 
 Say:
 
-> “These are not 50 unrelated buttons. They are one typed operating vocabulary shared by the UI, chat, and voice. Each result has a status, evidence, confidence, warnings, and a trace ID.”
+> “These are not 45 unrelated buttons. They are one typed operating vocabulary shared by the UI, chat, and voice. Each result has a status, evidence, confidence, warnings, and a trace ID.”
 
 **4. Prove an authoritative regulatory source.**
 
@@ -262,7 +252,7 @@ Say:
 | --- | --- |
 | Rust core health | `200 OK` |
 | Rust readiness | Production mode, Postgres ready |
-| MCP catalog | 50 tools returned from deployed `tools/list` |
+| MCP catalog | 45 tools returned from deployed `tools/list` |
 | Fleet proxy | Healthy; JetNet-backed dashboard/globe path live |
 | OpenAI text chat | `200 OK`, model `gpt-5.6-sol` |
 | FAA DRS SAIB query | `ok`, evidence-backed result returned |

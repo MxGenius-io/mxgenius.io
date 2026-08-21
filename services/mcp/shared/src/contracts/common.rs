@@ -54,7 +54,6 @@ pub struct ContextIncludeFlags {
     pub compliance: bool,
     pub weather: bool,
     pub parts: bool,
-    pub facilities: bool,
     pub timeline: bool,
 }
 

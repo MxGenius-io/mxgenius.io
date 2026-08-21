@@ -46,7 +46,7 @@ pub fn all() -> Vec<PromptSpec> {
         prompt(
             "build-recovery-plan",
             "Build Recovery Plan",
-            "Draft a recovery plan over the atomic case / parts / facility tools.",
+            "Draft a recovery plan over the atomic case and parts tools.",
             &[("case_id", "MaintenanceCase identifier", true)],
         ),
         prompt(
@@ -56,9 +56,9 @@ pub fn all() -> Vec<PromptSpec> {
             &[("aircraft_id", "Aircraft identifier", true)],
         ),
         prompt(
-            "find-part-and-facility",
-            "Find Part and Facility",
-            "Search parts, suppliers, and MRO facilities for a case requirement.",
+            "find-part-source",
+            "Find Part Source",
+            "Search parts and suppliers for a case requirement.",
             &[("case_id", "MaintenanceCase identifier", true)],
         ),
         prompt(
@@ -76,7 +76,7 @@ pub fn all() -> Vec<PromptSpec> {
         prompt(
             "compare-maintenance-options",
             "Compare Maintenance Options",
-            "Compare facilities, weather windows, and parts readiness for a case.",
+            "Compare weather windows and parts readiness for a case.",
             &[("case_id", "MaintenanceCase identifier", true)],
         ),
     ]

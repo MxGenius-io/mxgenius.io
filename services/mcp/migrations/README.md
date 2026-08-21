@@ -18,7 +18,7 @@ release gates.
 | `0005_components_and_documents.sql`       | components, technical documents, revisions |
 | `0006_compliance.sql`                     | regulatory requirements + case links |
 | `0007_parts.sql`                          | parts, requirements, suppliers, certificates |
-| `0008_mro_and_scheduling.sql`             | facilities, capabilities, schedules, recommendations |
+| `0008_mro_and_scheduling.sql`             | schedules and recommendations; its facility tables are retired and no longer read or written |
 | `0009_evidence_approvals_audit.sql`       | evidence, approvals, audit, capability traces, tool versions |
 | `0010_confirmation_grants.sql`            | signed single-use confirmation grants |
 | `0011_digital_twin_markers.sql`           | case-bound digital-twin markers |
@@ -26,5 +26,5 @@ release gates.
 | `0014_beta_access_rules.sql`              | server-owned closed-beta email/domain access rules |
 | `0013_digital_twin_models.sql`            | uploaded GLB models, mesh manifests, and model/user highlight state |
 | `0015_parts_inventory.sql`                | tenant-owned stock units, receiving, assets, extraction review, ledger, and FAA provenance |
-| `0016_mro_tenant_scope.sql`               | tenant ownership and indexes for the MCP MRO directory |
+| `0016_mro_tenant_scope.sql`               | retired; scoped the removed facility directory. Retained so the applied-migration ledger stays intact |
 | `0017_project_workspaces.sql`              | shared project documents, revisions, and private blob-backed reference assets |

@@ -59,6 +59,14 @@
     parts: {
       search: async () => [unit],
       getUnit: async () => ({ unit, assets: [], events: [] }),
+      createReceivingDraft: async () => {
+        log('createReceivingDraft called');
+        return { id: 'draft-1', partId: null, status: 'draft', proposedFields: {}, version: 1 };
+      },
+      confirmReceiving: async ({ draftId, version, values }) => {
+        log(`confirmReceiving draft=${draftId} version=${version} part=${values.partNumber} qty=${values.quantity} loc=${values.locationCode}`);
+        return { ...unit, id: 'new-unit', partNumber: values.partNumber, quantity: values.quantity };
+      },
       listShortages: async ({ includeCovered }) => {
         const rows = [
           { requirementId:'r1', caseId:'c1', caseStatus:'awaiting_parts', casePriority:'aog',
