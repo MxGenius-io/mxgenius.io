@@ -935,6 +935,43 @@ const MXApplicationClient = (() => {
     getLabel: async ({ unitId, session = {} }) => {
       return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
     },
+    listRequests: async ({ status, priority, overdueOnly = false, missingNeedByOnly = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (priority) params.set('priority', priority);
+      if (overdueOnly) params.set('overdueOnly', 'true');
+      if (missingNeedByOnly) params.set('missingNeedByOnly', 'true');
+      return applicationJson(`/api/parts/requests?${params}`, { session });
+    },
+    listOrders: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/orders`, { session });
+      return payload.orders || [];
+    },
+    createOrder: async ({ requirementId, values, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/orders`, {
+          session,
+          method: 'POST',
+          body: values
+        });
+      return payload.order;
+    },
+    setOrderStatus: async ({ orderId, version, status, notes = null, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/orders/${encodeURIComponent(orderId)}/status`, {
+          session,
+          method: 'POST',
+          body: { status, notes },
+          headers: { 'If-Match': `"${version}"` }
+        });
+      return payload.order;
+    },
+    listRequestHistory: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/history`, { session });
+      return payload.changes || [];
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');

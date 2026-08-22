@@ -28,13 +28,16 @@ const MXPartsWorkspace = (() => {
     const inventory = byId('partsInventoryGrid');
     const shortages = byId('partsShortageView');
     const locations = byId('partsLocationsView');
+    const requests = byId('partsRequestsView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
     if (locations) locations.hidden = view !== 'locations';
+    if (requests) requests.hidden = view !== 'requests';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
+    if (view === 'requests') loadRequests();
   }
 
   function shortageRow(row) {
@@ -162,6 +165,202 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  const ORDER_ACTIONS = {
+    draft: [
+      { status: 'placed', label: 'Place order', primary: true },
+      { status: 'cancelled', label: 'Cancel' }
+    ],
+    placed: [
+      { status: 'confirmed', label: 'Confirm', primary: true },
+      { status: 'cancelled', label: 'Cancel' }
+    ],
+    confirmed: [{ status: 'cancelled', label: 'Cancel' }],
+    cancelled: []
+  };
+
+  function requestStatusMessage(message, kind = '') {
+    const element = byId('requestStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  // The overdue verdict is rendered from the fields the server stamped, never
+  // recomputed here: a second copy of the rule is how it drifted before.
+  function requestCard(row) {
+    const due = row.requiredBy
+      ? new Date(row.requiredBy).toLocaleDateString()
+      : 'No need-by set';
+    const flag = row.isOverdue
+      ? `<span class="request-flag is-overdue">${escapeHtml(row.daysOverdue)}d overdue</span>`
+      : row.missingNeedBy
+        ? '<span class="request-flag is-unmeasured">No need-by</span>'
+        : '';
+    return `
+      <article class="request-row${row.isOverdue ? ' is-overdue' : ''}" data-request-id="${escapeHtml(row.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(row.partNumber)}</span>
+          <span class="shortage-priority priority-${escapeHtml(row.priority)}">${escapeHtml(row.priority.replace('_', ' '))}</span>
+          <span class="request-state">${escapeHtml(row.status)}</span>
+          ${flag}
+        </div>
+        <p class="shortage-description">${escapeHtml(row.description)}</p>
+        <p class="shortage-meta">Aircraft ${escapeHtml(row.aircraftId)} · needed ${escapeHtml(due)} · ${escapeHtml(row.quantityFulfilled)} of ${escapeHtml(row.quantity)} fulfilled · ${escapeHtml(row.openOrderCount)} open order(s)</p>
+        <div class="unit-action-row">
+          <button class="btn-quiet" data-open-orders="${escapeHtml(row.id)}">Orders</button>
+          <button class="btn-quiet" data-open-history="${escapeHtml(row.id)}">History</button>
+        </div>
+        <div class="request-detail" data-detail-for="${escapeHtml(row.id)}" hidden></div>
+      </article>`;
+  }
+
+  async function loadRequests() {
+    const list = byId('partsRequestList');
+    if (!list || !client.listRequests) return;
+    list.innerHTML = '<div class="empty-state">Loading the request queue…</div>';
+    try {
+      const payload = await client.listRequests({
+        status: byId('requestStatusFilter')?.value || undefined,
+        priority: byId('requestPriorityFilter')?.value || undefined,
+        overdueOnly: byId('requestOverdueOnly')?.checked || false,
+        missingNeedByOnly: byId('requestMissingNeedBy')?.checked || false,
+        session: await session()
+      });
+      const rows = payload.requests || [];
+      const badge = byId('overdueCount');
+      if (badge) {
+        badge.hidden = !payload.overdue;
+        badge.textContent = payload.overdue || '';
+      }
+      requestStatusMessage(
+        payload.missingNeedBy
+          ? `${payload.missingNeedBy} request(s) cannot be measured because nobody set a need-by date.`
+          : ''
+      );
+      list.innerHTML = rows.length
+        ? rows.map(requestCard).join('')
+        : '<div class="empty-state">No requests match these filters.</div>';
+      list.querySelectorAll('[data-open-orders]').forEach((button) => {
+        button.addEventListener('click', () => showOrders(button.dataset.openOrders));
+      });
+      list.querySelectorAll('[data-open-history]').forEach((button) => {
+        button.addEventListener('click', () => showRequestHistory(button.dataset.openHistory));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  function detailPanel(requirementId) {
+    return byId('partsRequestList')?.querySelector(`[data-detail-for="${requirementId}"]`);
+  }
+
+  async function showOrders(requirementId) {
+    const panel = detailPanel(requirementId);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="empty-state">Loading orders…</div>';
+    try {
+      const orders = await client.listOrders({ requirementId, session: await session() });
+      panel.innerHTML = `
+        ${orders.length ? orders.map(orderRow).join('') : '<div class="empty-state">No orders on this request yet.</div>'}
+        <section class="unit-action-block">
+          <h3>New order</h3>
+          <div class="parts-form-grid">
+            <label>Kind
+              <select data-new-order-kind><option value="po">Purchase order</option><option value="so">Service order</option></select>
+            </label>
+            <label>Type of buy
+              <select data-new-order-buy>
+                <option value="outright">Outright</option>
+                <option value="exchange">Exchange</option>
+                <option value="repair">Repair</option>
+                <option value="loan">Loan</option>
+              </select>
+            </label>
+            <label>Order number<input data-new-order-number placeholder="PO-1042"></label>
+            <label>Supplier<input data-new-order-supplier placeholder="Vendor name"></label>
+          </div>
+          <button class="btn-primary" data-create-order="${escapeHtml(requirementId)}">Add order</button>
+        </section>`;
+      panel.querySelector('[data-create-order]')?.addEventListener('click', () => createOrder(requirementId, panel));
+      panel.querySelectorAll('[data-order-action]').forEach((button) => {
+        button.addEventListener('click', () => setOrderStatus(
+          requirementId, button.dataset.orderId, Number(button.dataset.orderVersion), button.dataset.orderAction));
+      });
+    } catch (error) {
+      panel.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  function orderRow(order) {
+    const actions = ORDER_ACTIONS[order.status] || [];
+    const cost = order.purchaseCostUsd == null ? '' : ` · $${escapeHtml(order.purchaseCostUsd)}`;
+    return `
+      <article class="order-row">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(order.orderNumber || 'Unnumbered')}</span>
+          <span class="request-state">${escapeHtml(order.status)}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(order.orderKind.toUpperCase())} · ${escapeHtml(order.typeOfBuy)}${cost} · ${escapeHtml(order.supplierName || 'No supplier recorded')}</p>
+        <div class="unit-action-row">
+          ${actions.map((action) => `<button class="${action.primary ? 'btn-primary' : 'btn-quiet'}" data-order-action="${escapeHtml(action.status)}" data-order-id="${escapeHtml(order.id)}" data-order-version="${escapeHtml(order.version)}">${escapeHtml(action.label)}</button>`).join('')}
+        </div>
+      </article>`;
+  }
+
+  async function createOrder(requirementId, panel) {
+    requestStatusMessage('Adding the order…');
+    try {
+      await client.createOrder({
+        requirementId,
+        values: {
+          orderKind: panel.querySelector('[data-new-order-kind]').value,
+          typeOfBuy: panel.querySelector('[data-new-order-buy]').value,
+          orderNumber: panel.querySelector('[data-new-order-number]').value.trim() || null,
+          supplierName: panel.querySelector('[data-new-order-supplier]').value.trim() || null
+        },
+        session: await session()
+      });
+      requestStatusMessage('');
+      // The list re-render replaces every row, so refresh it before
+      // re-opening the panel or the panel is discarded immediately after.
+      await loadRequests();
+      await showOrders(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function setOrderStatus(requirementId, orderId, version, status) {
+    requestStatusMessage('Updating the order…');
+    try {
+      await client.setOrderStatus({ orderId, version, status, session: await session() });
+      requestStatusMessage('');
+      // The list re-render replaces every row, so refresh it before
+      // re-opening the panel or the panel is discarded immediately after.
+      await loadRequests();
+      await showOrders(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function showRequestHistory(requirementId) {
+    const panel = detailPanel(requirementId);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="empty-state">Loading history…</div>';
+    try {
+      const changes = await client.listRequestHistory({ requirementId, session: await session() });
+      panel.innerHTML = changes.length
+        ? `<ol class="parts-timeline">${changes.map((change) => `<li><strong>${escapeHtml(change.fieldName)}</strong><span>${escapeHtml(new Date(change.createdAt).toLocaleString())}</span><p>${escapeHtml(change.oldValue || 'unset')} → ${escapeHtml(change.newValue || 'unset')}</p></li>`).join('')}</ol>`
+        : '<div class="empty-state">No recorded changes on this request.</div>';
+    } catch (error) {
+      panel.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
     state.status = byId('partsStatusFilter')?.value || '';
@@ -218,6 +417,7 @@ const MXPartsWorkspace = (() => {
             <div class="parts-toolbar">
               <div class="parts-view-switch" role="tablist" aria-label="Parts view">
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
+                <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
               </div>
@@ -246,6 +446,29 @@ const MXPartsWorkspace = (() => {
             <div id="partsShortageView" hidden>
               <label class="shortage-toggle"><input type="checkbox" id="shortageIncludeCovered"> Show requirements stock already covers</label>
               <div id="partsShortageList"></div>
+            </div>
+            <div id="partsRequestsView" hidden>
+              <div class="request-filters">
+                <select id="requestStatusFilter" aria-label="Filter requests by status">
+                  <option value="">Any status</option>
+                  <option value="requested">Requested</option>
+                  <option value="sourced">Sourced</option>
+                  <option value="ordered">Ordered</option>
+                  <option value="received">Received</option>
+                  <option value="installed">Installed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <select id="requestPriorityFilter" aria-label="Filter requests by priority">
+                  <option value="">Any priority</option>
+                  <option value="aog">AOG</option>
+                  <option value="scheduled_mx">Scheduled MX</option>
+                  <option value="stock">Stock</option>
+                </select>
+                <label class="shortage-toggle"><input type="checkbox" id="requestOverdueOnly"> Overdue only</label>
+                <label class="shortage-toggle"><input type="checkbox" id="requestMissingNeedBy"> No need-by date</label>
+              </div>
+              <div id="requestStatus" class="parts-inline-status" aria-live="polite"></div>
+              <div id="partsRequestList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -349,6 +572,7 @@ const MXPartsWorkspace = (() => {
     performSearch();
     loadLocations();
     loadShortages();
+    loadRequests();
     handleRouting();
   }
 
@@ -377,6 +601,8 @@ const MXPartsWorkspace = (() => {
       tab.addEventListener('click', () => switchView(tab.dataset.view));
     });
     byId('shortageIncludeCovered')?.addEventListener('change', loadShortages);
+    ['requestStatusFilter', 'requestPriorityFilter', 'requestOverdueOnly', 'requestMissingNeedBy']
+      .forEach((id) => byId(id)?.addEventListener('change', loadRequests));
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
     byId('btnReceivePart')?.addEventListener('click', openWizard);

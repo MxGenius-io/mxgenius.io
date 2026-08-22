@@ -135,6 +135,40 @@ test('Parts Frontend Shell requirements', async (t) => {
     }
   });
 
+  await t.test('the request queue reaches the procurement endpoints', () => {
+    for (const method of ['listRequests', 'listOrders', 'createOrder', 'setOrderStatus', 'listRequestHistory']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(client, /\/api\/parts\/requests/);
+    assert.match(client, /\/api\/parts\/orders\//);
+    assert.match(js, /id="partsRequestsView"/);
+    assert.match(js, /client\.listRequests\(/);
+  });
+
+  await t.test('the overdue verdict is rendered from server fields, never recomputed', () => {
+    // A second copy of the overdue rule in the client is exactly how it
+    // drifted in the system this design came from.
+    assert.match(js, /row\.isOverdue/);
+    assert.match(js, /row\.daysOverdue/);
+    assert.match(js, /row\.missingNeedBy/);
+    assert.doesNotMatch(js, /Date\.now\(\)\s*[-<>]/, 'no client-side overdue arithmetic');
+    assert.doesNotMatch(js, /requiredBy\s*<\s*new Date/, 'no client-side overdue comparison');
+  });
+
+  await t.test('order actions are offered only from a status that permits them', () => {
+    assert.match(js, /const ORDER_ACTIONS = \{/);
+    // Procurement is directional: nothing returns a placed order to draft.
+    assert.doesNotMatch(js, /status: 'draft'/);
+    assert.match(js, /cancelled: \[\]/, 'a cancelled order offers nothing');
+    assert.match(js, /client\.setOrderStatus\(/);
+  });
+
+  await t.test('a request without a need-by is surfaced rather than counted on time', () => {
+    assert.match(js, /missingNeedBy/);
+    assert.match(js, /cannot be measured because nobody set a need-by/);
+    assert.match(js, /id="requestMissingNeedBy"/);
+  });
+
   await t.test('open case demand is set against free stock', () => {
     assert.match(client, /listShortages: async/);
     assert.match(client, /\/api\/parts\/shortages/);
