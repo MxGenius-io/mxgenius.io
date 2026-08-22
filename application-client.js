@@ -1051,6 +1051,39 @@ const MXApplicationClient = (() => {
         headers: { 'If-Match': `"${version}"` } });
       return payload.cannibalization;
     },
+    previewImport: async ({ file, mode = 'add_only', session = {} }) => {
+      const params = new URLSearchParams({ fileName: file.name, mode });
+      const payload = await applicationJson(`/api/parts/imports/preview?${params}`, {
+        session,
+        method: 'POST',
+        body: file,
+        contentType: file.type || 'application/octet-stream'
+      });
+      return payload.preview;
+    },
+    applyImport: async ({ file, mode = 'add_only', previewSha256, session = {} }) => {
+      const params = new URLSearchParams({ fileName: file.name, mode, previewSha256 });
+      const payload = await applicationJson(`/api/parts/imports?${params}`, {
+        session,
+        method: 'POST',
+        body: file,
+        contentType: file.type || 'application/octet-stream'
+      });
+      return payload.batch;
+    },
+    listImportBatches: async ({ session = {} } = {}) => {
+      const payload = await applicationJson('/api/parts/imports', { session });
+      return payload.batches || [];
+    },
+    rollbackImport: async ({ batchId, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/imports/${encodeURIComponent(batchId)}/rollback`, {
+        session, method: 'POST', body: {} });
+      return payload.batch;
+    },
+    downloadImportTemplate: async ({ session = {} } = {}) => {
+      return (await applicationRequest('/api/parts/imports/template', {
+        session, contentType: null })).blob();
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');

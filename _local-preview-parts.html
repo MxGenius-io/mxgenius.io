@@ -34,6 +34,8 @@
   const orders = [];
   const legs = [];
   window.__actor = 'approver';
+  const batches = [];
+  const importedParts = new Set();
   const robs = [];
   const rotables = [
     { id:'rt-a', partNumber:'MXG-DEMO-32-1101', serialNumber:'SN-0117', nomenclature:'Main wheel half',
@@ -243,6 +245,48 @@
         if (values.transferredHours != null) r.transferredHours = values.transferredHours;
         return r;
       },
+      previewImport: async ({ file, mode }) => {
+        const text = await file.text();
+        log(`previewImport ${file.name} mode=${mode} bytes=${file.size}`);
+        const lines = text.trim().split('\n').slice(1).filter(l => l.trim());
+        let creates=0, updates=0, skips=0, conflicts=0, errorRows=0;
+        const rows = lines.map((line, i) => {
+          const cells = line.split(',');
+          const pn = (cells[0]||'').trim();
+          let plan=null, problems=[];
+          if (!pn) { problems=['part_number is required']; errorRows++; }
+          else if (importedParts.has(pn)) {
+            if (mode === 'add_only') { conflicts++; plan={outcome:'conflict', reason:`${pn} already exists and this row would change description. Switch to add-and-update if that is intended.`}; }
+            else { updates++; plan={outcome:'update', changed_fields:['description']}; }
+          } else if (window.__reimport) { skips++; plan={outcome:'skip', reason:'an identical unit is already on file at this location; re-importing would double the stock'}; }
+          else { creates++; plan={outcome:'create', creates_part:true, creates_unit:true}; }
+          return { rowNumber:i+2, partNumber:pn, problems, plan };
+        });
+        return { fileName:file.name, format:'csv', mode,
+                 sourceSha256:'d'.repeat(64) + '', totalRows:rows.length,
+                 creates, updates, skips, conflicts, errorRows,
+                 applicable: errorRows===0 && conflicts===0, rows };
+      },
+      applyImport: async ({ file, mode, previewSha256 }) => {
+        log(`applyImport ${file.name} mode=${mode} sha=${previewSha256.slice(0,8)}…`);
+        const text = await file.text();
+        const lines = text.trim().split('\n').slice(1).filter(l => l.trim());
+        let created = 0;
+        lines.forEach(l => { const pn=(l.split(',')[0]||'').trim(); if (pn && !importedParts.has(pn)) { importedParts.add(pn); created++; } });
+        const b = { id:'batch'+(batches.length+1), fileName:file.name, fileFormat:'csv', mode,
+                    status:'applied', partsCreated:created, partsUpdated:0, unitsCreated:created,
+                    rowsSkipped:lines.length-created, createdAt:new Date().toISOString(), version:1 };
+        batches.unshift(b); return b;
+      },
+      listImportBatches: async () => { log('listImportBatches'); return batches; },
+      rollbackImport: async ({ batchId }) => {
+        log(`rollbackImport ${batchId}`);
+        const b = batches.find(x => x.id === batchId);
+        if (window.__laterBatch) { const e=new Error('a later import (later.csv) has since touched the same records; roll that one back first'); e.status=409; throw e; }
+        if (window.__stockMoved) { const e=new Error('3 movement(s) have been recorded against stock this import created; rolling it back would contradict them. Resolve those first.'); e.status=409; throw e; }
+        b.status='rolled_back'; return b;
+      },
+      downloadImportTemplate: async () => new Blob(['part_number,description\n'], {type:'text/csv'}),
       listShortages: async ({ includeCovered }) => {
         const rows = [
           { requirementId:'r1', caseId:'c1', caseStatus:'awaiting_parts', casePriority:'aog',

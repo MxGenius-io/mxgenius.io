@@ -834,3 +834,86 @@
 }
 
 .rob-decide { margin-top: 10px; display: grid; gap: 8px; }
+
+.import-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+
+.import-controls label { display: grid; gap: 5px; color: var(--text-muted); font-size: 0.82rem; }
+.import-controls select { min-width: 22rem; max-width: 100%; }
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 14px 16px;
+  margin: 14px 0 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid #3fa37a;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card);
+}
+
+.import-summary.is-blocked { border-left-color: #b3382c; }
+.import-summary div { display: grid; gap: 2px; }
+
+.import-summary dt {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.import-summary dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.import-summary .count-update { color: #d08b2c; }
+.import-summary .count-conflict { color: #e06a5c; }
+
+.import-warning {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(208, 139, 44, 0.12);
+  color: #d08b2c;
+  font-size: 0.86rem;
+}
+
+.import-warning.is-blocked { background: rgba(179, 56, 44, 0.14); color: #e06a5c; }
+
+.import-rows { max-height: 26rem; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); }
+
+.import-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 12rem) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  font-size: 0.82rem;
+}
+
+.import-row:last-child { border-bottom: 0; }
+.import-row.is-create { border-left-color: #3fa37a; }
+.import-row.is-update { border-left-color: #d08b2c; background: rgba(208, 139, 44, 0.06); }
+.import-row.is-conflict,
+.import-row.is-error { border-left-color: #b3382c; background: rgba(179, 56, 44, 0.07); }
+.import-row.is-skip { opacity: 0.66; }
+
+.import-row-number { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.import-row-part { font-weight: 600; overflow-wrap: anywhere; }
+.import-row-plan { color: var(--text-muted); overflow-wrap: anywhere; }
+
+.import-batch.is-rolled-back { opacity: 0.62; }
+
+@media (max-width: 720px) {
+  .import-row { grid-template-columns: 1fr; gap: 2px; }
+  .import-controls select { min-width: 0; width: 100%; }
+}

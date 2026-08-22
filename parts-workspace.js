@@ -31,6 +31,7 @@ const MXPartsWorkspace = (() => {
     const requests = byId('partsRequestsView');
     const rotables = byId('partsRotablesView');
     const robs = byId('partsRobsView');
+    const imports = byId('partsImportView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
@@ -38,12 +39,14 @@ const MXPartsWorkspace = (() => {
     if (requests) requests.hidden = view !== 'requests';
     if (rotables) rotables.hidden = view !== 'rotables';
     if (robs) robs.hidden = view !== 'cannibalizations';
+    if (imports) imports.hidden = view !== 'imports';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
     if (view === 'requests') loadRequests();
     if (view === 'rotables') loadRotables();
     if (view === 'cannibalizations') loadRobs();
+    if (view === 'imports') loadImportBatches();
   }
 
   function shortageRow(row) {
@@ -789,6 +792,200 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  // The preview a file earned, keyed to that exact file. Choosing a different
+  // file, or changing the mode, invalidates it — the plan on screen would no
+  // longer describe what Apply would do.
+  let importPreview = null;
+
+  function importStatus(message, kind = '') {
+    const element = byId('importStatusMessage');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function invalidateImportPreview(reason) {
+    importPreview = null;
+    const apply = byId('btnApplyImport');
+    if (apply) apply.disabled = true;
+    const panel = byId('importPreviewPanel');
+    if (panel) panel.innerHTML = '';
+    const hint = byId('importApplyHint');
+    if (hint) hint.textContent = reason || 'Apply stays disabled until this exact file has been previewed.';
+  }
+
+  function planLabel(row) {
+    if (row.problems && row.problems.length) {
+      return { css: 'is-error', text: row.problems.join('; ') };
+    }
+    const plan = row.plan || {};
+    switch (plan.outcome) {
+      case 'create':
+        return {
+          css: 'is-create',
+          text: plan.creates_part ? 'New part' + (plan.creates_unit ? ' and stock' : '') : 'New stock'
+        };
+      case 'update':
+        return { css: 'is-update', text: `Would change ${(plan.changed_fields || []).join(', ')}` };
+      case 'skip':
+        return { css: 'is-skip', text: plan.reason || 'No change' };
+      case 'conflict':
+        return { css: 'is-conflict', text: plan.reason || 'Not permitted in this mode' };
+      default:
+        return { css: '', text: '' };
+    }
+  }
+
+  function renderImportPreview(preview) {
+    const panel = byId('importPreviewPanel');
+    if (!panel) return;
+    const blocked = preview.errorRows > 0 || preview.conflicts > 0;
+    panel.innerHTML = `
+      <div class="import-summary${blocked ? ' is-blocked' : ''}">
+        <div><dt>Rows</dt><dd>${escapeHtml(preview.totalRows)}</dd></div>
+        <div><dt>Create</dt><dd>${escapeHtml(preview.creates)}</dd></div>
+        <div><dt>Update</dt><dd class="${preview.updates ? 'count-update' : ''}">${escapeHtml(preview.updates)}</dd></div>
+        <div><dt>Skip</dt><dd>${escapeHtml(preview.skips)}</dd></div>
+        <div><dt>Conflict</dt><dd class="${preview.conflicts ? 'count-conflict' : ''}">${escapeHtml(preview.conflicts)}</dd></div>
+        <div><dt>Errors</dt><dd class="${preview.errorRows ? 'count-conflict' : ''}">${escapeHtml(preview.errorRows)}</dd></div>
+      </div>
+      ${preview.updates && !blocked ? `<p class="import-warning">This file will overwrite ${escapeHtml(preview.updates)} existing part(s). Check the rows marked as changes below before applying.</p>` : ''}
+      ${blocked ? `<p class="import-warning is-blocked">Nothing can be imported from this file yet. ${preview.conflicts ? `${escapeHtml(preview.conflicts)} row(s) would change parts that already exist, which add-only mode refuses.` : ''} ${preview.errorRows ? `${escapeHtml(preview.errorRows)} row(s) could not be read.` : ''}</p>` : ''}
+      <div class="import-rows">
+        ${preview.rows.map((row) => {
+          const label = planLabel(row);
+          return `<div class="import-row ${label.css}">
+            <span class="import-row-number">Row ${escapeHtml(row.rowNumber)}</span>
+            <span class="import-row-part">${escapeHtml(row.partNumber || '(no part number)')}</span>
+            <span class="import-row-plan">${escapeHtml(label.text)}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  async function previewImport() {
+    const file = byId('importFile')?.files?.[0];
+    if (!file) {
+      importStatus('Choose a CSV or Excel file first.', 'error');
+      return;
+    }
+    const button = byId('btnPreviewImport');
+    button.disabled = true;
+    invalidateImportPreview('Previewing…');
+    importStatus('Reading the file…');
+    try {
+      const mode = byId('importMode').value;
+      const preview = await client.previewImport({ file, mode, session: await session() });
+      renderImportPreview(preview);
+      if (preview.applicable) {
+        importPreview = { sha256: preview.sourceSha256, name: file.name, size: file.size, mode };
+        byId('btnApplyImport').disabled = false;
+        byId('importApplyHint').textContent =
+          `Reviewed. Applying will create ${preview.creates}, update ${preview.updates}, and skip ${preview.skips} row(s).`;
+      } else {
+        byId('importApplyHint').textContent = 'Fix the file, or change the mode, then preview again.';
+      }
+      importStatus('');
+    } catch (error) {
+      importStatus(errorMessage(error), 'error');
+      invalidateImportPreview();
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function applyImport() {
+    const file = byId('importFile')?.files?.[0];
+    if (!file || !importPreview) {
+      importStatus('Preview the file before applying it.', 'error');
+      return;
+    }
+    // Belt and braces against the picker changing under an approved preview.
+    if (file.name !== importPreview.name || file.size !== importPreview.size) {
+      invalidateImportPreview('The chosen file changed. Preview it again.');
+      importStatus('The chosen file changed since it was previewed.', 'error');
+      return;
+    }
+    const button = byId('btnApplyImport');
+    button.disabled = true;
+    importStatus('Importing…');
+    try {
+      const batch = await client.applyImport({
+        file,
+        mode: importPreview.mode,
+        previewSha256: importPreview.sha256,
+        session: await session()
+      });
+      importStatus(`Imported ${batch.partsCreated} part(s), ${batch.unitsCreated} unit(s); ${batch.rowsSkipped} row(s) skipped.`);
+      invalidateImportPreview('Import applied. Choose another file to import again.');
+      byId('importFile').value = '';
+      await loadImportBatches();
+      await performSearch();
+    } catch (error) {
+      importStatus(errorMessage(error), 'error');
+      button.disabled = false;
+    }
+  }
+
+  function importBatchRow(batch) {
+    const rolledBack = batch.status === 'rolled_back';
+    const when = new Date(batch.createdAt).toLocaleString();
+    return `
+      <article class="order-row import-batch${rolledBack ? ' is-rolled-back' : ''}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(batch.fileName)}</span>
+          <span class="request-state">${escapeHtml(batch.status.replace('_', ' '))}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(when)} · ${escapeHtml(batch.mode.replace(/_/g, ' '))} · ${escapeHtml(batch.partsCreated)} part(s) created, ${escapeHtml(batch.partsUpdated)} updated, ${escapeHtml(batch.unitsCreated)} unit(s), ${escapeHtml(batch.rowsSkipped)} skipped</p>
+        ${rolledBack ? '' : `<div class="unit-action-row">
+          <button class="btn-quiet" data-rollback-import="${escapeHtml(batch.id)}">Roll back</button>
+        </div>`}
+      </article>`;
+  }
+
+  async function loadImportBatches() {
+    const list = byId('importBatchList');
+    if (!list || !client.listImportBatches) return;
+    list.innerHTML = '<div class="empty-state">Loading import history…</div>';
+    try {
+      const batches = await client.listImportBatches({ session: await session() });
+      list.innerHTML = batches.length
+        ? batches.map(importBatchRow).join('')
+        : '<div class="empty-state">Nothing has been imported yet.</div>';
+      list.querySelectorAll('[data-rollback-import]').forEach((button) => {
+        button.addEventListener('click', () => rollbackImport(button.dataset.rollbackImport));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function rollbackImport(batchId) {
+    importStatus('Rolling back…');
+    try {
+      await client.rollbackImport({ batchId, session: await session() });
+      importStatus('');
+      await loadImportBatches();
+      await performSearch();
+    } catch (error) {
+      importStatus(errorMessage(error), 'error');
+    }
+  }
+
+  async function downloadImportTemplate() {
+    try {
+      const blob = await client.downloadImportTemplate({ session: await session() });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'mxgenius-parts.csv';
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      importStatus(errorMessage(error), 'error');
+    }
+  }
+
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
     state.status = byId('partsStatusFilter')?.value || '';
@@ -855,6 +1052,7 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab" data-view="rotables" role="tab" aria-selected="false">Rotables</button>
                 <button class="parts-view-tab" data-view="cannibalizations" role="tab" aria-selected="false">Robs<span id="robCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
+                <button class="parts-view-tab" data-view="imports" role="tab" aria-selected="false">Import</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
             </div>
@@ -960,6 +1158,31 @@ const MXPartsWorkspace = (() => {
                 <button class="btn-primary" id="btnProposeRob">Propose</button>
               </section>
               <div id="partsRobList"></div>
+            </div>
+            <div id="partsImportView" hidden>
+              <section class="unit-action-block location-create">
+                <h3>Import parts and stock</h3>
+                <p class="unit-action-hint">Upload a CSV or Excel file. Nothing is written until you have seen what it would do and confirmed it. Start from the template so the columns line up.</p>
+                <div class="import-controls">
+                  <input type="file" id="importFile" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                  <label>Mode
+                    <select id="importMode">
+                      <option value="add_only">Add only — refuse rows that change existing parts</option>
+                      <option value="add_and_update">Add and update — let rows overwrite existing parts</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="unit-action-row">
+                  <button class="btn-primary" id="btnPreviewImport">Preview</button>
+                  <button class="btn-primary" id="btnApplyImport" disabled>Apply</button>
+                  <button class="btn-quiet" id="btnImportTemplate">Download template</button>
+                </div>
+                <p class="unit-action-hint" id="importApplyHint">Apply stays disabled until this exact file has been previewed.</p>
+              </section>
+              <div id="importStatusMessage" class="parts-inline-status" aria-live="polite"></div>
+              <div id="importPreviewPanel"></div>
+              <h3 class="trace-heading">Import history</h3>
+              <div id="importBatchList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -1100,6 +1323,12 @@ const MXPartsWorkspace = (() => {
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
     byId('btnCreateRotable')?.addEventListener('click', createRotable);
     byId('btnProposeRob')?.addEventListener('click', proposeRob);
+    byId('btnPreviewImport')?.addEventListener('click', previewImport);
+    byId('btnApplyImport')?.addEventListener('click', applyImport);
+    byId('btnImportTemplate')?.addEventListener('click', downloadImportTemplate);
+    // Any change to what would be imported retires the approved preview.
+    byId('importFile')?.addEventListener('change', () => invalidateImportPreview('New file chosen. Preview it before applying.'));
+    byId('importMode')?.addEventListener('change', () => invalidateImportPreview('Mode changed. Preview again to see what it would do.'));
     ['rotableStatusFilter', 'rotableIncludeRetired']
       .forEach((id) => byId(id)?.addEventListener('change', loadRotables));
     byId('rotableAircraftFilter')?.addEventListener('keydown', (event) => {

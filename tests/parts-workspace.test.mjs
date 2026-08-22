@@ -446,3 +446,81 @@ test('Denial messages state the actual rule', async (t) => {
     assert.match(js, /if \(error\.message && !OPAQUE_DENIALS\.has\(error\.code\)\) return error\.message;/);
   });
 });
+
+test('Bulk import', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+  const client = readFileSync('application-client.js', 'utf8');
+  const domain = readFileSync('services/mcp/shared/src/domain/part_import.rs', 'utf8');
+  const repo = readFileSync('services/mcp/server/src/application/part_imports.rs', 'utf8');
+  const http = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
+  const migration = readFileSync('services/mcp/migrations/0023_part_imports.sql', 'utf8');
+
+  await t.test('the import surface is reachable', () => {
+    for (const method of ['previewImport', 'applyImport', 'listImportBatches', 'rollbackImport', 'downloadImportTemplate']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /id="partsImportView"/);
+    assert.match(js, /client\.previewImport\(/);
+  });
+
+  await t.test('nothing can be applied without previewing that exact file', () => {
+    // Preview-before is the layer that prevents the mistake; rollback only
+    // reverses it afterwards.
+    assert.match(js, /id="btnApplyImport" disabled/);
+    assert.match(js, /function invalidateImportPreview/);
+    // Changing either the file or the mode retires an approved preview.
+    assert.match(js, /byId\('importFile'\)\?\.addEventListener\('change'/);
+    assert.match(js, /byId\('importMode'\)\?\.addEventListener\('change'/);
+    // The server refuses too, so a crafted request cannot skip the preview.
+    assert.match(http, /PARTS_IMPORT_PREVIEW_REQUIRED/);
+    assert.match(repo, /this is not the file that was previewed/);
+  });
+
+  await t.test('add-only is the default at every layer', () => {
+    assert.match(domain, /#\[default\]\s*\n\s*AddOnly/);
+    assert.match(http, /None => ImportMode::default\(\)/);
+    // The picker offers the safe mode first.
+    const select = js.slice(js.indexOf('id="importMode"'), js.indexOf('id="importMode"') + 400);
+    assert.ok(select.indexOf('add_only') < select.indexOf('add_and_update'),
+      'add_only should be the first option');
+  });
+
+  await t.test('an overwrite is called out before it happens', () => {
+    assert.match(js, /will overwrite/);
+    assert.match(js, /count-conflict/);
+    assert.match(js, /is-update/);
+    // Updates and conflicts must not look like ordinary creates.
+    const css = readFileSync('parts-workspace.css', 'utf8');
+    assert.match(css, /\.import-row\.is-update/);
+    assert.match(css, /\.import-row\.is-conflict/);
+  });
+
+  await t.test('a bad file is refused whole, never partially applied', () => {
+    assert.match(repo, /row\(s\) cannot be read; nothing was imported/);
+    assert.match(repo, /nothing was imported/);
+  });
+
+  await t.test('re-importing an export does not double the stock', () => {
+    assert.match(repo, /re-importing would double the stock/);
+    assert.match(repo, /find_duplicate_unit/);
+    // Export uses the same column contract, so a round trip is lossless.
+    assert.match(repo, /csv_header\(\)/);
+    assert.match(domain, /IMPORT_COLUMNS/);
+  });
+
+  await t.test('rollback refuses when reversing would contradict later work', () => {
+    assert.match(repo, /roll that one back first/);
+    assert.match(repo, /would contradict them/);
+    // Rows archived in the same pass are excluded explicitly, or every
+    // parent still looks occupied.
+    assert.match(repo, /archived_units/);
+    assert.match(repo, /NOT \(id = ANY\(\$3\)\)/);
+  });
+
+  await t.test('the journal is append-only and rollback is privileged', () => {
+    assert.match(migration, /part_import_changes_append_only/);
+    assert.match(migration, /append-only/);
+    assert.match(http, /PARTS_IMPORT_ROLLBACK_DENIED/);
+    assert.match(http, /parts_inspection_release_allowed/);
+  });
+});

@@ -26,6 +26,7 @@ use crate::application::cannibalizations::{
     CannibalizationQuery, CannibalizationRepository, DecideCannibalizationInput,
     ProposeCannibalizationInput,
 };
+use crate::application::part_imports::{ImportRequestQuery, PartImportRepository};
 use crate::application::part_procurement::{
     CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
 };
@@ -68,6 +69,9 @@ const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
 const MAX_PROJECT_WORKSPACE_BYTES: usize = 512 * 1024;
 const MAX_FEEDBACK_SCREENSHOT_BYTES: usize = 8 * 1024 * 1024;
+/// A parts file is a few thousand rows of short text. The global body limit is
+/// 100 MiB, which is not a meaningful gate for a spreadsheet.
+const MAX_PARTS_IMPORT_BYTES: usize = 8 * 1024 * 1024;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
 
@@ -179,6 +183,19 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route(
+            "/api/parts/imports",
+            get(list_part_imports).post(apply_part_import),
+        )
+        .route("/api/parts/imports/preview", post(preview_part_import))
+        .route(
+            "/api/parts/imports/template",
+            get(download_part_import_template),
+        )
+        .route(
+            "/api/parts/imports/:batch_id/rollback",
+            post(rollback_part_import),
+        )
         .route(
             "/api/parts/cannibalizations",
             get(list_cannibalizations).post(propose_cannibalization),
@@ -3593,6 +3610,210 @@ async fn decide_cannibalization(
     {
         Ok(row) => (StatusCode::OK, Json(json!({"cannibalization": row}))).into_response(),
         Err(error) => parts_error(error, "parts.cannibalization.decide"),
+    }
+}
+
+/// Shared front half of both import endpoints: authorize, bound the body, and
+/// work out which reader to use.
+#[allow(clippy::type_complexity)]
+async fn import_request_setup(
+    state: &AppState,
+    headers: &HeaderMap,
+    query: &ImportRequestQuery,
+    body: &Bytes,
+) -> Result<
+    (
+        ExecutionContext,
+        mxgenius_shared::domain::part_import::ImportFormat,
+        mxgenius_shared::domain::part_import::ImportMode,
+        String,
+    ),
+    Response,
+> {
+    use mxgenius_shared::domain::part_import::{ImportFormat, ImportMode};
+
+    let context = parts_application_context(state, headers).await?;
+    if !parts_write_allowed(&context) {
+        return Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot import parts",
+        ));
+    }
+    if body.is_empty() {
+        return Err(realtime_error(
+            StatusCode::BAD_REQUEST,
+            "PARTS_IMPORT_EMPTY",
+            "no file was uploaded",
+        ));
+    }
+    if body.len() > MAX_PARTS_IMPORT_BYTES {
+        return Err(realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "PARTS_IMPORT_TOO_LARGE",
+            "the import file must be 8 MiB or smaller; split it into smaller files",
+        ));
+    }
+
+    let file_name = query
+        .file_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("upload")
+        .to_owned();
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok());
+    let Some(format) = ImportFormat::detect(content_type, Some(&file_name)) else {
+        return Err(realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "PARTS_IMPORT_FORMAT",
+            "upload a .csv or .xlsx file",
+        ));
+    };
+    // Absent mode means the safe one, never the overwriting one.
+    let mode = match query.mode.as_deref() {
+        None => ImportMode::default(),
+        Some(value) => match ImportMode::parse(value) {
+            Some(mode) => mode,
+            None => {
+                return Err(realtime_error(
+                    StatusCode::BAD_REQUEST,
+                    "PARTS_IMPORT_MODE",
+                    "mode must be add_only or add_and_update",
+                ))
+            }
+        },
+    };
+    Ok((context, format, mode, file_name))
+}
+
+async fn preview_part_import(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ImportRequestQuery>,
+    body: Bytes,
+) -> Response {
+    let (context, format, mode, file_name) =
+        match import_request_setup(&state, &headers, &query, &body).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartImportRepository::new(pool)
+        .preview(&context, &body, &file_name, format, mode)
+        .await
+    {
+        Ok(preview) => (StatusCode::OK, Json(json!({"preview": preview}))).into_response(),
+        Err(error) => parts_error(error, "parts.import.preview"),
+    }
+}
+
+async fn apply_part_import(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ImportRequestQuery>,
+    body: Bytes,
+) -> Response {
+    let (context, format, mode, file_name) =
+        match import_request_setup(&state, &headers, &query, &body).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    // Applying without previewing is not offered: the digest of the previewed
+    // file is what proves the operator saw a plan for these exact bytes.
+    let Some(preview_sha256) = query.preview_sha256.as_deref() else {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_IMPORT_PREVIEW_REQUIRED",
+            "preview the file first and pass the digest it returned",
+        );
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartImportRepository::new(pool)
+        .apply(&context, &body, &file_name, format, mode, preview_sha256)
+        .await
+    {
+        Ok(batch) => (StatusCode::CREATED, Json(json!({"batch": batch}))).into_response(),
+        Err(error) => parts_error(error, "parts.import.apply"),
+    }
+}
+
+async fn list_part_imports(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartImportRepository::new(pool).list_batches(&context).await {
+        Ok(batches) => (StatusCode::OK, Json(json!({"batches": batches}))).into_response(),
+        Err(error) => parts_error(error, "parts.imports.list"),
+    }
+}
+
+async fn rollback_part_import(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(batch_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // A rollback mutates confirmed inventory in bulk, so it is held to the
+    // same bar as releasing stock from quarantine rather than to general
+    // write access.
+    if !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_IMPORT_ROLLBACK_DENIED",
+            "only a quality, manager, or administrator role can roll back an import",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartImportRepository::new(pool)
+        .rollback(&context, batch_id)
+        .await
+    {
+        Ok(batch) => (StatusCode::OK, Json(json!({"batch": batch}))).into_response(),
+        Err(error) => parts_error(error, "parts.import.rollback"),
+    }
+}
+
+async fn download_part_import_template(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartImportRepository::new(pool).export_csv(&context).await {
+        Ok(csv) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+                (
+                    header::CONTENT_DISPOSITION,
+                    "attachment; filename=\"mxgenius-parts.csv\"",
+                ),
+            ],
+            csv,
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.import.template"),
     }
 }
 

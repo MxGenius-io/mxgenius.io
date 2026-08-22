@@ -33,3 +33,4 @@ release gates.
 | `0020_part_traceability.sql`              | shipment legs, atomic install/removal events, and a widened paperwork vocabulary including ATA 106 and TSO |
 | `0021_rotables_and_cores.sql`            | serialized rotable register, core exchange obligations, and warranty claims |
 | `0022_cannibalizations.sql`              | gated cannibalization records correlating a donor removal with a receiver install |
+| `0023_part_imports.sql`                  | reversible bulk-import batches with an append-only change journal, plus a soft delete on parts |
