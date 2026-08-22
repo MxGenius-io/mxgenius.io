@@ -1,6 +1,6 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated — 2026-08-22 Feedback and Parts Expansion
+Status: Deployed — 2026-08-22 Feedback and Parts Expansion
 
 ## Feedback and Parts Expansion Delta — 2026-08-22
 
@@ -77,10 +77,33 @@ Status: Validated — 2026-08-22 Feedback and Parts Expansion
 - [x] Confirm the exact Git release state, local test/build proof, Docker build
   context, managed identity, required live data-plane roles, and rollback image.
 - [x] Mark this application-only delta Validated with accepted audit exceptions.
-- [ ] Build and identify the immutable ACR image digest.
-- [ ] Promote one new `mxg-core` revision and verify migration/startup logs.
-- [ ] Verify live health, readiness, adapter status, fail-closed routes, traffic,
+- [x] Build and identify the immutable ACR image digest.
+- [x] Promote one new `mxg-core` revision and verify migration/startup logs.
+- [x] Verify live health, readiness, adapter status, fail-closed routes, traffic,
   image, and rollback availability.
+
+### Deployment proof
+
+- 2026-08-22: ACR build `cj1w` completed successfully from the exact
+  `services/mcp` context and published
+  `mxg-core:feedback-parts-9cc2b10-20260822` with digest
+  `sha256:49c9d45e8d4d30ab015ab3af81d18d94bab82a0e5e4f977bf9e6b045f2a64696`.
+- 2026-08-22: revision `mxg-core--feedbackparts9cc2b10` became `Healthy`,
+  `Running`, latest-ready, and received 100% traffic in the existing `Single`
+  revision mode. The Container App provisioning state remained `Succeeded`.
+- 2026-08-22: startup logs showed the SQLx migration table and then the server
+  listening on port 3030 with no warning/error entries. `/healthz`, `/readyz`,
+  and `/adapterz` returned HTTP 200; readiness reported the production database
+  and authoritative v2 manual pack healthy.
+- 2026-08-22: valid unauthenticated Feedback submission, Feedback admin, and
+  Parts requests returned HTTP 401. No test record was created.
+- 2026-08-22: post-deployment live RBAC still showed `Storage Blob Data
+  Contributor` on the private `documents` container and `Cognitive Services
+  User` on the Document Intelligence account for the unchanged `mxg-core`
+  managed identity.
+- 2026-08-22: rollback remains available through prior image
+  `mxg-core:patent-b99241d-20260817-0125`, digest
+  `sha256:e4ed8aa53594da0a9e90044a657eb908c0dc40e96c209a44d312457f7217437f`.
 
 ## Shared Patent Workspace Delta — 2026-08-17
 
