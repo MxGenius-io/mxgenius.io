@@ -300,3 +300,39 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(css, /@media \(max-width: 860px\)[\s\S]*\.parts-drawer\.open[\s\S]*transform:\s*translateX\(0\);/);
   });
 });
+
+test('Hands-free inventory search from the headset', async (t) => {
+  const app = readFileSync('app.js', 'utf8');
+
+  await t.test('a spoken stock question reaches the parts search', () => {
+    assert.match(app, /name: 'mxg\.parts\.lookup_stock'/);
+    assert.match(app, /client_handler: 'parts_stock_lookup'/);
+    assert.match(app, /async function executeRealtimePartsLookup/);
+    assert.match(app, /MXApplicationClient\.parts\.search/);
+  });
+
+  await t.test('the lookup is read-only and says so', () => {
+    // A voice capability that could reserve or order stock by accident is a
+    // different risk from one that only reports what is on the shelf.
+    assert.match(app, /requires_human_approval: false/);
+    assert.match(app, /does not reserve, issue, or order anything/);
+    const handler = app.slice(
+      app.indexOf('async function executeRealtimePartsLookup'),
+      app.indexOf('async function executeRealtimeStructuredResponse')
+    );
+    for (const mutating of ['dispositionUnit', 'confirmReceiving', 'createOrder', 'adjustQuantity', 'splitUnit']) {
+      assert.ok(!handler.includes(mutating), `lookup must not call ${mutating}`);
+    }
+  });
+
+  await t.test('the answer is shaped to be spoken, not dumped', () => {
+    assert.match(app, /spoken_summary/);
+    // Collapsed per part number so the model reads one line per part.
+    assert.match(app, /quantityOnHand/);
+    assert.match(app, /match_count/);
+  });
+
+  await t.test('the voice model is told when to use it', () => {
+    assert.match(app, /call mxg__parts__lookup_stock/);
+  });
+});

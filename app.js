@@ -2141,8 +2141,36 @@ Rules:
           client_handler: 'structured_chat',
           requires_human_approval: false
         }
+      }, {
+        // Hands-free stock lookup. A mechanic in a headset asks what is on the
+        // shelf and hears the answer; nothing is typed and nothing is changed.
+        name: 'mxg.parts.lookup_stock',
+        description: 'Search the organization\'s own parts inventory by part number, description, or serial number and return what is physically on hand. Read-only: it never reserves, issues, or orders anything. Use it whenever the user asks whether a part is in stock, how many there are, or where one is.',
+        inputSchema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            query: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 120,
+              description: 'Part number, description keywords, or serial number as the user said it.'
+            },
+            availableOnly: {
+              type: 'boolean',
+              description: 'Restrict to stock that is free to use. Defaults to true; set false to include quarantined, reserved, and issued units.'
+            }
+          },
+          required: ['query']
+        },
+        meta: {
+          callable: true,
+          availability: 'available',
+          client_handler: 'parts_stock_lookup',
+          requires_human_approval: false
+        }
       }],
-      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
+      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. When the user asks whether a part is in stock, how many there are, or where one is, call mxg__parts__lookup_stock and speak only its spoken_summary. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
     });
   }
 
@@ -2264,6 +2292,10 @@ Rules:
       await executeRealtimeStructuredResponse(event.callId, capabilityArguments);
       return;
     }
+    if (event.spec?.meta?.client_handler === 'parts_stock_lookup') {
+      await executeRealtimePartsLookup(event.callId, capabilityArguments);
+      return;
+    }
     if (!event.spec?.name || !/^mxg\.[a-z_]+\.[a-z_]+$/.test(event.spec.name)) {
       realtimeSession.sendToolOutput(event.callId, { status: 'failed', error: { code: 'UNKNOWN_CAPABILITY', message: 'Requested capability is not in the authenticated registry.' } });
       handledRealtimeCalls.add(event.callId);
@@ -2275,6 +2307,78 @@ Rules:
       return;
     }
     await executeRealtimeCapability(event.callId, event.spec.name, capabilityArguments);
+  }
+
+  /// Hands-free inventory search. Answers what is on the shelf in a form the
+  /// voice model can read aloud without inventing detail, and never mutates.
+  async function executeRealtimePartsLookup(callId, capabilityArguments) {
+    const query = String(capabilityArguments?.query || '').trim();
+    if (!query) {
+      realtimeSession.sendToolOutput(callId, {
+        status: 'failed',
+        error: { code: 'EMPTY_PARTS_QUERY', message: 'No part to look up was supplied.' }
+      });
+      handledRealtimeCalls.add(callId);
+      return;
+    }
+    const availableOnly = capabilityArguments?.availableOnly !== false;
+    try {
+      const session = MXGENIUS_CONFIG?.getSession?.() || {};
+      const accessToken = await MXGENIUS_AUTH?.getToken?.();
+      const units = await MXApplicationClient.parts.search({
+        query,
+        status: availableOnly ? 'available' : undefined,
+        session: { ...session, accessToken }
+      });
+
+      // Collapse to one line per part so the model has something speakable
+      // rather than a list of unit rows.
+      const byPart = new Map();
+      for (const unit of units) {
+        const entry = byPart.get(unit.partNumber) || {
+          partNumber: unit.partNumber,
+          description: unit.description,
+          quantity: 0,
+          locations: new Set(),
+          conditions: new Set(),
+          serials: []
+        };
+        entry.quantity += Number(unit.quantity) || 0;
+        entry.locations.add(unit.location);
+        entry.conditions.add(unit.conditionCode);
+        if (unit.serialNumber) entry.serials.push(unit.serialNumber);
+        byPart.set(unit.partNumber, entry);
+      }
+      const matches = [...byPart.values()].slice(0, 8).map((entry) => ({
+        partNumber: entry.partNumber,
+        description: entry.description,
+        quantityOnHand: entry.quantity,
+        locations: [...entry.locations],
+        conditions: [...entry.conditions],
+        serialNumbers: entry.serials.slice(0, 5)
+      }));
+
+      realtimeSession.sendToolOutput(callId, {
+        status: matches.length ? 'ok' : 'empty',
+        query,
+        scope: availableOnly ? 'available_only' : 'all_statuses',
+        match_count: matches.length,
+        matches,
+        spoken_summary: matches.length
+          ? matches.map((m) => `${m.quantityOnHand} ${m.description} (${m.partNumber}) in ${m.locations.join(' and ')}`).join('; ')
+          : `Nothing ${availableOnly ? 'available' : 'on file'} matching ${query}.`,
+        advisory: 'On-hand counts only. This does not reserve, issue, or order anything.'
+      });
+    } catch (error) {
+      realtimeSession.sendToolOutput(callId, {
+        status: 'failed',
+        error: {
+          code: error?.code || 'PARTS_LOOKUP_FAILED',
+          message: error?.message || 'The parts service could not be reached.'
+        }
+      });
+    }
+    handledRealtimeCalls.add(callId);
   }
 
   async function executeRealtimeStructuredResponse(callId, capabilityArguments) {
