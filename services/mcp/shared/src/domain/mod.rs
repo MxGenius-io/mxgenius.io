@@ -16,6 +16,8 @@ pub mod organization;
 pub mod part;
 pub mod part_request;
 pub mod part_request_test;
+pub mod part_trace;
+pub mod part_trace_test;
 pub mod scheduling;
 pub mod stock_unit_transition_test;
 
@@ -30,4 +32,5 @@ pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
 pub use part_request::{
     PartOrderKind, PartOrderStatus, PartRequestPriority, PartRequestStatus, TypeOfBuy,
 };
+pub use part_trace::{PartEventKind, RemovalReason, ShipmentPurpose, ShipmentStatus, TraceType};
 pub use scheduling::{ScheduleOption, WeatherContext};

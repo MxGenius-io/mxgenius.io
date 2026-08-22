@@ -25,6 +25,10 @@ use uuid::Uuid;
 use crate::application::part_procurement::{
     CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
 };
+use crate::application::part_traceability::{
+    CreateEventInput, CreateShipmentInput, EventQuery, PartTraceabilityRepository,
+    ShipmentStatusInput,
+};
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
     ExtractionProposal, PartShortageDto, PartsInventoryError, PartsInventoryRepository,
@@ -176,6 +180,18 @@ pub fn router_with_health_and_manual(
         .route(
             "/api/parts/requests/:requirement_id/history",
             get(list_part_request_history),
+        )
+        .route(
+            "/api/parts/requests/:requirement_id/shipments",
+            get(list_part_shipments).post(create_part_shipment),
+        )
+        .route(
+            "/api/parts/shipments/:shipment_id/status",
+            post(set_part_shipment_status),
+        )
+        .route(
+            "/api/parts/events",
+            get(list_part_events).post(create_part_event),
         )
         .route(
             "/api/parts/orders/:order_id/status",
@@ -3167,6 +3183,139 @@ async fn list_part_request_history(
     {
         Ok(changes) => (StatusCode::OK, Json(json!({"changes": changes}))).into_response(),
         Err(error) => parts_error(error, "parts.request.history"),
+    }
+}
+
+async fn list_part_shipments(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .list_shipments(&context, requirement_id)
+        .await
+    {
+        Ok(shipments) => (StatusCode::OK, Json(json!({"shipments": shipments}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipments.list"),
+    }
+}
+
+async fn create_part_shipment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+    Json(mut input): Json<CreateShipmentInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot record shipments",
+        );
+    }
+    input.part_requirement_id = requirement_id;
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .create_shipment(&context, &input)
+        .await
+    {
+        Ok(shipment) => (StatusCode::CREATED, Json(json!({"shipment": shipment}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipment.create"),
+    }
+}
+
+async fn set_part_shipment_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(shipment_id): Path<Uuid>,
+    Json(input): Json<ShipmentStatusInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot update shipments",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .set_shipment_status(&context, shipment_id, version, &input)
+        .await
+    {
+        Ok(shipment) => (StatusCode::OK, Json(json!({"shipment": shipment}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipment.status"),
+    }
+}
+
+async fn list_part_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<EventQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .list_events(&context, &query)
+        .await
+    {
+        Ok(events) => (StatusCode::OK, Json(json!({"events": events}))).into_response(),
+        Err(error) => parts_error(error, "parts.events.list"),
+    }
+}
+
+async fn create_part_event(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateEventInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot record install or removal events",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .create_event(&context, &input)
+        .await
+    {
+        Ok(event) => (StatusCode::CREATED, Json(json!({"event": event}))).into_response(),
+        Err(error) => parts_error(error, "parts.event.create"),
     }
 }
 

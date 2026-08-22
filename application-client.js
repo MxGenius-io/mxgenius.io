@@ -972,6 +972,41 @@ const MXApplicationClient = (() => {
         `/api/parts/requests/${encodeURIComponent(requirementId)}/history`, { session });
       return payload.changes || [];
     },
+    listShipments: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/shipments`, { session });
+      return payload.shipments || [];
+    },
+    createShipment: async ({ requirementId, values, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/shipments`, {
+          session, method: 'POST', body: values });
+      return payload.shipment;
+    },
+    setShipmentStatus: async ({ shipmentId, version, status, receivedBy = null, notes = null, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/shipments/${encodeURIComponent(shipmentId)}/status`, {
+          session,
+          method: 'POST',
+          body: { status, receivedBy, notes },
+          headers: { 'If-Match': `"${version}"` }
+        });
+      return payload.shipment;
+    },
+    listPartEvents: async ({ aircraftId, partNumber, partSerial, stockUnitId, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      if (partNumber) params.set('partNumber', partNumber);
+      if (partSerial) params.set('partSerial', partSerial);
+      if (stockUnitId) params.set('stockUnitId', stockUnitId);
+      const payload = await applicationJson(`/api/parts/events?${params}`, { session });
+      return payload.events || [];
+    },
+    createPartEvent: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/events', {
+        session, method: 'POST', body: values });
+      return payload.event;
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');

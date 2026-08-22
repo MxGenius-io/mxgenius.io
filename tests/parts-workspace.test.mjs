@@ -169,6 +169,36 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /id="requestMissingNeedBy"/);
   });
 
+  await t.test('a part can be traced through shipment legs and install history', () => {
+    for (const method of ['listShipments', 'createShipment', 'setShipmentStatus', 'listPartEvents', 'createPartEvent']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /data-open-trace=/);
+    assert.match(js, /const SHIPMENT_ACTIONS = \{/);
+    // A delivered leg is the fact; nothing offers a way to un-arrive it.
+    assert.match(js, /delivered: \[\]/);
+  });
+
+  await t.test('an install and a removal are separate events, never one row', () => {
+    const repository = readFileSync('services/mcp/server/src/application/part_traceability.rs', 'utf8');
+    assert.match(repository, /a swap is recorded as two events/);
+    assert.match(repository, /an install does not carry a removal reason/);
+    // No combined kind exists at any layer.
+    const domain = readFileSync('services/mcp/shared/src/domain/part_trace.rs', 'utf8');
+    assert.doesNotMatch(domain, /Swap|Exchange\b/);
+  });
+
+  await t.test('the paperwork vocabulary covers the forms a shop receives', () => {
+    // ATA 106 is the standard used-parts trace form; TSO is a real
+    // authorization; a manufacturer CoC outranks a vendor CoC.
+    for (const value of ['ata106', 'tso', 'coc_mfr', 'coc_vendor']) {
+      assert.match(js, new RegExp(`'${value}'`), `${value} should be offered`);
+    }
+    // The ambiguous legacy value stays readable but is never offered.
+    assert.match(js, /coc \(source not recorded\)/i);
+    assert.doesNotMatch(js, /\['coc', 'CoC'\]/);
+  });
+
   await t.test('open case demand is set against free stock', () => {
     assert.match(client, /listShortages: async/);
     assert.match(client, /\/api\/parts\/shortages/);

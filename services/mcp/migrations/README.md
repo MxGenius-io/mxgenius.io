@@ -30,3 +30,4 @@ release gates.
 | `0017_project_workspaces.sql`              | shared project documents, revisions, and private blob-backed reference assets |
 | `0018_feedback.sql`                       | in-app bug and feature reports with screenshots and admin triage |
 | `0019_part_procurement.sql`               | part request lifecycle head, procurement/repair orders, and the append-only request change journal |
+| `0020_part_traceability.sql`              | shipment legs, atomic install/removal events, and a widened paperwork vocabulary including ATA 106 and TSO |

@@ -723,3 +723,17 @@
   margin-bottom: 8px;
   background: var(--bg-panel);
 }
+
+.trace-heading {
+  margin: 16px 0 8px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.trace-heading:first-child { margin-top: 0; }
+
+.event-row { border-left: 3px solid var(--border); }
+.event-row.is-install { border-left-color: #3fa37a; }
+.event-row.is-removal { border-left-color: #d08b2c; }
