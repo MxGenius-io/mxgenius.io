@@ -28,3 +28,8 @@ release gates.
 | `0015_parts_inventory.sql`                | tenant-owned stock units, receiving, assets, extraction review, ledger, and FAA provenance |
 | `0016_mro_tenant_scope.sql`               | retired; scoped the removed facility directory. Retained so the applied-migration ledger stays intact |
 | `0017_project_workspaces.sql`              | shared project documents, revisions, and private blob-backed reference assets |
+| `0018_feedback.sql`                       | in-app bug and feature reports with screenshots and admin triage |
+| `0019_part_procurement.sql`               | part request lifecycle head, procurement/repair orders, and the append-only request change journal |
+| `0020_part_traceability.sql`              | shipment legs, atomic install/removal events, and a widened paperwork vocabulary including ATA 106 and TSO |
+| `0021_rotables_and_cores.sql`            | serialized rotable register, core exchange obligations, and warranty claims |
+| `0022_cannibalizations.sql`              | gated cannibalization records correlating a donor removal with a receiver install |

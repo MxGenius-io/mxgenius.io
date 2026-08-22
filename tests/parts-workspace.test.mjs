@@ -135,6 +135,107 @@ test('Parts Frontend Shell requirements', async (t) => {
     }
   });
 
+  await t.test('the request queue reaches the procurement endpoints', () => {
+    for (const method of ['listRequests', 'listOrders', 'createOrder', 'setOrderStatus', 'listRequestHistory']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(client, /\/api\/parts\/requests/);
+    assert.match(client, /\/api\/parts\/orders\//);
+    assert.match(js, /id="partsRequestsView"/);
+    assert.match(js, /client\.listRequests\(/);
+  });
+
+  await t.test('the overdue verdict is rendered from server fields, never recomputed', () => {
+    // A second copy of the overdue rule in the client is exactly how it
+    // drifted in the system this design came from.
+    assert.match(js, /row\.isOverdue/);
+    assert.match(js, /row\.daysOverdue/);
+    assert.match(js, /row\.missingNeedBy/);
+    assert.doesNotMatch(js, /Date\.now\(\)\s*[-<>]/, 'no client-side overdue arithmetic');
+    assert.doesNotMatch(js, /requiredBy\s*<\s*new Date/, 'no client-side overdue comparison');
+  });
+
+  await t.test('order actions are offered only from a status that permits them', () => {
+    assert.match(js, /const ORDER_ACTIONS = \{/);
+    // Procurement is directional: nothing returns a placed order to draft.
+    assert.doesNotMatch(js, /status: 'draft'/);
+    assert.match(js, /cancelled: \[\]/, 'a cancelled order offers nothing');
+    assert.match(js, /client\.setOrderStatus\(/);
+  });
+
+  await t.test('a request without a need-by is surfaced rather than counted on time', () => {
+    assert.match(js, /missingNeedBy/);
+    assert.match(js, /cannot be measured because nobody set a need-by/);
+    assert.match(js, /id="requestMissingNeedBy"/);
+  });
+
+  await t.test('a part can be traced through shipment legs and install history', () => {
+    for (const method of ['listShipments', 'createShipment', 'setShipmentStatus', 'listPartEvents', 'createPartEvent']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /data-open-trace=/);
+    assert.match(js, /const SHIPMENT_ACTIONS = \{/);
+    // A delivered leg is the fact; nothing offers a way to un-arrive it.
+    assert.match(js, /delivered: \[\]/);
+  });
+
+  await t.test('an install and a removal are separate events, never one row', () => {
+    const repository = readFileSync('services/mcp/server/src/application/part_traceability.rs', 'utf8');
+    assert.match(repository, /a swap is recorded as two events/);
+    assert.match(repository, /an install does not carry a removal reason/);
+    // No combined kind exists at any layer.
+    const domain = readFileSync('services/mcp/shared/src/domain/part_trace.rs', 'utf8');
+    assert.doesNotMatch(domain, /Swap|Exchange\b/);
+  });
+
+  await t.test('the paperwork vocabulary covers the forms a shop receives', () => {
+    // ATA 106 is the standard used-parts trace form; TSO is a real
+    // authorization; a manufacturer CoC outranks a vendor CoC.
+    for (const value of ['ata106', 'tso', 'coc_mfr', 'coc_vendor']) {
+      assert.match(js, new RegExp(`'${value}'`), `${value} should be offered`);
+    }
+    // The ambiguous legacy value stays readable but is never offered.
+    assert.match(js, /coc \(source not recorded\)/i);
+    assert.doesNotMatch(js, /\['coc', 'CoC'\]/);
+  });
+
+  await t.test('a confidently read capture never asks the mechanic to proofread', () => {
+    // The headset path: when the server flags nothing for review, the wizard
+    // accepts the fields and goes straight to the details.
+    assert.match(js, /async function acceptConfidentCandidates/);
+    assert.match(js, /candidate\.requiresReview/);
+    assert.match(js, /if \(state\.candidates\.length && !needsReview\.length\)/);
+    // The threshold is the server's decision, not a number the client invents.
+    assert.doesNotMatch(js, /confidence\s*>=?\s*0\.\d/, 'client must not hold its own threshold');
+  });
+
+  await t.test('only flagged fields are offered for review', () => {
+    assert.match(js, /const confident = state\.candidates\.filter/);
+    assert.match(js, /const review = state\.candidates\.filter/);
+    // A row with no decision control is accepted as proposed rather than skipped.
+    assert.match(js, /if \(!decision\)/);
+    assert.match(js, /reviewState: 'accepted'/);
+  });
+
+  await t.test('the demo carries enough parts to run the scenario', () => {
+    const seed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
+    const parts = (seed.match(/'MXG-DEMO-[0-9A-Z-]+'/g) || []);
+    assert.ok(parts.length >= 35, `expected ~35 seeded parts, found ${parts.length}`);
+    // Wheel and brake hardware for the Challenger 350 scenario.
+    assert.match(seed, /Main wheel assembly/);
+    assert.match(seed, /Brake lining set/);
+    assert.match(seed, /Thermal fuse plug/);
+    // Nothing may look like a real OEM number.
+    assert.doesNotMatch(seed, /'BD-[0-9]/, 'no Bombardier-shaped part numbers');
+  });
+
+  await t.test('demo requirements carry the tenant the schema now requires', () => {
+    const seed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
+    const insert = seed.slice(seed.indexOf('INSERT INTO part_requirements'));
+    assert.match(insert.slice(0, 400), /organization_id/,
+      'part_requirements is NOT NULL on organization_id since 0019');
+  });
+
   await t.test('open case demand is set against free stock', () => {
     assert.match(client, /listShortages: async/);
     assert.match(client, /\/api\/parts\/shortages/);
@@ -197,5 +298,151 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(css, /\.parts-workspace\s*\{[\s\S]*flex-direction:\s*row;/);
     assert.match(css, /\.parts-drawer\.open\s*\{[\s\S]*flex-basis:\s*var\(--parts-drawer-width\);/);
     assert.match(css, /@media \(max-width: 860px\)[\s\S]*\.parts-drawer\.open[\s\S]*transform:\s*translateX\(0\);/);
+  });
+});
+
+test('Hands-free inventory search from the headset', async (t) => {
+  const app = readFileSync('app.js', 'utf8');
+
+  await t.test('a spoken stock question reaches the parts search', () => {
+    assert.match(app, /name: 'mxg\.parts\.lookup_stock'/);
+    assert.match(app, /client_handler: 'parts_stock_lookup'/);
+    assert.match(app, /async function executeRealtimePartsLookup/);
+    assert.match(app, /MXApplicationClient\.parts\.search/);
+  });
+
+  await t.test('the lookup is read-only and says so', () => {
+    // A voice capability that could reserve or order stock by accident is a
+    // different risk from one that only reports what is on the shelf.
+    assert.match(app, /requires_human_approval: false/);
+    assert.match(app, /does not reserve, issue, or order anything/);
+    const handler = app.slice(
+      app.indexOf('async function executeRealtimePartsLookup'),
+      app.indexOf('async function executeRealtimeStructuredResponse')
+    );
+    for (const mutating of ['dispositionUnit', 'confirmReceiving', 'createOrder', 'adjustQuantity', 'splitUnit']) {
+      assert.ok(!handler.includes(mutating), `lookup must not call ${mutating}`);
+    }
+  });
+
+  await t.test('the answer is shaped to be spoken, not dumped', () => {
+    assert.match(app, /spoken_summary/);
+    // Collapsed per part number so the model reads one line per part.
+    assert.match(app, /quantityOnHand/);
+    assert.match(app, /match_count/);
+  });
+
+  await t.test('the voice model is told when to use it', () => {
+    assert.match(app, /call mxg__parts__lookup_stock/);
+  });
+});
+
+test('Rotable register', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+  const client = readFileSync('application-client.js', 'utf8');
+  const repo = readFileSync('services/mcp/server/src/application/rotables.rs', 'utf8');
+  const domain = readFileSync('services/mcp/shared/src/domain/rotable.rs', 'utf8');
+
+  await t.test('the register is reachable from the workspace', () => {
+    for (const method of ['listRotables', 'createRotable', 'updateRotable', 'retireRotable']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /id="partsRotablesView"/);
+    assert.match(js, /client\.listRotables\(/);
+  });
+
+  await t.test('retirement runs serializable so an obligation cannot slip in', () => {
+    // Under a weaker level an obligation created between the check and the
+    // write commits fine and ends up pointing at a retired unit.
+    assert.match(repo, /SET TRANSACTION ISOLATION LEVEL SERIALIZABLE/);
+    assert.match(repo, /OPEN_CORE_STATUSES/);
+    assert.match(repo, /OPEN_WARRANTY_STATUSES/);
+    assert.match(repo, /OPEN_CANNIBALIZATION_STATUSES/);
+  });
+
+  await t.test('retirement demands a reason and keeps the history', () => {
+    assert.match(repo, /retiring a unit is a disposition; record why/);
+    assert.match(domain, /pub fn retirement_note/);
+    // The stamp is prepended; existing notes survive beneath it.
+    assert.match(domain, /\{stamp\}\\n\\n\{previous\}/);
+  });
+
+  await t.test('coherence is judged only when the caller touched the pairing', () => {
+    assert.match(repo, /edit_touches_pairing/);
+    assert.match(domain, /pub fn status_aircraft_contradiction/);
+    // in_repair, in_transit and on_loan stay unconstrained on purpose.
+    assert.match(domain, /deliberately unconstrained/);
+  });
+});
+
+test('Cannibalization', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+  const client = readFileSync('application-client.js', 'utf8');
+  const domain = readFileSync('services/mcp/shared/src/domain/cannibalization.rs', 'utf8');
+  const repo = readFileSync('services/mcp/server/src/application/cannibalizations.rs', 'utf8');
+  const http = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
+  const migration = readFileSync('services/mcp/migrations/0022_cannibalizations.sql', 'utf8');
+
+  await t.test('the approval chain is reachable and cannot be skipped', () => {
+    for (const method of ['listCannibalizations', 'proposeCannibalization', 'decideCannibalization']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /const ROB_DECISIONS = \{/);
+    // Approval cannot be skipped: proposed offers no path to completed.
+    const proposed = js.slice(js.indexOf('proposed: ['), js.indexOf('approved: ['));
+    assert.ok(!proposed.includes("'completed'"), 'a proposed rob must not offer completion');
+    // Terminal states offer nothing.
+    assert.match(js, /rejected: \[\]/);
+    assert.match(js, /completed: \[\]/);
+  });
+
+  await t.test('separation of duties is enforced and returns 403', () => {
+    assert.match(domain, /pub fn violates_separation_of_duties/);
+    assert.match(repo, /the person who proposed a cannibalization cannot decide it/);
+    // 400 would imply retrying with better input helps; it does not.
+    assert.match(repo, /PartsInventoryError::Forbidden/);
+    assert.match(http, /PartsInventoryError::Forbidden\(message\) => \{\s*realtime_error\(StatusCode::FORBIDDEN/);
+    assert.match(migration, /cannibalizations_sod_check/);
+  });
+
+  await t.test('a life-limited rob records the life crossing the tail boundary', () => {
+    assert.match(domain, /pub fn life_transfer_missing/);
+    assert.match(repo, /record the hours or cycles crossing to the receiving aircraft/);
+    assert.match(migration, /cannibalizations_life_check/);
+    assert.match(js, /data-rob-hours=/);
+    assert.match(js, /data-rob-cycles=/);
+  });
+
+  await t.test('completion is gated on the event ledger, not the record itself', () => {
+    assert.match(domain, /pub fn completion_problem/);
+    for (const gate of [
+      'DonorNotRemoval', 'ReceiverNotInstall', 'DonorReasonNotCannibalized',
+      'RotableMismatch', 'DonorAircraftMismatch', 'ReceiverAircraftMismatch',
+      'DonorEventAlreadyUsed', 'ReceiverEventAlreadyUsed'
+    ]) {
+      assert.match(domain, new RegExp(gate), `${gate} must be a checked condition`);
+    }
+    // The facts come from part_events, not from the cannibalization row.
+    assert.match(repo, /FROM part_events/);
+  });
+
+  await t.test('one event cannot complete two robs', () => {
+    // Enforced twice: a unique index, and an explicit check that names it.
+    assert.match(migration, /cannibalizations_donor_event_once_idx/);
+    assert.match(migration, /cannibalizations_receiver_event_once_idx/);
+    assert.match(domain, /one event cannot be the donor side of two/);
+  });
+});
+
+test('Denial messages state the actual rule', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+
+  await t.test('a specific 403 reason is shown, not a generic tenant message', () => {
+    // An allowlist of denial codes silently mistranslates every new code that
+    // gets added, which is how separation of duties first surfaced as
+    // "your account does not have access to this organization".
+    assert.match(js, /OPAQUE_DENIALS/);
+    assert.doesNotMatch(js, /error\?\.code === 'PARTS_INSPECTION_DENIED'/);
+    assert.match(js, /if \(error\.message && !OPAQUE_DENIALS\.has\(error\.code\)\) return error\.message;/);
   });
 });

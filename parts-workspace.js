@@ -28,13 +28,22 @@ const MXPartsWorkspace = (() => {
     const inventory = byId('partsInventoryGrid');
     const shortages = byId('partsShortageView');
     const locations = byId('partsLocationsView');
+    const requests = byId('partsRequestsView');
+    const rotables = byId('partsRotablesView');
+    const robs = byId('partsRobsView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
     if (locations) locations.hidden = view !== 'locations';
+    if (requests) requests.hidden = view !== 'requests';
+    if (rotables) rotables.hidden = view !== 'rotables';
+    if (robs) robs.hidden = view !== 'cannibalizations';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
+    if (view === 'requests') loadRequests();
+    if (view === 'rotables') loadRotables();
+    if (view === 'cannibalizations') loadRobs();
   }
 
   function shortageRow(row) {
@@ -162,6 +171,624 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  const ORDER_ACTIONS = {
+    draft: [
+      { status: 'placed', label: 'Place order', primary: true },
+      { status: 'cancelled', label: 'Cancel' }
+    ],
+    placed: [
+      { status: 'confirmed', label: 'Confirm', primary: true },
+      { status: 'cancelled', label: 'Cancel' }
+    ],
+    confirmed: [{ status: 'cancelled', label: 'Cancel' }],
+    cancelled: []
+  };
+
+  function requestStatusMessage(message, kind = '') {
+    const element = byId('requestStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  // The overdue verdict is rendered from the fields the server stamped, never
+  // recomputed here: a second copy of the rule is how it drifted before.
+  function requestCard(row) {
+    const due = row.requiredBy
+      ? new Date(row.requiredBy).toLocaleDateString()
+      : 'No need-by set';
+    const flag = row.isOverdue
+      ? `<span class="request-flag is-overdue">${escapeHtml(row.daysOverdue)}d overdue</span>`
+      : row.missingNeedBy
+        ? '<span class="request-flag is-unmeasured">No need-by</span>'
+        : '';
+    return `
+      <article class="request-row${row.isOverdue ? ' is-overdue' : ''}" data-request-id="${escapeHtml(row.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(row.partNumber)}</span>
+          <span class="shortage-priority priority-${escapeHtml(row.priority)}">${escapeHtml(row.priority.replace('_', ' '))}</span>
+          <span class="request-state">${escapeHtml(row.status)}</span>
+          ${flag}
+        </div>
+        <p class="shortage-description">${escapeHtml(row.description)}</p>
+        <p class="shortage-meta">Aircraft ${escapeHtml(row.aircraftId)} · needed ${escapeHtml(due)} · ${escapeHtml(row.quantityFulfilled)} of ${escapeHtml(row.quantity)} fulfilled · ${escapeHtml(row.openOrderCount)} open order(s)</p>
+        <div class="unit-action-row">
+          <button class="btn-quiet" data-open-orders="${escapeHtml(row.id)}">Orders</button>
+          <button class="btn-quiet" data-open-trace="${escapeHtml(row.id)}">Trace</button>
+          <button class="btn-quiet" data-open-history="${escapeHtml(row.id)}">History</button>
+        </div>
+        <div class="request-detail" data-detail-for="${escapeHtml(row.id)}" hidden></div>
+      </article>`;
+  }
+
+  async function loadRequests() {
+    const list = byId('partsRequestList');
+    if (!list || !client.listRequests) return;
+    list.innerHTML = '<div class="empty-state">Loading the request queue…</div>';
+    try {
+      const payload = await client.listRequests({
+        status: byId('requestStatusFilter')?.value || undefined,
+        priority: byId('requestPriorityFilter')?.value || undefined,
+        overdueOnly: byId('requestOverdueOnly')?.checked || false,
+        missingNeedByOnly: byId('requestMissingNeedBy')?.checked || false,
+        session: await session()
+      });
+      const rows = payload.requests || [];
+      const badge = byId('overdueCount');
+      if (badge) {
+        badge.hidden = !payload.overdue;
+        badge.textContent = payload.overdue || '';
+      }
+      requestStatusMessage(
+        payload.missingNeedBy
+          ? `${payload.missingNeedBy} request(s) cannot be measured because nobody set a need-by date.`
+          : ''
+      );
+      list.innerHTML = rows.length
+        ? rows.map(requestCard).join('')
+        : '<div class="empty-state">No requests match these filters.</div>';
+      list.querySelectorAll('[data-open-orders]').forEach((button) => {
+        button.addEventListener('click', () => showOrders(button.dataset.openOrders));
+      });
+      list.querySelectorAll('[data-open-history]').forEach((button) => {
+        button.addEventListener('click', () => showRequestHistory(button.dataset.openHistory));
+      });
+      list.querySelectorAll('[data-open-trace]').forEach((button) => {
+        button.addEventListener('click', () => showTrace(button.dataset.openTrace));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  function detailPanel(requirementId) {
+    return byId('partsRequestList')?.querySelector(`[data-detail-for="${requirementId}"]`);
+  }
+
+  async function showOrders(requirementId) {
+    const panel = detailPanel(requirementId);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="empty-state">Loading orders…</div>';
+    try {
+      const orders = await client.listOrders({ requirementId, session: await session() });
+      panel.innerHTML = `
+        ${orders.length ? orders.map(orderRow).join('') : '<div class="empty-state">No orders on this request yet.</div>'}
+        <section class="unit-action-block">
+          <h3>New order</h3>
+          <div class="parts-form-grid">
+            <label>Kind
+              <select data-new-order-kind><option value="po">Purchase order</option><option value="so">Service order</option></select>
+            </label>
+            <label>Type of buy
+              <select data-new-order-buy>
+                <option value="outright">Outright</option>
+                <option value="exchange">Exchange</option>
+                <option value="repair">Repair</option>
+                <option value="loan">Loan</option>
+              </select>
+            </label>
+            <label>Order number<input data-new-order-number placeholder="PO-1042"></label>
+            <label>Supplier<input data-new-order-supplier placeholder="Vendor name"></label>
+          </div>
+          <button class="btn-primary" data-create-order="${escapeHtml(requirementId)}">Add order</button>
+        </section>`;
+      panel.querySelector('[data-create-order]')?.addEventListener('click', () => createOrder(requirementId, panel));
+      panel.querySelectorAll('[data-order-action]').forEach((button) => {
+        button.addEventListener('click', () => setOrderStatus(
+          requirementId, button.dataset.orderId, Number(button.dataset.orderVersion), button.dataset.orderAction));
+      });
+    } catch (error) {
+      panel.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  function orderRow(order) {
+    const actions = ORDER_ACTIONS[order.status] || [];
+    const cost = order.purchaseCostUsd == null ? '' : ` · $${escapeHtml(order.purchaseCostUsd)}`;
+    return `
+      <article class="order-row">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(order.orderNumber || 'Unnumbered')}</span>
+          <span class="request-state">${escapeHtml(order.status)}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(order.orderKind.toUpperCase())} · ${escapeHtml(order.typeOfBuy)}${cost} · ${escapeHtml(order.supplierName || 'No supplier recorded')}</p>
+        <div class="unit-action-row">
+          ${actions.map((action) => `<button class="${action.primary ? 'btn-primary' : 'btn-quiet'}" data-order-action="${escapeHtml(action.status)}" data-order-id="${escapeHtml(order.id)}" data-order-version="${escapeHtml(order.version)}">${escapeHtml(action.label)}</button>`).join('')}
+        </div>
+      </article>`;
+  }
+
+  async function createOrder(requirementId, panel) {
+    requestStatusMessage('Adding the order…');
+    try {
+      await client.createOrder({
+        requirementId,
+        values: {
+          orderKind: panel.querySelector('[data-new-order-kind]').value,
+          typeOfBuy: panel.querySelector('[data-new-order-buy]').value,
+          orderNumber: panel.querySelector('[data-new-order-number]').value.trim() || null,
+          supplierName: panel.querySelector('[data-new-order-supplier]').value.trim() || null
+        },
+        session: await session()
+      });
+      requestStatusMessage('');
+      // The list re-render replaces every row, so refresh it before
+      // re-opening the panel or the panel is discarded immediately after.
+      await loadRequests();
+      await showOrders(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function setOrderStatus(requirementId, orderId, version, status) {
+    requestStatusMessage('Updating the order…');
+    try {
+      await client.setOrderStatus({ orderId, version, status, session: await session() });
+      requestStatusMessage('');
+      // The list re-render replaces every row, so refresh it before
+      // re-opening the panel or the panel is discarded immediately after.
+      await loadRequests();
+      await showOrders(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function showRequestHistory(requirementId) {
+    const panel = detailPanel(requirementId);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="empty-state">Loading history…</div>';
+    try {
+      const changes = await client.listRequestHistory({ requirementId, session: await session() });
+      panel.innerHTML = changes.length
+        ? `<ol class="parts-timeline">${changes.map((change) => `<li><strong>${escapeHtml(change.fieldName)}</strong><span>${escapeHtml(new Date(change.createdAt).toLocaleString())}</span><p>${escapeHtml(change.oldValue || 'unset')} → ${escapeHtml(change.newValue || 'unset')}</p></li>`).join('')}</ol>`
+        : '<div class="empty-state">No recorded changes on this request.</div>';
+    } catch (error) {
+      panel.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  const SHIPMENT_ACTIONS = {
+    pending: [
+      { status: 'in_transit', label: 'Mark shipped', primary: true },
+      { status: 'delivered', label: 'Mark delivered' },
+      { status: 'exception', label: 'Flag exception' }
+    ],
+    in_transit: [
+      { status: 'delivered', label: 'Mark delivered', primary: true },
+      { status: 'exception', label: 'Flag exception' }
+    ],
+    exception: [
+      { status: 'in_transit', label: 'Back in transit', primary: true },
+      { status: 'delivered', label: 'Mark delivered' }
+    ],
+    delivered: []
+  };
+
+  function shipmentRow(leg) {
+    const actions = SHIPMENT_ACTIONS[leg.status] || [];
+    const route = [leg.origin || 'origin unrecorded', leg.destination || 'destination unrecorded'].join(' → ');
+    const paperwork = leg.certificateType
+      ? `${TRACE_LABELS[leg.certificateType] || leg.certificateType}${leg.certificateNumber ? ` ${leg.certificateNumber}` : ''}`
+      : 'No paperwork recorded';
+    const landed = leg.receivedAt ? ` · landed ${new Date(leg.receivedAt).toLocaleDateString()}` : '';
+    return `
+      <article class="order-row">
+        <div class="request-head">
+          <span class="request-part">Leg ${escapeHtml(leg.legSequence)} · ${escapeHtml(leg.purpose.replace(/_/g, ' '))}</span>
+          <span class="request-state">${escapeHtml(leg.status.replace('_', ' '))}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(route)} · ${escapeHtml(leg.carrier || 'no carrier')}${leg.trackingNumber ? ` ${escapeHtml(leg.trackingNumber)}` : ''}${escapeHtml(landed)}</p>
+        <p class="shortage-meta">${escapeHtml(paperwork)}</p>
+        <div class="unit-action-row">
+          ${actions.map((a) => `<button class="${a.primary ? 'btn-primary' : 'btn-quiet'}" data-leg-action="${escapeHtml(a.status)}" data-leg-id="${escapeHtml(leg.id)}" data-leg-version="${escapeHtml(leg.version)}">${escapeHtml(a.label)}</button>`).join('')}
+        </div>
+      </article>`;
+  }
+
+  function eventRow(event) {
+    const when = new Date(event.eventAt).toLocaleString();
+    const reason = event.removalReason ? ` · ${escapeHtml(event.removalReason)}` : '';
+    return `
+      <article class="order-row event-row is-${escapeHtml(event.eventKind)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(event.eventKind)}</span>
+          <span class="request-state">${escapeHtml(event.partNumber)}${event.partSerial ? ` / ${escapeHtml(event.partSerial)}` : ''}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(event.aircraftId || 'no aircraft recorded')}${reason} · ${escapeHtml(when)}${event.performedBy ? ` · ${escapeHtml(event.performedBy)}` : ''}</p>
+      </article>`;
+  }
+
+  async function showTrace(requirementId) {
+    const panel = detailPanel(requirementId);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="empty-state">Loading traceability…</div>';
+    try {
+      const currentSession = await session();
+      const [legs, events] = await Promise.all([
+        client.listShipments({ requirementId, session: currentSession }),
+        client.listPartEvents({ session: currentSession })
+      ]);
+      panel.innerHTML = `
+        <h3 class="trace-heading">Shipment legs</h3>
+        ${legs.length ? legs.map(shipmentRow).join('') : '<div class="empty-state">No legs recorded.</div>'}
+        <section class="unit-action-block">
+          <h3>Add a leg</h3>
+          <div class="parts-form-grid">
+            <label>Purpose
+              <select data-leg-purpose>
+                <option value="procurement">Procurement inbound</option>
+                <option value="repair_out">Out for repair</option>
+                <option value="repair_return">Back from repair</option>
+                <option value="transfer">Transfer</option>
+                <option value="return">Return</option>
+              </select>
+            </label>
+            <label>Carrier<input data-leg-carrier placeholder="Carrier"></label>
+            <label>Origin<input data-leg-origin placeholder="From"></label>
+            <label>Destination<input data-leg-destination placeholder="To"></label>
+            <label>Paperwork
+              <select data-leg-cert>${optionList(TRACE_TYPES, 'none')}</select>
+            </label>
+            <label>Certificate number<input data-leg-cert-number placeholder="Optional"></label>
+          </div>
+          <button class="btn-primary" data-create-leg="${escapeHtml(requirementId)}">Add leg</button>
+        </section>
+        <h3 class="trace-heading">Install and removal history</h3>
+        ${events.length ? events.map(eventRow).join('') : '<div class="empty-state">No install or removal events recorded.</div>'}`;
+      panel.querySelector('[data-create-leg]')?.addEventListener('click', () => createShipment(requirementId, panel));
+      panel.querySelectorAll('[data-leg-action]').forEach((button) => {
+        button.addEventListener('click', () => setShipmentStatus(
+          requirementId, button.dataset.legId, Number(button.dataset.legVersion), button.dataset.legAction));
+      });
+    } catch (error) {
+      panel.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function createShipment(requirementId, panel) {
+    requestStatusMessage('Recording the leg…');
+    try {
+      await client.createShipment({
+        requirementId,
+        values: {
+          purpose: panel.querySelector('[data-leg-purpose]').value,
+          carrier: panel.querySelector('[data-leg-carrier]').value.trim() || null,
+          origin: panel.querySelector('[data-leg-origin]').value.trim() || null,
+          destination: panel.querySelector('[data-leg-destination]').value.trim() || null,
+          certificateType: panel.querySelector('[data-leg-cert]').value,
+          certificateNumber: panel.querySelector('[data-leg-cert-number]').value.trim() || null
+        },
+        session: await session()
+      });
+      requestStatusMessage('');
+      await loadRequests();
+      await showTrace(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function setShipmentStatus(requirementId, shipmentId, version, status) {
+    requestStatusMessage('Updating the leg…');
+    try {
+      await client.setShipmentStatus({ shipmentId, version, status, session: await session() });
+      requestStatusMessage('');
+      await loadRequests();
+      await showTrace(requirementId);
+    } catch (error) {
+      requestStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  const ROTABLE_STATUSES = [
+    ['in_stock', 'In stock'],
+    ['installed', 'Installed'],
+    ['in_repair', 'In repair'],
+    ['in_transit', 'In transit'],
+    ['on_loan', 'On loan'],
+    ['scrapped', 'Scrapped']
+  ];
+
+  function rotableStatusMessage(message, kind = '') {
+    const element = byId('rotableStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function rotableRow(unit) {
+    const retired = !!unit.retiredAt;
+    const where = unit.currentAircraftId
+      ? `on ${escapeHtml(unit.currentAircraftId)}`
+      : 'not on an aircraft';
+    return `
+      <article class="rotable-row status-${escapeHtml(unit.currentStatus)}${retired ? ' is-retired' : ''}" data-rotable-id="${escapeHtml(unit.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(unit.partNumber)} / ${escapeHtml(unit.serialNumber)}</span>
+          <span class="request-state">${escapeHtml(unit.currentStatus.replace('_', ' '))}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(unit.nomenclature || 'No nomenclature recorded')} · ${where} · repaired ${escapeHtml(unit.timesRepaired)} time(s)</p>
+        <div class="unit-action-row">
+          <label>Status
+            <select data-rotable-status="${escapeHtml(unit.id)}">${optionList(ROTABLE_STATUSES, unit.currentStatus)}</select>
+          </label>
+          <label>Aircraft
+            <input data-rotable-aircraft="${escapeHtml(unit.id)}" value="${escapeHtml(unit.currentAircraftId || '')}" placeholder="none">
+          </label>
+          <button class="btn-quiet" data-save-rotable="${escapeHtml(unit.id)}" data-version="${escapeHtml(unit.version)}">Save</button>
+          ${retired ? '' : `<button class="btn-quiet" data-open-retire="${escapeHtml(unit.id)}">Retire</button>`}
+        </div>
+        <div class="retire-panel" data-retire-panel="${escapeHtml(unit.id)}" hidden>
+          <label>Why is this unit being retired?
+            <input data-retire-reason="${escapeHtml(unit.id)}" maxlength="500" placeholder="Beyond economic repair after second shop visit">
+          </label>
+          <div class="unit-action-row">
+            <button class="btn-primary" data-confirm-retire="${escapeHtml(unit.id)}" data-version="${escapeHtml(unit.version)}">Retire this unit</button>
+            <button class="btn-quiet" data-cancel-retire="${escapeHtml(unit.id)}">Cancel</button>
+          </div>
+        </div>
+      </article>`;
+  }
+
+  async function loadRotables() {
+    const list = byId('partsRotableList');
+    if (!list || !client.listRotables) return;
+    list.innerHTML = '<div class="empty-state">Loading the rotable register…</div>';
+    try {
+      const units = await client.listRotables({
+        status: byId('rotableStatusFilter')?.value || undefined,
+        aircraftId: byId('rotableAircraftFilter')?.value.trim() || undefined,
+        includeRetired: byId('rotableIncludeRetired')?.checked || false,
+        session: await session()
+      });
+      list.innerHTML = units.length
+        ? units.map(rotableRow).join('')
+        : '<div class="empty-state">No rotables match these filters.</div>';
+      list.querySelectorAll('[data-save-rotable]').forEach((button) => {
+        button.addEventListener('click', () => saveRotable(button.dataset.saveRotable, Number(button.dataset.version)));
+      });
+      list.querySelectorAll('[data-open-retire]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const panel = list.querySelector(`[data-retire-panel="${button.dataset.openRetire}"]`);
+          panel.hidden = false;
+          panel.querySelector('[data-retire-reason]').focus();
+        });
+      });
+      list.querySelectorAll('[data-cancel-retire]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const panel = list.querySelector(`[data-retire-panel="${button.dataset.cancelRetire}"]`);
+          panel.hidden = true;
+          panel.querySelector('[data-retire-reason]').value = '';
+        });
+      });
+      list.querySelectorAll('[data-confirm-retire]').forEach((button) => {
+        button.addEventListener('click', () => retireRotable(button.dataset.confirmRetire, Number(button.dataset.version)));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function createRotable() {
+    const button = byId('btnCreateRotable');
+    button.disabled = true;
+    rotableStatusMessage('Registering…');
+    try {
+      await client.createRotable({
+        values: {
+          partNumber: byId('newRotablePart').value.trim(),
+          serialNumber: byId('newRotableSerial').value.trim(),
+          nomenclature: byId('newRotableNomen').value.trim() || null,
+          currentStatus: byId('newRotableStatus').value,
+          currentAircraftId: byId('newRotableAircraft').value.trim() || null
+        },
+        session: await session()
+      });
+      ['newRotablePart', 'newRotableSerial', 'newRotableNomen', 'newRotableAircraft']
+        .forEach((id) => { byId(id).value = ''; });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function saveRotable(rotableId, version) {
+    rotableStatusMessage('Saving…');
+    try {
+      const list = byId('partsRotableList');
+      await client.updateRotable({
+        rotableId,
+        version,
+        values: {
+          currentStatus: list.querySelector(`[data-rotable-status="${rotableId}"]`).value,
+          currentAircraftId: list.querySelector(`[data-rotable-aircraft="${rotableId}"]`).value.trim()
+        },
+        session: await session()
+      });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function retireRotable(rotableId, version) {
+    const field = byId('partsRotableList')?.querySelector(`[data-retire-reason="${rotableId}"]`);
+    const reason = field?.value.trim() || '';
+    if (!reason) {
+      rotableStatusMessage('Retiring a unit is a disposition. Record why before confirming.', 'error');
+      field?.focus();
+      return;
+    }
+    rotableStatusMessage('Retiring…');
+    try {
+      await client.retireRotable({ rotableId, version, reason: reason.trim(), session: await session() });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  // What a rob can become next. Approval cannot be skipped, and completed,
+  // rejected, and cancelled are the end of the line.
+  const ROB_DECISIONS = {
+    proposed: [
+      { status: 'approved', label: 'Approve', primary: true },
+      { status: 'rejected', label: 'Reject' },
+      { status: 'cancelled', label: 'Withdraw' }
+    ],
+    approved: [
+      { status: 'completed', label: 'Mark complete', primary: true },
+      { status: 'cancelled', label: 'Withdraw' }
+    ],
+    rejected: [],
+    completed: [],
+    cancelled: []
+  };
+
+  function robStatusMessage(message, kind = '') {
+    const element = byId('robStatusMessage');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function robRow(rob) {
+    const decisions = ROB_DECISIONS[rob.status] || [];
+    const life = rob.isLifeLimited
+      ? `<span class="rob-life">Life limited${rob.transferredHours != null ? ` · ${escapeHtml(rob.transferredHours)} hrs` : ''}${rob.transferredCycles != null ? ` · ${escapeHtml(rob.transferredCycles)} cycles` : ''}</span>`
+      : '';
+    const lineage = rob.donorRemovalEventId && rob.receiverInstallEventId
+      ? 'both events on record'
+      : rob.donorRemovalEventId
+        ? 'donor removal on record; awaiting the install'
+        : 'no events linked yet';
+    return `
+      <article class="rob-row status-${escapeHtml(rob.status)}" data-rob-id="${escapeHtml(rob.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(rob.partNumber || 'Part not named')}${rob.serialNumber ? ` / ${escapeHtml(rob.serialNumber)}` : ''}</span>
+          <span class="request-state">${escapeHtml(rob.status)}</span>
+          ${life}
+        </div>
+        <p class="shortage-meta">${escapeHtml(rob.donorAircraftId || 'donor not named')} → ${escapeHtml(rob.receiverAircraftId || 'receiver not named')} · ${escapeHtml(lineage)}</p>
+        ${rob.rtsImpactRationale ? `<p class="shortage-description">${escapeHtml(rob.rtsImpactRationale)}</p>` : ''}
+        ${decisions.length ? `
+        <div class="rob-decide">
+          ${rob.isLifeLimited && rob.status === 'proposed' ? `
+          <div class="parts-form-grid">
+            <label>Hours transferred<input type="number" step="0.1" data-rob-hours="${escapeHtml(rob.id)}" value="${escapeHtml(rob.transferredHours ?? '')}"></label>
+            <label>Cycles transferred<input type="number" data-rob-cycles="${escapeHtml(rob.id)}" value="${escapeHtml(rob.transferredCycles ?? '')}"></label>
+          </div>` : ''}
+          <div class="unit-action-row">
+            ${decisions.map((d) => `<button class="${d.primary ? 'btn-primary' : 'btn-quiet'}" data-rob-decision="${escapeHtml(d.status)}" data-rob-target="${escapeHtml(rob.id)}" data-rob-version="${escapeHtml(rob.version)}">${escapeHtml(d.label)}</button>`).join('')}
+          </div>
+        </div>` : ''}
+      </article>`;
+  }
+
+  async function loadRobs() {
+    const list = byId('partsRobList');
+    if (!list || !client.listCannibalizations) return;
+    list.innerHTML = '<div class="empty-state">Loading cannibalizations…</div>';
+    try {
+      const rows = await client.listCannibalizations({ session: await session() });
+      const open = rows.filter((rob) => rob.status === 'proposed' || rob.status === 'approved').length;
+      const badge = byId('robCount');
+      if (badge) {
+        badge.hidden = !open;
+        badge.textContent = open || '';
+      }
+      list.innerHTML = rows.length
+        ? rows.map(robRow).join('')
+        : '<div class="empty-state">No cannibalizations recorded.</div>';
+      list.querySelectorAll('[data-rob-decision]').forEach((button) => {
+        button.addEventListener('click', () => decideRob(
+          button.dataset.robTarget, Number(button.dataset.robVersion), button.dataset.robDecision));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function proposeRob() {
+    const button = byId('btnProposeRob');
+    button.disabled = true;
+    robStatusMessage('Recording the proposal…');
+    try {
+      await client.proposeCannibalization({
+        values: {
+          partNumber: byId('newRobPart').value.trim() || null,
+          serialNumber: byId('newRobSerial').value.trim() || null,
+          donorAircraftId: byId('newRobDonor').value.trim() || null,
+          receiverAircraftId: byId('newRobReceiver').value.trim() || null,
+          isLifeLimited: byId('newRobLifeLimited').value === 'true',
+          rtsImpactRationale: byId('newRobRationale').value.trim() || null
+        },
+        session: await session()
+      });
+      ['newRobPart', 'newRobSerial', 'newRobDonor', 'newRobReceiver', 'newRobRationale']
+        .forEach((id) => { byId(id).value = ''; });
+      robStatusMessage('');
+      await loadRobs();
+    } catch (error) {
+      robStatusMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function decideRob(robId, version, status) {
+    robStatusMessage('Recording the decision…');
+    try {
+      const list = byId('partsRobList');
+      const hours = list.querySelector(`[data-rob-hours="${robId}"]`)?.value;
+      const cycles = list.querySelector(`[data-rob-cycles="${robId}"]`)?.value;
+      await client.decideCannibalization({
+        cannId: robId,
+        version,
+        status,
+        values: {
+          transferredHours: hours ? Number(hours) : null,
+          transferredCycles: cycles ? Number(cycles) : null
+        },
+        session: await session()
+      });
+      robStatusMessage('');
+      await loadRobs();
+    } catch (error) {
+      robStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
     state.status = byId('partsStatusFilter')?.value || '';
@@ -194,11 +821,16 @@ const MXPartsWorkspace = (() => {
     return { ...current, accessToken };
   }
 
+  // Codes where the server's own wording is less useful than a plain
+  // explanation. Everything else is passed through, because an allowlist of
+  // denial codes silently mistranslates every new one that is added.
+  const OPAQUE_DENIALS = new Set(['TENANT_ACCESS_DENIED', 'FORBIDDEN']);
+
   function errorMessage(error) {
-    if (error?.code === 'PARTS_INSPECTION_DENIED' || error?.code === 'PARTS_WRITE_DENIED') {
-      return error.message;
+    if (error?.status === 403) {
+      if (error.message && !OPAQUE_DENIALS.has(error.code)) return error.message;
+      return 'Your account does not have access to this organization.';
     }
-    if (error?.status === 403) return 'Your account does not have access to this organization.';
     if (error?.status === 409) return error?.message || 'This record changed. Refresh it before trying again.';
     if (error?.status >= 500) return 'The parts service is temporarily unavailable.';
     return error?.message || 'The operation could not be completed.';
@@ -218,7 +850,10 @@ const MXPartsWorkspace = (() => {
             <div class="parts-toolbar">
               <div class="parts-view-switch" role="tablist" aria-label="Parts view">
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
+                <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
+                <button class="parts-view-tab" data-view="rotables" role="tab" aria-selected="false">Rotables</button>
+                <button class="parts-view-tab" data-view="cannibalizations" role="tab" aria-selected="false">Robs<span id="robCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
@@ -246,6 +881,85 @@ const MXPartsWorkspace = (() => {
             <div id="partsShortageView" hidden>
               <label class="shortage-toggle"><input type="checkbox" id="shortageIncludeCovered"> Show requirements stock already covers</label>
               <div id="partsShortageList"></div>
+            </div>
+            <div id="partsRequestsView" hidden>
+              <div class="request-filters">
+                <select id="requestStatusFilter" aria-label="Filter requests by status">
+                  <option value="">Any status</option>
+                  <option value="requested">Requested</option>
+                  <option value="sourced">Sourced</option>
+                  <option value="ordered">Ordered</option>
+                  <option value="received">Received</option>
+                  <option value="installed">Installed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <select id="requestPriorityFilter" aria-label="Filter requests by priority">
+                  <option value="">Any priority</option>
+                  <option value="aog">AOG</option>
+                  <option value="scheduled_mx">Scheduled MX</option>
+                  <option value="stock">Stock</option>
+                </select>
+                <label class="shortage-toggle"><input type="checkbox" id="requestOverdueOnly"> Overdue only</label>
+                <label class="shortage-toggle"><input type="checkbox" id="requestMissingNeedBy"> No need-by date</label>
+              </div>
+              <div id="requestStatus" class="parts-inline-status" aria-live="polite"></div>
+              <div id="partsRequestList"></div>
+            </div>
+            <div id="partsRotablesView" hidden>
+              <div class="request-filters">
+                <select id="rotableStatusFilter" aria-label="Filter rotables by status">
+                  <option value="">Any status</option>
+                  <option value="in_stock">In stock</option>
+                  <option value="installed">Installed</option>
+                  <option value="in_repair">In repair</option>
+                  <option value="in_transit">In transit</option>
+                  <option value="on_loan">On loan</option>
+                  <option value="scrapped">Scrapped</option>
+                </select>
+                <input id="rotableAircraftFilter" placeholder="Aircraft" aria-label="Filter rotables by aircraft">
+                <label class="shortage-toggle"><input type="checkbox" id="rotableIncludeRetired"> Show retired</label>
+              </div>
+              <div id="rotableStatus" class="parts-inline-status" aria-live="polite"></div>
+              <section class="unit-action-block location-create">
+                <h3>Register a rotable</h3>
+                <p class="unit-action-hint">A serialized unit tracked across tails, repairs, and loans. The part number and serial together identify it.</p>
+                <div class="parts-form-grid">
+                  <label>Part number<input id="newRotablePart" placeholder="MXG-DEMO-32-1101"></label>
+                  <label>Serial number<input id="newRotableSerial" placeholder="SN-0001"></label>
+                  <label>Nomenclature<input id="newRotableNomen" placeholder="Optional"></label>
+                  <label>Status
+                    <select id="newRotableStatus">
+                      <option value="in_stock">In stock</option>
+                      <option value="installed">Installed</option>
+                      <option value="in_repair">In repair</option>
+                      <option value="in_transit">In transit</option>
+                      <option value="on_loan">On loan</option>
+                    </select>
+                  </label>
+                  <label>Aircraft<input id="newRotableAircraft" placeholder="Required when installed"></label>
+                </div>
+                <button class="btn-primary" id="btnCreateRotable">Register</button>
+              </section>
+              <div id="partsRotableList"></div>
+            </div>
+            <div id="partsRobsView" hidden>
+              <p class="unit-action-hint rob-preamble">Robbing a serviceable part off one aircraft to return another to service is an airworthiness claim. A rob is proposed by one person and decided by another, and it can only be completed once both the donor removal and the receiver install are on record.</p>
+              <div id="robStatusMessage" class="parts-inline-status" aria-live="polite"></div>
+              <section class="unit-action-block location-create">
+                <h3>Propose a rob</h3>
+                <div class="parts-form-grid">
+                  <label>Part number<input id="newRobPart" placeholder="MXG-DEMO-32-1101"></label>
+                  <label>Serial number<input id="newRobSerial" placeholder="Identifies the part taken"></label>
+                  <label>Donor aircraft<input id="newRobDonor" placeholder="Taken from"></label>
+                  <label>Receiver aircraft<input id="newRobReceiver" placeholder="Fitted to"></label>
+                  <label>Life limited?
+                    <select id="newRobLifeLimited"><option value="false">No</option><option value="true">Yes</option></select>
+                  </label>
+                  <label>Why this rob<input id="newRobRationale" placeholder="Return-to-service impact"></label>
+                </div>
+                <button class="btn-primary" id="btnProposeRob">Propose</button>
+              </section>
+              <div id="partsRobList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -330,7 +1044,7 @@ const MXPartsWorkspace = (() => {
                   <select id="wizardCondition"><option>NE</option><option>NS</option><option>OH</option><option selected>SV</option><option>RP</option><option>AR</option><option>US</option><option>SC</option></select>
                 </label>
                 <label>Trace
-                  <select id="wizardTrace"><option value="none">None</option><option value="form_8130">FAA 8130-3</option><option value="easa_form1">EASA Form 1</option><option value="dual_release">Dual release</option><option value="coc">CoC</option><option value="teardown">Teardown</option></select>
+                  <select id="wizardTrace"></select>
                 </label>
                 <label>Certificate number<input id="wizardCertificateNumber"></label>
               </div>
@@ -345,10 +1059,13 @@ const MXPartsWorkspace = (() => {
           </div>
         </div>
       </div>`;
+    const traceSelect = byId('wizardTrace');
+    if (traceSelect) traceSelect.innerHTML = optionList(TRACE_TYPES, 'none');
     bindEvents();
     performSearch();
     loadLocations();
     loadShortages();
+    loadRequests();
     handleRouting();
   }
 
@@ -377,8 +1094,17 @@ const MXPartsWorkspace = (() => {
       tab.addEventListener('click', () => switchView(tab.dataset.view));
     });
     byId('shortageIncludeCovered')?.addEventListener('change', loadShortages);
+    ['requestStatusFilter', 'requestPriorityFilter', 'requestOverdueOnly', 'requestMissingNeedBy']
+      .forEach((id) => byId(id)?.addEventListener('change', loadRequests));
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
+    byId('btnCreateRotable')?.addEventListener('click', createRotable);
+    byId('btnProposeRob')?.addEventListener('click', proposeRob);
+    ['rotableStatusFilter', 'rotableIncludeRetired']
+      .forEach((id) => byId(id)?.addEventListener('change', loadRotables));
+    byId('rotableAircraftFilter')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') loadRotables();
+    });
     byId('btnReceivePart')?.addEventListener('click', openWizard);
     byId('btnCancelWizard')?.addEventListener('click', closeWizard);
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);
@@ -570,14 +1296,22 @@ const MXPartsWorkspace = (() => {
   }
 
   const CONDITION_CODES = ['NE', 'NS', 'OH', 'SV', 'RP', 'AR', 'US', 'SC'];
+  // Assignable paperwork. The bare legacy 'coc' is readable on historical
+  // records but never offered, because a new record should be able to say
+  // whose certificate of conformance it is.
   const TRACE_TYPES = [
     ['none', 'None'],
     ['form_8130', 'FAA 8130-3'],
     ['easa_form1', 'EASA Form 1'],
     ['dual_release', 'Dual release'],
-    ['coc', 'CoC'],
-    ['teardown', 'Teardown']
+    ['tso', 'TSO authorization'],
+    ['coc_mfr', 'CoC — manufacturer'],
+    ['coc_vendor', 'CoC — vendor'],
+    ['ata106', 'ATA 106 used-parts trace'],
+    ['teardown', 'Teardown report']
   ];
+
+  const TRACE_LABELS = Object.fromEntries(TRACE_TYPES.concat([['coc', 'CoC (source not recorded)']]));
 
   function optionList(values, selected) {
     return values
@@ -932,9 +1666,22 @@ const MXPartsWorkspace = (() => {
       const extraction = await client.requestExtraction({ assetId: state.asset.id, session: currentSession });
       state.extractionRun = extraction.run;
       state.candidates = extraction.candidates || [];
+
+      // Hands-free path: the server marks which fields a human must actually
+      // look at. When none of them do, accept the confident ones and go
+      // straight to the details, so a mechanic in a headset never has to
+      // proofread a form they cannot comfortably read.
+      const needsReview = state.candidates.filter((candidate) => candidate.requiresReview);
+      if (state.candidates.length && !needsReview.length) {
+        await acceptConfidentCandidates();
+        return;
+      }
+
       renderCandidates();
       setWizardStep(2);
-      wizardMessage(state.candidates.length ? 'Review every suggestion.' : 'No fields were recognized. Enter details manually.');
+      wizardMessage(state.candidates.length
+        ? `${needsReview.length} field(s) need a look; the rest were read confidently.`
+        : 'No fields were recognized. Enter details manually.');
     } catch (error) {
       wizardMessage(errorMessage(error), 'error');
     } finally {
@@ -958,13 +1705,46 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  /// Accepts every extracted field as proposed and moves to the details, used
+  /// when the server flagged nothing for review.
+  async function acceptConfidentCandidates() {
+    try {
+      const reviewed = await client.reviewExtraction({
+        runId: state.extractionRun.id,
+        decisions: state.candidates.map((candidate) => ({
+          candidateId: candidate.id,
+          reviewState: 'accepted',
+          finalValue: null
+        })),
+        session: await session()
+      });
+      applyReviewedFields(reviewed.candidates || []);
+      setWizardStep(3);
+      wizardMessage(`Read ${state.candidates.length} field(s) confidently. Check the details and confirm.`);
+    } catch (error) {
+      // Fall back to the reviewed path rather than losing the extraction.
+      renderCandidates();
+      setWizardStep(2);
+      wizardMessage(errorMessage(error), 'error');
+    }
+  }
+
   function renderCandidates() {
     const area = byId('wizardExtractedData');
     if (!state.candidates.length) {
       area.innerHTML = '<div class="empty-state">No OCR suggestions were returned.</div>';
       return;
     }
-    area.innerHTML = state.candidates.map((candidate) => `
+    const confident = state.candidates.filter((candidate) => !candidate.requiresReview);
+    const review = state.candidates.filter((candidate) => candidate.requiresReview);
+    area.innerHTML = `
+      ${confident.length ? `<div class="ocr-accepted"><h4>Read confidently — accepted</h4>${confident.map((candidate) => `
+        <div class="ocr-accepted-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
+          <span>${escapeHtml(candidate.fieldName)}</span>
+          <strong>${escapeHtml(candidate.proposedValue || '')}</strong>
+          <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
+        </div>`).join('')}</div>` : ''}
+      ${review.map((candidate) => `
       <div class="ocr-field-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
         <label>${escapeHtml(candidate.fieldName)}
           <input data-candidate-value value="${escapeHtml(candidate.proposedValue || '')}">
@@ -977,14 +1757,20 @@ const MXPartsWorkspace = (() => {
           </select>
         </label>
         <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
-      </div>`).join('');
+      </div>`).join('')}`;
   }
 
   async function approveExtraction() {
     if (state.candidates.length) {
       const rows = [...document.querySelectorAll('[data-candidate-id]')];
       const decisions = rows.map((row) => {
-        const reviewState = row.querySelector('[data-candidate-decision]').value;
+        const decision = row.querySelector('[data-candidate-decision]');
+        // A row with no decision control was read confidently and is accepted
+        // as proposed; only flagged fields carry a choice.
+        if (!decision) {
+          return { candidateId: row.dataset.candidateId, reviewState: 'accepted', finalValue: null };
+        }
+        const reviewState = decision.value;
         const value = row.querySelector('[data-candidate-value]').value.trim();
         return {
           candidateId: row.dataset.candidateId,

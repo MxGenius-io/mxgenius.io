@@ -649,3 +649,188 @@
 }
 
 .location-name { margin: 0 0 6px; color: var(--text-muted); font-size: 0.84rem; }
+
+.request-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.request-filters select {
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.request-filters .shortage-toggle { margin-bottom: 0; }
+
+.request-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: var(--bg-card);
+}
+
+.request-row.is-overdue { border-left-color: #b3382c; }
+
+.request-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.request-part { font-weight: 600; letter-spacing: 0.02em; }
+
+.request-state {
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.request-flag {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.request-flag.is-overdue { background: rgba(179, 56, 44, 0.16); color: #e06a5c; }
+.request-flag.is-unmeasured { background: rgba(208, 139, 44, 0.14); color: #d08b2c; }
+
+.request-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.order-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 13px;
+  margin-bottom: 8px;
+  background: var(--bg-panel);
+}
+
+.trace-heading {
+  margin: 16px 0 8px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.trace-heading:first-child { margin-top: 0; }
+
+.event-row { border-left: 3px solid var(--border); }
+.event-row.is-install { border-left-color: #3fa37a; }
+.event-row.is-removal { border-left-color: #d08b2c; }
+
+.ocr-accepted {
+  border: 1px solid var(--border);
+  border-left: 3px solid #3fa37a;
+  border-radius: var(--radius-sm, 8px);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+}
+
+.ocr-accepted h4 {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ocr-accepted-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 0.86rem;
+}
+
+.ocr-accepted-row span { color: var(--text-muted); }
+.ocr-accepted-row strong { overflow-wrap: anywhere; }
+
+.rotable-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 13px 16px;
+  margin-bottom: 9px;
+  background: var(--bg-card);
+}
+
+.rotable-row.status-installed { border-left-color: #3fa37a; }
+.rotable-row.status-in_repair,
+.rotable-row.status-in_transit { border-left-color: #d08b2c; }
+.rotable-row.status-scrapped { border-left-color: #d05a4c; }
+.rotable-row.is-retired { opacity: 0.6; }
+
+.rotable-row .unit-action-row { margin-top: 8px; align-items: flex-end; }
+.rotable-row .unit-action-row label { min-width: 9rem; }
+
+.retire-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.retire-panel label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.rob-preamble {
+  border-left: 3px solid #d08b2c;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm, 8px);
+}
+
+.rob-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 13px 16px;
+  margin-bottom: 9px;
+  background: var(--bg-card);
+}
+
+.rob-row.status-proposed { border-left-color: #d08b2c; }
+.rob-row.status-approved { border-left-color: #60a5fa; }
+.rob-row.status-completed { border-left-color: #3fa37a; }
+.rob-row.status-rejected,
+.rob-row.status-cancelled { border-left-color: #d05a4c; opacity: 0.72; }
+
+.rob-life {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(208, 139, 44, 0.16);
+  color: #d08b2c;
+}
+
+.rob-decide { margin-top: 10px; display: grid; gap: 8px; }

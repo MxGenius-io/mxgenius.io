@@ -150,6 +150,9 @@ pub struct ExtractionProposal {
     pub source_region: Option<Value>,
 }
 
+/// One proposed field from an extraction run. `requires_review` is stamped by
+/// the server so the headset and the desktop agree on which fields a human
+/// must actually look at.
 #[derive(Debug, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractionCandidateDto {
@@ -163,6 +166,10 @@ pub struct ExtractionCandidateDto {
     pub final_value: Option<String>,
     pub confirmed_by: Option<Uuid>,
     pub confirmed_at: Option<OffsetDateTime>,
+    /// Stamped, not stored: whether a human has to look at this field before
+    /// it can be accepted.
+    #[sqlx(skip)]
+    pub requires_review: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -438,6 +445,12 @@ pub enum PartsInventoryError {
     Conflict(String),
     #[error("invalid request: {0}")]
     Invalid(String),
+    /// The caller is authenticated and the request is well formed, but this
+    /// person specifically may not do it. Separation of duties is the case
+    /// that needs this: it is a 403, not a 400, because retrying with better
+    /// input will not help.
+    #[error("not permitted: {0}")]
+    Forbidden(String),
     #[error("persistence failed")]
     Persistence(#[from] sqlx::Error),
 }
@@ -806,7 +819,10 @@ impl<'a> PartsInventoryRepository<'a> {
         .bind(context.organization_id.0)
         .bind(run_id)
         .fetch_all(self.pool)
-        .await?)
+        .await?
+        .into_iter()
+        .map(stamp_review_requirement)
+        .collect())
     }
 
     pub async fn review_extraction(
@@ -1958,6 +1974,17 @@ type CorrectableUnitRow = (
     String,
     Option<String>,
 );
+
+/// Decides, per field, whether a human has to look at it. Uses the published
+/// threshold so the headset's "nothing to review" claim and the server's
+/// acceptance cannot disagree.
+fn stamp_review_requirement(mut candidate: ExtractionCandidateDto) -> ExtractionCandidateDto {
+    candidate.requires_review = mxgenius_shared::domain::part_trace::ocr_requires_review(
+        &candidate.field_name,
+        candidate.confidence,
+    );
+    candidate
+}
 
 fn normalized_location_code(code: Option<&str>) -> Result<String, PartsInventoryError> {
     let code = code.map(str::trim).unwrap_or_default().to_uppercase();

@@ -935,6 +935,122 @@ const MXApplicationClient = (() => {
     getLabel: async ({ unitId, session = {} }) => {
       return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
     },
+    listRequests: async ({ status, priority, overdueOnly = false, missingNeedByOnly = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (priority) params.set('priority', priority);
+      if (overdueOnly) params.set('overdueOnly', 'true');
+      if (missingNeedByOnly) params.set('missingNeedByOnly', 'true');
+      return applicationJson(`/api/parts/requests?${params}`, { session });
+    },
+    listOrders: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/orders`, { session });
+      return payload.orders || [];
+    },
+    createOrder: async ({ requirementId, values, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/orders`, {
+          session,
+          method: 'POST',
+          body: values
+        });
+      return payload.order;
+    },
+    setOrderStatus: async ({ orderId, version, status, notes = null, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/orders/${encodeURIComponent(orderId)}/status`, {
+          session,
+          method: 'POST',
+          body: { status, notes },
+          headers: { 'If-Match': `"${version}"` }
+        });
+      return payload.order;
+    },
+    listRequestHistory: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/history`, { session });
+      return payload.changes || [];
+    },
+    listShipments: async ({ requirementId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/shipments`, { session });
+      return payload.shipments || [];
+    },
+    createShipment: async ({ requirementId, values, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/requests/${encodeURIComponent(requirementId)}/shipments`, {
+          session, method: 'POST', body: values });
+      return payload.shipment;
+    },
+    setShipmentStatus: async ({ shipmentId, version, status, receivedBy = null, notes = null, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/shipments/${encodeURIComponent(shipmentId)}/status`, {
+          session,
+          method: 'POST',
+          body: { status, receivedBy, notes },
+          headers: { 'If-Match': `"${version}"` }
+        });
+      return payload.shipment;
+    },
+    listPartEvents: async ({ aircraftId, partNumber, partSerial, stockUnitId, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      if (partNumber) params.set('partNumber', partNumber);
+      if (partSerial) params.set('partSerial', partSerial);
+      if (stockUnitId) params.set('stockUnitId', stockUnitId);
+      const payload = await applicationJson(`/api/parts/events?${params}`, { session });
+      return payload.events || [];
+    },
+    createPartEvent: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/events', {
+        session, method: 'POST', body: values });
+      return payload.event;
+    },
+    listRotables: async ({ status, aircraftId, partNumber, includeRetired = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      if (partNumber) params.set('partNumber', partNumber);
+      if (includeRetired) params.set('includeRetired', 'true');
+      const payload = await applicationJson(`/api/parts/rotables?${params}`, { session });
+      return payload.rotables || [];
+    },
+    createRotable: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/rotables', {
+        session, method: 'POST', body: values });
+      return payload.rotable;
+    },
+    updateRotable: async ({ rotableId, version, values, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/rotables/${encodeURIComponent(rotableId)}`, {
+        session, method: 'PATCH', body: values,
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.rotable;
+    },
+    retireRotable: async ({ rotableId, version, reason, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/rotables/${encodeURIComponent(rotableId)}/retire`, {
+        session, method: 'POST', body: { reason },
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.rotable;
+    },
+    listCannibalizations: async ({ status, aircraftId, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      const payload = await applicationJson(`/api/parts/cannibalizations?${params}`, { session });
+      return payload.cannibalizations || [];
+    },
+    proposeCannibalization: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/cannibalizations', {
+        session, method: 'POST', body: values });
+      return payload.cannibalization;
+    },
+    decideCannibalization: async ({ cannId, version, status, values = {}, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/cannibalizations/${encodeURIComponent(cannId)}/decision`, {
+        session, method: 'POST', body: { status, ...values },
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.cannibalization;
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');

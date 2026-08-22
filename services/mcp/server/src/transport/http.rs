@@ -22,11 +22,25 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+use crate::application::cannibalizations::{
+    CannibalizationQuery, CannibalizationRepository, DecideCannibalizationInput,
+    ProposeCannibalizationInput,
+};
+use crate::application::part_procurement::{
+    CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
+};
+use crate::application::part_traceability::{
+    CreateEventInput, CreateShipmentInput, EventQuery, PartTraceabilityRepository,
+    ShipmentStatusInput,
+};
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
     ExtractionProposal, PartShortageDto, PartsInventoryError, PartsInventoryRepository,
     RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction,
     TransitionUnitInput, UpsertLocationInput,
+};
+use crate::application::rotables::{
+    CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
@@ -165,6 +179,55 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route(
+            "/api/parts/cannibalizations",
+            get(list_cannibalizations).post(propose_cannibalization),
+        )
+        .route(
+            "/api/parts/cannibalizations/:cann_id",
+            get(get_cannibalization),
+        )
+        .route(
+            "/api/parts/cannibalizations/:cann_id/decision",
+            post(decide_cannibalization),
+        )
+        .route(
+            "/api/parts/rotables",
+            get(list_rotables).post(create_rotable),
+        )
+        .route(
+            "/api/parts/rotables/:rotable_id",
+            get(get_rotable).patch(update_rotable),
+        )
+        .route(
+            "/api/parts/rotables/:rotable_id/retire",
+            post(retire_rotable),
+        )
+        .route("/api/parts/requests", get(list_part_requests))
+        .route(
+            "/api/parts/requests/:requirement_id/orders",
+            get(list_part_orders).post(create_part_order),
+        )
+        .route(
+            "/api/parts/requests/:requirement_id/history",
+            get(list_part_request_history),
+        )
+        .route(
+            "/api/parts/requests/:requirement_id/shipments",
+            get(list_part_shipments).post(create_part_shipment),
+        )
+        .route(
+            "/api/parts/shipments/:shipment_id/status",
+            post(set_part_shipment_status),
+        )
+        .route(
+            "/api/parts/events",
+            get(list_part_events).post(create_part_event),
+        )
+        .route(
+            "/api/parts/orders/:order_id/status",
+            post(set_part_order_status),
+        )
         .route(
             "/api/parts/receiving-drafts",
             post(create_parts_receiving_draft),
@@ -2267,6 +2330,9 @@ fn parts_error(error: PartsInventoryError, operation: &'static str) -> Response 
         PartsInventoryError::Invalid(message) => {
             realtime_error(StatusCode::BAD_REQUEST, "INVALID_PARTS_REQUEST", &message)
         }
+        PartsInventoryError::Forbidden(message) => {
+            realtime_error(StatusCode::FORBIDDEN, "PARTS_ACTION_DENIED", &message)
+        }
         PartsInventoryError::Persistence(error) => persistence_error(operation, error),
     }
 }
@@ -3012,6 +3078,521 @@ async fn confirm_parts_receiving(
     {
         Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.receiving.confirm"),
+    }
+}
+
+async fn list_part_requests(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<RequestQueueQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_requests(&context, &query)
+        .await
+    {
+        Ok(requests) => {
+            let overdue = requests.iter().filter(|row| row.is_overdue).count();
+            let missing_need_by = requests.iter().filter(|row| row.missing_need_by).count();
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "requests": requests,
+                    "overdue": overdue,
+                    "missingNeedBy": missing_need_by
+                })),
+            )
+                .into_response()
+        }
+        Err(error) => parts_error(error, "parts.requests.list"),
+    }
+}
+
+async fn list_part_orders(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_orders(&context, requirement_id)
+        .await
+    {
+        Ok(orders) => (StatusCode::OK, Json(json!({"orders": orders}))).into_response(),
+        Err(error) => parts_error(error, "parts.orders.list"),
+    }
+}
+
+async fn create_part_order(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+    Json(mut input): Json<CreateOrderInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot place part orders",
+        );
+    }
+    // The path owns the parent; a body that disagrees is a client bug.
+    input.part_requirement_id = requirement_id;
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .create_order(&context, &input)
+        .await
+    {
+        Ok(order) => (StatusCode::CREATED, Json(json!({"order": order}))).into_response(),
+        Err(error) => parts_error(error, "parts.order.create"),
+    }
+}
+
+async fn set_part_order_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(order_id): Path<Uuid>,
+    Json(input): Json<OrderStatusInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot change order status",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .set_order_status(&context, order_id, version, &input)
+        .await
+    {
+        Ok(order) => (StatusCode::OK, Json(json!({"order": order}))).into_response(),
+        Err(error) => parts_error(error, "parts.order.status"),
+    }
+}
+
+async fn list_part_request_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_request_changes(&context, requirement_id)
+        .await
+    {
+        Ok(changes) => (StatusCode::OK, Json(json!({"changes": changes}))).into_response(),
+        Err(error) => parts_error(error, "parts.request.history"),
+    }
+}
+
+async fn list_part_shipments(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .list_shipments(&context, requirement_id)
+        .await
+    {
+        Ok(shipments) => (StatusCode::OK, Json(json!({"shipments": shipments}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipments.list"),
+    }
+}
+
+async fn create_part_shipment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+    Json(mut input): Json<CreateShipmentInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot record shipments",
+        );
+    }
+    input.part_requirement_id = requirement_id;
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .create_shipment(&context, &input)
+        .await
+    {
+        Ok(shipment) => (StatusCode::CREATED, Json(json!({"shipment": shipment}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipment.create"),
+    }
+}
+
+async fn set_part_shipment_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(shipment_id): Path<Uuid>,
+    Json(input): Json<ShipmentStatusInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot update shipments",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .set_shipment_status(&context, shipment_id, version, &input)
+        .await
+    {
+        Ok(shipment) => (StatusCode::OK, Json(json!({"shipment": shipment}))).into_response(),
+        Err(error) => parts_error(error, "parts.shipment.status"),
+    }
+}
+
+async fn list_part_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<EventQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .list_events(&context, &query)
+        .await
+    {
+        Ok(events) => (StatusCode::OK, Json(json!({"events": events}))).into_response(),
+        Err(error) => parts_error(error, "parts.events.list"),
+    }
+}
+
+async fn create_part_event(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateEventInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot record install or removal events",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartTraceabilityRepository::new(pool)
+        .create_event(&context, &input)
+        .await
+    {
+        Ok(event) => (StatusCode::CREATED, Json(json!({"event": event}))).into_response(),
+        Err(error) => parts_error(error, "parts.event.create"),
+    }
+}
+
+async fn list_rotables(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<RotableQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).list(&context, &query).await {
+        Ok(units) => (StatusCode::OK, Json(json!({"rotables": units}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotables.list"),
+    }
+}
+
+async fn get_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).get(&context, rotable_id).await {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.get"),
+    }
+}
+
+async fn create_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateRotableInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot register rotables",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).create(&context, &input).await {
+        Ok(unit) => (StatusCode::CREATED, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.create"),
+    }
+}
+
+async fn update_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+    Json(input): Json<UpdateRotableInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot edit rotables",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool)
+        .update(&context, rotable_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.update"),
+    }
+}
+
+async fn retire_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+    Json(input): Json<RetireRotableInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Retirement is a disposition, so it is held to the same qualified roles
+    // that release stock from quarantine rather than to general write access.
+    if !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_RETIREMENT_DENIED",
+            "only a quality, manager, or administrator role can retire a rotable",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool)
+        .retire(&context, rotable_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.retire"),
+    }
+}
+
+async fn list_cannibalizations(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<CannibalizationQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .list(&context, &query)
+        .await
+    {
+        Ok(rows) => (StatusCode::OK, Json(json!({"cannibalizations": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalizations.list"),
+    }
+}
+
+async fn get_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cann_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .get(&context, cann_id)
+        .await
+    {
+        Ok(row) => (StatusCode::OK, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.get"),
+    }
+}
+
+async fn propose_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<ProposeCannibalizationInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Proposing is open to anyone who can move parts: the mechanic who needs
+    // the part is usually the one who spots the donor.
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot propose a cannibalization",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .propose(&context, &input)
+        .await
+    {
+        Ok(row) => (StatusCode::CREATED, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.propose"),
+    }
+}
+
+async fn decide_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cann_id): Path<Uuid>,
+    Json(input): Json<DecideCannibalizationInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Cancelling your own proposal is withdrawal, not approval, so it stays
+    // open to the same roles that may propose. Every other decision is an
+    // airworthiness judgement and is held to the qualified roles.
+    let withdrawing = input.status == "cancelled";
+    let permitted = if withdrawing {
+        parts_write_allowed(&context)
+    } else {
+        parts_inspection_release_allowed(&context)
+    };
+    if !permitted {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_CANNIBALIZATION_DENIED",
+            "only a quality, manager, or administrator role can approve, reject, or complete a cannibalization",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .decide(&context, cann_id, version, &input)
+        .await
+    {
+        Ok(row) => (StatusCode::OK, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.decide"),
     }
 }
 
