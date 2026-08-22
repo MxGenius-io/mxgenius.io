@@ -14,6 +14,8 @@ pub mod evidence;
 pub mod ids;
 pub mod organization;
 pub mod part;
+pub mod part_request;
+pub mod part_request_test;
 pub mod scheduling;
 pub mod stock_unit_transition_test;
 
@@ -25,4 +27,7 @@ pub use evidence::{Confidence, ConfidenceBasis, Evidence, EvidenceKind, SourceTy
 pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
 pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
+pub use part_request::{
+    PartOrderKind, PartOrderStatus, PartRequestPriority, PartRequestStatus, TypeOfBuy,
+};
 pub use scheduling::{ScheduleOption, WeatherContext};

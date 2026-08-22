@@ -22,6 +22,9 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+use crate::application::part_procurement::{
+    CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
+};
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
     ExtractionProposal, PartShortageDto, PartsInventoryError, PartsInventoryRepository,
@@ -165,6 +168,19 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route("/api/parts/requests", get(list_part_requests))
+        .route(
+            "/api/parts/requests/:requirement_id/orders",
+            get(list_part_orders).post(create_part_order),
+        )
+        .route(
+            "/api/parts/requests/:requirement_id/history",
+            get(list_part_request_history),
+        )
+        .route(
+            "/api/parts/orders/:order_id/status",
+            post(set_part_order_status),
+        )
         .route(
             "/api/parts/receiving-drafts",
             post(create_parts_receiving_draft),
@@ -3012,6 +3028,145 @@ async fn confirm_parts_receiving(
     {
         Ok(unit) => (StatusCode::CREATED, Json(json!({"unit": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.receiving.confirm"),
+    }
+}
+
+async fn list_part_requests(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<RequestQueueQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_requests(&context, &query)
+        .await
+    {
+        Ok(requests) => {
+            let overdue = requests.iter().filter(|row| row.is_overdue).count();
+            let missing_need_by = requests.iter().filter(|row| row.missing_need_by).count();
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "requests": requests,
+                    "overdue": overdue,
+                    "missingNeedBy": missing_need_by
+                })),
+            )
+                .into_response()
+        }
+        Err(error) => parts_error(error, "parts.requests.list"),
+    }
+}
+
+async fn list_part_orders(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_orders(&context, requirement_id)
+        .await
+    {
+        Ok(orders) => (StatusCode::OK, Json(json!({"orders": orders}))).into_response(),
+        Err(error) => parts_error(error, "parts.orders.list"),
+    }
+}
+
+async fn create_part_order(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+    Json(mut input): Json<CreateOrderInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot place part orders",
+        );
+    }
+    // The path owns the parent; a body that disagrees is a client bug.
+    input.part_requirement_id = requirement_id;
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .create_order(&context, &input)
+        .await
+    {
+        Ok(order) => (StatusCode::CREATED, Json(json!({"order": order}))).into_response(),
+        Err(error) => parts_error(error, "parts.order.create"),
+    }
+}
+
+async fn set_part_order_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(order_id): Path<Uuid>,
+    Json(input): Json<OrderStatusInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot change order status",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .set_order_status(&context, order_id, version, &input)
+        .await
+    {
+        Ok(order) => (StatusCode::OK, Json(json!({"order": order}))).into_response(),
+        Err(error) => parts_error(error, "parts.order.status"),
+    }
+}
+
+async fn list_part_request_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(requirement_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartProcurementRepository::new(pool)
+        .list_request_changes(&context, requirement_id)
+        .await
+    {
+        Ok(changes) => (StatusCode::OK, Json(json!({"changes": changes}))).into_response(),
+        Err(error) => parts_error(error, "parts.request.history"),
     }
 }
 
