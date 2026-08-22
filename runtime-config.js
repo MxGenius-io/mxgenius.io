@@ -15,3 +15,17 @@ globalThis.MXGENIUS_CONFIG = Object.freeze({
   entraApiScope: 'api://0874d536-cb48-4b1c-afb7-1349584a0366/access_as_user',
   entraRedirectUri: 'https://mxgenius.io/dashboard.html'
 });
+
+// Served from a developer's own machine, talk to a local backend rather than
+// the deployed one. Production is never on localhost, so this is inert there.
+// The local server runs with --insecure-local, which accepts an unauthenticated
+// caller; that is why the pilot allowance is enabled only under the same
+// condition and never in a deployed build.
+if (['localhost', '127.0.0.1', '[::1]'].includes(globalThis.location?.hostname)) {
+  globalThis.MXGENIUS_CONFIG = Object.freeze({
+    ...globalThis.MXGENIUS_CONFIG,
+    mcpBase: globalThis.MXGENIUS_LOCAL_MCP_BASE || 'http://127.0.0.1:3030',
+    allowInsecurePilot: true,
+    entraRedirectUri: `${globalThis.location.origin}/dashboard.html`
+  });
+}

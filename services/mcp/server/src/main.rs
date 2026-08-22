@@ -41,8 +41,26 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("production OIDC mode requires HTTP request metadata; stdio is local-only");
     }
 
+    // Local development can use a database too. The parts module is entirely
+    // Postgres-backed, so without one every parts route answers
+    // "not configured" and none of it can be exercised locally. Production and
+    // pilot are unchanged below and still require DATABASE_URL.
     let production_pool = if insecure_local && !pilot {
-        None
+        match std::env::var("DATABASE_URL") {
+            Ok(url) if !url.trim().is_empty() => {
+                tracing::warn!(
+                    target: "mxgenius.mcp",
+                    "insecure-local mode with a database; migrations will be applied"
+                );
+                let pool = sqlx::postgres::PgPoolOptions::new()
+                    .max_connections(5)
+                    .connect(&url)
+                    .await?;
+                sqlx::migrate!("../migrations").run(&pool).await?;
+                Some(pool)
+            }
+            _ => None,
+        }
     } else {
         let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(10)
