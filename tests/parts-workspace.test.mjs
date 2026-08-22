@@ -336,3 +336,41 @@ test('Hands-free inventory search from the headset', async (t) => {
     assert.match(app, /call mxg__parts__lookup_stock/);
   });
 });
+
+test('Rotable register', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+  const client = readFileSync('application-client.js', 'utf8');
+  const repo = readFileSync('services/mcp/server/src/application/rotables.rs', 'utf8');
+  const domain = readFileSync('services/mcp/shared/src/domain/rotable.rs', 'utf8');
+
+  await t.test('the register is reachable from the workspace', () => {
+    for (const method of ['listRotables', 'createRotable', 'updateRotable', 'retireRotable']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /id="partsRotablesView"/);
+    assert.match(js, /client\.listRotables\(/);
+  });
+
+  await t.test('retirement runs serializable so an obligation cannot slip in', () => {
+    // Under a weaker level an obligation created between the check and the
+    // write commits fine and ends up pointing at a retired unit.
+    assert.match(repo, /SET TRANSACTION ISOLATION LEVEL SERIALIZABLE/);
+    assert.match(repo, /OPEN_CORE_STATUSES/);
+    assert.match(repo, /OPEN_WARRANTY_STATUSES/);
+    assert.match(repo, /OPEN_CANNIBALIZATION_STATUSES/);
+  });
+
+  await t.test('retirement demands a reason and keeps the history', () => {
+    assert.match(repo, /retiring a unit is a disposition; record why/);
+    assert.match(domain, /pub fn retirement_note/);
+    // The stamp is prepended; existing notes survive beneath it.
+    assert.match(domain, /\{stamp\}\\n\\n\{previous\}/);
+  });
+
+  await t.test('coherence is judged only when the caller touched the pairing', () => {
+    assert.match(repo, /edit_touches_pairing/);
+    assert.match(domain, /pub fn status_aircraft_contradiction/);
+    // in_repair, in_transit and on_loan stay unconstrained on purpose.
+    assert.match(domain, /deliberately unconstrained/);
+  });
+});

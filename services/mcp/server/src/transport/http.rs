@@ -35,6 +35,9 @@ use crate::application::parts_inventory::{
     RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction,
     TransitionUnitInput, UpsertLocationInput,
 };
+use crate::application::rotables::{
+    CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
+};
 use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
@@ -172,6 +175,18 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route(
+            "/api/parts/rotables",
+            get(list_rotables).post(create_rotable),
+        )
+        .route(
+            "/api/parts/rotables/:rotable_id",
+            get(get_rotable).patch(update_rotable),
+        )
+        .route(
+            "/api/parts/rotables/:rotable_id/retire",
+            post(retire_rotable),
+        )
         .route("/api/parts/requests", get(list_part_requests))
         .route(
             "/api/parts/requests/:requirement_id/orders",
@@ -3316,6 +3331,135 @@ async fn create_part_event(
     {
         Ok(event) => (StatusCode::CREATED, Json(json!({"event": event}))).into_response(),
         Err(error) => parts_error(error, "parts.event.create"),
+    }
+}
+
+async fn list_rotables(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<RotableQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).list(&context, &query).await {
+        Ok(units) => (StatusCode::OK, Json(json!({"rotables": units}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotables.list"),
+    }
+}
+
+async fn get_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).get(&context, rotable_id).await {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.get"),
+    }
+}
+
+async fn create_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateRotableInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot register rotables",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool).create(&context, &input).await {
+        Ok(unit) => (StatusCode::CREATED, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.create"),
+    }
+}
+
+async fn update_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+    Json(input): Json<UpdateRotableInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot edit rotables",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool)
+        .update(&context, rotable_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.update"),
+    }
+}
+
+async fn retire_rotable(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(rotable_id): Path<Uuid>,
+    Json(input): Json<RetireRotableInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Retirement is a disposition, so it is held to the same qualified roles
+    // that release stock from quarantine rather than to general write access.
+    if !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_RETIREMENT_DENIED",
+            "only a quality, manager, or administrator role can retire a rotable",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match RotableRepository::new(pool)
+        .retire(&context, rotable_id, version, &input)
+        .await
+    {
+        Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
+        Err(error) => parts_error(error, "parts.rotable.retire"),
     }
 }
 

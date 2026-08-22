@@ -29,15 +29,18 @@ const MXPartsWorkspace = (() => {
     const shortages = byId('partsShortageView');
     const locations = byId('partsLocationsView');
     const requests = byId('partsRequestsView');
+    const rotables = byId('partsRotablesView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
     if (locations) locations.hidden = view !== 'locations';
     if (requests) requests.hidden = view !== 'requests';
+    if (rotables) rotables.hidden = view !== 'rotables';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
     if (view === 'requests') loadRequests();
+    if (view === 'rotables') loadRotables();
   }
 
   function shortageRow(row) {
@@ -499,6 +502,159 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  const ROTABLE_STATUSES = [
+    ['in_stock', 'In stock'],
+    ['installed', 'Installed'],
+    ['in_repair', 'In repair'],
+    ['in_transit', 'In transit'],
+    ['on_loan', 'On loan'],
+    ['scrapped', 'Scrapped']
+  ];
+
+  function rotableStatusMessage(message, kind = '') {
+    const element = byId('rotableStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function rotableRow(unit) {
+    const retired = !!unit.retiredAt;
+    const where = unit.currentAircraftId
+      ? `on ${escapeHtml(unit.currentAircraftId)}`
+      : 'not on an aircraft';
+    return `
+      <article class="rotable-row status-${escapeHtml(unit.currentStatus)}${retired ? ' is-retired' : ''}" data-rotable-id="${escapeHtml(unit.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(unit.partNumber)} / ${escapeHtml(unit.serialNumber)}</span>
+          <span class="request-state">${escapeHtml(unit.currentStatus.replace('_', ' '))}</span>
+        </div>
+        <p class="shortage-meta">${escapeHtml(unit.nomenclature || 'No nomenclature recorded')} · ${where} · repaired ${escapeHtml(unit.timesRepaired)} time(s)</p>
+        <div class="unit-action-row">
+          <label>Status
+            <select data-rotable-status="${escapeHtml(unit.id)}">${optionList(ROTABLE_STATUSES, unit.currentStatus)}</select>
+          </label>
+          <label>Aircraft
+            <input data-rotable-aircraft="${escapeHtml(unit.id)}" value="${escapeHtml(unit.currentAircraftId || '')}" placeholder="none">
+          </label>
+          <button class="btn-quiet" data-save-rotable="${escapeHtml(unit.id)}" data-version="${escapeHtml(unit.version)}">Save</button>
+          ${retired ? '' : `<button class="btn-quiet" data-open-retire="${escapeHtml(unit.id)}">Retire</button>`}
+        </div>
+        <div class="retire-panel" data-retire-panel="${escapeHtml(unit.id)}" hidden>
+          <label>Why is this unit being retired?
+            <input data-retire-reason="${escapeHtml(unit.id)}" maxlength="500" placeholder="Beyond economic repair after second shop visit">
+          </label>
+          <div class="unit-action-row">
+            <button class="btn-primary" data-confirm-retire="${escapeHtml(unit.id)}" data-version="${escapeHtml(unit.version)}">Retire this unit</button>
+            <button class="btn-quiet" data-cancel-retire="${escapeHtml(unit.id)}">Cancel</button>
+          </div>
+        </div>
+      </article>`;
+  }
+
+  async function loadRotables() {
+    const list = byId('partsRotableList');
+    if (!list || !client.listRotables) return;
+    list.innerHTML = '<div class="empty-state">Loading the rotable register…</div>';
+    try {
+      const units = await client.listRotables({
+        status: byId('rotableStatusFilter')?.value || undefined,
+        aircraftId: byId('rotableAircraftFilter')?.value.trim() || undefined,
+        includeRetired: byId('rotableIncludeRetired')?.checked || false,
+        session: await session()
+      });
+      list.innerHTML = units.length
+        ? units.map(rotableRow).join('')
+        : '<div class="empty-state">No rotables match these filters.</div>';
+      list.querySelectorAll('[data-save-rotable]').forEach((button) => {
+        button.addEventListener('click', () => saveRotable(button.dataset.saveRotable, Number(button.dataset.version)));
+      });
+      list.querySelectorAll('[data-open-retire]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const panel = list.querySelector(`[data-retire-panel="${button.dataset.openRetire}"]`);
+          panel.hidden = false;
+          panel.querySelector('[data-retire-reason]').focus();
+        });
+      });
+      list.querySelectorAll('[data-cancel-retire]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const panel = list.querySelector(`[data-retire-panel="${button.dataset.cancelRetire}"]`);
+          panel.hidden = true;
+          panel.querySelector('[data-retire-reason]').value = '';
+        });
+      });
+      list.querySelectorAll('[data-confirm-retire]').forEach((button) => {
+        button.addEventListener('click', () => retireRotable(button.dataset.confirmRetire, Number(button.dataset.version)));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function createRotable() {
+    const button = byId('btnCreateRotable');
+    button.disabled = true;
+    rotableStatusMessage('Registering…');
+    try {
+      await client.createRotable({
+        values: {
+          partNumber: byId('newRotablePart').value.trim(),
+          serialNumber: byId('newRotableSerial').value.trim(),
+          nomenclature: byId('newRotableNomen').value.trim() || null,
+          currentStatus: byId('newRotableStatus').value,
+          currentAircraftId: byId('newRotableAircraft').value.trim() || null
+        },
+        session: await session()
+      });
+      ['newRotablePart', 'newRotableSerial', 'newRotableNomen', 'newRotableAircraft']
+        .forEach((id) => { byId(id).value = ''; });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function saveRotable(rotableId, version) {
+    rotableStatusMessage('Saving…');
+    try {
+      const list = byId('partsRotableList');
+      await client.updateRotable({
+        rotableId,
+        version,
+        values: {
+          currentStatus: list.querySelector(`[data-rotable-status="${rotableId}"]`).value,
+          currentAircraftId: list.querySelector(`[data-rotable-aircraft="${rotableId}"]`).value.trim()
+        },
+        session: await session()
+      });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
+  async function retireRotable(rotableId, version) {
+    const field = byId('partsRotableList')?.querySelector(`[data-retire-reason="${rotableId}"]`);
+    const reason = field?.value.trim() || '';
+    if (!reason) {
+      rotableStatusMessage('Retiring a unit is a disposition. Record why before confirming.', 'error');
+      field?.focus();
+      return;
+    }
+    rotableStatusMessage('Retiring…');
+    try {
+      await client.retireRotable({ rotableId, version, reason: reason.trim(), session: await session() });
+      rotableStatusMessage('');
+      await loadRotables();
+    } catch (error) {
+      rotableStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
     state.status = byId('partsStatusFilter')?.value || '';
@@ -557,6 +713,7 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
                 <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
+                <button class="parts-view-tab" data-view="rotables" role="tab" aria-selected="false">Rotables</button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
@@ -607,6 +764,43 @@ const MXPartsWorkspace = (() => {
               </div>
               <div id="requestStatus" class="parts-inline-status" aria-live="polite"></div>
               <div id="partsRequestList"></div>
+            </div>
+            <div id="partsRotablesView" hidden>
+              <div class="request-filters">
+                <select id="rotableStatusFilter" aria-label="Filter rotables by status">
+                  <option value="">Any status</option>
+                  <option value="in_stock">In stock</option>
+                  <option value="installed">Installed</option>
+                  <option value="in_repair">In repair</option>
+                  <option value="in_transit">In transit</option>
+                  <option value="on_loan">On loan</option>
+                  <option value="scrapped">Scrapped</option>
+                </select>
+                <input id="rotableAircraftFilter" placeholder="Aircraft" aria-label="Filter rotables by aircraft">
+                <label class="shortage-toggle"><input type="checkbox" id="rotableIncludeRetired"> Show retired</label>
+              </div>
+              <div id="rotableStatus" class="parts-inline-status" aria-live="polite"></div>
+              <section class="unit-action-block location-create">
+                <h3>Register a rotable</h3>
+                <p class="unit-action-hint">A serialized unit tracked across tails, repairs, and loans. The part number and serial together identify it.</p>
+                <div class="parts-form-grid">
+                  <label>Part number<input id="newRotablePart" placeholder="MXG-DEMO-32-1101"></label>
+                  <label>Serial number<input id="newRotableSerial" placeholder="SN-0001"></label>
+                  <label>Nomenclature<input id="newRotableNomen" placeholder="Optional"></label>
+                  <label>Status
+                    <select id="newRotableStatus">
+                      <option value="in_stock">In stock</option>
+                      <option value="installed">Installed</option>
+                      <option value="in_repair">In repair</option>
+                      <option value="in_transit">In transit</option>
+                      <option value="on_loan">On loan</option>
+                    </select>
+                  </label>
+                  <label>Aircraft<input id="newRotableAircraft" placeholder="Required when installed"></label>
+                </div>
+                <button class="btn-primary" id="btnCreateRotable">Register</button>
+              </section>
+              <div id="partsRotableList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -745,6 +939,12 @@ const MXPartsWorkspace = (() => {
       .forEach((id) => byId(id)?.addEventListener('change', loadRequests));
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
+    byId('btnCreateRotable')?.addEventListener('click', createRotable);
+    ['rotableStatusFilter', 'rotableIncludeRetired']
+      .forEach((id) => byId(id)?.addEventListener('change', loadRotables));
+    byId('rotableAircraftFilter')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') loadRotables();
+    });
     byId('btnReceivePart')?.addEventListener('click', openWizard);
     byId('btnCancelWizard')?.addEventListener('click', closeWizard);
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);

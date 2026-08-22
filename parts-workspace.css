@@ -766,3 +766,36 @@
 
 .ocr-accepted-row span { color: var(--text-muted); }
 .ocr-accepted-row strong { overflow-wrap: anywhere; }
+
+.rotable-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 13px 16px;
+  margin-bottom: 9px;
+  background: var(--bg-card);
+}
+
+.rotable-row.status-installed { border-left-color: #3fa37a; }
+.rotable-row.status-in_repair,
+.rotable-row.status-in_transit { border-left-color: #d08b2c; }
+.rotable-row.status-scrapped { border-left-color: #d05a4c; }
+.rotable-row.is-retired { opacity: 0.6; }
+
+.rotable-row .unit-action-row { margin-top: 8px; align-items: flex-end; }
+.rotable-row .unit-action-row label { min-width: 9rem; }
+
+.retire-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.retire-panel label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}

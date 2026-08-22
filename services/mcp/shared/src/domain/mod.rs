@@ -18,6 +18,8 @@ pub mod part_request;
 pub mod part_request_test;
 pub mod part_trace;
 pub mod part_trace_test;
+pub mod rotable;
+pub mod rotable_test;
 pub mod scheduling;
 pub mod stock_unit_transition_test;
 

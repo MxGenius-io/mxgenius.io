@@ -1007,6 +1007,32 @@ const MXApplicationClient = (() => {
         session, method: 'POST', body: values });
       return payload.event;
     },
+    listRotables: async ({ status, aircraftId, partNumber, includeRetired = false, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      if (partNumber) params.set('partNumber', partNumber);
+      if (includeRetired) params.set('includeRetired', 'true');
+      const payload = await applicationJson(`/api/parts/rotables?${params}`, { session });
+      return payload.rotables || [];
+    },
+    createRotable: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/rotables', {
+        session, method: 'POST', body: values });
+      return payload.rotable;
+    },
+    updateRotable: async ({ rotableId, version, values, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/rotables/${encodeURIComponent(rotableId)}`, {
+        session, method: 'PATCH', body: values,
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.rotable;
+    },
+    retireRotable: async ({ rotableId, version, reason, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/rotables/${encodeURIComponent(rotableId)}/retire`, {
+        session, method: 'POST', body: { reason },
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.rotable;
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');
