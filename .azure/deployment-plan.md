@@ -1,6 +1,86 @@
 # MXGenius Azure Deployment Plan
 
-Status: Deployed — 2026-08-17 Shared Patent Workspace
+Status: Validated — 2026-08-22 Feedback and Parts Expansion
+
+## Feedback and Parts Expansion Delta — 2026-08-22
+
+### Project overview and approval
+
+- **Goal:** publish Rocky's in-app feedback/reporting flow and the expanded
+  procurement, traceability, rotable, core, warranty, cannibalization, and bulk
+  import Parts workflows through the existing production application plane.
+- **Path:** application-only update of the existing `mxg-core` Container App.
+  The static frontend is already published from Git `main` at product commit
+  `9cc2b10ed842cfea3104334b336e71ad218478c9`.
+- **Approval:** after reviewing the audit findings, the user authorized the
+  as-is Azure release on August 22, 2026, then explicitly confirmed the target
+  subscription and region.
+- **Azure context:** reuse `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), `centralus`, resource group
+  `mxg-rg-50106`, registry `mxgacr50106`, Container Apps environment
+  `mxg-cae-50106`, and Container App `mxg-core`. No resource, region, SKU,
+  identity, RBAC, secret, ingress, or scale change is approved.
+
+### Release contents
+
+- Add authenticated feedback submission and administration, including private
+  screenshot storage, through migration `0018_feedback.sql`.
+- Expand Parts with procurement/orders, traceability, serialized rotable and
+  core obligations, warranty claims, gated cannibalization records, and bulk
+  CSV/XLSX import with preview and rollback through migrations `0019`-`0023`.
+- Build the exact `services/mcp` context from the clean shared `main` branch and
+  publish one immutable ACR tag. SQLx applies the additive migrations before
+  the server accepts traffic.
+
+### Validation and security disposition
+
+- Frontend suite passed: 212 tests, 0 failures.
+- Rust workspace passed: formatting, strict Clippy, 192 tests, and the locked
+  optimized release build.
+- `git diff --check` passed and the working tree was clean and synchronized
+  with `origin/main` before this deployment record.
+- Live preflight passed: the existing revision returned HTTP 200 from
+  `/healthz`, `/readyz`, and `/adapterz`; readiness reported the production
+  database and authoritative manual source healthy.
+- Static RBAC changes are not applicable because this release contains no
+  infrastructure or role-assignment change. Live state confirms the
+  `mxg-core` system identity retains `Storage Blob Data Contributor` on the
+  private `documents` container and `Cognitive Services User` on the existing
+  Document Intelligence account.
+- The user accepted release with the audit findings left open: cross-tenant
+  global part-catalog mutation/rollback behavior, active `quick-xml` RustSec
+  advisories through `calamine`, unvalidated authentication `returnUrl`, broad
+  Parts authorization, forgeable preview digests, CSV formula injection,
+  coarse request/body limits, cannibalization cancellation ownership, and an
+  archived uniqueness edge case. This authorization does not close or waive
+  those findings for remediation tracking.
+
+### Promotion and rollback gates
+
+- Preserve the ready image
+  `mxgacr50106.azurecr.io/mxg-core:patent-b99241d-20260817-0125` and revision
+  `mxg-core--patentb99241dv3` throughout deployment.
+- Azure's existing `Single` revision mode must keep the current revision live
+  until the candidate starts, applies migrations `0018`-`0023`, and becomes
+  latest-ready. Migration `0023` intentionally fails if duplicate live parts
+  with a null manufacturer already exist; such a failure blocks promotion.
+- After promotion, `/healthz`, `/readyz`, and `/adapterz` must return HTTP 200;
+  unauthenticated Parts and Feedback API access must fail closed.
+- If readiness, migration, authentication, or smoke gates fail, restore the
+  previous image. Additive database objects may remain dormant; rollback must
+  not drop tables, delete records/assets, change RBAC, or expose secrets.
+
+### Execution checklist
+
+- [x] Confirm subscription, Central US location, resource group, Container Apps
+  environment, registry, live revision/image, and pre-deployment health.
+- [x] Confirm the exact Git release state, local test/build proof, Docker build
+  context, managed identity, required live data-plane roles, and rollback image.
+- [x] Mark this application-only delta Validated with accepted audit exceptions.
+- [ ] Build and identify the immutable ACR image digest.
+- [ ] Promote one new `mxg-core` revision and verify migration/startup logs.
+- [ ] Verify live health, readiness, adapter status, fail-closed routes, traffic,
+  image, and rollback availability.
 
 ## Shared Patent Workspace Delta — 2026-08-17
 
