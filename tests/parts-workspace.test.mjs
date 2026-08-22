@@ -374,3 +374,75 @@ test('Rotable register', async (t) => {
     assert.match(domain, /deliberately unconstrained/);
   });
 });
+
+test('Cannibalization', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+  const client = readFileSync('application-client.js', 'utf8');
+  const domain = readFileSync('services/mcp/shared/src/domain/cannibalization.rs', 'utf8');
+  const repo = readFileSync('services/mcp/server/src/application/cannibalizations.rs', 'utf8');
+  const http = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
+  const migration = readFileSync('services/mcp/migrations/0022_cannibalizations.sql', 'utf8');
+
+  await t.test('the approval chain is reachable and cannot be skipped', () => {
+    for (const method of ['listCannibalizations', 'proposeCannibalization', 'decideCannibalization']) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} should be exposed`);
+    }
+    assert.match(js, /const ROB_DECISIONS = \{/);
+    // Approval cannot be skipped: proposed offers no path to completed.
+    const proposed = js.slice(js.indexOf('proposed: ['), js.indexOf('approved: ['));
+    assert.ok(!proposed.includes("'completed'"), 'a proposed rob must not offer completion');
+    // Terminal states offer nothing.
+    assert.match(js, /rejected: \[\]/);
+    assert.match(js, /completed: \[\]/);
+  });
+
+  await t.test('separation of duties is enforced and returns 403', () => {
+    assert.match(domain, /pub fn violates_separation_of_duties/);
+    assert.match(repo, /the person who proposed a cannibalization cannot decide it/);
+    // 400 would imply retrying with better input helps; it does not.
+    assert.match(repo, /PartsInventoryError::Forbidden/);
+    assert.match(http, /PartsInventoryError::Forbidden\(message\) => \{\s*realtime_error\(StatusCode::FORBIDDEN/);
+    assert.match(migration, /cannibalizations_sod_check/);
+  });
+
+  await t.test('a life-limited rob records the life crossing the tail boundary', () => {
+    assert.match(domain, /pub fn life_transfer_missing/);
+    assert.match(repo, /record the hours or cycles crossing to the receiving aircraft/);
+    assert.match(migration, /cannibalizations_life_check/);
+    assert.match(js, /data-rob-hours=/);
+    assert.match(js, /data-rob-cycles=/);
+  });
+
+  await t.test('completion is gated on the event ledger, not the record itself', () => {
+    assert.match(domain, /pub fn completion_problem/);
+    for (const gate of [
+      'DonorNotRemoval', 'ReceiverNotInstall', 'DonorReasonNotCannibalized',
+      'RotableMismatch', 'DonorAircraftMismatch', 'ReceiverAircraftMismatch',
+      'DonorEventAlreadyUsed', 'ReceiverEventAlreadyUsed'
+    ]) {
+      assert.match(domain, new RegExp(gate), `${gate} must be a checked condition`);
+    }
+    // The facts come from part_events, not from the cannibalization row.
+    assert.match(repo, /FROM part_events/);
+  });
+
+  await t.test('one event cannot complete two robs', () => {
+    // Enforced twice: a unique index, and an explicit check that names it.
+    assert.match(migration, /cannibalizations_donor_event_once_idx/);
+    assert.match(migration, /cannibalizations_receiver_event_once_idx/);
+    assert.match(domain, /one event cannot be the donor side of two/);
+  });
+});
+
+test('Denial messages state the actual rule', async (t) => {
+  const js = readFileSync('parts-workspace.js', 'utf8');
+
+  await t.test('a specific 403 reason is shown, not a generic tenant message', () => {
+    // An allowlist of denial codes silently mistranslates every new code that
+    // gets added, which is how separation of duties first surfaced as
+    // "your account does not have access to this organization".
+    assert.match(js, /OPAQUE_DENIALS/);
+    assert.doesNotMatch(js, /error\?\.code === 'PARTS_INSPECTION_DENIED'/);
+    assert.match(js, /if \(error\.message && !OPAQUE_DENIALS\.has\(error\.code\)\) return error\.message;/);
+  });
+});

@@ -445,6 +445,12 @@ pub enum PartsInventoryError {
     Conflict(String),
     #[error("invalid request: {0}")]
     Invalid(String),
+    /// The caller is authenticated and the request is well formed, but this
+    /// person specifically may not do it. Separation of duties is the case
+    /// that needs this: it is a 403, not a 400, because retrying with better
+    /// input will not help.
+    #[error("not permitted: {0}")]
+    Forbidden(String),
     #[error("persistence failed")]
     Persistence(#[from] sqlx::Error),
 }

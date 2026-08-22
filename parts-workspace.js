@@ -30,17 +30,20 @@ const MXPartsWorkspace = (() => {
     const locations = byId('partsLocationsView');
     const requests = byId('partsRequestsView');
     const rotables = byId('partsRotablesView');
+    const robs = byId('partsRobsView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
     if (locations) locations.hidden = view !== 'locations';
     if (requests) requests.hidden = view !== 'requests';
     if (rotables) rotables.hidden = view !== 'rotables';
+    if (robs) robs.hidden = view !== 'cannibalizations';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
     if (view === 'requests') loadRequests();
     if (view === 'rotables') loadRotables();
+    if (view === 'cannibalizations') loadRobs();
   }
 
   function shortageRow(row) {
@@ -655,6 +658,137 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  // What a rob can become next. Approval cannot be skipped, and completed,
+  // rejected, and cancelled are the end of the line.
+  const ROB_DECISIONS = {
+    proposed: [
+      { status: 'approved', label: 'Approve', primary: true },
+      { status: 'rejected', label: 'Reject' },
+      { status: 'cancelled', label: 'Withdraw' }
+    ],
+    approved: [
+      { status: 'completed', label: 'Mark complete', primary: true },
+      { status: 'cancelled', label: 'Withdraw' }
+    ],
+    rejected: [],
+    completed: [],
+    cancelled: []
+  };
+
+  function robStatusMessage(message, kind = '') {
+    const element = byId('robStatusMessage');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  function robRow(rob) {
+    const decisions = ROB_DECISIONS[rob.status] || [];
+    const life = rob.isLifeLimited
+      ? `<span class="rob-life">Life limited${rob.transferredHours != null ? ` · ${escapeHtml(rob.transferredHours)} hrs` : ''}${rob.transferredCycles != null ? ` · ${escapeHtml(rob.transferredCycles)} cycles` : ''}</span>`
+      : '';
+    const lineage = rob.donorRemovalEventId && rob.receiverInstallEventId
+      ? 'both events on record'
+      : rob.donorRemovalEventId
+        ? 'donor removal on record; awaiting the install'
+        : 'no events linked yet';
+    return `
+      <article class="rob-row status-${escapeHtml(rob.status)}" data-rob-id="${escapeHtml(rob.id)}">
+        <div class="request-head">
+          <span class="request-part">${escapeHtml(rob.partNumber || 'Part not named')}${rob.serialNumber ? ` / ${escapeHtml(rob.serialNumber)}` : ''}</span>
+          <span class="request-state">${escapeHtml(rob.status)}</span>
+          ${life}
+        </div>
+        <p class="shortage-meta">${escapeHtml(rob.donorAircraftId || 'donor not named')} → ${escapeHtml(rob.receiverAircraftId || 'receiver not named')} · ${escapeHtml(lineage)}</p>
+        ${rob.rtsImpactRationale ? `<p class="shortage-description">${escapeHtml(rob.rtsImpactRationale)}</p>` : ''}
+        ${decisions.length ? `
+        <div class="rob-decide">
+          ${rob.isLifeLimited && rob.status === 'proposed' ? `
+          <div class="parts-form-grid">
+            <label>Hours transferred<input type="number" step="0.1" data-rob-hours="${escapeHtml(rob.id)}" value="${escapeHtml(rob.transferredHours ?? '')}"></label>
+            <label>Cycles transferred<input type="number" data-rob-cycles="${escapeHtml(rob.id)}" value="${escapeHtml(rob.transferredCycles ?? '')}"></label>
+          </div>` : ''}
+          <div class="unit-action-row">
+            ${decisions.map((d) => `<button class="${d.primary ? 'btn-primary' : 'btn-quiet'}" data-rob-decision="${escapeHtml(d.status)}" data-rob-target="${escapeHtml(rob.id)}" data-rob-version="${escapeHtml(rob.version)}">${escapeHtml(d.label)}</button>`).join('')}
+          </div>
+        </div>` : ''}
+      </article>`;
+  }
+
+  async function loadRobs() {
+    const list = byId('partsRobList');
+    if (!list || !client.listCannibalizations) return;
+    list.innerHTML = '<div class="empty-state">Loading cannibalizations…</div>';
+    try {
+      const rows = await client.listCannibalizations({ session: await session() });
+      const open = rows.filter((rob) => rob.status === 'proposed' || rob.status === 'approved').length;
+      const badge = byId('robCount');
+      if (badge) {
+        badge.hidden = !open;
+        badge.textContent = open || '';
+      }
+      list.innerHTML = rows.length
+        ? rows.map(robRow).join('')
+        : '<div class="empty-state">No cannibalizations recorded.</div>';
+      list.querySelectorAll('[data-rob-decision]').forEach((button) => {
+        button.addEventListener('click', () => decideRob(
+          button.dataset.robTarget, Number(button.dataset.robVersion), button.dataset.robDecision));
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function proposeRob() {
+    const button = byId('btnProposeRob');
+    button.disabled = true;
+    robStatusMessage('Recording the proposal…');
+    try {
+      await client.proposeCannibalization({
+        values: {
+          partNumber: byId('newRobPart').value.trim() || null,
+          serialNumber: byId('newRobSerial').value.trim() || null,
+          donorAircraftId: byId('newRobDonor').value.trim() || null,
+          receiverAircraftId: byId('newRobReceiver').value.trim() || null,
+          isLifeLimited: byId('newRobLifeLimited').value === 'true',
+          rtsImpactRationale: byId('newRobRationale').value.trim() || null
+        },
+        session: await session()
+      });
+      ['newRobPart', 'newRobSerial', 'newRobDonor', 'newRobReceiver', 'newRobRationale']
+        .forEach((id) => { byId(id).value = ''; });
+      robStatusMessage('');
+      await loadRobs();
+    } catch (error) {
+      robStatusMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function decideRob(robId, version, status) {
+    robStatusMessage('Recording the decision…');
+    try {
+      const list = byId('partsRobList');
+      const hours = list.querySelector(`[data-rob-hours="${robId}"]`)?.value;
+      const cycles = list.querySelector(`[data-rob-cycles="${robId}"]`)?.value;
+      await client.decideCannibalization({
+        cannId: robId,
+        version,
+        status,
+        values: {
+          transferredHours: hours ? Number(hours) : null,
+          transferredCycles: cycles ? Number(cycles) : null
+        },
+        session: await session()
+      });
+      robStatusMessage('');
+      await loadRobs();
+    } catch (error) {
+      robStatusMessage(errorMessage(error), 'error');
+    }
+  }
+
   function captureFilters() {
     state.query = byId('partsSearchInput')?.value.trim() || '';
     state.status = byId('partsStatusFilter')?.value || '';
@@ -687,11 +821,16 @@ const MXPartsWorkspace = (() => {
     return { ...current, accessToken };
   }
 
+  // Codes where the server's own wording is less useful than a plain
+  // explanation. Everything else is passed through, because an allowlist of
+  // denial codes silently mistranslates every new one that is added.
+  const OPAQUE_DENIALS = new Set(['TENANT_ACCESS_DENIED', 'FORBIDDEN']);
+
   function errorMessage(error) {
-    if (error?.code === 'PARTS_INSPECTION_DENIED' || error?.code === 'PARTS_WRITE_DENIED') {
-      return error.message;
+    if (error?.status === 403) {
+      if (error.message && !OPAQUE_DENIALS.has(error.code)) return error.message;
+      return 'Your account does not have access to this organization.';
     }
-    if (error?.status === 403) return 'Your account does not have access to this organization.';
     if (error?.status === 409) return error?.message || 'This record changed. Refresh it before trying again.';
     if (error?.status >= 500) return 'The parts service is temporarily unavailable.';
     return error?.message || 'The operation could not be completed.';
@@ -714,6 +853,7 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="rotables" role="tab" aria-selected="false">Rotables</button>
+                <button class="parts-view-tab" data-view="cannibalizations" role="tab" aria-selected="false">Robs<span id="robCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
@@ -801,6 +941,25 @@ const MXPartsWorkspace = (() => {
                 <button class="btn-primary" id="btnCreateRotable">Register</button>
               </section>
               <div id="partsRotableList"></div>
+            </div>
+            <div id="partsRobsView" hidden>
+              <p class="unit-action-hint rob-preamble">Robbing a serviceable part off one aircraft to return another to service is an airworthiness claim. A rob is proposed by one person and decided by another, and it can only be completed once both the donor removal and the receiver install are on record.</p>
+              <div id="robStatusMessage" class="parts-inline-status" aria-live="polite"></div>
+              <section class="unit-action-block location-create">
+                <h3>Propose a rob</h3>
+                <div class="parts-form-grid">
+                  <label>Part number<input id="newRobPart" placeholder="MXG-DEMO-32-1101"></label>
+                  <label>Serial number<input id="newRobSerial" placeholder="Identifies the part taken"></label>
+                  <label>Donor aircraft<input id="newRobDonor" placeholder="Taken from"></label>
+                  <label>Receiver aircraft<input id="newRobReceiver" placeholder="Fitted to"></label>
+                  <label>Life limited?
+                    <select id="newRobLifeLimited"><option value="false">No</option><option value="true">Yes</option></select>
+                  </label>
+                  <label>Why this rob<input id="newRobRationale" placeholder="Return-to-service impact"></label>
+                </div>
+                <button class="btn-primary" id="btnProposeRob">Propose</button>
+              </section>
+              <div id="partsRobList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -940,6 +1099,7 @@ const MXPartsWorkspace = (() => {
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
     byId('btnCreateRotable')?.addEventListener('click', createRotable);
+    byId('btnProposeRob')?.addEventListener('click', proposeRob);
     ['rotableStatusFilter', 'rotableIncludeRetired']
       .forEach((id) => byId(id)?.addEventListener('change', loadRotables));
     byId('rotableAircraftFilter')?.addEventListener('keydown', (event) => {

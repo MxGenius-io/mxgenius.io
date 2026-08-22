@@ -799,3 +799,38 @@
   color: var(--text-muted);
   font-size: 0.82rem;
 }
+
+.rob-preamble {
+  border-left: 3px solid #d08b2c;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm, 8px);
+}
+
+.rob-row {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 13px 16px;
+  margin-bottom: 9px;
+  background: var(--bg-card);
+}
+
+.rob-row.status-proposed { border-left-color: #d08b2c; }
+.rob-row.status-approved { border-left-color: #60a5fa; }
+.rob-row.status-completed { border-left-color: #3fa37a; }
+.rob-row.status-rejected,
+.rob-row.status-cancelled { border-left-color: #d05a4c; opacity: 0.72; }
+
+.rob-life {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(208, 139, 44, 0.16);
+  color: #d08b2c;
+}
+
+.rob-decide { margin-top: 10px; display: grid; gap: 8px; }

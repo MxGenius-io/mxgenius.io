@@ -2,6 +2,7 @@
 //! (and mountable into the Axum REST/BFF).
 
 pub mod aircraft_catalog;
+pub mod cannibalizations;
 pub mod case_service;
 pub mod evidence_service;
 pub mod part_procurement;

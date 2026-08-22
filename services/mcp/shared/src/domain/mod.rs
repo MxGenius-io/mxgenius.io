@@ -4,6 +4,8 @@
 //! here; flesh out fields, validation, and constructors in this module before
 //! extending any transport, migration, or test.
 
+pub mod cannibalization;
+pub mod cannibalization_test;
 pub mod case;
 pub mod case_transition_test;
 pub mod compliance;

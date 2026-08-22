@@ -1033,6 +1033,24 @@ const MXApplicationClient = (() => {
         headers: { 'If-Match': `"${version}"` } });
       return payload.rotable;
     },
+    listCannibalizations: async ({ status, aircraftId, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (aircraftId) params.set('aircraftId', aircraftId);
+      const payload = await applicationJson(`/api/parts/cannibalizations?${params}`, { session });
+      return payload.cannibalizations || [];
+    },
+    proposeCannibalization: async ({ values, session = {} }) => {
+      const payload = await applicationJson('/api/parts/cannibalizations', {
+        session, method: 'POST', body: values });
+      return payload.cannibalization;
+    },
+    decideCannibalization: async ({ cannId, version, status, values = {}, session = {} }) => {
+      const payload = await applicationJson(`/api/parts/cannibalizations/${encodeURIComponent(cannId)}/decision`, {
+        session, method: 'POST', body: { status, ...values },
+        headers: { 'If-Match': `"${version}"` } });
+      return payload.cannibalization;
+    },
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');

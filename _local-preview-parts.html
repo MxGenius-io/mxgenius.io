@@ -33,6 +33,8 @@
   window.__ocrMode = 'confident';
   const orders = [];
   const legs = [];
+  window.__actor = 'approver';
+  const robs = [];
   const rotables = [
     { id:'rt-a', partNumber:'MXG-DEMO-32-1101', serialNumber:'SN-0117', nomenclature:'Main wheel half',
       currentStatus:'installed', currentAircraftId:'N441TT', timesRepaired:2, version:1, retiredAt:null },
@@ -211,6 +213,35 @@
         const r = rotables.find(x => x.id === rotableId);
         if (r.hasOpenCore) { const e = new Error('this unit cannot be retired: a core exchange on this unit is still due'); e.status = 409; throw e; }
         r.retiredAt = new Date().toISOString(); r.version += 1; return r;
+      },
+      listCannibalizations: async () => { log('listCannibalizations'); return robs; },
+      proposeCannibalization: async ({ values }) => {
+        log(`proposeCannibalization ${values.serialNumber} ${values.donorAircraftId}->${values.receiverAircraftId} llp=${values.isLifeLimited}`);
+        if (!values.serialNumber) { const e = new Error('a rob must identify the part being taken: give a rotable unit or a serial number'); e.status=400; throw e; }
+        if (values.donorAircraftId && values.receiverAircraftId &&
+            values.donorAircraftId.toLowerCase() === values.receiverAircraftId.toLowerCase()) {
+          const e = new Error('an aircraft cannot rob itself'); e.status=400; throw e;
+        }
+        const r = { id:'rob'+(robs.length+1), ...values, status:'proposed', version:1,
+                    transferredHours:null, transferredCycles:null,
+                    donorRemovalEventId:null, receiverInstallEventId:null, proposedBy:'proposer' };
+        robs.push(r); return r;
+      },
+      decideCannibalization: async ({ cannId, status, values }) => {
+        log(`decideCannibalization ${cannId} -> ${status} hrs=${values.transferredHours ?? '-'}`);
+        const r = robs.find(x => x.id === cannId);
+        if ((status === 'approved' || status === 'rejected') && window.__actor === r.proposedBy) {
+          const e = new Error('the person who proposed a cannibalization cannot decide it'); e.status=403; throw e;
+        }
+        if (status === 'approved' && r.isLifeLimited && values.transferredHours == null && values.transferredCycles == null) {
+          const e = new Error('this is a life-limited part; record the hours or cycles crossing to the receiving aircraft before approving'); e.status=400; throw e;
+        }
+        if (status === 'completed' && !(r.donorRemovalEventId && r.receiverInstallEventId)) {
+          const e = new Error("the donor removal must be recorded with the reason 'cannibalized', otherwise this is an ordinary removal and not a rob"); e.status=400; throw e;
+        }
+        r.status = status; r.version += 1;
+        if (values.transferredHours != null) r.transferredHours = values.transferredHours;
+        return r;
       },
       listShortages: async ({ includeCovered }) => {
         const rows = [

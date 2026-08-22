@@ -22,6 +22,10 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+use crate::application::cannibalizations::{
+    CannibalizationQuery, CannibalizationRepository, DecideCannibalizationInput,
+    ProposeCannibalizationInput,
+};
 use crate::application::part_procurement::{
     CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
 };
@@ -175,6 +179,18 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route(
+            "/api/parts/cannibalizations",
+            get(list_cannibalizations).post(propose_cannibalization),
+        )
+        .route(
+            "/api/parts/cannibalizations/:cann_id",
+            get(get_cannibalization),
+        )
+        .route(
+            "/api/parts/cannibalizations/:cann_id/decision",
+            post(decide_cannibalization),
+        )
         .route(
             "/api/parts/rotables",
             get(list_rotables).post(create_rotable),
@@ -2314,6 +2330,9 @@ fn parts_error(error: PartsInventoryError, operation: &'static str) -> Response 
         PartsInventoryError::Invalid(message) => {
             realtime_error(StatusCode::BAD_REQUEST, "INVALID_PARTS_REQUEST", &message)
         }
+        PartsInventoryError::Forbidden(message) => {
+            realtime_error(StatusCode::FORBIDDEN, "PARTS_ACTION_DENIED", &message)
+        }
         PartsInventoryError::Persistence(error) => persistence_error(operation, error),
     }
 }
@@ -3460,6 +3479,120 @@ async fn retire_rotable(
     {
         Ok(unit) => (StatusCode::OK, Json(json!({"rotable": unit}))).into_response(),
         Err(error) => parts_error(error, "parts.rotable.retire"),
+    }
+}
+
+async fn list_cannibalizations(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<CannibalizationQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .list(&context, &query)
+        .await
+    {
+        Ok(rows) => (StatusCode::OK, Json(json!({"cannibalizations": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalizations.list"),
+    }
+}
+
+async fn get_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cann_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .get(&context, cann_id)
+        .await
+    {
+        Ok(row) => (StatusCode::OK, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.get"),
+    }
+}
+
+async fn propose_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<ProposeCannibalizationInput>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Proposing is open to anyone who can move parts: the mechanic who needs
+    // the part is usually the one who spots the donor.
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot propose a cannibalization",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .propose(&context, &input)
+        .await
+    {
+        Ok(row) => (StatusCode::CREATED, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.propose"),
+    }
+}
+
+async fn decide_cannibalization(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cann_id): Path<Uuid>,
+    Json(input): Json<DecideCannibalizationInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Cancelling your own proposal is withdrawal, not approval, so it stays
+    // open to the same roles that may propose. Every other decision is an
+    // airworthiness judgement and is held to the qualified roles.
+    let withdrawing = input.status == "cancelled";
+    let permitted = if withdrawing {
+        parts_write_allowed(&context)
+    } else {
+        parts_inspection_release_allowed(&context)
+    };
+    if !permitted {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_CANNIBALIZATION_DENIED",
+            "only a quality, manager, or administrator role can approve, reject, or complete a cannibalization",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match CannibalizationRepository::new(pool)
+        .decide(&context, cann_id, version, &input)
+        .await
+    {
+        Ok(row) => (StatusCode::OK, Json(json!({"cannibalization": row}))).into_response(),
+        Err(error) => parts_error(error, "parts.cannibalization.decide"),
     }
 }
 
