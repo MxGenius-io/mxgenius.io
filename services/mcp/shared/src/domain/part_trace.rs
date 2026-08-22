@@ -3,6 +3,32 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Confidence at or above which an extracted field is accepted without asking
+/// a human. Published once so the server's decision and the screen's
+/// explanation cannot disagree.
+///
+/// The number is deliberately high. A mechanic in a headset cannot proofread
+/// comfortably, so the cost of a wrong auto-accept is a bad inventory record
+/// nobody notices, while the cost of an unnecessary prompt is one tap. When in
+/// doubt, prompt.
+pub const OCR_AUTO_ACCEPT_CONFIDENCE: f64 = 0.90;
+
+/// Whether an extracted field can be taken without review. A field with no
+/// confidence score is never auto-accepted: absent evidence is not strong
+/// evidence.
+pub fn ocr_auto_acceptable(confidence: Option<f64>) -> bool {
+    matches!(confidence, Some(value) if value >= OCR_AUTO_ACCEPT_CONFIDENCE)
+}
+
+/// Fields that always require a human even at high confidence, because
+/// getting them wrong misidentifies the part or its airworthiness rather than
+/// just mislabelling it.
+pub const OCR_ALWAYS_REVIEW_FIELDS: [&str; 2] = ["serialNumber", "certificateNumber"];
+
+pub fn ocr_requires_review(field_name: &str, confidence: Option<f64>) -> bool {
+    OCR_ALWAYS_REVIEW_FIELDS.contains(&field_name) || !ocr_auto_acceptable(confidence)
+}
+
 /// The paperwork a part arrived with. This is the airworthiness provenance
 /// of the unit, so the vocabulary distinguishes documents that carry
 /// different weight rather than lumping them together.

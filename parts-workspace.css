@@ -737,3 +737,32 @@
 .event-row { border-left: 3px solid var(--border); }
 .event-row.is-install { border-left-color: #3fa37a; }
 .event-row.is-removal { border-left-color: #d08b2c; }
+
+.ocr-accepted {
+  border: 1px solid var(--border);
+  border-left: 3px solid #3fa37a;
+  border-radius: var(--radius-sm, 8px);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+}
+
+.ocr-accepted h4 {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ocr-accepted-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 0.86rem;
+}
+
+.ocr-accepted-row span { color: var(--text-muted); }
+.ocr-accepted-row strong { overflow-wrap: anywhere; }

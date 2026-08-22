@@ -30,6 +30,7 @@
     el.textContent = `${el.textContent === 'calls will appear here' ? '' : el.textContent + '\n'}${line}`;
   };
 
+  window.__ocrMode = 'confident';
   const orders = [];
   const legs = [];
   let unit = {
@@ -68,6 +69,31 @@
       confirmReceiving: async ({ draftId, version, values }) => {
         log(`confirmReceiving draft=${draftId} version=${version} part=${values.partNumber} qty=${values.quantity} loc=${values.locationCode}`);
         return { ...unit, id: 'new-unit', partNumber: values.partNumber, quantity: values.quantity };
+      },
+      registerAssetUpload: async () => { log('registerAssetUpload'); return { asset: { id:'a1' } }; },
+      uploadAsset: async () => { log('uploadAsset'); return {}; },
+      requestExtraction: async () => {
+        log(`requestExtraction mode=${window.__ocrMode}`);
+        // Mirrors the server stamp: requiresReview is the server's decision.
+        const confident = [
+          { id:'c1', fieldName:'partNumber', proposedValue:'MXG-DEMO-32-1301', confidence:0.97, requiresReview:false },
+          { id:'c2', fieldName:'description', proposedValue:'Main tire, radial', confidence:0.94, requiresReview:false },
+          { id:'c3', fieldName:'manufacturer', proposedValue:'MXG Demo Standard Parts', confidence:0.92, requiresReview:false }
+        ];
+        const mixed = confident.concat([
+          { id:'c4', fieldName:'serialNumber', proposedValue:'DEMO-TIRE-88', confidence:0.99, requiresReview:true },
+          { id:'c5', fieldName:'certificateNumber', proposedValue:'DEMO-8130-?', confidence:0.42, requiresReview:true }
+        ]);
+        return { run: { id:'run1' }, candidates: window.__ocrMode === 'mixed' ? mixed : confident };
+      },
+      reviewExtraction: async ({ decisions }) => {
+        log(`reviewExtraction decisions=${decisions.length} accepted=${decisions.filter(d=>d.reviewState==='accepted').length}`);
+        return { candidates: decisions.map(d => ({
+          fieldName: ({c1:'partNumber',c2:'description',c3:'manufacturer',c4:'serialNumber',c5:'certificateNumber'})[d.candidateId],
+          reviewState: d.reviewState,
+          proposedValue: ({c1:'MXG-DEMO-32-1301',c2:'Main tire, radial',c3:'MXG Demo Standard Parts',c4:'DEMO-TIRE-88',c5:'DEMO-8130-?'})[d.candidateId],
+          finalValue: d.finalValue
+        })) };
       },
       listRequests: async ({ status, priority, overdueOnly, missingNeedByOnly }) => {
         const all = [

@@ -65,6 +65,50 @@ mod tests {
     }
 
     #[test]
+    fn a_confidently_read_field_is_taken_without_asking() {
+        assert!(ocr_auto_acceptable(Some(0.99)));
+        assert!(ocr_auto_acceptable(Some(OCR_AUTO_ACCEPT_CONFIDENCE)));
+        assert!(!ocr_auto_acceptable(Some(
+            OCR_AUTO_ACCEPT_CONFIDENCE - 0.01
+        )));
+        assert!(!ocr_auto_acceptable(Some(0.5)));
+        // Absent evidence is not strong evidence.
+        assert!(!ocr_auto_acceptable(Option::None));
+    }
+
+    #[test]
+    fn identity_and_airworthiness_fields_always_get_a_human() {
+        // Reading these wrong misidentifies the part or its provenance, which
+        // is a different class of mistake from a mislabelled description.
+        for field in OCR_ALWAYS_REVIEW_FIELDS {
+            assert!(
+                ocr_requires_review(field, Some(0.999)),
+                "{field} must be reviewed however confident the read"
+            );
+        }
+        // Everything else rides on confidence alone.
+        assert!(!ocr_requires_review("partNumber", Some(0.95)));
+        assert!(ocr_requires_review("partNumber", Some(0.60)));
+        assert!(ocr_requires_review("description", Option::None));
+    }
+
+    #[test]
+    fn the_auto_accept_bar_is_high_enough_to_trust_unattended() {
+        // A mechanic in a headset cannot proofread comfortably, so this
+        // threshold is the whole safety margin for a hands-free check-in.
+        // A const block, so lowering the bar fails the build rather than a
+        // test run: this threshold is the whole safety margin for a
+        // hands-free check-in and should not be quietly relaxed.
+        const {
+            assert!(
+                OCR_AUTO_ACCEPT_CONFIDENCE >= 0.85,
+                "auto-accepting below 0.85 puts unreviewed data into inventory"
+            )
+        };
+        const { assert!(OCR_AUTO_ACCEPT_CONFIDENCE <= 1.0) };
+    }
+
+    #[test]
     fn an_event_is_one_install_xor_one_removal() {
         assert_eq!(
             PartEventKind::parse("install"),

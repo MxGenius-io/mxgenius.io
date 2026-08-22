@@ -1306,9 +1306,22 @@ const MXPartsWorkspace = (() => {
       const extraction = await client.requestExtraction({ assetId: state.asset.id, session: currentSession });
       state.extractionRun = extraction.run;
       state.candidates = extraction.candidates || [];
+
+      // Hands-free path: the server marks which fields a human must actually
+      // look at. When none of them do, accept the confident ones and go
+      // straight to the details, so a mechanic in a headset never has to
+      // proofread a form they cannot comfortably read.
+      const needsReview = state.candidates.filter((candidate) => candidate.requiresReview);
+      if (state.candidates.length && !needsReview.length) {
+        await acceptConfidentCandidates();
+        return;
+      }
+
       renderCandidates();
       setWizardStep(2);
-      wizardMessage(state.candidates.length ? 'Review every suggestion.' : 'No fields were recognized. Enter details manually.');
+      wizardMessage(state.candidates.length
+        ? `${needsReview.length} field(s) need a look; the rest were read confidently.`
+        : 'No fields were recognized. Enter details manually.');
     } catch (error) {
       wizardMessage(errorMessage(error), 'error');
     } finally {
@@ -1332,13 +1345,46 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  /// Accepts every extracted field as proposed and moves to the details, used
+  /// when the server flagged nothing for review.
+  async function acceptConfidentCandidates() {
+    try {
+      const reviewed = await client.reviewExtraction({
+        runId: state.extractionRun.id,
+        decisions: state.candidates.map((candidate) => ({
+          candidateId: candidate.id,
+          reviewState: 'accepted',
+          finalValue: null
+        })),
+        session: await session()
+      });
+      applyReviewedFields(reviewed.candidates || []);
+      setWizardStep(3);
+      wizardMessage(`Read ${state.candidates.length} field(s) confidently. Check the details and confirm.`);
+    } catch (error) {
+      // Fall back to the reviewed path rather than losing the extraction.
+      renderCandidates();
+      setWizardStep(2);
+      wizardMessage(errorMessage(error), 'error');
+    }
+  }
+
   function renderCandidates() {
     const area = byId('wizardExtractedData');
     if (!state.candidates.length) {
       area.innerHTML = '<div class="empty-state">No OCR suggestions were returned.</div>';
       return;
     }
-    area.innerHTML = state.candidates.map((candidate) => `
+    const confident = state.candidates.filter((candidate) => !candidate.requiresReview);
+    const review = state.candidates.filter((candidate) => candidate.requiresReview);
+    area.innerHTML = `
+      ${confident.length ? `<div class="ocr-accepted"><h4>Read confidently — accepted</h4>${confident.map((candidate) => `
+        <div class="ocr-accepted-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
+          <span>${escapeHtml(candidate.fieldName)}</span>
+          <strong>${escapeHtml(candidate.proposedValue || '')}</strong>
+          <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
+        </div>`).join('')}</div>` : ''}
+      ${review.map((candidate) => `
       <div class="ocr-field-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
         <label>${escapeHtml(candidate.fieldName)}
           <input data-candidate-value value="${escapeHtml(candidate.proposedValue || '')}">
@@ -1351,14 +1397,20 @@ const MXPartsWorkspace = (() => {
           </select>
         </label>
         <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
-      </div>`).join('');
+      </div>`).join('')}`;
   }
 
   async function approveExtraction() {
     if (state.candidates.length) {
       const rows = [...document.querySelectorAll('[data-candidate-id]')];
       const decisions = rows.map((row) => {
-        const reviewState = row.querySelector('[data-candidate-decision]').value;
+        const decision = row.querySelector('[data-candidate-decision]');
+        // A row with no decision control was read confidently and is accepted
+        // as proposed; only flagged fields carry a choice.
+        if (!decision) {
+          return { candidateId: row.dataset.candidateId, reviewState: 'accepted', finalValue: null };
+        }
+        const reviewState = decision.value;
         const value = row.querySelector('[data-candidate-value]').value.trim();
         return {
           candidateId: row.dataset.candidateId,

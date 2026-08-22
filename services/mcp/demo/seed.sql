@@ -152,11 +152,64 @@ BEGIN
         description=EXCLUDED.description, classification=EXCLUDED.classification,
         is_serialized=EXCLUDED.is_serialized, metadata=EXCLUDED.metadata, updated_at=now();
 
-    INSERT INTO part_requirements (id, case_id, part_id, quantity, required_by, acceptable_conditions) VALUES
-        ('d0000000-0000-4000-8000-000000000611', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000601', 1, now() + interval '8 hours', '["NE","NS","OH"]'::jsonb),
-        ('d0000000-0000-4000-8000-000000000612', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000603', 2, now() + interval '8 hours', '["NE","NS"]'::jsonb),
-        ('d0000000-0000-4000-8000-000000000613', 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000602', 1, now() + interval '2 days', '["NE"]'::jsonb)
-    ON CONFLICT (id) DO UPDATE SET quantity=EXCLUDED.quantity, required_by=EXCLUDED.required_by;
+    -- Challenger 350 wheel and brake hardware for the demo scenario, plus a
+    -- realistic spread across other ATA chapters. Part numbers are
+    -- deliberately synthetic so none can be mistaken for real OEM data.
+    INSERT INTO parts (id, part_number, description, manufacturer, canonical, classification, is_serialized, metadata, updated_at) VALUES
+        ('d0000000-0000-4000-8000-000000000701', 'MXG-DEMO-32-1101', '[DEMO] Main wheel assembly, outboard half', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000702', 'MXG-DEMO-32-1102', '[DEMO] Main wheel assembly, inboard half', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000703', 'MXG-DEMO-32-1103', '[DEMO] Nose wheel assembly', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000704', 'MXG-DEMO-32-1201', '[DEMO] Main brake assembly', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000705', 'MXG-DEMO-32-1202', '[DEMO] Brake lining set, main', 'MXG Demo Components', true, 'repairable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000706', 'MXG-DEMO-32-1203', '[DEMO] Brake rotor disc', 'MXG Demo Components', true, 'repairable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000707', 'MXG-DEMO-32-1204', '[DEMO] Brake stator disc', 'MXG Demo Components', true, 'repairable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000708', 'MXG-DEMO-32-1205', '[DEMO] Brake pressure plate', 'MXG Demo Components', true, 'repairable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000709', 'MXG-DEMO-32-1301', '[DEMO] Main tire, radial', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000710', 'MXG-DEMO-32-1302', '[DEMO] Nose tire, radial', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000711', 'MXG-DEMO-32-1401', '[DEMO] Wheel bearing cone, inboard', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000712', 'MXG-DEMO-32-1402', '[DEMO] Wheel bearing cone, outboard', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000713', 'MXG-DEMO-32-1403', '[DEMO] Wheel bearing cup', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000714', 'MXG-DEMO-32-1404', '[DEMO] Grease seal, wheel hub', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000715', 'MXG-DEMO-32-1501', '[DEMO] Wheel tie bolt', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000716', 'MXG-DEMO-32-1502', '[DEMO] Wheel tie bolt nut', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000717', 'MXG-DEMO-32-1503', '[DEMO] Axle nut, main gear', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000718', 'MXG-DEMO-32-1504', '[DEMO] Cotter pin, axle nut', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000719', 'MXG-DEMO-32-1601', '[DEMO] Thermal fuse plug', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000720', 'MXG-DEMO-32-1602', '[DEMO] Tire valve stem', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000721', 'MXG-DEMO-32-1603', '[DEMO] Tire valve core', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000722', 'MXG-DEMO-32-1701', '[DEMO] Wheel hub cap', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000723', 'MXG-DEMO-32-1702', '[DEMO] Torque plate, brake', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000724', 'MXG-DEMO-32-1801', '[DEMO] Shimmy damper assembly', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000725', 'MXG-DEMO-32-1802', '[DEMO] Gear door seal', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000726', 'MXG-DEMO-32-1901', '[DEMO] Wheel speed transducer', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000727', 'MXG-DEMO-32-1902', '[DEMO] Anti-skid harness, main gear', 'MXG Demo Components', true, 'repairable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"32","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000731', 'MXG-DEMO-29-1002', '[DEMO] Hydraulic filter element, return', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000732', 'MXG-DEMO-29-1003', '[DEMO] Hydraulic reservoir sight glass', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000733', 'MXG-DEMO-24-3001', '[DEMO] Generator control unit', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"24","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000734', 'MXG-DEMO-27-4001', '[DEMO] Flight control cable turnbuckle', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"27","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000735', 'MXG-DEMO-33-5001', '[DEMO] Landing light assembly', 'MXG Demo Components', true, 'repairable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"33","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000736', 'MXG-DEMO-34-6001', '[DEMO] Pitot probe, captain side', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"34","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000737', 'MXG-DEMO-79-7001', '[DEMO] Engine oil filter element', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"79","aircraft_type":"Challenger 350"}'::jsonb, now())
+    ON CONFLICT (part_number, manufacturer) DO UPDATE SET
+        description=EXCLUDED.description, classification=EXCLUDED.classification,
+        is_serialized=EXCLUDED.is_serialized, metadata=EXCLUDED.metadata, updated_at=now();
+
+    INSERT INTO part_requirements (
+        id, organization_id, case_id, part_id, quantity, required_by,
+        acceptable_conditions, status, priority, created_by
+    ) VALUES
+        ('d0000000-0000-4000-8000-000000000611', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000601', 1, now() + interval '8 hours', '["NE","NS","OH"]'::jsonb, 'requested', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000612', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000603', 2, now() + interval '8 hours', '["NE","NS"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000613', demo_org, 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000602', 1, now() + interval '2 days', '["NE"]'::jsonb, 'requested', 'scheduled_mx', demo_actor),
+        -- Wheel R&R demand for the Challenger 350 scenario, including one
+        -- already past its need-by so the overdue path has something to show.
+        ('d0000000-0000-4000-8000-000000000614', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000709', 2, now() - interval '2 days', '["NE"]'::jsonb, 'ordered', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000615', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000705', 1, now() + interval '1 day', '["NE"]'::jsonb, 'requested', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000616', demo_org, 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000719', 4, NULL, '["NE"]'::jsonb, 'requested', 'stock', demo_actor)
+    ON CONFLICT (id) DO UPDATE SET
+        organization_id=EXCLUDED.organization_id, quantity=EXCLUDED.quantity,
+        required_by=EXCLUDED.required_by, status=EXCLUDED.status,
+        priority=EXCLUDED.priority, created_by=EXCLUDED.created_by;
 
     INSERT INTO suppliers (id, name, source_reference) VALUES
         ('d0000000-0000-4000-8000-000000000621', 'MXG Demo Parts Exchange', 'demo://supplier/parts-exchange'),
@@ -193,6 +246,41 @@ BEGIN
         certificate_number=EXCLUDED.certificate_number,
         location_id=EXCLUDED.location_id, metadata=EXCLUDED.metadata,
         version=EXCLUDED.version, updated_at=now();
+
+    -- On-hand stock for the Challenger 350 wheel and brake scenario, so the
+    -- headset can find and check out real inventory during the demo.
+    INSERT INTO stock_units (
+        id, organization_id, part_id, serial_number, lot_number, quantity,
+        condition_code, status, trace_type, certificate_number, location_id,
+        owner_type, received_at, created_by, metadata, version, updated_at
+    ) VALUES
+        ('d0000000-0000-4000-8000-000000000801', demo_org, 'd0000000-0000-4000-8000-000000000701', 'DEMO-MW-0117', NULL, 1, 'OH', 'available', 'form_8130', 'DEMO-8130-1117', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-MW-0117","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000802', demo_org, 'd0000000-0000-4000-8000-000000000703', 'DEMO-NW-0042', NULL, 1, 'SV', 'available', 'form_8130', 'DEMO-8130-1042', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-NW-0042","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000803', demo_org, 'd0000000-0000-4000-8000-000000000704', 'DEMO-BRK-0231', NULL, 1, 'OH', 'available', 'dual_release', 'DEMO-DR-2231', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-BRK-0231","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000804', demo_org, 'd0000000-0000-4000-8000-000000000706', 'DEMO-ROT-0455', NULL, 1, 'SV', 'available', 'ata106', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-ROT-0455","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000805', demo_org, 'd0000000-0000-4000-8000-000000000723', 'DEMO-TP-0088', NULL, 1, 'SV', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-TP-0088","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000806', demo_org, 'd0000000-0000-4000-8000-000000000726', 'DEMO-WST-0310', NULL, 1, 'NE', 'available', 'form_8130', 'DEMO-8130-3310', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-WST-0310","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000807', demo_org, 'd0000000-0000-4000-8000-000000000733', 'DEMO-GCU-0007', NULL, 1, 'OH', 'available', 'easa_form1', 'DEMO-EF1-0007', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-GCU-0007","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000808', demo_org, 'd0000000-0000-4000-8000-000000000736', 'DEMO-PITOT-0021', NULL, 1, 'NE', 'available', 'form_8130', 'DEMO-8130-0021', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-PITOT-0021","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000821', demo_org, 'd0000000-0000-4000-8000-000000000705', NULL, 'LOT-BL-7741', 4, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-BL-7741","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000822', demo_org, 'd0000000-0000-4000-8000-000000000709', NULL, 'LOT-TIRE-2210', 3, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-TIRE-2210","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000823', demo_org, 'd0000000-0000-4000-8000-000000000710', NULL, 'LOT-TIRE-2211', 2, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-TIRE-2211","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000824', demo_org, 'd0000000-0000-4000-8000-000000000711', NULL, 'LOT-BRG-5510', 8, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-BRG-5510","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000825', demo_org, 'd0000000-0000-4000-8000-000000000712', NULL, 'LOT-BRG-5511', 8, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-BRG-5511","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000826', demo_org, 'd0000000-0000-4000-8000-000000000714', NULL, 'LOT-SEAL-9902', 24, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-SEAL-9902","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000827', demo_org, 'd0000000-0000-4000-8000-000000000715', NULL, 'LOT-BOLT-3301', 40, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-BOLT-3301","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000828', demo_org, 'd0000000-0000-4000-8000-000000000716', NULL, 'LOT-NUT-3302', 40, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-NUT-3302","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000829', demo_org, 'd0000000-0000-4000-8000-000000000718', NULL, 'LOT-PIN-4400', 100, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-PIN-4400","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000830', demo_org, 'd0000000-0000-4000-8000-000000000719', NULL, 'LOT-FUSE-6620', 12, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-FUSE-6620","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000831', demo_org, 'd0000000-0000-4000-8000-000000000720', NULL, 'LOT-VLV-7730', 16, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-VLV-7730","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000832', demo_org, 'd0000000-0000-4000-8000-000000000721', NULL, 'LOT-VLC-7731', 30, 'NE', 'available', 'coc_vendor', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-VLC-7731","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000833', demo_org, 'd0000000-0000-4000-8000-000000000731', NULL, 'LOT-HYDF-8810', 6, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-HYDF-8810","confidence":0.93}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000834', demo_org, 'd0000000-0000-4000-8000-000000000737', NULL, 'LOT-OILF-9910', 10, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-OILF-9910","confidence":0.93}}'::jsonb, 1, now())
+    ON CONFLICT (id) DO UPDATE SET
+        quantity=EXCLUDED.quantity, condition_code=EXCLUDED.condition_code,
+        status=EXCLUDED.status, trace_type=EXCLUDED.trace_type,
+        metadata=EXCLUDED.metadata, updated_at=now();
+
 
     INSERT INTO receiving_drafts (
         id, organization_id, part_id, status, proposed_fields, created_by,

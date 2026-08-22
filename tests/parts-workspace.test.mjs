@@ -199,6 +199,43 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.doesNotMatch(js, /\['coc', 'CoC'\]/);
   });
 
+  await t.test('a confidently read capture never asks the mechanic to proofread', () => {
+    // The headset path: when the server flags nothing for review, the wizard
+    // accepts the fields and goes straight to the details.
+    assert.match(js, /async function acceptConfidentCandidates/);
+    assert.match(js, /candidate\.requiresReview/);
+    assert.match(js, /if \(state\.candidates\.length && !needsReview\.length\)/);
+    // The threshold is the server's decision, not a number the client invents.
+    assert.doesNotMatch(js, /confidence\s*>=?\s*0\.\d/, 'client must not hold its own threshold');
+  });
+
+  await t.test('only flagged fields are offered for review', () => {
+    assert.match(js, /const confident = state\.candidates\.filter/);
+    assert.match(js, /const review = state\.candidates\.filter/);
+    // A row with no decision control is accepted as proposed rather than skipped.
+    assert.match(js, /if \(!decision\)/);
+    assert.match(js, /reviewState: 'accepted'/);
+  });
+
+  await t.test('the demo carries enough parts to run the scenario', () => {
+    const seed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
+    const parts = (seed.match(/'MXG-DEMO-[0-9A-Z-]+'/g) || []);
+    assert.ok(parts.length >= 35, `expected ~35 seeded parts, found ${parts.length}`);
+    // Wheel and brake hardware for the Challenger 350 scenario.
+    assert.match(seed, /Main wheel assembly/);
+    assert.match(seed, /Brake lining set/);
+    assert.match(seed, /Thermal fuse plug/);
+    // Nothing may look like a real OEM number.
+    assert.doesNotMatch(seed, /'BD-[0-9]/, 'no Bombardier-shaped part numbers');
+  });
+
+  await t.test('demo requirements carry the tenant the schema now requires', () => {
+    const seed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
+    const insert = seed.slice(seed.indexOf('INSERT INTO part_requirements'));
+    assert.match(insert.slice(0, 400), /organization_id/,
+      'part_requirements is NOT NULL on organization_id since 0019');
+  });
+
   await t.test('open case demand is set against free stock', () => {
     assert.match(client, /listShortages: async/);
     assert.match(client, /\/api\/parts\/shortages/);
