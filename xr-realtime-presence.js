@@ -37,7 +37,7 @@ function wrapLines(context, value, maxWidth, maxLines) {
 }
 
 export class XRRealtimePresence {
-  constructor({ sessionProvider, contextProvider = () => null, onAction = () => {} } = {}) {
+  constructor({ sessionProvider, contextProvider = () => null, pointCount = 720, pointSize = 0.0012, onAction = () => {} } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
     this.contextProvider = contextProvider;
     this.onAction = onAction;
@@ -50,6 +50,9 @@ export class XRRealtimePresence {
     this.panelTarget = 0;
     this.session = null;
     this.applicationSession = null;
+    this.connectAttempt = 0;
+    this.connectPromise = null;
+    this.disposed = false;
     this.handledCalls = new Set();
     this.audioContext = null;
     this.analysers = [];
@@ -57,7 +60,12 @@ export class XRRealtimePresence {
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
     this.dockOffset = new THREE.Vector3(-0.32, -0.12, -0.65);
+    this.dockTarget = null;
+    this.dockTargetPosition = new THREE.Vector3();
+    this.dockTargetQuaternion = new THREE.Quaternion();
     this.localPoint = new THREE.Vector3();
+    this.pointCount = THREE.MathUtils.clamp(Math.round(Number(pointCount) || 720), 240, 4000);
+    this.pointSize = THREE.MathUtils.clamp(Number(pointSize) || 0.0012, 0.0004, 0.003);
 
     this.group = new THREE.Group();
     this.group.name = 'MXGeniusRealtimePresence';
@@ -105,11 +113,29 @@ export class XRRealtimePresence {
     this.panel.position.set(0.58, 0.08, 0);
     this.panel.scale.setScalar(0.001);
     this.group.add(this.panel);
+
+    this.micCanvas = document.createElement('canvas');
+    this.micCanvas.width = 384;
+    this.micCanvas.height = 144;
+    this.micContext = this.micCanvas.getContext('2d');
+    this.micTexture = new THREE.CanvasTexture(this.micCanvas);
+    this.micTexture.colorSpace = THREE.SRGBColorSpace;
+    this.micButton = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.24, 0.09),
+      new THREE.MeshBasicMaterial({ map: this.micTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    this.micButton.name = 'MXGeniusRealtimeMic';
+    this.micButton.position.set(0, -0.205, 0.012);
+    this.micButton.userData.xrVoiceAction = 'toggle-realtime';
+    this.micButton.userData.xrHitSize = { width: 0.24, height: 0.09 };
+    this.micButton.visible = false;
+    this.group.add(this.micButton);
     this.drawPanel();
+    this.drawMicButton();
   }
 
   createPointCloud() {
-    const count = 720;
+    const count = this.pointCount;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     this.basePositions = new Float32Array(count * 3);
@@ -135,7 +161,7 @@ export class XRRealtimePresence {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const material = new THREE.PointsMaterial({
-      size: 0.0012,
+      size: this.pointSize,
       transparent: true,
       opacity: 0.9,
       vertexColors: true,
@@ -149,7 +175,24 @@ export class XRRealtimePresence {
   }
 
   interactiveObjects() {
-    return [this.hitTarget, this.pinTarget];
+    return [this.dockTarget ? this.micButton : this.hitTarget, this.pinTarget];
+  }
+
+  setDockTarget(target = null) {
+    this.dockTarget = target;
+    this.micButton.visible = Boolean(target);
+    this.hitTarget.visible = !target;
+    if (target) {
+      this.panel.position.set(0.58, 0.27, 0);
+      this.pinTarget.position.set(0.96, 0.44, 0.012);
+    } else {
+      this.panel.position.set(0.58, 0.08, 0);
+      this.pinTarget.position.set(-0.19, 0.13, 0);
+    }
+  }
+
+  controlInstruction() {
+    return this.dockTarget ? 'Tap mic: voice | tap diamond: pin' : 'Tap cloud: voice | tap diamond: pin';
   }
 
   owns(object) {
@@ -183,18 +226,27 @@ export class XRRealtimePresence {
 
   fingerTargetAt(point) {
     if (!this.presenting || !this.group.visible) return null;
-    this.hitTarget.updateMatrixWorld(true);
-    this.hitTarget.worldToLocal(this.localPoint.copy(point));
-    if (this.localPoint.length() <= 0.17) return this.hitTarget;
+    if (this.dockTarget) {
+      this.micButton.updateMatrixWorld(true);
+      this.micButton.worldToLocal(this.localPoint.copy(point));
+      if (Math.abs(this.localPoint.z) < 0.04 && Math.abs(this.localPoint.x) <= 0.12 && Math.abs(this.localPoint.y) <= 0.045) {
+        return this.micButton;
+      }
+    } else {
+      this.hitTarget.updateMatrixWorld(true);
+      this.hitTarget.worldToLocal(this.localPoint.copy(point));
+      if (this.localPoint.length() <= 0.17) return this.hitTarget;
+    }
     this.pinTarget.worldToLocal(this.localPoint.copy(point));
     return this.localPoint.length() <= 0.055 ? this.pinTarget : null;
   }
 
   setPresenting(presenting) {
+    if (this.disposed) return;
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
     if (this.presenting && !this.toolText) {
-      this.toolText = 'Tap cloud: voice | tap diamond: pin';
+      this.toolText = this.controlInstruction();
       this.drawPanel();
     }
     if (!this.presenting) {
@@ -205,8 +257,9 @@ export class XRRealtimePresence {
   }
 
   async toggle(input = 'xr') {
+    if (this.disposed) return;
     this.onAction('realtime-toggle', input, { state: this.state });
-    if (this.session && !['disconnected', 'failed'].includes(this.session.state)) {
+    if (this.connectPromise || (this.session && !['disconnected', 'failed'].includes(this.session.state))) {
       this.disconnect();
       return;
     }
@@ -214,6 +267,7 @@ export class XRRealtimePresence {
   }
 
   async connect(input) {
+    if (this.disposed || this.connectPromise) return this.connectPromise;
     if (!globalThis.MXRealtime?.RealtimeSession || !globalThis.MXApplicationClient?.realtime) {
       this.setState('failed', 'Realtime client unavailable');
       return;
@@ -228,24 +282,41 @@ export class XRRealtimePresence {
       organizationId: configured.organizationId,
       correlationId: globalThis.crypto?.randomUUID?.()
     };
-    this.session = new globalThis.MXRealtime.RealtimeSession({
+    const attempt = ++this.connectAttempt;
+    let realtimeSession = null;
+    realtimeSession = new globalThis.MXRealtime.RealtimeSession({
       exchangeSdp: ({ sdp, session }) => globalThis.MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
-      onEvent: (event) => void this.handleRealtimeEvent(event)
+      onEvent: (event) => {
+        if (this.session === realtimeSession && attempt === this.connectAttempt) void this.handleRealtimeEvent(event);
+      }
     });
+    this.session = realtimeSession;
+    const pending = realtimeSession.connect({ session: this.applicationSession });
+    this.connectPromise = pending;
     try {
-      await this.session.connect({ session: this.applicationSession });
+      await pending;
+      if (this.disposed || attempt !== this.connectAttempt || this.session !== realtimeSession) {
+        realtimeSession.disconnect();
+        return;
+      }
       this.onAction('realtime-connect', input, { state: this.state });
     } catch (error) {
+      if (this.disposed || attempt !== this.connectAttempt || this.session !== realtimeSession) return;
       this.setState('failed', error.message || 'Voice connection failed');
+    } finally {
+      if (this.connectPromise === pending) this.connectPromise = null;
     }
   }
 
   disconnect() {
-    this.session?.disconnect();
+    this.connectAttempt += 1;
+    const realtimeSession = this.session;
     this.session = null;
+    this.connectPromise = null;
+    realtimeSession?.disconnect();
     this.applicationSession = null;
     this.handledCalls.clear();
-    this.toolText = this.presenting ? 'Tap cloud: voice | tap diamond: pin' : '';
+    this.toolText = this.presenting ? this.controlInstruction() : '';
     this.userText = '';
     this.assistantText = '';
     this.analysers = [];
@@ -341,6 +412,7 @@ export class XRRealtimePresence {
     const color = STATE_COLORS[this.state] || STATE_COLORS.disconnected;
     this.ring.material.color.setHex(color);
     this.drawPanel();
+    this.drawMicButton();
   }
 
   async attachAudioAnalysers() {
@@ -415,7 +487,7 @@ export class XRRealtimePresence {
       ctx.fillText(label, 46, y);
       ctx.fillStyle = '#edf6ff';
       ctx.font = '28px system-ui, sans-serif';
-      const lines = wrapLines(ctx, text || (label === 'YOU' ? 'Tap the point cloud and speak.' : 'Ready when you are.'), 910, 4);
+      const lines = wrapLines(ctx, text || (label === 'YOU' ? 'Tap the mic and speak.' : 'Ready when you are.'), 910, 4);
       for (const line of lines) {
         y += 38;
         ctx.fillText(line, 46, y);
@@ -425,15 +497,37 @@ export class XRRealtimePresence {
     this.texture.needsUpdate = true;
   }
 
+  drawMicButton() {
+    const ctx = this.micContext;
+    const active = !['disconnected', 'failed'].includes(this.state);
+    const color = new THREE.Color(STATE_COLORS[this.state] || STATE_COLORS.disconnected);
+    ctx.clearRect(0, 0, this.micCanvas.width, this.micCanvas.height);
+    ctx.fillStyle = 'rgba(5, 18, 31, 0.96)';
+    ctx.fillRect(4, 4, 376, 136);
+    ctx.strokeStyle = `#${color.getHexString()}`;
+    ctx.lineWidth = 7;
+    ctx.strokeRect(4, 4, 376, 136);
+    ctx.fillStyle = active ? '#e9fff7' : '#dff7ff';
+    ctx.font = '700 38px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(active ? 'MIC ON' : 'MIC', 192, 91);
+    this.micTexture.needsUpdate = true;
+  }
+
   update(delta, time, { camera = null } = {}) {
-    if (!this.presenting) return;
-    if (!this.pinned && camera) {
+    if (this.disposed || !this.presenting) return;
+    if (!this.pinned && this.dockTarget) {
+      this.dockTarget.getWorldPosition(this.dockTargetPosition);
+      this.dockTarget.getWorldQuaternion(this.dockTargetQuaternion);
+      this.group.position.lerp(this.dockTargetPosition, 1 - Math.exp(-delta * 16));
+      this.group.quaternion.slerp(this.dockTargetQuaternion, 1 - Math.exp(-delta * 16));
+    } else if (!this.pinned && camera) {
       camera.getWorldPosition(this.cameraPosition);
       camera.getWorldQuaternion(this.cameraQuaternion);
       const desired = this.dockOffset.clone().applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
       this.group.position.lerp(desired, 1 - Math.exp(-delta * 14));
     }
-    if (camera) {
+    if (camera && !this.dockTarget) {
       camera.getWorldPosition(this.cameraPosition);
       this.group.lookAt(this.cameraPosition);
     }
@@ -449,10 +543,32 @@ export class XRRealtimePresence {
     position.needsUpdate = true;
     this.orb.rotation.y += delta * (0.28 + level * 1.8);
     this.orb.rotation.x = Math.sin(time * 0.0007) * 0.16;
-    this.orb.material.size = 0.0011 + level * 0.0009;
+    this.orb.material.size = this.pointSize * (0.93 + level * 0.79);
     this.ring.rotation.z -= delta * (0.35 + level * 2);
     this.ring.material.opacity = 0.35 + level * 0.55;
     const panelScale = THREE.MathUtils.lerp(this.panel.scale.x, this.panelTarget, 1 - Math.exp(-delta * 11));
     this.panel.scale.setScalar(Math.max(0.001, panelScale));
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.presenting = false;
+    this.group.visible = false;
+    this.disconnect();
+    const geometries = new Set();
+    const materials = new Set();
+    const textures = new Set([this.texture, this.micTexture]);
+    this.group.traverse((object) => {
+      if (object.geometry) geometries.add(object.geometry);
+      const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      objectMaterials.filter(Boolean).forEach((material) => {
+        materials.add(material);
+        if (material.map) textures.add(material.map);
+      });
+    });
+    geometries.forEach((geometry) => geometry.dispose());
+    materials.forEach((material) => material.dispose());
+    textures.forEach((texture) => texture.dispose());
   }
 }

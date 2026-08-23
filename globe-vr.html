@@ -73,8 +73,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=2';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=2';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=3';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=3';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
@@ -97,6 +97,7 @@
     sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const pageQuery = new URLSearchParams(location.search);
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
+    const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
@@ -224,18 +225,24 @@
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
-    const xrVoice = new XRRealtimePresence({
-      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action, input, target, context: { surface: sceneSurface } }
-      }))
-    });
-    scene.add(xrVoice.group);
+    function sensorCalibration(name, fallback, minimum, maximum) {
+      const raw = pageQuery.get(name);
+      const value = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
+      return THREE.MathUtils.clamp(Number.isFinite(value) ? value : fallback, minimum, maximum);
+    }
     const xrSensors = new XRSensorOrb({
       sessionId: xrSessionId,
       bridgeUrl: thermalBridgeUrl,
       diagnosticsBridgeUrl: piDiagnosticsBridgeUrl,
       remoteWitnessUrl,
       surface: sceneSurface,
+      presentation: sensorOnlyScene ? 'head-screen' : 'wrist-orb',
+      screenScale: sensorCalibration('thermalScale', 1, 0.65, 1.6),
+      headOffset: {
+        x: sensorCalibration('thermalX', 0, -0.8, 0.8),
+        y: sensorCalibration('thermalY', 0.16, -0.6, 0.6),
+        z: -sensorCalibration('thermalDistance', 1.12, 0.65, 2.2)
+      },
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
         detail: { action, input, target, context: { surface: sceneSurface } }
       })),
@@ -259,6 +266,15 @@
       }
     });
     scene.add(xrSensors.group);
+    const xrVoice = new XRRealtimePresence({
+      pointCount: sensorOnlyScene ? 1800 : 720,
+      pointSize: sensorOnlyScene ? 0.0007 : 0.0012,
+      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
+        detail: { action, input, target, context: { surface: sceneSurface } }
+      }))
+    });
+    if (sensorOnlyScene) xrVoice.setDockTarget(xrSensors.voiceDock);
+    scene.add(xrVoice.group);
     xrSensors.startPreflight();
     const TOKEN = 'LIVE_TOKEN';
 
@@ -890,7 +906,7 @@
         if (controller.userData.handedness === 'left') leftController = grip;
         if (controller.userData.handedness === 'right') {
           rightController = grip;
-          xrSensors.setAnchors({ rightController });
+          if (!sensorOnlyScene) xrSensors.setAnchors({ rightController });
         }
       });
       controller.addEventListener('select', () => {
@@ -932,7 +948,7 @@
         if (hand.userData.handedness === 'left') leftHand = hand;
         if (hand.userData.handedness === 'right') {
           rightHand = hand;
-          xrSensors.setAnchors({ rightHand });
+          if (!sensorOnlyScene) xrSensors.setAnchors({ rightHand });
         }
       });
       xrHands.push(hand);
@@ -1112,6 +1128,12 @@
       status.textContent = sensorOnlyScene ? 'Sensor diagnostics scene ready' : 'VR session ended';
     });
 
+    if (sensorPreviewMode) {
+      xrVoice.setPresenting(true);
+      xrSensors.setPresenting(true);
+      status.textContent = 'Desktop sensor layout preview · Quest pose emulation';
+    }
+
     let lastFrameTime = performance.now();
     renderer.setAnimationLoop((time) => {
       const delta = Math.min(0.1, Math.max(0, (time - lastFrameTime) / 1000));
@@ -1123,11 +1145,25 @@
         updateDetailsPresentation(delta);
       }
       updateFingerCollisions(time);
-      xrVoice.update(delta, time, {
-        camera
-      });
       xrSensors.update(delta, time, { camera });
+      xrVoice.update(delta, time, { camera });
       renderer.render(scene, camera);
+    });
+
+    let sceneDisposed = false;
+    function disposeScene() {
+      if (sceneDisposed) return;
+      sceneDisposed = true;
+      clearTimeout(activationTimeout);
+      renderer.setAnimationLoop(null);
+      xrSensors.dispose();
+      xrVoice.dispose?.();
+      clearDetailImageGrid();
+      renderer.dispose();
+    }
+
+    window.addEventListener('pagehide', (event) => {
+      if (!event.persisted) disposeScene();
     });
 
     window.addEventListener('resize', () => {

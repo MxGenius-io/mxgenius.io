@@ -3,6 +3,8 @@
 
   const WORKSPACE_KEY = 'apparatus-build-board';
   const WORKSPACE_TITLE = 'MXGenius Build Board';
+  const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -104,9 +106,11 @@
     version: 0,
     document: null,
     dirty: false,
-    saving: false
+    saving: false,
+    assetUrls: new Map()
   };
   const elements = {};
+  let composerPreviewUrl = '';
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -118,6 +122,13 @@
 
   function normalizeCard(value) {
     const card = value && typeof value === 'object' ? value : {};
+    const image = card.image && typeof card.image === 'object' && /^[0-9a-f-]{36}$/i.test(String(card.image.asset_id || ''))
+      ? {
+          asset_id: String(card.image.asset_id),
+          name: String(card.image.name || 'Card picture').slice(0, 180),
+          media_type: CARD_IMAGE_TYPES.has(card.image.media_type) ? card.image.media_type : 'image/jpeg'
+        }
+      : null;
     return {
       id: String(card.id || globalThis.crypto?.randomUUID?.() || `card-${Date.now()}`),
       lane: LANES.some(([lane]) => lane === card.lane) ? card.lane : 'question',
@@ -127,6 +138,7 @@
       author: String(card.author || 'Team member').slice(0, 120),
       created_at: card.created_at || new Date().toISOString(),
       updated_at: card.updated_at || card.created_at || new Date().toISOString(),
+      image,
       updates: Array.isArray(card.updates)
         ? card.updates.slice(-50).map((update) => ({
           id: String(update?.id || globalThis.crypto?.randomUUID?.() || `update-${Date.now()}`),
@@ -180,22 +192,22 @@
   function setSaveState(message, value = '') {
     elements.saveState.textContent = message;
     elements.saveState.dataset.state = value;
+    if (value !== 'error') elements.saveState.removeAttribute('title');
   }
 
   function setDirty() {
     state.dirty = true;
     elements.save.disabled = false;
-    elements.error.hidden = true;
     setSaveState('Unsaved changes', 'dirty');
   }
 
   function showError(error) {
     const message = error?.message || String(error);
-    elements.errorText.textContent = error?.code === 'WORKSPACE_VERSION_CONFLICT'
+    const display = error?.code === 'WORKSPACE_VERSION_CONFLICT'
       ? 'Someone else updated the board. Reload the team version before posting again.'
       : message;
-    elements.error.hidden = false;
-    setSaveState('Save failed', 'error');
+    setSaveState(display, 'error');
+    elements.saveState.title = message;
     elements.save.disabled = false;
   }
 
@@ -263,6 +275,36 @@
     container.append(details);
   }
 
+  async function hydrateCardImage(card, image) {
+    const assetId = card.image?.asset_id;
+    if (!assetId) return;
+    let pending = state.assetUrls.get(assetId);
+    if (!pending) {
+      pending = authenticatedSession()
+        .then((session) => globalThis.MXApplicationClient.projectWorkspaces.getAsset(
+          WORKSPACE_KEY,
+          assetId,
+          session
+        ))
+        .then((blob) => {
+          if (!(blob instanceof Blob) || !CARD_IMAGE_TYPES.has(blob.type)) {
+            throw new Error('The card asset is not a supported image.');
+          }
+          return URL.createObjectURL(blob);
+        });
+      state.assetUrls.set(assetId, pending);
+    }
+    try {
+      const url = await pending;
+      state.assetUrls.set(assetId, url);
+      if (!image.isConnected || image.dataset.assetId !== assetId) return;
+      image.src = url;
+      image.hidden = false;
+    } catch {
+      state.assetUrls.delete(assetId);
+    }
+  }
+
   function renderCard(card) {
     const article = makeElement('article', 'board-card');
     article.dataset.lane = card.lane;
@@ -273,7 +315,17 @@
       makeElement('h3', '', card.title)
     );
     topline.append(heading);
-    article.append(topline, makeElement('p', 'card-message', card.message));
+    article.append(topline);
+    if (card.image?.asset_id) {
+      const image = document.createElement('img');
+      image.className = 'card-image';
+      image.alt = card.image.name || `${card.title} card picture`;
+      image.dataset.assetId = card.image.asset_id;
+      image.hidden = true;
+      article.append(image);
+      void hydrateCardImage(card, image);
+    }
+    article.append(makeElement('p', 'card-message', card.message));
 
     const meta = makeElement('div', 'card-meta');
     meta.append(
@@ -354,7 +406,7 @@
   }
 
   async function loadBoard() {
-    elements.error.hidden = true;
+    elements.reload.disabled = true;
     setSaveState('Loading team board…');
     try {
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.get(
@@ -363,8 +415,10 @@
       );
       applyPayload(payload);
     } catch (error) {
-      showError(error);
       if (!state.document) applyPayload({ workspace: null });
+      showError(error);
+    } finally {
+      elements.reload.disabled = false;
     }
   }
 
@@ -402,8 +456,13 @@
     const title = elements.postTitle.value.trim();
     const message = elements.postMessage.value.trim();
     if (!title || !message) return;
+    const imageFile = elements.postImage.files?.[0] || null;
+    if (imageFile && (!CARD_IMAGE_TYPES.has(imageFile.type) || imageFile.size > MAX_CARD_IMAGE_BYTES)) {
+      showError(new Error('Card pictures must be JPG, PNG, or WebP files no larger than 8 MB.'));
+      return;
+    }
     const now = new Date().toISOString();
-    state.document.cards.unshift(normalizeCard({
+    const card = normalizeCard({
       id: globalThis.crypto?.randomUUID?.() || `card-${Date.now()}`,
       lane: elements.postLane.value,
       title,
@@ -413,26 +472,94 @@
       created_at: now,
       updated_at: now,
       updates: []
-    }));
-    elements.composer.reset();
-    elements.postLane.value = 'question';
+    });
+    state.document.cards.unshift(card);
+    elements.postSubmit.disabled = true;
     setDirty();
     renderBoard();
-    await persistBoard();
+    const saved = await persistBoard();
+    if (!saved) {
+      elements.postSubmit.disabled = false;
+      return;
+    }
+    if (imageFile) {
+      try {
+        const savedCard = state.document.cards.find((item) => item.id === card.id);
+        if (!savedCard) throw new Error('The new card could not be matched after saving.');
+        setSaveState('Uploading card picture…', 'saving');
+        const payload = await globalThis.MXApplicationClient.projectWorkspaces.uploadAsset(
+          WORKSPACE_KEY,
+          imageFile,
+          {
+            section: `board-card-${card.id}`.slice(0, 64),
+            note: `Card picture for ${title}`,
+            session: await authenticatedSession()
+          }
+        );
+        savedCard.image = {
+          asset_id: payload.asset.id,
+          name: payload.asset.original_filename || imageFile.name,
+          media_type: payload.asset.media_type || imageFile.type
+        };
+        savedCard.updated_at = new Date().toISOString();
+        setDirty();
+        renderBoard();
+        if (!await persistBoard()) {
+          elements.postSubmit.disabled = false;
+          return;
+        }
+      } catch (error) {
+        showError(error);
+        elements.postSubmit.disabled = false;
+        return;
+      }
+    }
+    elements.composer.reset();
+    elements.postLane.value = 'question';
+    clearComposerImage();
+    elements.postSubmit.disabled = false;
+  }
+
+  function clearComposerImage() {
+    if (composerPreviewUrl) URL.revokeObjectURL(composerPreviewUrl);
+    composerPreviewUrl = '';
+    elements.postImage.value = '';
+    elements.postImagePreviewImage.removeAttribute('src');
+    elements.postImagePreview.hidden = true;
+  }
+
+  function previewComposerImage() {
+    const file = elements.postImage.files?.[0];
+    if (!file) {
+      clearComposerImage();
+      return;
+    }
+    if (!CARD_IMAGE_TYPES.has(file.type) || file.size > MAX_CARD_IMAGE_BYTES) {
+      clearComposerImage();
+      showError(new Error('Card pictures must be JPG, PNG, or WebP files no larger than 8 MB.'));
+      return;
+    }
+    if (composerPreviewUrl) URL.revokeObjectURL(composerPreviewUrl);
+    composerPreviewUrl = URL.createObjectURL(file);
+    elements.postImagePreviewImage.src = composerPreviewUrl;
+    elements.postImagePreview.hidden = false;
   }
 
   function collectElements() {
     Object.assign(elements, {
       saveState: document.getElementById('boardSaveState'),
       save: document.getElementById('boardSave'),
-      error: document.getElementById('boardError'),
-      errorText: document.getElementById('boardErrorText'),
       reload: document.getElementById('boardReload'),
       composer: document.getElementById('boardComposer'),
       postLane: document.getElementById('postLane'),
       postTitle: document.getElementById('postTitle'),
       postOwner: document.getElementById('postOwner'),
       postMessage: document.getElementById('postMessage'),
+      postImage: document.getElementById('postImage'),
+      postImagePreview: document.getElementById('postImagePreview'),
+      postImagePreviewImage: document.getElementById('postImagePreviewImage'),
+      postImageClear: document.getElementById('postImageClear'),
+      postSubmit: document.getElementById('postSubmit'),
       questionCards: document.getElementById('questionCards'),
       sprintCards: document.getElementById('sprintCards'),
       completeCards: document.getElementById('completeCards'),
@@ -448,8 +575,17 @@
   function boot() {
     collectElements();
     elements.composer.addEventListener('submit', createPost);
+    elements.postImage.addEventListener('change', previewComposerImage);
+    elements.postImageClear.addEventListener('click', clearComposerImage);
     elements.save.addEventListener('click', persistBoard);
     elements.reload.addEventListener('click', loadBoard);
+    window.addEventListener('pagehide', () => {
+      clearComposerImage();
+      for (const value of state.assetUrls.values()) {
+        if (typeof value === 'string') URL.revokeObjectURL(value);
+      }
+      state.assetUrls.clear();
+    });
     loadBoard();
   }
 

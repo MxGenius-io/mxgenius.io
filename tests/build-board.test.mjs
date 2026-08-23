@@ -39,6 +39,18 @@ test('the simple board has questions, current sprint, completion, and post updat
   assert.match(js, /Mark complete/);
 });
 
+test('board lanes lead the composer and cards support private picture attachments', () => {
+  assert.ok(html.indexOf('class="lanes"') < html.indexOf('class="composer"'));
+  assert.match(html, /aria-label="Refresh team board"/);
+  assert.doesNotMatch(html, /id="boardError"/);
+  assert.match(html, /id="postImage"[^>]+accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.match(js, /MAX_CARD_IMAGE_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(js, /projectWorkspaces\.uploadAsset/);
+  assert.match(js, /projectWorkspaces\.getAsset/);
+  assert.match(js, /URL\.revokeObjectURL/);
+  assert.match(css, /\.card-image/);
+});
+
 test('the starter build list reflects the known apparatus work without live-test plumbing blockers', () => {
   assert.match(js, /Refine the apparatus mount and cable routing/);
   assert.match(js, /Run the integrated headset apparatus test/);

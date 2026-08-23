@@ -4271,13 +4271,18 @@ function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
   globeRenderedGridSize = gridSize;
   const displayClusters = aggregateGlobeClusters(clusters, globeZoomAltitude);
   globeInstance
+    .pointsData(displayClusters)
     .htmlElementsData(displayClusters)
     .ringsData(attentionClusters(displayClusters));
 }
 
 function handleGlobeZoom(view) {
   globeZoomAltitude = Number(view?.altitude) || globeZoomAltitude;
-  if (globeGridSize(globeZoomAltitude) === globeRenderedGridSize) return;
+  if (globeGridSize(globeZoomAltitude) === globeRenderedGridSize) {
+    if (globeZoomFrame) cancelAnimationFrame(globeZoomFrame);
+    globeZoomFrame = null;
+    return;
+  }
   if (globeZoomFrame) cancelAnimationFrame(globeZoomFrame);
   globeZoomFrame = requestAnimationFrame(() => {
     globeZoomFrame = null;
@@ -4326,6 +4331,22 @@ function applyGlobeFilters() {
     if (filtered.length === 1) globeInstance.pointOfView({ lat: filtered[0].lat, lng: filtered[0].lng, altitude: 1.2 }, 600);
   }
   renderGlobeClusters(filtered);
+}
+
+let globeTextureQualityTimer = null;
+
+function tuneGlobeTextureQuality(attempt = 0) {
+  clearTimeout(globeTextureQualityTimer);
+  const texture = globeInstance?.globeMaterial?.()?.map;
+  if (!texture) {
+    if (attempt < 30) globeTextureQualityTimer = setTimeout(() => tuneGlobeTextureQuality(attempt + 1), 80);
+    return;
+  }
+  const renderer = globeInstance.renderer?.();
+  const maximum = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+  texture.anisotropy = Math.min(16, maximum);
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
 }
 
 function setupGlobeSheet() {
@@ -4389,6 +4410,7 @@ function setupGlobeSheet() {
         } else {
           globeInstance.globeTileEngineUrl(null);
           globeInstance.globeImageUrl(texture);
+          tuneGlobeTextureQuality();
         }
       }
     });
@@ -4528,17 +4550,26 @@ async function loadGlobe() {
   if (!globeInstance) {
     container.innerHTML = '';
     globeRenderedGridSize = globeGridSize(globeZoomAltitude);
+    const initialDisplayClusters = aggregateGlobeClusters(allClusters, globeZoomAltitude);
     globeInstance = Globe()
+      .globeCurvatureResolution(1)
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
-      .pointsData([])
-      .htmlElementsData(aggregateGlobeClusters(allClusters, globeZoomAltitude))
+      .pointsData(initialDisplayClusters)
+      .pointLat(d => d.lat)
+      .pointLng(d => d.lng)
+      .pointAltitude(clusterAltitude)
+      .pointColor(clusterColor)
+      .pointRadius(clusterRadius)
+      .pointResolution(12)
+      .pointsTransitionDuration(0)
+      .htmlElementsData(initialDisplayClusters)
       .htmlLat(d => d.lat)
       .htmlLng(d => d.lng)
       .htmlAltitude(0.0015)
       .htmlElement(createGlobeClusterMarker)
-      .htmlTransitionDuration(220)
-      .ringsData(attentionClusters(aggregateGlobeClusters(allClusters, globeZoomAltitude)))
+      .htmlTransitionDuration(0)
+      .ringsData(attentionClusters(initialDisplayClusters))
       .ringLat(d => d.lat)
       .ringLng(d => d.lng)
       .ringAltitude(clusterAltitude)

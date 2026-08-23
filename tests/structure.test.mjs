@@ -425,7 +425,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
   assert.match(application, /function attentionClusters/);
-  assert.match(application, /\.ringsData\(attentionClusters\(aggregateGlobeClusters\(allClusters, globeZoomAltitude\)\)\)/);
+  assert.match(application, /\.ringsData\(attentionClusters\(initialDisplayClusters\)\)/);
   assert.match(application, /\.ringColor\(clusterRingColor\)/);
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
@@ -550,16 +550,25 @@ test('fleet access uses the server-side proxy marker without browser credentials
 
 test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => {
   assert.match(application, /function aggregateGlobeClusters\(/);
-  assert.match(application, /\.htmlElementsData\(aggregateGlobeClusters\(allClusters, globeZoomAltitude\)\)/);
+  assert.match(application, /\.htmlElementsData\(initialDisplayClusters\)/);
   assert.match(application, /\.htmlElement\(createGlobeClusterMarker\)/);
   assert.match(application, /anchor\.className = 'fleet-map-anchor'/);
   assert.match(application, /\.htmlAltitude\(0\.0015\)/);
   assert.match(application, /\.onZoom\(handleGlobeZoom\)/);
+  assert.match(application, /\.pointsData\(displayClusters\)/);
+  assert.match(application, /\.pointsTransitionDuration\(0\)/);
+  assert.match(application, /\.htmlTransitionDuration\(0\)/);
+  assert.match(application, /\.globeCurvatureResolution\(1\)/);
+  assert.match(application, /texture\.anisotropy = Math\.min\(16, maximum\)/);
+  assert.match(dashboard, /data-texture="earth-dark-hd\.png"/);
+  assert.match(dashboard, /data-texture="earth-water-hd\.png"/);
   assert.match(application, /cluster\.airportCount > 1/);
   assert.match(applicationStyles, /\.fleet-map-marker__beacon/);
   assert.match(applicationStyles, /\.fleet-map-anchor/);
   assert.match(applicationStyles, /\.fleet-map-marker__count/);
   assert.match(applicationStyles, /\.fleet-map-marker--stacked/);
+  assert.match(applicationStyles, /#globeViz\s*\{[\s\S]*isolation: isolate/);
+  assert.match(applicationStyles, /\.globe-sheet\s*\{[\s\S]*z-index: 30/);
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {

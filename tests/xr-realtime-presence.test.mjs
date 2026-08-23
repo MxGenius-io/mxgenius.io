@@ -8,12 +8,19 @@ const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url
 const sensors = await readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 
-test('XR voice presence is a shared point cloud with transcript and pin controls', () => {
+test('XR voice presence is a dense point cloud with a dedicated mic and pin controls', () => {
   assert.match(presence, /new THREE\.Points\(/);
   assert.match(presence, /new THREE\.CanvasTexture\(/);
   assert.match(presence, /toggle-pin/);
   assert.match(presence, /FLOATING/);
-  assert.match(presence, /size: 0\.0012/);
+  assert.match(globe, /pointCount: sensorOnlyScene \? 1800 : 720/);
+  assert.match(globe, /pointSize: sensorOnlyScene \? 0\.0007 : 0\.0012/);
+  assert.match(presence, /MXGeniusRealtimeMic/);
+  assert.match(presence, /Tap mic: voice/);
+  assert.match(presence, /setDockTarget/);
+  assert.match(presence, /this\.connectPromise/);
+  assert.match(presence, /realtimeSession\?\.disconnect\(\)/);
+  assert.match(presence, /dispose\(\) \{/);
   assert.match(presence, /requires_human_approval/);
 });
 
@@ -31,28 +38,41 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
 });
 
-test('fleet globe mounts a hand-adjacent thermal and diagnostics sensor orb', () => {
+test('sensor scene uses a head-locked thermal screen while fleet retains its wrist presentation', () => {
   assert.match(globe, /XRSensorOrb/);
-  assert.match(globe, /xrSensors\.setAnchors\(\{ rightHand \}\)/);
+  assert.match(globe, /presentation: sensorOnlyScene \? 'head-screen' : 'wrist-orb'/);
+  assert.match(globe, /xrVoice\.setDockTarget\(xrSensors\.voiceDock\)/);
+  assert.match(globe, /sensorPreviewMode/);
+  assert.match(globe, /if \(!sensorOnlyScene\) xrSensors\.setAnchors\(\{ rightHand \}\)/);
   assert.match(globe, /xrSensors\.handleObject/);
   assert.match(globe, /xrSensors\.setPresenting\(true\)/);
   assert.match(globe, /xrSensors\.startPreflight\(\)/);
   assert.match(globe, /mxgenius:\/\/sensor-bridge/);
   assert.match(globe, /FLIR THERMAL · QUEST LOCAL/);
   assert.match(sensors, /MXGeniusSensorOrb/);
+  assert.match(sensors, /MXGeniusThermalScreenRig/);
+  assert.match(sensors, /MXGeniusThermalPixels/);
+  assert.match(sensors, /toggle-thermal-screen/);
+  assert.match(sensors, /thermal-scale-down/);
+  assert.match(sensors, /thermal-scale-up/);
   assert.match(sensors, /MXGeniusDiagnosticsPanel/);
   assert.match(sensors, /diagnostics\.snapshot/);
   assert.match(sensors, /scan\.observed/);
   assert.match(sensors, /mxgenius:scan-observed/);
   assert.match(sensors, /mxgenius:sensor-diagnostics/);
   assert.match(sensors, /FRAME_MAGIC = 0x4d584753/);
+  assert.match(sensors, /MAX_THERMAL_PIXELS = 1920 \* 1080/);
+  assert.match(sensors, /this\.thermalTexture\.magFilter = THREE\.NearestFilter/);
+  assert.match(sensors, /timestamp !== this\.latestFrameTimestamp/);
+  assert.match(sensors, /dispose\(\) \{/);
+  assert.match(globe, /if \(!event\.persisted\) disposeScene\(\)/);
   assert.match(sensors, /bridge\.session/);
   assert.match(sensors, /flir-one-pro-usb-c/);
 });
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=7"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=8"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);

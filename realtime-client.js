@@ -30,6 +30,7 @@ const MXRealtime = (() => {
       this.eventSequence = 0;
       this.closingResources = false;
       this.microphoneEnabled = true;
+      this.connectionEpoch = 0;
     }
 
     emit(type, detail = {}) {
@@ -46,11 +47,12 @@ const MXRealtime = (() => {
       if (this.peer && ['connecting', 'connected'].includes(this.peer.connectionState)) return;
       this.manualDisconnect = false;
       this.lastConnectOptions = { session, audioElement };
-      this.connecting = this.open({ session, audioElement }).finally(() => { this.connecting = null; });
+      const epoch = ++this.connectionEpoch;
+      this.connecting = this.open({ session, audioElement }, epoch).finally(() => { this.connecting = null; });
       return this.connecting;
     }
 
-    async open({ session, audioElement }) {
+    async open({ session, audioElement }, epoch) {
       if (!this.mediaDevices?.getUserMedia) throw new Error('Microphone capture is unavailable');
       this.setState('connecting');
       try {
@@ -67,12 +69,14 @@ const MXRealtime = (() => {
         }
         this.audioElement.autoplay = true;
         if (this.audioElement.style) this.audioElement.style.display = 'none';
-        this.peer = this.peerFactory();
-        this.peer.ontrack = (event) => {
+        const peer = this.peerFactory();
+        this.peer = peer;
+        peer.ontrack = (event) => {
           this.audioElement.srcObject = event.streams[0];
         };
-        this.peer.onconnectionstatechange = () => {
-          const state = this.peer?.connectionState;
+        peer.onconnectionstatechange = () => {
+          if (epoch !== this.connectionEpoch || this.peer !== peer) return;
+          const state = peer.connectionState;
           if (state === 'connected') {
             this.reconnectAttempts = 0;
             this.setState('listening');
@@ -81,30 +85,40 @@ const MXRealtime = (() => {
             this.scheduleReconnect(state === 'failed' ? 'WebRTC connection failed' : 'Realtime connection interrupted');
           }
         };
-        this.media = await this.mediaDevices.getUserMedia({
+        const media = await this.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
-        for (const track of this.media.getAudioTracks()) {
+        if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) {
+          for (const track of media.getTracks()) track.stop();
+          return;
+        }
+        this.media = media;
+        for (const track of media.getAudioTracks()) {
           track.enabled = this.microphoneEnabled;
-          this.peer.addTrack(track, this.media);
+          peer.addTrack(track, media);
         }
         this.emit('microphone', { enabled: this.microphoneEnabled });
-        this.channel = this.peer.createDataChannel('oai-events');
-        this.channel.addEventListener('open', () => this.emit('channel-open'));
-        this.channel.addEventListener('close', () => {
+        const channel = peer.createDataChannel('oai-events');
+        this.channel = channel;
+        channel.addEventListener('open', () => this.emit('channel-open'));
+        channel.addEventListener('close', () => {
           this.emit('channel-close');
           if (!this.manualDisconnect && !this.closingResources && this.peer?.connectionState !== 'connected') {
             this.scheduleReconnect('Realtime event channel closed');
           }
         });
-        this.channel.addEventListener('message', (event) => this.handleMessage(event.data));
-        const offer = await this.peer.createOffer();
-        await this.peer.setLocalDescription(offer);
+        channel.addEventListener('message', (event) => this.handleMessage(event.data));
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         const answer = await this.exchangeSdp({ sdp: offer.sdp, session });
-        await this.peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+        if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
+        await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+        if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         this.emit('connected', { callId: answer.callId, correlationId: answer.correlationId });
       } catch (error) {
         this.closeResources();
+        if (this.manualDisconnect || epoch !== this.connectionEpoch) return;
         this.setState('failed', { reason: error.message, code: error.code || 'REALTIME_CONNECT_FAILED' });
         throw error;
       }
@@ -268,6 +282,7 @@ const MXRealtime = (() => {
 
     disconnect() {
       this.manualDisconnect = true;
+      this.connectionEpoch += 1;
       this.clearReconnectTimer();
       this.closeResources();
       this.setState('disconnected');

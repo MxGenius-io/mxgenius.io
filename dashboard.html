@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=5">
+  <link rel="stylesheet" href="app-styles.css?v=6">
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="parts-workspace.css?v=14">
   <link rel="stylesheet" href="realtime.css">
@@ -99,10 +99,10 @@
               <div class="globe-texture-buttons" id="globeTextureButtons" style="display: flex; flex-direction: column; gap: 8px;">
                 <button class="texture-btn" data-texture="earth-night.jpg" title="Night Mode">🌙</button>
                 <button class="texture-btn" data-texture="earth-blue-marble.jpg" title="Blue Marble">🌍</button>
-                <button class="texture-btn" data-texture="earth-dark.jpg" title="Dark Mode">🌑</button>
-                <button class="texture-btn" data-texture="earth-water.png" title="Ocean Mode">💧</button>
+                <button class="texture-btn" data-texture="earth-dark-hd.png" title="Dark Mode">🌑</button>
+                <button class="texture-btn" data-texture="earth-water-hd.png" title="Ocean Mode">💧</button>
                 <button class="texture-btn active" data-texture="osm" title="Open Street Map">🗺️</button>
-                <a class="texture-btn sensor-scene-tab" id="sensorSceneTab" href="globe-vr.html?scene=sensor&amp;v=7" title="Open the isolated FLIR and Pi diagnostic scene" aria-label="Open sensor diagnostics scene">
+                <a class="texture-btn sensor-scene-tab" id="sensorSceneTab" href="globe-vr.html?scene=sensor&amp;v=8" title="Open the isolated FLIR and Pi diagnostic scene" aria-label="Open sensor diagnostics scene">
                   <img src="assets/thermal-sensor-scene-square.png" alt="" aria-hidden="true">
                 </a>
                 <button class="texture-btn" id="globeVrButton" type="button" disabled title="Open the fleet globe directly in Quest Browser">
@@ -725,7 +725,7 @@
   <script src="onboarding.js?v=4"></script>
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=1"></script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
   <div id="onboardingRoot"></div>
 </body>
 
