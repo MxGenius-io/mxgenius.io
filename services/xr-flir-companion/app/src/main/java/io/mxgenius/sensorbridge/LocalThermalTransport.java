@@ -51,6 +51,10 @@ final class LocalThermalTransport implements ThermalTransport {
         broker.publishBridgeStatus(phase, ready, reason);
     }
 
+    void sendTrace(String step, String vector, String state, String detail, String level) {
+        broker.publishTrace(step, vector, state, detail, level);
+    }
+
     @Override public void sendFrame(Bitmap bitmap) {
         BridgeActivation current = activation;
         if (current == null || current.localToken == null || bitmap == null || !broker.hasConsumers()) return;

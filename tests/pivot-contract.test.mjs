@@ -73,7 +73,7 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
 });
 
 test('Quest companion config uses the current published Alpha build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.6'/);
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.7'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
@@ -82,15 +82,15 @@ test('Quest companion config uses the current published Alpha build identity', (
   assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
   assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.build.versionCode, 6);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.6');
-  assert.equal(metaRelease.build.metaTestStatus, 'Complete');
+  assert.equal(metaRelease.build.versionCode, 7);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.7');
+  assert.equal(metaRelease.build.metaTestStatus, 'PendingValidation');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 6/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.6"/);
+  assert.match(companionGradle, /versionCode = 7/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.7"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -109,6 +109,9 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.doesNotMatch(companionManifest, /BLUETOOTH_CONNECT|hardware\.bluetooth/);
   assert.match(companionActivity, /Standalone · local thermal preview/);
   assert.match(companionActivity, /startForegroundService\(serviceIntent\)/);
+  assert.match(companionActivity, /activation\.browserHandoffUrl\(\)/);
+  assert.match(companionActivity, /service\.connectCamera\(this\)/);
+  assert.match(companionActivity, /handing off to Meta Browser/);
   assert.match(companionService, /void connectCamera\(Activity activity\)[\s\S]*cameraRuntimeReady[\s\S]*discoverAndConnect\(activity\)/);
   assert.ok(
     companionService.indexOf('startForeground(NOTIFICATION_ID') < companionService.indexOf('lifecycleWorker.execute(this::initializeRuntime)'),
@@ -124,6 +127,8 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.doesNotMatch(relayClient, /sendDiagnostics|pi-diagnostics-rfcomm|edge-diagnostics-1/);
   assert.match(localThermalBroker, /127\.0\.0\.1|allowedOrigins/);
   assert.match(localThermalBroker, /invalid thermal session/);
+  assert.match(localThermalBroker, /bridge\.trace/);
+  assert.match(localThermalBroker, /HISTORY_LIMIT = 64/);
   assert.match(localThermalTransport, /MxgsFrameEncoder\.jpeg/);
   assert.match(companionService, /transport\.sendFrame\(bitmap\)/);
   assert.match(sensorOrb, /this\.diagnosticsSocket = socket/);

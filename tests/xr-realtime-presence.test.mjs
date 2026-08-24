@@ -38,7 +38,7 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
 });
 
-test('sensor scene uses a head-locked thermal screen while fleet retains its wrist presentation', () => {
+test('sensor scene supports a head-following or world-pinned thermal screen while fleet retains its wrist presentation', () => {
   assert.match(globe, /XRSensorOrb/);
   assert.match(globe, /presentation: sensorOnlyScene \? 'head-screen' : 'wrist-orb'/);
   assert.match(globe, /xrVoice\.setDockTarget\(xrSensors\.voiceDock\)/);
@@ -53,6 +53,9 @@ test('sensor scene uses a head-locked thermal screen while fleet retains its wri
   assert.match(sensors, /MXGeniusThermalScreenRig/);
   assert.match(sensors, /MXGeniusThermalPixels/);
   assert.match(sensors, /toggle-thermal-screen/);
+  assert.match(sensors, /pin-thermal-screen/);
+  assert.match(sensors, /thermal screen pinned in world space/);
+  assert.match(sensors, /camera && !this\.screenPinned/);
   assert.match(sensors, /thermal-scale-down/);
   assert.match(sensors, /thermal-scale-up/);
   assert.match(sensors, /MXGeniusDiagnosticsPanel/);
@@ -64,6 +67,9 @@ test('sensor scene uses a head-locked thermal screen while fleet retains its wri
   assert.match(sensors, /MAX_THERMAL_PIXELS = 1920 \* 1080/);
   assert.match(sensors, /FLIR HANDSHAKE TRACE/);
   assert.match(sensors, /message\.type === 'bridge\.status'/);
+  assert.match(sensors, /message\.type === 'bridge\.trace'/);
+  assert.match(sensors, /W01 PAIR/);
+  assert.match(sensors, /W10 RENDER/);
   assert.match(sensors, /bridgeRuntimeStatus/);
   assert.match(sensors, /this\.handshakeTrace/);
   assert.match(sensors, /credentials redacted/);
@@ -81,7 +87,7 @@ test('sensor scene uses a head-locked thermal screen while fleet retains its wri
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=10"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=11"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);

@@ -30,8 +30,9 @@ final class LocalThermalBroker extends WebSocketServer {
     private final String nodeId;
     private final Listener listener;
     private final CountDownLatch started = new CountDownLatch(1);
-    private final Object bridgeHistoryLock = new Object();
-    private final ArrayDeque<String> bridgeHistory = new ArrayDeque<>();
+    private static final int HISTORY_LIMIT = 64;
+    private final Object eventHistoryLock = new Object();
+    private final ArrayDeque<String> eventHistory = new ArrayDeque<>();
     private volatile String sessionId;
     private volatile String token;
     private volatile String sourceStatus = "standby";
@@ -72,11 +73,11 @@ final class LocalThermalBroker extends WebSocketServer {
 
     void publishBridgeStatus(String phase, boolean ready, String reason) {
         String message = bridgeStatusJson(phase, ready, reason);
-        synchronized (bridgeHistoryLock) {
-            if (bridgeHistory.size() >= 12) bridgeHistory.removeFirst();
-            bridgeHistory.addLast(message);
-        }
-        for (WebSocket consumer : consumers) if (consumer.isOpen()) consumer.send(message);
+        publishRetained(message);
+    }
+
+    void publishTrace(String step, String vector, String state, String detail, String level) {
+        publishRetained(traceJson(step, vector, state, detail, level));
     }
 
     void publishFrame(byte[] frame) {
@@ -89,11 +90,12 @@ final class LocalThermalBroker extends WebSocketServer {
             connection.close(1008, "invalid thermal session");
             return;
         }
+        publishTrace("B03", "BROKER", "accepted", "browser origin and session token accepted", "success");
         consumers.add(connection);
         connection.send(helloJson());
         connection.send(nodeStatusJson());
-        synchronized (bridgeHistoryLock) {
-            for (String message : bridgeHistory) connection.send(message);
+        synchronized (eventHistoryLock) {
+            for (String message : eventHistory) connection.send(message);
         }
         String status = sourceStatusJson();
         if (status != null) connection.send(status);
@@ -106,8 +108,31 @@ final class LocalThermalBroker extends WebSocketServer {
     }
 
     @Override public void onMessage(WebSocket connection, String message) {
-        if (message != null && message.contains("\"type\":\"ping\"")) {
-            connection.send("{\"type\":\"pong\"}");
+        if (message == null || message.isBlank()) return;
+        try {
+            JSONObject payload = new JSONObject(message);
+            String type = payload.optString("type", "");
+            if ("ping".equals(type)) {
+                connection.send("{\"type\":\"pong\"}");
+            } else if ("node.announce".equals(type)) {
+                publishTrace("B04", "BROKER", "announced", "WebXR thermal-display client announced", "success");
+            } else if ("bridge.session".equals(type)) {
+                if (!sessionId.equals(payload.optString("sessionId", ""))) {
+                    publishTrace("B05", "BROKER", "rejected", "WebXR session bind did not match activation", "error");
+                    connection.close(1008, "thermal session mismatch");
+                    return;
+                }
+                publishTrace("B05", "BROKER", "bound", "WebXR session bind matched activation", "success");
+            } else if ("thermal.control".equals(type)) {
+                publishTrace(
+                        "B06",
+                        "BROKER",
+                        payload.optBoolean("enabled", false) ? "enabled" : "disabled",
+                        "thermal display control received",
+                        "info");
+            }
+        } catch (JSONException error) {
+            publishTrace("B00", "BROKER", "protocol-error", "invalid browser control message", "error");
         }
     }
 
@@ -198,6 +223,30 @@ final class LocalThermalBroker extends WebSocketServer {
         } catch (JSONException error) {
             return "{\"type\":\"bridge.status\",\"phase\":\"failed\",\"ready\":false}";
         }
+    }
+
+    private String traceJson(String step, String vector, String state, String detail, String level) {
+        try {
+            return new JSONObject()
+                    .put("type", "bridge.trace")
+                    .put("step", step)
+                    .put("vector", vector)
+                    .put("state", state)
+                    .put("detail", detail)
+                    .put("level", level)
+                    .put("observedAtMs", System.currentTimeMillis())
+                    .toString();
+        } catch (JSONException error) {
+            return "{\"type\":\"bridge.trace\",\"step\":\"N00\",\"vector\":\"BRIDGE\",\"state\":\"trace-error\",\"level\":\"error\"}";
+        }
+    }
+
+    private void publishRetained(String message) {
+        synchronized (eventHistoryLock) {
+            if (eventHistory.size() >= HISTORY_LIMIT) eventHistory.removeFirst();
+            eventHistory.addLast(message);
+        }
+        for (WebSocket consumer : consumers) if (consumer.isOpen()) consumer.send(message);
     }
 
     private static Map<String, String> queryParameters(String rawQuery) {

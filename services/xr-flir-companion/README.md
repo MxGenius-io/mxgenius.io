@@ -8,7 +8,7 @@ The WebXR page opens a token-bound Quest-local handoff:
 mxgenius://sensor-bridge?sessionId=<opaque-id>&localToken=<ephemeral-token>
 ```
 
-The companion hosts `ws://127.0.0.1:4109/thermal` for the Meta Browser on the same Quest. It accepts only the matching session/token and an approved MxGenius browser origin, then forwards throttled JPEG thermal frames in the `MXGS/1` envelope. This handoff is not a camera activation requirement. A separately issued `wss://` relay may still be included for remote witnessing. The Raspberry Pi diagnostics appliance is a separate system and is not packaged into this APK.
+The companion hosts `ws://127.0.0.1:4109/thermal` for the Meta Browser on the same Quest. It accepts only the matching session/token and an approved MxGenius browser origin, then forwards throttled JPEG thermal frames in the `MXGS/1` envelope. For a browser-initiated activation, the companion owns USB permission and camera startup; after the first decoded thermal frame, it explicitly relaunches the sensor scene and removes its panel activity while the foreground service remains alive. The session/token travel in a URL fragment, are copied into browser session storage, and are immediately scrubbed from the visible URL. A separately issued `wss://` relay may still be included for remote witnessing. The Raspberry Pi diagnostics appliance is a separate system and is not packaged into this APK.
 
 The loopback design follows the browser secure-context model: `127.0.0.1` is a potentially trustworthy origin, while arbitrary LAN `ws://` endpoints are not. The ephemeral token stays in browser session storage and the Android activation intent; it is not persisted by the companion.
 
@@ -49,6 +49,10 @@ Treat the APK uploaded to Meta as an immutable release artifact. A later local r
 5. Confirm the floating panel reaches `streaming` and renders live thermal pixels.
 6. Unplug and reconnect the camera, then close and reopen the panel and repeat the check.
 
+For the integrated WebXR test, open the sensor scene first and select **Open FLIR companion**. The bridge automatically requests FLIR access, waits for `streaming`, and reopens Meta Browser. Enter VR and use **PIN HERE** to stop the thermal rig at its current world pose; **FOLLOW HEAD** resumes head-relative placement.
+
+The numbered native, broker, and browser checkpoints are documented in [`docs/QUEST_THERMAL_TRACE.md`](../../docs/QUEST_THERMAL_TRACE.md). A failure entry or the last successful step identifies which connection vector stopped progressing.
+
 The WebXR path is tested separately and must not change local camera readiness. Do not treat a deep-link launch as proof of either camera or WebXR transport readiness.
 
 The debug manifest allows cleartext `ws://` only for this local pilot. Release builds disable cleartext transport and the activation parser rejects it.
@@ -62,6 +66,8 @@ https://www.oculus.com/experiences/1280760725126205/release-channels/15161256435
 ```
 
 Meta has published `0.1.0-poc.6` (`versionCode 6`, Meta build `1296553506880260`) to Alpha. This build makes foreground startup immediate, holds the panel in a stable readiness lifecycle, and replays native broker/FLIR startup phases into the WebXR trace. The FLIR viewer remains standalone and independent of the Pi. The channel URL is intentionally free of invitation or email tracking parameters and still requires an invited Meta account. Accepting the channel invitation grants entitlement but does not download the APK directly; on the joined headset account, install **MxGenius Sensor Bridge** from **Quest Library → Not installed**. An APK update must increment `versionCode`; changing site configuration or Meta artwork does not require a new APK.
+
+`0.1.0-poc.7` (`versionCode 7`) has been uploaded and assigned to Alpha; Meta validation is pending. It adds the native bridge-to-browser handoff and pairs with the world-space **PIN HERE / FOLLOW HEAD** thermal control.
 
 Meta cover art is submission metadata, not an Android resource and not part of the APK. In the Developer Dashboard use **App submissions → v1 → App metadata → Assets → Cover art → Landscape**. Upload `meta/store-assets/cover-landscape-2560x1440.png`, a 24-bit 2560×1440 PNG. `meta/store-assets/manifest.json` maps every local asset to its dashboard field and records its checksum and dimensions. Keeping this draft metadata does not submit the app for public Store review.
 

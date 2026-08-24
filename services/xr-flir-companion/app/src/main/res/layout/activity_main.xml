@@ -73,7 +73,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="Return to MxGenius" />
+            android:enabled="false"
+            android:text="Waiting for FLIR stream…" />
         <Button
             android:id="@+id/stop_bridge"
             android:layout_width="match_parent"
@@ -84,7 +85,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="The FLIR viewer works without the Pi, browser, or Azure. An optional WebXR connection may forward thermal frames after the local preview is already running."
+            android:text="When opened from MxGenius, this panel owns FLIR permission and startup, then hands the live stream back to Meta Browser. The foreground bridge stays active while the WebXR thermal screen is pinned in your space."
             android:textColor="#718DA3"
             android:textSize="13sp" />
     </LinearLayout>

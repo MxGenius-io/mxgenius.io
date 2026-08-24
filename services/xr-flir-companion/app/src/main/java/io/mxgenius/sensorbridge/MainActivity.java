@@ -9,6 +9,8 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -21,9 +23,14 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     private TextView cameraStatus;
     private ImageView thermalPreview;
     private Button connectCamera;
+    private Button returnToBrowser;
     private SensorBridgeService service;
     private boolean bound;
     private BridgeActivation activation;
+    private boolean cameraConnectRequested;
+    private boolean browserHandoffStarted;
+    private boolean firstFrameReceived;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
@@ -53,9 +60,11 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         thermalPreview = findViewById(R.id.thermal_preview);
         connectCamera = findViewById(R.id.connect_camera);
         connectCamera.setOnClickListener(view -> {
+            cameraConnectRequested = true;
             if (service != null) service.connectCamera(this);
         });
-        findViewById(R.id.return_to_browser).setOnClickListener(view -> finish());
+        returnToBrowser = findViewById(R.id.return_to_browser);
+        returnToBrowser.setOnClickListener(view -> openSensorScene());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
         activate(getIntent());
     }
@@ -93,15 +102,48 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             boolean cameraIdle = !"streaming".equals(camera) && !"connecting".equals(camera);
             connectCamera.setEnabled(service != null && service.canConnectCamera() && cameraIdle);
             connectCamera.setText("streaming".equals(camera) ? "FLIR ONE streaming" : "Connect FLIR ONE");
+            boolean managedHandoff = activation != null && activation.canHandoffToBrowser();
+            returnToBrowser.setEnabled(!managedHandoff || firstFrameReceived);
+            returnToBrowser.setText(managedHandoff
+                    ? (firstFrameReceived
+                        ? "Open pinned thermal scene"
+                        : "streaming".equals(camera) ? "Waiting for first thermal frame…" : "Waiting for FLIR stream…")
+                    : "Close viewer");
+            if (managedHandoff
+                    && !cameraConnectRequested
+                    && bridge.startsWith("ready")
+                    && !"streaming".equals(camera)
+                    && !"connecting".equals(camera)
+                    && !"discovering".equals(camera)
+                    && !"permission-required".equals(camera)) {
+                cameraConnectRequested = true;
+                service.connectCamera(this);
+            }
         });
     }
 
     @Override public void onFrame(Bitmap bitmap) {
-        runOnUiThread(() -> thermalPreview.setImageBitmap(bitmap));
+        runOnUiThread(() -> {
+            thermalPreview.setImageBitmap(bitmap);
+            firstFrameReceived = true;
+            boolean managedHandoff = activation != null && activation.canHandoffToBrowser();
+            if (managedHandoff && !browserHandoffStarted) {
+                browserHandoffStarted = true;
+                bridgeStatus.setText("Bridge · first frame ready · handing off to Meta Browser");
+                if (service != null) service.recordTrace(
+                        "N14", "HANDOFF", "ready", "first frame confirmed; browser handoff scheduled", "success");
+                returnToBrowser.setEnabled(true);
+                returnToBrowser.setText("Open pinned thermal scene");
+                mainHandler.postDelayed(this::openSensorScene, 450L);
+            }
+        });
     }
 
     private void activate(Intent source) {
         activation = null;
+        cameraConnectRequested = false;
+        browserHandoffStarted = false;
+        firstFrameReceived = false;
         String activationMessage = null;
         Uri data = source == null ? null : source.getData();
         if (data != null) {
@@ -119,6 +161,10 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         if (activation != null) {
             sessionStatus.setText("Session · " + shortSession(activation.sessionId));
             relayStatus.setText("WebXR · " + activation.relayLabel());
+            returnToBrowser.setText(activation.canHandoffToBrowser()
+                    ? "Waiting for FLIR stream…"
+                    : "Close viewer");
+            returnToBrowser.setEnabled(!activation.canHandoffToBrowser());
         } else {
             sessionStatus.setText(activationMessage == null
                     ? "Standalone · local thermal preview"
@@ -144,6 +190,28 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         stop.setAction(SensorBridgeService.ACTION_STOP);
         startService(stop);
         finish();
+    }
+
+    private void openSensorScene() {
+        if (activation == null || !activation.canHandoffToBrowser()) {
+            finish();
+            return;
+        }
+        try {
+            if (service != null) service.recordTrace(
+                    "N15", "HANDOFF", "launching", "opening the MxGenius sensor scene in Meta Browser", "info");
+            Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse(activation.browserHandoffUrl()));
+            browser.addCategory(Intent.CATEGORY_BROWSABLE);
+            browser.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(browser);
+            finish();
+        } catch (RuntimeException error) {
+            if (service != null) service.recordTrace(
+                    "N15", "HANDOFF", "failed", "Meta Browser activity could not be opened", "error");
+            browserHandoffStarted = false;
+            bridgeStatus.setText("Bridge · streaming · Meta Browser launch failed");
+            returnToBrowser.setEnabled(true);
+        }
     }
 
     private static String shortSession(String value) {

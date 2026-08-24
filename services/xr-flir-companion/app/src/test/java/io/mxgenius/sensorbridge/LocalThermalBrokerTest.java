@@ -88,12 +88,14 @@ public final class LocalThermalBrokerTest {
                 "quest-sensor-test",
                 state -> {});
         broker.publishBridgeStatus("starting", false, "foreground-active");
+        broker.publishTrace("N01", "SERVICE", "foreground", "foreground service created", "success");
         broker.publishBridgeStatus("ready", true, "camera-runtime-ready");
         broker.activate("case-42", TOKEN);
         broker.start();
         assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
 
         CountDownLatch readyReceived = new CountDownLatch(1);
+        CountDownLatch traceReceived = new CountDownLatch(1);
         CopyOnWriteArrayList<String> messages = new CopyOnWriteArrayList<>();
         WebSocketClient client = new WebSocketClient(
                 uri(port, TOKEN),
@@ -105,6 +107,8 @@ public final class LocalThermalBrokerTest {
                 messages.add(message);
                 if (message.contains("\"type\":\"bridge.status\"")
                         && message.contains("\"phase\":\"ready\"")) readyReceived.countDown();
+                if (message.contains("\"type\":\"bridge.trace\"")
+                        && message.contains("\"step\":\"N01\"")) traceReceived.countDown();
             }
             @Override public void onMessage(ByteBuffer bytes) {}
             @Override public void onClose(int code, String reason, boolean remote) {}
@@ -113,6 +117,7 @@ public final class LocalThermalBrokerTest {
         try {
             assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
             assertTrue(readyReceived.await(3, TimeUnit.SECONDS));
+            assertTrue(traceReceived.await(3, TimeUnit.SECONDS));
             assertTrue(messages.stream().anyMatch(message ->
                     message.contains("\"type\":\"bridge.status\"")
                             && message.contains("\"phase\":\"starting\"")));

@@ -11,7 +11,7 @@ const THERMAL_TOKEN_STORAGE_KEY = 'mxg_thermal_bridge_token';
 const PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY = 'mxg_pi_diagnostics_bridge_url';
 const FRAME_MAGIC = 0x4d584753;
 const MAX_THERMAL_PIXELS = 1920 * 1080;
-const MAX_HANDSHAKE_TRACE_ENTRIES = 18;
+const MAX_HANDSHAKE_TRACE_ENTRIES = 64;
 
 function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -96,6 +96,7 @@ export class XRSensorOrb {
     presentation = 'wrist-orb',
     screenScale = 1,
     headOffset = { x: 0, y: 0.16, z: -1.12 },
+    bridgeHandoff = false,
     onAction = () => {},
     onStatus = () => {},
     onTrace = () => {}
@@ -109,6 +110,7 @@ export class XRSensorOrb {
       Number(headOffset?.y) || 0,
       Number(headOffset?.z) || -1.12
     );
+    this.bridgeHandoff = Boolean(bridgeHandoff);
     this.onAction = onAction;
     this.onStatus = onStatus;
     this.onTrace = onTrace;
@@ -119,6 +121,7 @@ export class XRSensorOrb {
     this.preflighting = false;
     this.disposed = false;
     this.active = this.presentation === 'head-screen';
+    this.screenPinned = false;
     this.state = 'unconfigured';
     this.socket = null;
     this.reconnectTimer = null;
@@ -235,16 +238,17 @@ export class XRSensorOrb {
     this.screenControls.visible = this.presentation === 'head-screen';
     this.group.add(this.screenControls);
     this.screenToggle = this.createScreenButton('MXGeniusThermalToggle', 'toggle-thermal-screen', 0.27);
+    this.screenPin = this.createScreenButton('MXGeniusThermalPin', 'pin-thermal-screen', 0.2);
     this.screenScaleDown = this.createScreenButton('MXGeniusThermalScaleDown', 'thermal-scale-down', 0.18);
     this.screenScaleUp = this.createScreenButton('MXGeniusThermalScaleUp', 'thermal-scale-up', 0.18);
-    this.screenControls.add(this.screenToggle, this.screenScaleDown, this.screenScaleUp);
+    this.screenControls.add(this.screenToggle, this.screenPin, this.screenScaleDown, this.screenScaleUp);
 
     this.voiceDock = new THREE.Object3D();
     this.voiceDock.name = 'MXGeniusAIPanelDock';
     this.voiceDock.visible = this.presentation === 'head-screen';
     this.group.add(this.voiceDock);
     this.applyScreenLayout();
-    this.trace('BOOT', `sensor scene · session ${this.sessionId?.slice(0, 8) || 'none'}`);
+    this.trace('W01 PAIR', `${this.bridgeHandoff ? 'native bridge handoff restored' : 'browser session prepared'} · session ${this.sessionId?.slice(0, 8) || 'none'}`, 'success');
     this.trace('TARGET', this.bridge.url ? bridgeLabel(this.bridge.url) : 'thermal transport not configured', this.bridge.url ? 'info' : 'warn');
     this.drawPanel();
     this.drawScreenButtons();
@@ -292,10 +296,11 @@ export class XRSensorOrb {
   applyScreenLayout() {
     this.screenRoot.scale.setScalar(this.screenScale);
     const baseY = -0.43 * this.screenScale - 0.08;
-    this.screenToggle.position.set(-0.31, baseY, 0.014);
-    this.screenScaleDown.position.set(-0.06, baseY, 0.014);
-    this.screenScaleUp.position.set(0.15, baseY, 0.014);
-    this.voiceDock.position.set(0.39, baseY + 0.015, 0.02);
+    this.screenToggle.position.set(-0.38, baseY, 0.014);
+    this.screenPin.position.set(-0.12, baseY, 0.014);
+    this.screenScaleDown.position.set(0.1, baseY, 0.014);
+    this.screenScaleUp.position.set(0.31, baseY, 0.014);
+    this.voiceDock.position.set(0.53, baseY + 0.015, 0.02);
     this.panel.position.x = -0.42 * this.screenScale - 0.34;
     this.drawScreenButtons();
   }
@@ -318,6 +323,7 @@ export class XRSensorOrb {
   drawScreenButtons() {
     if (!this.screenToggle) return;
     this.drawScreenButton(this.screenToggle, this.active ? 'HIDE THERMAL' : 'SHOW THERMAL', this.active);
+    this.drawScreenButton(this.screenPin, this.screenPinned ? 'FOLLOW HEAD' : 'PIN HERE', this.screenPinned);
     this.drawScreenButton(this.screenScaleDown, 'SIZE −');
     this.drawScreenButton(this.screenScaleUp, 'SIZE +');
   }
@@ -343,7 +349,7 @@ export class XRSensorOrb {
 
   interactiveObjects() {
     return this.presentation === 'head-screen'
-      ? [this.screenToggle, this.screenScaleDown, this.screenScaleUp]
+      ? [this.screenToggle, this.screenPin, this.screenScaleDown, this.screenScaleUp]
       : [this.hitTarget];
   }
 
@@ -364,6 +370,7 @@ export class XRSensorOrb {
     } else if (this.presentation === 'head-screen') {
       this.trace('XR', 'immersive session ended · thermal display disabled');
       this.sendThermalControl('session-end', false);
+      this.setScreenPinned(false, 'session-end');
     } else {
       this.setActive(false, 'session-end');
     }
@@ -405,6 +412,10 @@ export class XRSensorOrb {
     let node = object;
     while (node && !node.userData?.xrSensorAction) node = node.parent;
     if (!node) return false;
+    if (node.userData.xrSensorAction === 'pin-thermal-screen') {
+      this.setScreenPinned(!this.screenPinned, input);
+      return true;
+    }
     if (node.userData.xrSensorAction === 'thermal-scale-down') {
       this.setScreenScale(this.screenScale - 0.1, input);
       return true;
@@ -423,10 +434,20 @@ export class XRSensorOrb {
     this.onAction('thermal-screen-scale', input, { scale: this.screenScale });
   }
 
+  setScreenPinned(pinned, input = 'unknown') {
+    if (this.presentation !== 'head-screen') return;
+    const next = Boolean(pinned);
+    if (this.screenPinned === next) return;
+    this.screenPinned = next;
+    this.drawScreenButtons();
+    this.trace('ANCHOR', next ? 'thermal screen pinned in world space' : 'thermal screen following headset', 'success');
+    this.onAction('thermal-screen-anchor', input, { pinned: next });
+  }
+
   fingerTargetAt(point) {
     if (!this.presenting || !this.group.visible) return null;
     if (this.presentation === 'head-screen') {
-      for (const button of [this.screenToggle, this.screenScaleDown, this.screenScaleUp]) {
+      for (const button of [this.screenToggle, this.screenPin, this.screenScaleDown, this.screenScaleUp]) {
         button.updateMatrixWorld(true);
         button.worldToLocal(this.hitPosition.copy(point));
         const { width, height } = button.userData.xrHitSize;
@@ -455,7 +476,7 @@ export class XRSensorOrb {
       return;
     }
     const attempt = this.reconnectAttempt + 1;
-    this.trace('SOCKET', `attempt ${attempt} · ${bridgeLabel(this.bridge.url)}`);
+    this.trace('W02 SOCKET', `attempt ${attempt} · ${bridgeLabel(this.bridge.url)}`);
     this.setState('connecting');
     try {
       const socket = new WebSocket(this.bridge.url);
@@ -463,7 +484,7 @@ export class XRSensorOrb {
       this.socket = socket;
       socket.addEventListener('open', () => {
         this.reconnectAttempt = 0;
-        this.trace('SOCKET', 'open · browser reached Quest bridge', 'success');
+        this.trace('W03 SOCKET', 'open · browser reached Quest bridge', 'success');
         this.setState('connected');
         socket.send(JSON.stringify({
           type: 'node.announce',
@@ -472,10 +493,10 @@ export class XRSensorOrb {
           capabilities: ['thermal-display', 'webxr'],
           surface: this.surface
         }));
-        this.trace('ANNOUNCE', `XR client · ${this.surface}`, 'success');
+        this.trace('W04 CLIENT', `announce sent · ${this.surface}`, 'success');
         if (this.sessionId) {
           socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
-          this.trace('SESSION', `bind sent · ${this.sessionId.slice(0, 8)}`, 'success');
+          this.trace('W05 SESSION', `bind sent · ${this.sessionId.slice(0, 8)}`, 'success');
         }
         if (this.presentation === 'head-screen') this.sendThermalControl('bridge-open');
       });
@@ -483,7 +504,7 @@ export class XRSensorOrb {
       socket.addEventListener('close', (event) => {
         if (this.socket === socket) this.socket = null;
         this.trace(
-          'SOCKET',
+          'W00 SOCKET',
           `closed ${event.code || 1006} · ${event.reason || (event.wasClean ? 'clean close' : 'no bridge response')}`,
           event.wasClean ? 'warn' : 'error'
         );
@@ -491,7 +512,7 @@ export class XRSensorOrb {
         this.scheduleReconnect();
       });
       socket.addEventListener('error', () => {
-        this.trace('SOCKET', 'connection error · verify bridge is installed and running', 'error', {
+        this.trace('W00 SOCKET', 'connection error · verify bridge is installed and running', 'error', {
           key: 'thermal-socket-error',
           throttleMs: 2000
         });
@@ -499,7 +520,7 @@ export class XRSensorOrb {
       });
     } catch (error) {
       this.socket = null;
-      this.trace('SOCKET', `open failed · ${error?.message || 'unknown error'}`, 'error');
+      this.trace('W00 SOCKET', `open failed · ${error?.message || 'unknown error'}`, 'error');
       this.setState('failed');
       this.scheduleReconnect();
     }
@@ -621,8 +642,14 @@ export class XRSensorOrb {
         const message = JSON.parse(event.data);
         if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
-          this.trace('HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
+          this.trace('W06 HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
           this.drawPanel();
+        } else if (message.type === 'bridge.trace') {
+          const step = clean(message.step, 'N00').slice(0, 4).toUpperCase();
+          const vector = clean(message.vector, 'BRIDGE').slice(0, 12).toUpperCase();
+          const state = clean(message.state, 'unknown');
+          const detail = clean(message.detail, 'no detail');
+          this.trace(`${step} ${vector}`, `${state} · ${detail}`, message.level || 'info');
         } else if (message.type === 'bridge.status') {
           const phase = clean(message.phase, 'unknown');
           this.bridgeRuntimeStatus = phase;
@@ -630,7 +657,7 @@ export class XRSensorOrb {
           else if (['failed', 'stopped'].includes(phase)) this.companionStatus = 'offline';
           else this.companionStatus = 'starting';
           this.trace(
-            'BRIDGE',
+            'W07 BRIDGE',
             `${phase}${message.reason ? ` · ${message.reason}` : ''}${message.version ? ` · ${message.version}` : ''}`,
             message.ready === true ? 'success' : phase === 'failed' ? 'error' : phase === 'stopped' ? 'warn' : 'info'
           );
@@ -640,7 +667,7 @@ export class XRSensorOrb {
           this.sourceStatus = message.status || 'unknown';
           if (message.sourceType === 'flir-one-pro') this.companionStatus = message.status === 'offline' ? 'offline' : 'ready';
           this.trace(
-            'FLIR',
+            'W08 FLIR',
             `${message.status || 'unknown'}${message.reason ? ` · ${message.reason}` : ''}`,
             message.status === 'streaming' ? 'success' : ['failed', 'offline'].includes(message.status) ? 'error' : 'warn'
           );
@@ -653,7 +680,7 @@ export class XRSensorOrb {
             Array.isArray(node.capabilities) && node.capabilities.includes('flir-one-pro-usb-c'));
           this.companionStatus = hasFlirCompanion ? 'ready' : 'missing';
           this.trace(
-            'COMPANION',
+            'W06 COMPANION',
             `${message.status || 'unknown'} · ${message.node.nodeName || message.node.nodeType || 'Quest node'}${hasFlirCompanion ? ' · FLIR capability advertised' : ''}`,
             hasFlirCompanion ? 'success' : 'warn'
           );
@@ -744,6 +771,9 @@ export class XRSensorOrb {
       this.trace('FRAME', `rejected · unsupported format ${format}`, 'error', { key: `frame-format-${format}`, throttleMs: 5000 });
       return;
     }
+    if (this.frames === 0) {
+      this.trace('W09 FRAME', `first MXGS/1 envelope accepted · ${width}×${height} · format ${format}`, 'success');
+    }
     this.latestFrameTimestamp = timestamp;
     if (format === 1) {
       const bitmap = await createImageBitmap(new Blob([payload], { type: 'image/jpeg' }));
@@ -766,10 +796,9 @@ export class XRSensorOrb {
     this.lastFrameAt = performance.now();
     this.thermalTexture.needsUpdate = true;
     this.sourceStatus = 'streaming';
-    if (this.frames === 1 || this.frames % 30 === 0) {
-      const formatLabel = format === 1 ? 'JPEG' : format === 2 ? 'RGBA' : 'Y16';
-      this.trace('FRAME', `#${this.frames} accepted · ${width}×${height} ${formatLabel}`, 'success');
-    }
+    const formatLabel = format === 1 ? 'JPEG' : format === 2 ? 'RGBA' : 'Y16';
+    if (this.frames === 1) this.trace('W10 RENDER', `first thermal frame rendered · ${width}×${height} ${formatLabel}`, 'success');
+    else if (this.frames % 30 === 0) this.trace('FRAME', `#${this.frames} rendered · ${width}×${height} ${formatLabel}`, 'success');
     this.setState('streaming');
   }
 
@@ -895,7 +924,7 @@ export class XRSensorOrb {
   update(delta, time, { camera = null } = {}) {
     if (this.disposed || !this.presenting) return;
     if (this.presentation === 'head-screen') {
-      if (camera) {
+      if (camera && !this.screenPinned) {
         camera.getWorldPosition(this.cameraPosition);
         camera.getWorldQuaternion(this.cameraQuaternion);
         this.headTargetPosition.copy(this.headOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);

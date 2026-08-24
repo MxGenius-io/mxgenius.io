@@ -9,7 +9,8 @@ import {
   createSensorLocalToken,
   deriveSensorCompanionBridgeUrl,
   deriveSensorActivationState,
-  deriveSensorSourceState
+  deriveSensorSourceState,
+  parseSensorHandoffFragment
 } from '../xr-session-client.js';
 
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
@@ -27,6 +28,20 @@ test('Quest-local thermal session binds browser and companion without a Pi route
   assert.match(createSensorLocalToken({ getRandomValues: (bytes) => bytes.fill(7) }), /^[a-f0-9]{64}$/);
   assert.match(globeVr, /buildSensorLocalBridgeUrl\(\{/);
   assert.doesNotMatch(globeVr, /deriveSensorCompanionBridgeUrl/);
+});
+
+test('native bridge handoff restores the browser session without placing credentials in the request URL', () => {
+  const localToken = 'b'.repeat(64);
+  assert.deepEqual(
+    parseSensorHandoffFragment(`#sensorHandoff=1&sessionId=case-42&localToken=${localToken}`),
+    { sessionId: 'case-42', localToken }
+  );
+  assert.equal(parseSensorHandoffFragment('#unrelated=1'), null);
+  assert.throws(
+    () => parseSensorHandoffFragment('#sensorHandoff=1&sessionId=case-42&localToken=short'),
+    /Invalid Quest-local thermal token/
+  );
+  assert.match(globeVr, /history\.replaceState\(null, '', `\$\{location\.pathname\}\$\{location\.search\}`\)/);
 });
 
 test('thermal and Pi source state supports every independent configuration', () => {

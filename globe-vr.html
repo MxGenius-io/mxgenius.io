@@ -83,15 +83,16 @@
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=3';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=5';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=6';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
       buildSensorLocalBridgeUrl,
       createSensorLocalToken,
       deriveSensorActivationState,
-      deriveSensorSourceState
-    } from './xr-session-client.js?v=3';
+      deriveSensorSourceState,
+      parseSensorHandoffFragment
+    } from './xr-session-client.js?v=4';
 
     const status = document.getElementById('fleetStatus');
     const sceneTitle = document.getElementById('sceneTitle');
@@ -103,9 +104,20 @@
     const sensorCompanionStep = document.getElementById('sensorCompanionStep');
     const sensorCameraStep = document.getElementById('sensorCameraStep');
     const sensorTrace = document.getElementById('sensorTrace');
-    const xrSessionId = sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
-    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const pageQuery = new URLSearchParams(location.search);
+    let sensorHandoff = null;
+    try {
+      sensorHandoff = parseSensorHandoffFragment(location.hash);
+    } catch (error) {
+      console.warn('Rejected invalid sensor bridge handoff', error);
+    }
+    if (sensorHandoff) {
+      sessionStorage.setItem('mxg_xr_session_id', sensorHandoff.sessionId);
+      sessionStorage.setItem('mxg_thermal_local_token', sensorHandoff.localToken);
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    }
+    const xrSessionId = sensorHandoff?.sessionId || sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
+    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
     const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
@@ -252,6 +264,7 @@
       remoteWitnessUrl,
       surface: sceneSurface,
       presentation: sensorOnlyScene ? 'head-screen' : 'wrist-orb',
+      bridgeHandoff: Boolean(sensorHandoff),
       screenScale: sensorCalibration('thermalScale', 1, 0.65, 1.6),
       headOffset: {
         x: sensorCalibration('thermalX', 0, -0.8, 0.8),
