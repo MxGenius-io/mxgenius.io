@@ -14,15 +14,15 @@
     "publishedAt": "2026-08-23T23:18:00-04:00"
   },
   "uploadedBuild": {
-    "versionCode": 12,
-    "versionName": "0.1.0-poc.12",
+    "versionCode": 13,
+    "versionName": "0.1.0-poc.13",
     "channel": "Alpha",
     "status": "UploadedPendingMetaVerification",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
-      "sizeBytes": 163809808,
-      "sha256": "51588f0d03d33906203b9e69b133c31520e89d60ce06f78040d4da3d08a0a176",
-      "builtAt": "2026-08-24T05:23:51-04:00"
+      "sizeBytes": 163809984,
+      "sha256": "94cd17246a0b968191cdf99606a4e8fb6c539cb5d72ffb0141697af2665a5149",
+      "builtAt": "2026-08-24T06:54:37-04:00"
     }
   },
   "build": {

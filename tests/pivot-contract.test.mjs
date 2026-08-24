@@ -88,8 +88,8 @@ test('Quest companion config uses the current Alpha candidate build identity', (
   assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
   assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.uploadedBuild.versionCode, 12);
-  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.12');
+  assert.equal(metaRelease.uploadedBuild.versionCode, 13);
+  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.13');
   assert.equal(metaRelease.uploadedBuild.status, 'UploadedPendingMetaVerification');
   assert.equal(metaRelease.build.versionCode, 13);
   assert.equal(metaRelease.build.versionName, '0.1.0-poc.13');
