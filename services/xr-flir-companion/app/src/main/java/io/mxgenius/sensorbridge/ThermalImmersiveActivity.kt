@@ -192,7 +192,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         bridgeState = bridge
         relayState = relay
         cameraState = camera
-        val cameraIdle = camera !in setOf("streaming", "connecting", "discovering", "permission-required", "reconnecting")
+        val cameraIdle = camera !in setOf("streaming", "connecting", "discovering", "waiting-usb", "permission-required", "reconnecting")
         if (!connectRequested && bridge.startsWith("ready") && cameraIdle) {
             connectRequested = true
             bridgeService?.connectCamera(this)
@@ -245,7 +245,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             root.findViewById<Button>(R.id.immersive_pin_toggle).text =
                 if (followHead.get()) "PIN HERE" else "FOLLOW HEAD"
             root.findViewById<Button>(R.id.immersive_reconnect).isEnabled =
-                cameraState !in setOf("connecting", "discovering", "permission-required", "reconnecting")
+                cameraState !in setOf("connecting", "discovering", "waiting-usb", "permission-required", "reconnecting")
             root.findViewById<TextView>(R.id.immersive_trace).text =
                 latestTrace.takeLast(18).joinToString("\n").ifBlank { "Waiting for bridge trace…" }
             root.findViewById<ScrollView>(R.id.immersive_trace_scroll).post {

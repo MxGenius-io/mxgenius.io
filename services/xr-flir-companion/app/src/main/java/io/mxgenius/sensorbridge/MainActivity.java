@@ -144,6 +144,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             boolean cameraIdle = !"streaming".equals(camera)
                     && !"connecting".equals(camera)
                     && !"discovering".equals(camera)
+                    && !"waiting-usb".equals(camera)
                     && !"permission-required".equals(camera)
                     && !"reconnecting".equals(camera);
             connectCamera.setEnabled(service != null && service.canConnectCamera() && cameraIdle);
@@ -163,6 +164,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     && !"streaming".equals(camera)
                     && !"connecting".equals(camera)
                     && !"discovering".equals(camera)
+                    && !"waiting-usb".equals(camera)
                     && !"permission-required".equals(camera)) {
                 cameraConnectRequested = true;
                 service.connectCamera(this);

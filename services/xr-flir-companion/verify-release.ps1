@@ -116,8 +116,28 @@ foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistra
 foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
-foreach ($requiredUsbLifecycleToken in @('AndroidUsbPermissionGate', 'requestPermission(device, permissionIntent)', 'EXTRA_PERMISSION_GRANTED', 'RECEIVER_NOT_EXPORTED', 'permission-grant-received', 'permission-stable', 'MAX_PERMISSION_GATE_RESTARTS', 'discoveryGeneration', 'RECONNECT_SETTLE_MS', 'stable-session')) {
+foreach ($requiredUsbLifecycleToken in @(
+    'AndroidUsbPermissionGate',
+    'UsbHandshakePolicy',
+    'FLIR_ONE_PRODUCT_ID',
+    'ENUMERATION_POLL_MS',
+    'ACTION_USB_DEVICE_ATTACHED',
+    'ACTION_USB_DEVICE_DETACHED',
+    'requestPermission(device, permissionIntent)',
+    'EXTRA_PERMISSION_GRANTED',
+    'RECEIVER_NOT_EXPORTED',
+    'permission-device-absent',
+    'permission-grant-received',
+    'permission-stable',
+    'WAITING_FOR_DEVICE',
+    'discoveryGeneration',
+    'RECONNECT_SETTLE_MS',
+    'stable-session'
+)) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
+}
+foreach ($forbiddenUsbLifecycleToken in @('MAX_PERMISSION_GATE_RESTARTS', 'usb-device-not-enumerated')) {
+    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenUsbLifecycleToken)) "Quest USB lifecycle still contains bounded retry behavior $forbiddenUsbLifecycleToken"
 }
 Assert-ReleaseRequirement (-not $companionSources.Contains('UsbPermissionHandler')) 'FLIR UsbPermissionHandler must not own the Quest permission transaction'
 

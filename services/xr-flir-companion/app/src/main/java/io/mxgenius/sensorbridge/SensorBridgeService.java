@@ -68,6 +68,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private String cameraState = "standby";
     private volatile String usbState = "not-checked";
     private volatile String usbDetail = "USB inventory has not run";
+    private volatile String commissioningFirstFrameTimeoutRunId;
     private String lastCommissioningPayload;
     private long lastPreviewAtMs;
 
@@ -201,21 +202,19 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "");
         ThermalCommissioningRun.Snapshot report = commissioning.start(runId, sessionId(), System.currentTimeMillis());
+        commissioningFirstFrameTimeoutRunId = null;
         firstFrameTraced = false;
         publishCommissioning(report);
         trace("C01", "COMMISSION", "started", "deterministic run " + runId.substring(0, 12) + " · build " + BuildConfig.VERSION_NAME, "info");
         if ("streaming".equals(cameraState)) {
             trace("C02", "COMMISSION", "stable-session", "preserving the healthy FLIR stream; commissioning begins on the next decoded frame", "success");
+            scheduleCommissioningFirstFrameTimeout(runId);
         } else {
-            trace("C02", "COMMISSION", "settled-reconnect", "camera is not healthy; releasing FLIR before bounded rediscovery", "info");
+            trace("C02", "COMMISSION", "handshake", "camera is not healthy; first-frame timer will begin only after USB and FLIR synchronization", "info");
             cameraState = "reconnecting";
             publishStatus();
             current.reconnect(activity);
         }
-        commissioningWorker.schedule(
-                () -> publishCommissioning(commissioning.firstFrameTimeout(runId, System.currentTimeMillis())),
-                ThermalCommissioningRun.FIRST_FRAME_TIMEOUT_MS,
-                TimeUnit.MILLISECONDS);
     }
 
     String commissioningSummary() {
@@ -240,6 +239,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                 && !"streaming".equals(cameraState)
                 && !"connecting".equals(cameraState)
                 && !"discovering".equals(cameraState)
+                && !"waiting-usb".equals(cameraState)
                 && !"permission-required".equals(cameraState)
                 && !"reconnecting".equals(cameraState);
     }
@@ -289,6 +289,11 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         cameraState = state;
         traceCameraState(state, reason);
         ThermalCommissioningRun.Snapshot activeReport = commissioning.snapshot();
+        if ("streaming".equals(state)
+                && "running".equals(activeReport.result)
+                && activeReport.firstFrameAtMs == 0) {
+            scheduleCommissioningFirstFrameTimeout(activeReport.runId);
+        }
         boolean terminalCameraState = "failed".equals(state)
                 || "permission-denied".equals(state)
                 || ("offline".equals(state) && activeReport.firstFrameAtMs > 0);
@@ -312,6 +317,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         ThermalCommissioningRun.Snapshot before = commissioning.snapshot();
         ThermalCommissioningRun.Snapshot after = commissioning.onFrame(System.currentTimeMillis());
         if (before.firstFrameAtMs == 0 && after.firstFrameAtMs > 0 && "soaking".equals(after.phase)) {
+            commissioningFirstFrameTimeoutRunId = null;
             trace("C03", "COMMISSION", "first-frame", "native thermal frame accepted; 15 second soak started", "success");
             publishCommissioning(after);
             String runId = after.runId;
@@ -351,15 +357,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         usbDetail = detail == null || detail.isBlank() ? state : detail;
         String step = switch (state) {
             case "enumerated" -> "U01";
-            case "permission-requested", "permission-grant-received" -> "U02";
-            case "permission-gate-restart", "permission-unstable", "settling" -> "U03";
+            case "permission-requested", "permission-result", "permission-grant-received" -> "U02";
+            case "handshake-resync", "permission-unstable", "permission-device-absent", "detached", "settling", "event-recovering", "inventory-recovering" -> "U03";
             case "permission-stable" -> "U04";
-            case "permission-denied", "permission-error", "permission-timeout", "manager-unavailable" -> "U00";
+            case "permission-denied", "permission-error", "manager-unavailable", "receiver-error", "policy-error" -> "U00";
             default -> "U01";
         };
         String level = switch (state) {
-            case "permission-gate-restart", "permission-unstable", "settling", "not-enumerated" -> "warn";
-            case "permission-denied", "permission-error", "permission-timeout", "manager-unavailable" -> "error";
+            case "handshake-resync", "permission-unstable", "permission-device-absent", "detached", "settling", "permission-waiting", "permission-inconclusive", "event-recovering", "inventory-recovering" -> "warn";
+            case "permission-denied", "permission-error", "manager-unavailable", "receiver-error", "policy-error" -> "error";
             default -> "info";
         };
         trace(step, "USB", state, usbDetail, level);
@@ -494,6 +500,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         String detail = reason == null || reason.isBlank() ? state : state + " · " + reason;
         switch (state) {
             case "discovering" -> trace("N08", "FLIR", "discovering", "USB camera discovery scan started", "info");
+            case "waiting-usb" -> trace("N09", "USB", "waiting", "waiting for FLIR enumeration and synchronized Android authorization", "info");
             case "permission-required" -> trace("N09", "USB", "permission", "waiting for Android FLIR USB authorization", "info");
             case "permission-denied" -> trace("N09", "USB", "denied", detail, "error");
             case "connecting" -> trace("N10", "FLIR", "connecting", "Android USB grant confirmed; blocking Camera.connect started", "info");
@@ -502,6 +509,23 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             case "failed", "offline" -> trace("N00", "FLIR", state, detail, "error");
             default -> trace("N07", "FLIR", state, detail, "info");
         }
+    }
+
+    private void scheduleCommissioningFirstFrameTimeout(String runId) {
+        if (runId == null || runId.isBlank() || runId.equals(commissioningFirstFrameTimeoutRunId)) return;
+        commissioningFirstFrameTimeoutRunId = runId;
+        trace(
+                "C02",
+                "COMMISSION",
+                "first-frame-window",
+                "FLIR stream registered; " + ThermalCommissioningRun.FIRST_FRAME_TIMEOUT_MS
+                        + "ms first-frame timer started",
+                "info");
+        commissioningWorker.schedule(() -> {
+            if (!runId.equals(commissioningFirstFrameTimeoutRunId)) return;
+            commissioningFirstFrameTimeoutRunId = null;
+            publishCommissioning(commissioning.firstFrameTimeout(runId, System.currentTimeMillis()));
+        }, ThermalCommissioningRun.FIRST_FRAME_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     private void trace(String step, String vector, String state, String detail, String level) {
