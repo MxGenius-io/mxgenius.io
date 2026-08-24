@@ -3,6 +3,7 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import { test } from 'node:test';
 
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const landing = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const cache = await readFile(new URL('../cache.js', import.meta.url), 'utf8');
@@ -38,6 +39,12 @@ test('dashboard element IDs are unique', () => {
   const ids = matches(/\bid="([^"]+)"/g);
   const duplicates = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))].sort();
   assert.deepEqual(duplicates, []);
+});
+
+test('landing navigation uses the canonical MxGenius logo asset', async () => {
+  assert.match(landing, /<img class="brand-logo" src="assets\/mxgenius_logo\.png" alt="MxGenius logo">/);
+  assert.doesNotMatch(landing, /class="brand-mark"/);
+  await access(new URL('../assets/mxgenius_logo.png', import.meta.url));
 });
 
 test('every navigation tab resolves to exactly one panel', () => {
