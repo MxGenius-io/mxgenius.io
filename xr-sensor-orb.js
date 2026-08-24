@@ -11,9 +11,26 @@ const THERMAL_TOKEN_STORAGE_KEY = 'mxg_thermal_bridge_token';
 const PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY = 'mxg_pi_diagnostics_bridge_url';
 const FRAME_MAGIC = 0x4d584753;
 const MAX_THERMAL_PIXELS = 1920 * 1080;
+const MAX_HANDSHAKE_TRACE_ENTRIES = 18;
 
 function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
+}
+
+function traceSafe(value, fallback = '—') {
+  return clean(value, fallback)
+    .replace(/([?&](?:token|localToken|access_token)=)[^&#\s]+/gi, '$1[redacted]')
+    .replace(/[A-Za-z0-9_-]{32,128}/g, '[redacted]');
+}
+
+function bridgeLabel(value) {
+  try {
+    const parsed = new URL(value, location.href);
+    const host = parsed.hostname === '127.0.0.1' ? 'Quest loopback' : parsed.hostname;
+    return `${host} ${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+  } catch {
+    return 'invalid thermal endpoint';
+  }
 }
 
 function normalizedSocket(url, token = '') {
@@ -80,7 +97,8 @@ export class XRSensorOrb {
     screenScale = 1,
     headOffset = { x: 0, y: 0.16, z: -1.12 },
     onAction = () => {},
-    onStatus = () => {}
+    onStatus = () => {},
+    onTrace = () => {}
   } = {}) {
     this.sessionId = clean(sessionId) || null;
     this.surface = clean(surface, 'fleet-globe');
@@ -93,6 +111,10 @@ export class XRSensorOrb {
     );
     this.onAction = onAction;
     this.onStatus = onStatus;
+    this.onTrace = onTrace;
+    this.traceStartedAt = performance.now();
+    this.handshakeTrace = [];
+    this.traceThrottle = new Map();
     this.presenting = false;
     this.preflighting = false;
     this.disposed = false;
@@ -221,9 +243,30 @@ export class XRSensorOrb {
     this.voiceDock.visible = this.presentation === 'head-screen';
     this.group.add(this.voiceDock);
     this.applyScreenLayout();
+    this.trace('BOOT', `sensor scene · session ${this.sessionId?.slice(0, 8) || 'none'}`);
+    this.trace('TARGET', this.bridge.url ? bridgeLabel(this.bridge.url) : 'thermal transport not configured', this.bridge.url ? 'info' : 'warn');
     this.drawPanel();
     this.drawScreenButtons();
     this.loadLayout();
+  }
+
+  trace(stage, message, level = 'info', { key = '', throttleMs = 0 } = {}) {
+    if (this.disposed) return;
+    const now = performance.now();
+    const throttleKey = key || `${stage}:${message}`;
+    const lastAt = this.traceThrottle.get(throttleKey) || 0;
+    if (throttleMs && now - lastAt < throttleMs) return;
+    this.traceThrottle.set(throttleKey, now);
+    const entry = {
+      elapsedMs: Math.max(0, Math.round(now - this.traceStartedAt)),
+      stage: traceSafe(stage, 'TRACE').slice(0, 18).toUpperCase(),
+      message: traceSafe(message).slice(0, 96),
+      level: ['info', 'success', 'warn', 'error'].includes(level) ? level : 'info'
+    };
+    this.handshakeTrace.push(entry);
+    this.handshakeTrace.splice(0, Math.max(0, this.handshakeTrace.length - MAX_HANDSHAKE_TRACE_ENTRIES));
+    this.onTrace({ entry: { ...entry }, entries: this.handshakeTrace.map((item) => ({ ...item })) });
+    if (this.panelTexture) this.drawPanel();
   }
 
   createScreenButton(name, action, width) {
@@ -252,7 +295,7 @@ export class XRSensorOrb {
     this.screenScaleDown.position.set(-0.06, baseY, 0.014);
     this.screenScaleUp.position.set(0.15, baseY, 0.014);
     this.voiceDock.position.set(0.39, baseY + 0.015, 0.02);
-    this.panel.position.x = -0.57 * this.screenScale - 0.43;
+    this.panel.position.x = -0.42 * this.screenScale - 0.34;
     this.drawScreenButtons();
   }
 
@@ -314,9 +357,11 @@ export class XRSensorOrb {
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
     if (this.presenting) {
+      this.trace('XR', 'immersive session started');
       this.connect();
       if (this.presentation === 'head-screen') this.sendThermalControl('session-start');
     } else if (this.presentation === 'head-screen') {
+      this.trace('XR', 'immersive session ended · thermal display disabled');
       this.sendThermalControl('session-end', false);
     } else {
       this.setActive(false, 'session-end');
@@ -326,6 +371,7 @@ export class XRSensorOrb {
   startPreflight() {
     if (this.disposed) return;
     this.preflighting = true;
+    this.trace('PREFLIGHT', 'starting thermal and diagnostics checks');
     this.connect();
   }
 
@@ -347,6 +393,10 @@ export class XRSensorOrb {
   sendThermalControl(input, enabled = this.active) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'thermal.control', enabled: Boolean(enabled), input }));
+      this.trace('CONTROL', `${enabled ? 'enable' : 'disable'} thermal · ${input}`, 'info', {
+        key: `control:${enabled}:${input}`,
+        throttleMs: 500
+      });
     }
   }
 
@@ -397,9 +447,14 @@ export class XRSensorOrb {
 
   connectThermal() {
     if (!this.bridge.url || this.socket || (!this.presenting && !this.preflighting)) {
-      if (!this.bridge.url) this.setState('unconfigured');
+      if (!this.bridge.url) {
+        this.trace('CONFIG', 'thermal transport is not configured', 'error', { key: 'thermal-unconfigured', throttleMs: 5000 });
+        this.setState('unconfigured');
+      }
       return;
     }
+    const attempt = this.reconnectAttempt + 1;
+    this.trace('SOCKET', `attempt ${attempt} · ${bridgeLabel(this.bridge.url)}`);
     this.setState('connecting');
     try {
       const socket = new WebSocket(this.bridge.url);
@@ -407,6 +462,7 @@ export class XRSensorOrb {
       this.socket = socket;
       socket.addEventListener('open', () => {
         this.reconnectAttempt = 0;
+        this.trace('SOCKET', 'open · browser reached Quest bridge', 'success');
         this.setState('connected');
         socket.send(JSON.stringify({
           type: 'node.announce',
@@ -415,18 +471,34 @@ export class XRSensorOrb {
           capabilities: ['thermal-display', 'webxr'],
           surface: this.surface
         }));
-        if (this.sessionId) socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
+        this.trace('ANNOUNCE', `XR client · ${this.surface}`, 'success');
+        if (this.sessionId) {
+          socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
+          this.trace('SESSION', `bind sent · ${this.sessionId.slice(0, 8)}`, 'success');
+        }
         if (this.presentation === 'head-screen') this.sendThermalControl('bridge-open');
       });
       socket.addEventListener('message', (event) => this.handleMessage(event));
-      socket.addEventListener('close', () => {
+      socket.addEventListener('close', (event) => {
         if (this.socket === socket) this.socket = null;
+        this.trace(
+          'SOCKET',
+          `closed ${event.code || 1006} · ${event.reason || (event.wasClean ? 'clean close' : 'no bridge response')}`,
+          event.wasClean ? 'warn' : 'error'
+        );
         this.setState('disconnected');
         this.scheduleReconnect();
       });
-      socket.addEventListener('error', () => this.setState('failed'));
-    } catch {
+      socket.addEventListener('error', () => {
+        this.trace('SOCKET', 'connection error · verify bridge is installed and running', 'error', {
+          key: 'thermal-socket-error',
+          throttleMs: 2000
+        });
+        this.setState('failed');
+      });
+    } catch (error) {
       this.socket = null;
+      this.trace('SOCKET', `open failed · ${error?.message || 'unknown error'}`, 'error');
       this.setState('failed');
       this.scheduleReconnect();
     }
@@ -434,15 +506,23 @@ export class XRSensorOrb {
 
   connectDiagnostics() {
     if (!this.diagnosticsBridge.url || this.diagnosticsSocket || (!this.presenting && !this.preflighting)) {
-      if (!this.diagnosticsBridge.url) this.setDiagnosticsState('unconfigured');
+      if (!this.diagnosticsBridge.url) {
+        this.trace('PI', 'diagnostics transport not configured · FLIR remains independent', 'info', {
+          key: 'pi-unconfigured',
+          throttleMs: 10000
+        });
+        this.setDiagnosticsState('unconfigured');
+      }
       return;
     }
+    this.trace('PI SOCKET', `attempt ${this.diagnosticsReconnectAttempt + 1} · ${bridgeLabel(this.diagnosticsBridge.url)}`);
     this.setDiagnosticsState('connecting');
     try {
       const socket = new WebSocket(this.diagnosticsBridge.url);
       this.diagnosticsSocket = socket;
       socket.addEventListener('open', () => {
         this.diagnosticsReconnectAttempt = 0;
+        this.trace('PI SOCKET', 'open · diagnostics bridge reached', 'success');
         this.setDiagnosticsState('connected');
         socket.send(JSON.stringify({
           type: 'node.announce',
@@ -454,14 +534,19 @@ export class XRSensorOrb {
         if (this.sessionId) socket.send(JSON.stringify({ type: 'bridge.session', sessionId: this.sessionId }));
       });
       socket.addEventListener('message', (event) => this.handleDiagnosticsMessage(event));
-      socket.addEventListener('close', () => {
+      socket.addEventListener('close', (event) => {
         if (this.diagnosticsSocket === socket) this.diagnosticsSocket = null;
+        this.trace('PI SOCKET', `closed ${event.code || 1006} · ${event.reason || 'no reason'}`, 'warn');
         this.setDiagnosticsState('disconnected');
         this.scheduleDiagnosticsReconnect();
       });
-      socket.addEventListener('error', () => this.setDiagnosticsState('failed'));
-    } catch {
+      socket.addEventListener('error', () => {
+        this.trace('PI SOCKET', 'connection error', 'error', { key: 'pi-socket-error', throttleMs: 2000 });
+        this.setDiagnosticsState('failed');
+      });
+    } catch (error) {
       this.diagnosticsSocket = null;
+      this.trace('PI SOCKET', `open failed · ${error?.message || 'unknown error'}`, 'error');
       this.setDiagnosticsState('failed');
       this.scheduleDiagnosticsReconnect();
     }
@@ -471,6 +556,7 @@ export class XRSensorOrb {
     if (this.disposed || (!this.presenting && !this.preflighting) || !this.bridge.url || this.reconnectTimer) return;
     const delay = Math.min(15000, 1000 * 2 ** this.reconnectAttempt);
     this.reconnectAttempt += 1;
+    this.trace('RETRY', `thermal socket in ${Math.round(delay / 1000)}s · attempt ${this.reconnectAttempt + 1}`, 'warn');
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -501,15 +587,27 @@ export class XRSensorOrb {
   }
 
   setState(state) {
+    const previous = this.state;
     this.state = state;
     const colors = { unconfigured: 0x64748b, connecting: 0xf59e0b, connected: 0x22d3ee, streaming: 0xfb923c, disconnected: 0x64748b, failed: 0xfb7185 };
     this.ring.material.color.setHex(colors[state] || colors.disconnected);
+    if (state !== previous) {
+      this.trace(
+        'TRANSPORT',
+        `${previous} → ${state}`,
+        ['connected', 'streaming'].includes(state) ? 'success' : state === 'failed' ? 'error' : state === 'connecting' ? 'info' : 'warn'
+      );
+    }
     this.emitStatus();
     this.drawPanel();
   }
 
   setDiagnosticsState(state) {
+    const previous = this.diagnosticsState;
     this.diagnosticsState = state;
+    if (state !== previous) {
+      this.trace('PI STATE', `${previous} → ${state}`, state === 'failed' ? 'error' : state === 'receiving' ? 'success' : 'info');
+    }
     this.emitStatus();
     this.drawPanel();
   }
@@ -521,10 +619,16 @@ export class XRSensorOrb {
         const message = JSON.parse(event.data);
         if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
+          this.trace('HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
           this.drawPanel();
         } else if (message.type === 'source.status') {
           this.sourceStatus = message.status || 'unknown';
           if (message.sourceType === 'flir-one-pro') this.companionStatus = message.status === 'offline' ? 'offline' : 'ready';
+          this.trace(
+            'FLIR',
+            `${message.status || 'unknown'}${message.reason ? ` · ${message.reason}` : ''}`,
+            message.status === 'streaming' ? 'success' : ['failed', 'offline'].includes(message.status) ? 'error' : 'warn'
+          );
           this.emitStatus();
           this.drawPanel();
         } else if (message.type === 'node.status' && message.node?.nodeId) {
@@ -533,15 +637,30 @@ export class XRSensorOrb {
           const hasFlirCompanion = [...this.nodes.values()].some((node) =>
             Array.isArray(node.capabilities) && node.capabilities.includes('flir-one-pro-usb-c'));
           this.companionStatus = hasFlirCompanion ? 'ready' : 'missing';
+          this.trace(
+            'COMPANION',
+            `${message.status || 'unknown'} · ${message.node.nodeName || message.node.nodeType || 'Quest node'}${hasFlirCompanion ? ' · FLIR capability advertised' : ''}`,
+            hasFlirCompanion ? 'success' : 'warn'
+          );
           this.emitStatus();
           this.drawPanel();
         }
-      } catch {
+      } catch (error) {
+        this.trace('PROTOCOL', `invalid bridge message · ${error?.message || 'JSON parse failed'}`, 'error', {
+          key: 'invalid-bridge-message',
+          throttleMs: 2000
+        });
         this.setState('failed');
       }
       return;
     }
-    this.decodeFrame(event.data).catch(() => this.setState('failed'));
+    this.decodeFrame(event.data).catch((error) => {
+      this.trace('FRAME', `decode failed · ${error?.message || 'unknown error'}`, 'error', {
+        key: 'frame-decode-failed',
+        throttleMs: 2000
+      });
+      this.setState('failed');
+    });
   }
 
   handleDiagnosticsMessage(event) {
@@ -574,9 +693,16 @@ export class XRSensorOrb {
   }
 
   async decodeFrame(buffer) {
-    if (this.disposed || !(buffer instanceof ArrayBuffer)) return;
+    if (this.disposed) return;
+    if (!(buffer instanceof ArrayBuffer)) {
+      this.trace('FRAME', 'rejected · payload is not binary', 'error', { key: 'frame-not-binary', throttleMs: 2000 });
+      return;
+    }
     const view = new DataView(buffer);
-    if (buffer.byteLength < 24 || view.getUint32(0, false) !== FRAME_MAGIC || view.getUint8(4) !== 1) return;
+    if (buffer.byteLength < 24 || view.getUint32(0, false) !== FRAME_MAGIC || view.getUint8(4) !== 1) {
+      this.trace('FRAME', 'rejected · invalid MXGS/1 envelope', 'error', { key: 'frame-envelope', throttleMs: 2000 });
+      return;
+    }
     const format = view.getUint8(6);
     const width = view.getUint16(8, true);
     const height = view.getUint16(10, true);
@@ -584,13 +710,25 @@ export class XRSensorOrb {
     const metadataLength = view.getUint32(20, true);
     const offset = 24 + metadataLength;
     const pixelCount = width * height;
-    if (!width || !height || pixelCount > MAX_THERMAL_PIXELS || offset > buffer.byteLength) return;
+    if (!width || !height || pixelCount > MAX_THERMAL_PIXELS || offset > buffer.byteLength) {
+      this.trace('FRAME', `rejected · invalid ${width}×${height} dimensions or metadata`, 'error', { key: 'frame-dimensions', throttleMs: 2000 });
+      return;
+    }
     const payload = buffer.slice(offset);
-    if (timestamp <= this.latestFrameTimestamp) return;
-    if (format === 1 && !payload.byteLength) return;
-    if (format === 2 && payload.byteLength < pixelCount * 4) return;
-    if (format === 3 && payload.byteLength < pixelCount * 2) return;
-    if (![1, 2, 3].includes(format)) return;
+    if (timestamp <= this.latestFrameTimestamp) {
+      this.trace('FRAME', 'dropped · stale timestamp', 'warn', { key: 'frame-stale', throttleMs: 5000 });
+      return;
+    }
+    if ((format === 1 && !payload.byteLength)
+      || (format === 2 && payload.byteLength < pixelCount * 4)
+      || (format === 3 && payload.byteLength < pixelCount * 2)) {
+      this.trace('FRAME', 'rejected · truncated pixel payload', 'error', { key: 'frame-truncated', throttleMs: 2000 });
+      return;
+    }
+    if (![1, 2, 3].includes(format)) {
+      this.trace('FRAME', `rejected · unsupported format ${format}`, 'error', { key: `frame-format-${format}`, throttleMs: 5000 });
+      return;
+    }
     this.latestFrameTimestamp = timestamp;
     if (format === 1) {
       const bitmap = await createImageBitmap(new Blob([payload], { type: 'image/jpeg' }));
@@ -613,6 +751,10 @@ export class XRSensorOrb {
     this.lastFrameAt = performance.now();
     this.thermalTexture.needsUpdate = true;
     this.sourceStatus = 'streaming';
+    if (this.frames === 1 || this.frames % 30 === 0) {
+      const formatLabel = format === 1 ? 'JPEG' : format === 2 ? 'RGBA' : 'Y16';
+      this.trace('FRAME', `#${this.frames} accepted · ${width}×${height} ${formatLabel}`, 'success');
+    }
     this.setState('streaming');
   }
 
@@ -675,7 +817,7 @@ export class XRSensorOrb {
     ctx.strokeRect(4, 4, 1016, 632);
     ctx.fillStyle = '#67e8f9';
     ctx.font = '700 30px ui-monospace, monospace';
-    ctx.fillText('PI EDGE DIAGNOSTICS', 42, 58);
+    ctx.fillText(this.presentation === 'head-screen' ? 'FLIR HANDSHAKE TRACE' : 'PI EDGE DIAGNOSTICS', 42, 58);
     ctx.fillStyle = '#e9f8ff';
     ctx.font = '600 24px system-ui, sans-serif';
     ctx.fillText(
@@ -683,6 +825,30 @@ export class XRSensorOrb {
       42,
       98
     );
+    if (this.presentation === 'head-screen') {
+      const trace = this.handshakeTrace.slice(-10);
+      let y = 146;
+      for (const entry of trace) {
+        const seconds = (entry.elapsedMs / 1000).toFixed(1).padStart(5, ' ');
+        ctx.fillStyle = {
+          success: '#6ee7b7',
+          warn: '#fcd34d',
+          error: '#fda4af',
+          info: '#7dd3fc'
+        }[entry.level] || '#7dd3fc';
+        ctx.font = '700 18px ui-monospace, monospace';
+        ctx.fillText(`${seconds}s ${entry.stage.padEnd(12).slice(0, 12)}`, 42, y);
+        ctx.fillStyle = '#e5f4fb';
+        ctx.font = '500 18px ui-monospace, monospace';
+        ctx.fillText(entry.message.slice(0, 65), 276, y);
+        y += 43;
+      }
+      ctx.fillStyle = '#8ba6b8';
+      ctx.font = '18px ui-monospace, monospace';
+      ctx.fillText(`SESSION ${this.sessionId?.slice(0, 8) || 'none'} · ${this.frames} FRAMES · credentials redacted`, 42, 600);
+      this.panelTexture.needsUpdate = true;
+      return;
+    }
     const rows = this.diagnostics && this.diagnosticsLayout
       ? formatDiagnosticsLayout(this.diagnosticsLayout, data)
       : [{
@@ -719,7 +885,7 @@ export class XRSensorOrb {
         this.group.position.lerp(this.headTargetPosition, 1 - Math.exp(-delta * 18));
         this.group.quaternion.slerp(this.cameraQuaternion, 1 - Math.exp(-delta * 18));
       }
-      const diagnosticsTarget = this.diagnosticsBridge.url ? 0.82 : 0.001;
+      const diagnosticsTarget = 0.9;
       const diagnosticsScale = THREE.MathUtils.lerp(this.panel.scale.x, diagnosticsTarget, 1 - Math.exp(-delta * 11));
       this.panel.scale.setScalar(Math.max(0.001, diagnosticsScale));
       return;
@@ -750,6 +916,7 @@ export class XRSensorOrb {
 
   dispose() {
     if (this.disposed) return;
+    this.trace('TEARDOWN', 'closing controls, sockets, timers, and GPU resources', 'warn');
     this.sendThermalControl('scene-dispose', false);
     this.disposed = true;
     this.presenting = false;

@@ -72,12 +72,14 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config uses the published Alpha fallback and next build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.4'/);
+test('Quest companion config uses the current published Alpha entitlement and build identity', () => {
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.5'/);
+  assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
+  assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.publishedBuild.versionCode, 4);
-  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.4');
+  assert.equal(metaRelease.publishedBuild.versionCode, 5);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.5');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
   assert.equal(metaRelease.build.versionCode, 5);
   assert.equal(metaRelease.build.versionName, '0.1.0-poc.5');

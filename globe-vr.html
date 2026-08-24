@@ -14,6 +14,7 @@
     .sensor-setup { position: fixed; left: 14px; bottom: 14px; z-index: 4; width: min(390px, calc(100vw - 28px)); padding: 12px; border: 1px solid rgba(34,211,238,.35); border-radius: 10px; background: rgba(5,9,20,.92); }
     .sensor-setup strong { display: block; color: #67e8f9; font: 700 12px/1.3 ui-monospace, monospace; }
     .sensor-setup span { display: block; margin: 5px 0 10px; color: #9db1c6; font-size: 12px; }
+    .sensor-setup .sensor-install-help { display: block; margin: 8px 0 0; color: #7f9daf; font: 10px/1.4 ui-monospace, monospace; }
     .sensor-chain { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; padding: 0; list-style: none; }
     .sensor-chain li { padding: 7px 8px; border: 1px solid #273d51; border-radius: 7px; color: #718da3; background: rgba(10,25,39,.72); font: 700 10px/1.25 ui-monospace, monospace; }
     .sensor-chain li::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #64748b; }
@@ -29,6 +30,9 @@
     .sensor-actions a, .sensor-actions button { padding: 7px 10px; border: 1px solid #31566c; border-radius: 7px; background: #0a2333; color: #dffaff; font: 600 12px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
     .sensor-actions a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
     .sensor-actions [hidden] { display: none; }
+    .sensor-trace-shell { margin: 10px 0 0; border-top: 1px solid rgba(49,86,108,.7); padding-top: 8px; }
+    .sensor-trace-shell summary { color: #7dd3fc; cursor: pointer; font: 700 10px/1.3 ui-monospace, monospace; letter-spacing: .06em; }
+    .sensor-trace { max-height: 128px; margin: 7px 0 0; overflow: auto; white-space: pre-wrap; color: #a9c5d5; font: 10px/1.45 ui-monospace, monospace; }
     #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
     body.sensor-scene { background: radial-gradient(circle at 55% 42%, #0b2740 0, #050914 56%, #02050d 100%); }
     body.sensor-scene .hud { border-color: rgba(251,146,60,.44); }
@@ -43,7 +47,7 @@
   }
   </script>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
-  <script src="runtime-config.js?v=3"></script>
+  <script src="runtime-config.js?v=4"></script>
   <script src="auth.js?v=10"></script>
   <script src="cache.js"></script>
   <script src="application-client.js?v=11"></script>
@@ -65,16 +69,21 @@
     </ol>
     <div class="sensor-actions">
       <a id="openSensorCompanion" href="#">Open FLIR companion</a>
-      <a id="downloadSensorCompanion" href="#" download hidden>Install FLIR companion</a>
+      <a id="sensorCompanionEntitlement" href="#" hidden>Check Meta Alpha access</a>
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
+    <small class="sensor-install-help">Alpha access grants entitlement; install from Quest Library → Not installed while signed into the invited account.</small>
+    <details class="sensor-trace-shell" open>
+      <summary>VERBOSE HANDSHAKE TRACE · ALSO RENDERED IN VR</summary>
+      <pre class="sensor-trace" id="sensorTrace">Waiting for sensor preflight…</pre>
+    </details>
   </section>
 
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=3';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=3';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=4';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
@@ -89,10 +98,11 @@
     const sensorSetup = document.getElementById('sensorSetup');
     const sensorSetupStatus = document.getElementById('sensorSetupStatus');
     const openSensorCompanion = document.getElementById('openSensorCompanion');
-    const downloadSensorCompanion = document.getElementById('downloadSensorCompanion');
+    const sensorCompanionEntitlement = document.getElementById('sensorCompanionEntitlement');
     const sensorRelayStep = document.getElementById('sensorRelayStep');
     const sensorCompanionStep = document.getElementById('sensorCompanionStep');
     const sensorCameraStep = document.getElementById('sensorCameraStep');
+    const sensorTrace = document.getElementById('sensorTrace');
     const xrSessionId = sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
     sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const pageQuery = new URLSearchParams(location.search);
@@ -128,7 +138,7 @@
     const sensorCompanionBridgeUrl = pageQuery.get('thermalIngest') || pageQuery.get('sensorIngest') || '';
     const companionLaunchBase = globalThis.MXGENIUS_CONFIG?.sensorCompanionLaunchUrl || 'mxgenius://sensor-bridge';
     const companionPackage = globalThis.MXGENIUS_CONFIG?.sensorCompanionPackage || 'io.mxgenius.sensorbridge';
-    const companionDownloadUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionDownloadUrl || '';
+    const companionEntitlementUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionEntitlementUrl || '';
     let companionActivationPending = false;
     let sensorSources = deriveSensorSourceState({ thermalBridgeUrl, piDiagnosticsBridgeUrl, remoteWitnessUrl });
     let activationTimeout = null;
@@ -146,7 +156,7 @@
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
         localToken: thermalLocalEnabled ? sensorLocalToken : '',
-        fallbackUrl: companionDownloadUrl,
+        fallbackUrl: companionEntitlementUrl,
         allowInsecurePilot
       });
       openSensorCompanion.href = /Android|OculusBrowser/i.test(navigator.userAgent) ? intentLaunchUrl : customLaunchUrl;
@@ -155,9 +165,9 @@
       openSensorCompanion.href = '#';
       openSensorCompanion.dataset.activationError = error.message;
     }
-    if (companionDownloadUrl) {
-      downloadSensorCompanion.href = companionDownloadUrl;
-      downloadSensorCompanion.hidden = false;
+    if (companionEntitlementUrl) {
+      sensorCompanionEntitlement.href = companionEntitlementUrl;
+      sensorCompanionEntitlement.hidden = false;
     }
     function renderSensorSetup() {
       const activation = deriveSensorActivationState({
@@ -186,6 +196,7 @@
         event.preventDefault();
         return;
       }
+      xrSensors.trace('LAUNCH', `opening ${companionPackage} with session bind`, 'info');
       companionActivationPending = true;
       renderSensorSetup();
       clearTimeout(activationTimeout);
@@ -193,9 +204,13 @@
         if (sensorSources.companion !== 'ready') {
           companionActivationPending = false;
           sensorSources.companion = 'missing';
+          xrSensors.trace('LAUNCH', 'companion did not check in within 12s · verify Alpha install', 'error');
           renderSensorSetup();
         }
       }, 12000);
+    });
+    sensorCompanionEntitlement.addEventListener('click', () => {
+      xrSensors.trace('INSTALL', 'opening Alpha entitlement page · install from Quest Library after joining', 'warn');
     });
     document.getElementById('dismissSensorSetup').addEventListener('click', () => { sensorSetup.hidden = true; });
     renderSensorSetup();
@@ -263,6 +278,13 @@
         if (renderer.xr.isPresenting && thermalTransport !== 'connected') {
           status.textContent = `Thermal ${thermalTransport}/${thermalSource} · Pi ${piDiagnostics}`;
         }
+      },
+      onTrace: ({ entries }) => {
+        sensorTrace.textContent = entries.map((entry) => {
+          const seconds = (entry.elapsedMs / 1000).toFixed(1).padStart(5, ' ');
+          return `${seconds}s ${entry.stage.padEnd(12).slice(0, 12)} ${entry.message}`;
+        }).join('\n');
+        sensorTrace.scrollTop = sensorTrace.scrollHeight;
       }
     });
     scene.add(xrSensors.group);

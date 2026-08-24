@@ -38,6 +38,8 @@ The script validates the external AARs and reuses the Gradle wrapper shipped wit
 
 The one-time `mxgenius-sensor-bridge-recovery.txt` file in that protected directory must be transferred to the company password manager and then removed. The same signing key is required for every future update to `io.mxgenius.sensorbridge`.
 
+Treat the APK uploaded to Meta as an immutable release artifact. A later local rebuild can have the same package, version, byte size, and signing certificate while producing a different SHA-256 digest. Retain the exact uploaded APK and its provenance; never rebuild an existing `versionCode` and represent it as the published binary.
+
 ## Standalone cold test
 
 1. Power the Raspberry Pi off and leave Azure/network access unavailable.
@@ -59,7 +61,7 @@ The browser's install fallback points to the private Meta Alpha channel for app 
 https://www.oculus.com/experiences/1280760725126205/release-channels/1516125643598287/
 ```
 
-Meta has published `0.1.0-poc.4` (`versionCode 4`) to Alpha. The next signed private candidate is `0.1.0-poc.5` (`versionCode 5`), which makes the FLIR viewer standalone and removes its Pi dependency. The channel URL is intentionally free of invitation or email tracking parameters and still requires an invited Meta account. An APK update must increment `versionCode`; changing site configuration or Meta artwork does not require a new APK.
+Meta has published `0.1.0-poc.5` (`versionCode 5`) to Alpha. This build makes the FLIR viewer standalone and removes its Pi dependency. The channel URL is intentionally free of invitation or email tracking parameters and still requires an invited Meta account. Accepting the channel invitation grants entitlement but does not download the APK directly; on the joined headset account, install **MxGenius Sensor Bridge** from **Quest Library → Not installed**. An APK update must increment `versionCode`; changing site configuration or Meta artwork does not require a new APK.
 
 Meta cover art is submission metadata, not an Android resource and not part of the APK. In the Developer Dashboard use **App submissions → v1 → App metadata → Assets → Cover art → Landscape**. Upload `meta/store-assets/cover-landscape-2560x1440.png`, a 24-bit 2560×1440 PNG. `meta/store-assets/manifest.json` maps every local asset to its dashboard field and records its checksum and dimensions. Keeping this draft metadata does not submit the app for public Store review.
 

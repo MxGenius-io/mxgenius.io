@@ -62,6 +62,13 @@ test('sensor scene uses a head-locked thermal screen while fleet retains its wri
   assert.match(sensors, /mxgenius:sensor-diagnostics/);
   assert.match(sensors, /FRAME_MAGIC = 0x4d584753/);
   assert.match(sensors, /MAX_THERMAL_PIXELS = 1920 \* 1080/);
+  assert.match(sensors, /FLIR HANDSHAKE TRACE/);
+  assert.match(sensors, /this\.handshakeTrace/);
+  assert.match(sensors, /credentials redacted/);
+  assert.match(sensors, /bridge\.hello/);
+  assert.match(sensors, /connection error · verify bridge is installed and running/);
+  assert.match(globe, /VERBOSE HANDSHAKE TRACE · ALSO RENDERED IN VR/);
+  assert.match(globe, /Quest Library → Not installed/);
   assert.match(sensors, /this\.thermalTexture\.magFilter = THREE\.NearestFilter/);
   assert.match(sensors, /timestamp !== this\.latestFrameTimestamp/);
   assert.match(sensors, /dispose\(\) \{/);
@@ -72,7 +79,7 @@ test('sensor scene uses a head-locked thermal screen while fleet retains its wri
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=8"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=9"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);
