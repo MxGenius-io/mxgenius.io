@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB-IF VID 0x09CB / 2507 belongs to FLIR Systems. Product IDs vary by FLIR ONE generation. -->
+    <usb-device vendor-id="2507" />
+</resources>

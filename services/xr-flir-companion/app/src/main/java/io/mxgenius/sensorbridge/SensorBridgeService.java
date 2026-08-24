@@ -66,6 +66,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile boolean headsetCameraForegroundReady;
     private String relayState = "not connected (optional)";
     private String cameraState = "standby";
+    private volatile String usbState = "not-checked";
+    private volatile String usbDetail = "USB inventory has not run";
     private String lastCommissioningPayload;
     private long lastPreviewAtMs;
 
@@ -202,10 +204,14 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         firstFrameTraced = false;
         publishCommissioning(report);
         trace("C01", "COMMISSION", "started", "deterministic run " + runId.substring(0, 12) + " · build " + BuildConfig.VERSION_NAME, "info");
-        trace("C02", "COMMISSION", "cold-reconnect", "releasing prior FLIR stream before discovery", "info");
-        cameraState = "reconnecting";
-        publishStatus();
-        current.reconnect(activity);
+        if ("streaming".equals(cameraState)) {
+            trace("C02", "COMMISSION", "stable-session", "preserving the healthy FLIR stream; commissioning begins on the next decoded frame", "success");
+        } else {
+            trace("C02", "COMMISSION", "settled-reconnect", "camera is not healthy; releasing FLIR before bounded rediscovery", "info");
+            cameraState = "reconnecting";
+            publishStatus();
+            current.reconnect(activity);
+        }
         commissioningWorker.schedule(
                 () -> publishCommissioning(commissioning.firstFrameTimeout(runId, System.currentTimeMillis())),
                 ThermalCommissioningRun.FIRST_FRAME_TIMEOUT_MS,
@@ -227,6 +233,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     boolean canConnectCamera() {
         return cameraRuntimeReady && camera != null;
+    }
+
+    boolean canStartCameraDiscovery() {
+        return canConnectCamera()
+                && !"streaming".equals(cameraState)
+                && !"connecting".equals(cameraState)
+                && !"discovering".equals(cameraState)
+                && !"permission-required".equals(cameraState)
+                && !"reconnecting".equals(cameraState);
     }
 
     boolean prepareHeadsetCamera() {
@@ -327,6 +342,30 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         if ("skipped".equals(state)) publishCommissioning(commissioning.onTransientSkip(System.currentTimeMillis()));
     }
 
+    @Override public void onUsbDiagnostic(String state, String detail) {
+        usbState = state;
+        usbDetail = detail == null || detail.isBlank() ? state : detail;
+        String step = switch (state) {
+            case "enumerated" -> "U01";
+            case "permission-check" -> "U02";
+            case "permission-retry", "settling" -> "U03";
+            case "permission-granted" -> "U04";
+            case "permission-denied", "permission-error", "permission-aborted", "manager-unavailable" -> "U00";
+            default -> "U01";
+        };
+        String level = switch (state) {
+            case "permission-granted", "enumerated" -> "success";
+            case "permission-retry", "settling", "not-enumerated" -> "warn";
+            case "permission-denied", "permission-error", "permission-aborted", "manager-unavailable" -> "error";
+            default -> "info";
+        };
+        trace(step, "USB", state, usbDetail, level);
+    }
+
+    void recordUsbAttachment(String detail) {
+        onUsbDiagnostic("attached", detail == null || detail.isBlank() ? "Quest delivered FLIR USB attachment" : detail);
+    }
+
     private void onRelayState(String state) {
         relayState = state;
         publishStatus();
@@ -368,13 +407,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
     }
 
-    private static String commissioningJson(ThermalCommissioningRun.Snapshot report) {
+    private String commissioningJson(ThermalCommissioningRun.Snapshot report) {
         try {
             return new JSONObject(report.toJson(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
                     .put("deviceManufacturer", Build.MANUFACTURER)
                     .put("deviceModel", Build.MODEL)
                     .put("androidSdk", Build.VERSION.SDK_INT)
                     .put("osRelease", Build.VERSION.RELEASE)
+                    .put("usbState", usbState)
+                    .put("usbDetail", usbDetail)
                     .toString();
         } catch (JSONException error) {
             return report.toJson(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE);

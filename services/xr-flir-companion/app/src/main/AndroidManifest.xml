@@ -52,6 +52,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mxgenius" android:host="sensor-bridge" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/flir_usb_devices" />
             <meta-data
                 android:name="com.oculus.vrshell.panel_activity"
                 android:value="panel" />

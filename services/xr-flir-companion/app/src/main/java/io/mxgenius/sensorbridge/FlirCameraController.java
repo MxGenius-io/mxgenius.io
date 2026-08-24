@@ -2,6 +2,10 @@ package io.mxgenius.sensorbridge;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.flir.thermalsdk.ErrorCode;
 import com.flir.thermalsdk.ErrorCodeException;
@@ -19,6 +23,9 @@ import com.flir.thermalsdk.live.streaming.Stream;
 import com.flir.thermalsdk.live.streaming.ThermalStreamer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,7 +38,13 @@ final class FlirCameraController {
         void onCameraState(String state, String reason);
         void onFrame(Bitmap bitmap);
         void onFrameDiagnostic(String state, String detail);
+        void onUsbDiagnostic(String state, String detail);
     }
+
+    private static final int FLIR_USB_VENDOR_ID = 0x09CB;
+    private static final int MAX_PERMISSION_RETRIES = 3;
+    private static final long PERMISSION_RETRY_BASE_MS = 400L;
+    private static final long RECONNECT_SETTLE_MS = 900L;
 
     private final ExecutorService cameraWorker = Executors.newSingleThreadExecutor();
     private final ExecutorService frameWorker = Executors.newSingleThreadExecutor();
@@ -41,6 +54,7 @@ final class FlirCameraController {
     private final AtomicBoolean claimed = new AtomicBoolean();
     private final AtomicBoolean framePending = new AtomicBoolean();
     private final AtomicInteger consecutiveFrameSkips = new AtomicInteger();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Camera camera;
     private Stream stream;
     private ThermalStreamer streamer;
@@ -53,6 +67,7 @@ final class FlirCameraController {
     void discoverAndConnect(Activity activity) {
         if (claimed.get()) return;
         closing = false;
+        reportUsbInventory(activity);
         listener.onCameraState("discovering", null);
         DiscoveryFactory.getInstance().scan(new DiscoveryEventListener() {
             @Override public void onCameraFound(DiscoveredCamera discoveredCamera) {
@@ -61,21 +76,7 @@ final class FlirCameraController {
                         || !claimed.compareAndSet(false, true)) return;
                 DiscoveryFactory.getInstance().stop(CommunicationInterface.USB);
                 listener.onCameraState("permission-required", null);
-                usbPermissions.requestFlirOnePermisson(identity, activity, new UsbPermissionHandler.UsbPermissionListener() {
-                    @Override public void permissionGranted(Identity grantedIdentity) {
-                        connect(grantedIdentity);
-                    }
-
-                    @Override public void permissionDenied(Identity deniedIdentity) {
-                        claimed.set(false);
-                        listener.onCameraState("permission-denied", "usb-permission-denied");
-                    }
-
-                    @Override public void error(ErrorType errorType, Identity failedIdentity) {
-                        claimed.set(false);
-                        listener.onCameraState("failed", "usb-permission-" + errorType.toString().toLowerCase(Locale.ROOT));
-                    }
-                });
+                requestPermission(identity, activity, 0);
             }
 
             @Override public void onDiscoveryError(CommunicationInterface communicationInterface, ErrorCode errorCode) {
@@ -85,12 +86,90 @@ final class FlirCameraController {
         }, CommunicationInterface.USB);
     }
 
+    private void requestPermission(Identity identity, Activity activity, int retry) {
+        if (closing || activity.isFinishing() || activity.isDestroyed()) {
+            claimed.set(false);
+            listener.onUsbDiagnostic("permission-aborted", "foreground activity closed before USB authorization");
+            listener.onCameraState("failed", "usb-permission-activity-closed");
+            return;
+        }
+        boolean alreadyGranted = UsbPermissionHandler.hasFlirOnePermission(identity, activity);
+        listener.onUsbDiagnostic(
+                "permission-check",
+                alreadyGranted
+                        ? "FLIR USB authorization already granted"
+                        : "FLIR USB authorization required · attempt=" + (retry + 1));
+        mainHandler.post(() -> usbPermissions.requestFlirOnePermisson(identity, activity, new UsbPermissionHandler.UsbPermissionListener() {
+                    @Override public void permissionGranted(Identity grantedIdentity) {
+                        listener.onUsbDiagnostic("permission-granted", "Quest granted device-scoped FLIR USB access");
+                        connect(grantedIdentity);
+                    }
+
+                    @Override public void permissionDenied(Identity deniedIdentity) {
+                        claimed.set(false);
+                        listener.onUsbDiagnostic("permission-denied", "operator denied device-scoped FLIR USB access");
+                        listener.onCameraState("permission-denied", "usb-permission-denied");
+                    }
+
+                    @Override public void error(ErrorType errorType, Identity failedIdentity) {
+                        if (errorType == ErrorType.DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION
+                                && retry < MAX_PERMISSION_RETRIES
+                                && !closing) {
+                            int nextRetry = retry + 1;
+                            long delayMs = PERMISSION_RETRY_BASE_MS * nextRetry;
+                            listener.onUsbDiagnostic(
+                                    "permission-retry",
+                                    "FLIR device re-enumerating during authorization · retry=" + nextRetry + "/" + MAX_PERMISSION_RETRIES + " · delay=" + delayMs + "ms");
+                            mainHandler.postDelayed(() -> requestPermission(identity, activity, nextRetry), delayMs);
+                            return;
+                        }
+                        claimed.set(false);
+                        listener.onUsbDiagnostic(
+                                "permission-error",
+                                "FLIR USB authorization failed · " + errorType.toString().toLowerCase(Locale.ROOT) + " · retries=" + retry);
+                        listener.onCameraState("failed", "usb-permission-" + errorType.toString().toLowerCase(Locale.ROOT));
+                    }
+                }));
+    }
+
     void close() {
         close(null);
     }
 
     void reconnect(Activity activity) {
-        close(() -> activity.runOnUiThread(() -> discoverAndConnect(activity)));
+        listener.onUsbDiagnostic("settling", "releasing FLIR interface for " + RECONNECT_SETTLE_MS + "ms before rediscovery");
+        close(() -> mainHandler.postDelayed(() -> discoverAndConnect(activity), RECONNECT_SETTLE_MS));
+    }
+
+    private void reportUsbInventory(Activity activity) {
+        UsbManager manager = activity.getSystemService(UsbManager.class);
+        if (manager == null) {
+            listener.onUsbDiagnostic("manager-unavailable", "Quest did not expose Android UsbManager");
+            return;
+        }
+        List<UsbDevice> devices = new ArrayList<>(manager.getDeviceList().values());
+        devices.sort(Comparator.comparingInt(UsbDevice::getVendorId).thenComparingInt(UsbDevice::getProductId));
+        List<UsbDevice> flirDevices = devices.stream()
+                .filter(device -> device.getVendorId() == FLIR_USB_VENDOR_ID)
+                .toList();
+        if (flirDevices.isEmpty()) {
+            listener.onUsbDiagnostic(
+                    "not-enumerated",
+                    "Quest enumerated " + devices.size() + " USB device(s), but no FLIR VID 09cb device");
+            return;
+        }
+        for (UsbDevice device : flirDevices) {
+            listener.onUsbDiagnostic(
+                    "enumerated",
+                    String.format(
+                            Locale.ROOT,
+                            "FLIR USB vid=%04x pid=%04x class=%d permission=%s product=%s",
+                            device.getVendorId(),
+                            device.getProductId(),
+                            device.getDeviceClass(),
+                            manager.hasPermission(device),
+                            safeUsbText(device.getProductName())));
+        }
     }
 
     private void close(Runnable afterClose) {
@@ -207,5 +286,11 @@ final class FlirCameraController {
         reason = reason == null ? "unknown" : reason.toLowerCase(Locale.ROOT);
         reason = reason.replaceAll("[^a-z0-9._-]+", "-").replaceAll("-+", "-");
         return reason.length() > 96 ? reason.substring(0, 96) : reason;
+    }
+
+    private static String safeUsbText(String value) {
+        if (value == null || value.isBlank()) return "unknown";
+        String clean = value.replaceAll("[^A-Za-z0-9 ._+-]+", " ").replaceAll("\\s+", " ").trim();
+        return clean.substring(0, Math.min(clean.length(), 64));
     }
 }

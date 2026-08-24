@@ -25,7 +25,7 @@ public final class ThermalCommissioningRunTest {
         report = run.acknowledgeBrowser("run-commission-01", 10, 18_200L);
         assertEquals("pass", report.result);
         assertEquals("complete", report.phase);
-        assertTrue(report.toJson("0.1.0-poc.11", 11).contains("\"schema\":\"mxg.thermal.commissioning.v1\""));
+        assertTrue(report.toJson("0.1.0-poc.12", 12).contains("\"schema\":\"mxg.thermal.commissioning.v1\""));
     }
 
     @Test public void firstFrameTimeoutNamesItsBoundary() {

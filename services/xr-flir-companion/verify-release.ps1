@@ -64,6 +64,9 @@ foreach ($requiredManifestToken in @(
     'android.permission.CAMERA',
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.hardware.usb.host',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED',
+    '@xml/flir_usb_devices',
     'dataSync|camera',
     '@mipmap/mxgenius_launcher',
     '@mipmap/mxgenius_launcher_round'
@@ -113,8 +116,15 @@ foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistra
 foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
+foreach ($requiredUsbLifecycleToken in @('UsbManager', 'hasFlirOnePermission', 'DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION', 'MAX_PERMISSION_RETRIES', 'RECONNECT_SETTLE_MS', 'stable-session')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
+}
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
+$usbFilterPath = Join-Path $resourceRoot 'xml\flir_usb_devices.xml'
+Assert-ReleaseRequirement (Test-Path -LiteralPath $usbFilterPath -PathType Leaf) 'FLIR USB attachment filter is missing'
+$usbFilterSource = Get-Content -Raw -LiteralPath $usbFilterPath
+Assert-ReleaseRequirement ($usbFilterSource.Contains('vendor-id="2507"')) 'FLIR USB attachment filter does not target USB-IF VID 09cb'
 Assert-ReleaseRequirement (-not (Test-Path -LiteralPath (Join-Path $resourceRoot 'drawable-nodpi\mxgenius_launcher.png'))) 'obsolete drawable-nodpi launcher image is still packaged'
 foreach ($density in @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')) {
     foreach ($icon in @('mxgenius_launcher.png', 'mxgenius_launcher_round.png', 'mxgenius_launcher_foreground.png')) {
@@ -176,7 +186,9 @@ foreach ($requiredPackagedToken in @(
     'libossdk.oculus.so',
     'android.permission.CAMERA',
     'horizonos.permission.HEADSET_CAMERA',
-    'android.permission.FOREGROUND_SERVICE_CAMERA'
+    'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.hardware.usb.host',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
 }
@@ -187,6 +199,7 @@ foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'a
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
+Assert-ReleaseRequirement ($packagedResources.Contains('xml/flir_usb_devices')) 'packaged FLIR USB attachment filter is missing'
 foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
 }

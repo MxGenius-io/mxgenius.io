@@ -124,7 +124,7 @@ test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet 
   assert.match(globe, /SensorDiagnosticsBackdrop/);
 });
 
-test('sensor scene cache-busts the poc.11 commissioning browser client', () => {
+test('sensor scene cache-busts the commissioning browser client', () => {
   assert.match(globe, /xr-sensor-orb\.js\?v=8/);
   assert.match(sensors, /commissioning\.browser_ack/);
   assert.match(sensors, /W14 PASS/);
