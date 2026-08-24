@@ -35,6 +35,28 @@
       updates: []
     },
     {
+      id: 'question-thermal-acceptance-duration',
+      lane: 'question',
+      title: 'What qualifies poc.12 as thermally stable?',
+      message: 'Set the required number and duration of consecutive commissioning runs, including pin, reconnect, and headset-state changes, before the Quest thermal bridge is accepted.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:18:00Z',
+      updated_at: '2026-08-24T10:18:00Z',
+      updates: []
+    },
+    {
+      id: 'question-ios-build33-owner',
+      lane: 'question',
+      title: 'Who signs off TestFlight Build 33?',
+      message: 'Assign the owner for physical-device acceptance and feedback sign-off after Apple finishes processing the build.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:18:00Z',
+      updated_at: '2026-08-24T10:18:00Z',
+      updates: []
+    },
+    {
       id: 'sprint-mount-refinement',
       lane: 'sprint',
       title: 'Refine the apparatus mount and cable routing',
@@ -83,7 +105,7 @@
       lane: 'sprint',
       title: 'Complete TestFlight Build 33 device acceptance',
       message: 'After Apple processing, validate portrait and landscape launch, AR globe placement, independent anchors, CAM-follow and world lock, panel navigation, Realtime microphone control, and spatial audio on a physical device.',
-      owner: 'Team',
+      owner: 'Unassigned',
       author: 'Week 23 closeout',
       created_at: '2026-08-24T09:48:00Z',
       updated_at: '2026-08-24T09:48:00Z',
@@ -98,6 +120,17 @@
       author: 'Week 23 closeout',
       created_at: '2026-08-24T09:48:00Z',
       updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-flir-libssh2-disposition',
+      lane: 'sprint',
+      title: 'Disposition the FLIR libssh2 advisory',
+      message: 'Resolve, mitigate, or formally accept the vendor-library advisory before public Meta submission; keep the current Quest release in the private Alpha lane until the decision is recorded.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:18:00Z',
+      updated_at: '2026-08-24T10:18:00Z',
       updates: []
     },
     {

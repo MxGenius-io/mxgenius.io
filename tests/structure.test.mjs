@@ -104,7 +104,7 @@ test('progress banner identifies the latest published report', () => {
   assert.match(progress, /viewReport\(23\)/);
 });
 
-test('week 23 report credits the team and preserves release evidence boundaries', () => {
+test('week 23 report credits the team and stays focused on completed weekly work', () => {
   assert.match(week23Report, /## Executive Summary/);
   assert.match(week23Report, /Kudos first to Josh/);
   assert.match(week23Report, /Rocky turned “report a bug” into an accountable debug flow/);
@@ -112,7 +112,8 @@ test('week 23 report credits the team and preserves release evidence boundaries'
   assert.match(week23Report, /60 commits after the Week 22 cutoff/);
   assert.match(week23Report, /signed MxGenius 3\.2\.0 Build 33/);
   assert.match(week23Report, /0\.1\.0-poc\.12/);
-  assert.match(week23Report, /not treated as a resolved hardware issue until repeat testing is stable/);
+  assert.doesNotMatch(week23Report, /## Recommended next steps|## Further questions|## Caveats and assumptions/);
+  assert.doesNotMatch(week23Report, /These counts describe the audited change footprint/);
   const embeddedReport = week23ReportScript.match(/^reportLoaded\(`([\s\S]*)`\);\s*$/)?.[1];
   assert.equal(embeddedReport, week23Report.trimEnd());
 });

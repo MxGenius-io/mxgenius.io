@@ -1,7 +1,7 @@
 reportLoaded(`# Weekly Progress Report — Week 23
 **Date Range:** Aug 17, 2026 — Aug 23, 2026
 **Closing Build Note:** Aug 24, 2026
-**Project:** Advanced AOG · Hermetic Labs
+**Project:** MxGenius
 
 ---
 
@@ -81,32 +81,6 @@ Build 33 completed a signed generic-device Release build and arm64 archive. App 
 | Quest Alpha candidate | Signed 0.1.0-poc.12, versionCode 12, release-verified and uploaded with exact artifact provenance |
 | Automated application evidence | Final combined browser contract suite, including the Week 23 report contract: 222 passed, 0 failed |
 | Source of truth | One shared main branch; the final Quest commit and the concurrent native AR microphone work were reconciled without a side branch |
-
-These counts describe the audited change footprint, not the value of any individual contribution. The value is in how the pieces now meet: a public pitch, a feedback loop, operational Parts workflows, shared planning and legal records, and native spatial experiences using the same product context.
-
-## Recommended next steps
-
-1. Run the poc.12 Quest acceptance test repeatedly: confirm USB enumeration and authorization, reach the final commissioning pass, pin the thermal panel, and verify that reconnecting does not recreate the flicker or panic cycle.
-2. Complete on-device TestFlight acceptance for Build 33 in portrait and landscape, including AR placement, independent anchors, panel navigation, Realtime microphone control, and spatial audio.
-3. Use the Build Board to lock the physical casing, camera position, Pi and battery placement, cable route, and the exact evidence required for a demonstration to count as complete.
-4. Have Rocky exercise the live feedback and Parts workflows with real team roles and record any remaining operational gaps as tickets rather than informal notes.
-5. Resolve or formally disposition the vendor FLIR libssh2 advisory before a public Meta submission; keep the current Alpha lane private until then.
-
-## Further questions
-
-- What exact apparatus configuration is the single demonstration target?
-- How many stable thermal commissioning runs, and for what duration, are required before poc.12 is accepted?
-- Which Build Board cards should become permanent program records versus short-lived sprint coordination?
-- When Apple processing completes, who owns the final Build 33 acceptance pass and feedback sign-off?
-
-## Caveats and assumptions
-
-- The formal Week 23 window is Aug 17–23. The Aug 24 Quest and iOS release work is included as a clearly labeled closing build note because it completes the sprint described here.
-- Git records who landed a commit, not every person who supplied the source material or product direction. The landing-page credit to Josh reflects the team's stated contribution record; the implementation commits were landed through the shared repository.
-- “Deployed” for feedback and Parts means the existing Azure application revision passed its recorded production gates. It does not mean every role and shop-floor scenario has completed user acceptance.
-- The first successful live thermal rendering proves the path can work, but poc.12 is not treated as a resolved hardware issue until repeat testing is stable.
-- TestFlight Build 33 was accepted by App Store Connect and was still processing at the evidence cutoff; acceptance by App Store Connect is not the same as completed device validation.
-- The FLIR SDK remains a licensed vendor dependency, and its bundled libssh2 advisory remains a public-release gate.
 
 ---
 
