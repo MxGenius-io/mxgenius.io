@@ -335,6 +335,8 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /MXApplicationClient\.aircraftBundle/);
   assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl/);
   assert.match(application, /state\?\.state === 'ai-mic-toggle-request'/);
+  assert.match(application, /globalThis\.MXRealtimeVoiceBridge/);
+  assert.match(application, /await voice\.connect\(\)/);
   assert.match(application, /await startRealtimeVoice\(\)/);
   assert.match(application, /realtimeSession\.disconnect\(\)/);
   assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);

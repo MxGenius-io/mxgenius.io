@@ -2527,6 +2527,33 @@ Rules:
   }
 
   setupVoiceInput();
+  globalThis.MXRealtimeVoiceBridge = {
+    isAvailable: () => Boolean(realtimeSession),
+    isConnected: () => Boolean(realtimeSession?.connecting || !['disconnected', 'failed'].includes(realtimeSession?.state)),
+    audioElement: () => realtimeSession?.audioElement || null,
+    connect: async () => {
+      if (!realtimeSession) throw new Error('Realtime voice is unavailable in this wrapper');
+      realtimeModeEnabled = true;
+      realtimeMicEnabled = true;
+      stopTranscription({ resetVoiceState: false });
+      realtimeSession.setMicrophoneEnabled(true);
+      renderMicState();
+      await startRealtimeVoice();
+    },
+    disconnect: () => {
+      realtimeModeEnabled = false;
+      realtimeMicEnabled = false;
+      cancelRealtimeStructuredTurn();
+      pendingRealtimeUserText = '';
+      pendingRealtimeImages = [];
+      suppressNextRealtimeAssistantBubble = false;
+      if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+        realtimeSession.disconnect();
+      }
+      setRealtimeUiState('disconnected', 'Voice disconnected');
+      renderMicState();
+    }
+  };
 }
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
@@ -4702,25 +4729,26 @@ async function setNativeARRealtimeState(state, message = '') {
 }
 
 async function toggleNativeARRealtime() {
-  if (!realtimeSession) {
+  const voice = globalThis.MXRealtimeVoiceBridge;
+  if (!voice?.isAvailable?.()) {
     await setNativeARRealtimeState('failed', 'Realtime voice is unavailable in this wrapper');
     return;
   }
-  const connected = realtimeSession.connecting || !['disconnected', 'failed'].includes(realtimeSession.state);
-  if (connected) {
+  if (voice.isConnected()) {
     nativeARRealtimeOwnsSession = false;
-    realtimeModeEnabled = false;
-    realtimeSession.disconnect();
+    voice.disconnect();
     await setNativeARRealtimeState('disconnected', 'MIC idle · Realtime socket closed');
     resetNativeARSpatialAudio();
     return;
   }
   nativeARRealtimeOwnsSession = true;
-  realtimeModeEnabled = true;
-  realtimeMicEnabled = true;
-  realtimeSession.setMicrophoneEnabled(true);
   await setNativeARRealtimeState('connecting', 'Opening the same MXGenius Realtime channel used by VR…');
-  await startRealtimeVoice();
+  try {
+    await voice.connect();
+  } catch (error) {
+    nativeARRealtimeOwnsSession = false;
+    await setNativeARRealtimeState('failed', error?.message || 'Realtime voice unavailable');
+  }
 }
 
 function resetNativeARSpatialAudio() {
@@ -4733,7 +4761,7 @@ function resetNativeARSpatialAudio() {
 
 async function updateNativeARSpatialAudio(spatial) {
   latestNativeARSpatialAudio = spatial;
-  const audioElement = realtimeSession?.audioElement;
+  const audioElement = globalThis.MXRealtimeVoiceBridge?.audioElement?.();
   if (!audioElement || !spatial?.relative) return;
   try {
     if (!nativeARSpatialAudioContext || nativeARSpatialAudioElement !== audioElement) {
@@ -4823,8 +4851,7 @@ async function configureNativeARGlobe() {
         if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
         if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
           nativeARRealtimeOwnsSession = false;
-          realtimeModeEnabled = false;
-          realtimeSession?.disconnect();
+          globalThis.MXRealtimeVoiceBridge?.disconnect?.();
           resetNativeARSpatialAudio();
         }
         window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
