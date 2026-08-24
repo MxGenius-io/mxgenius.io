@@ -69,6 +69,12 @@
             android:layout_marginTop="24dp"
             android:text="Connect FLIR ONE" />
         <Button
+            android:id="@+id/arm_snapshot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="ARM RGB SNAPSHOT" />
+        <Button
             android:id="@+id/return_to_browser"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

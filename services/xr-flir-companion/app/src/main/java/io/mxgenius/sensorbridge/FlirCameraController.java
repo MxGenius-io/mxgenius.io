@@ -42,8 +42,8 @@ final class FlirCameraController {
     }
 
     private static final int FLIR_USB_VENDOR_ID = 0x09CB;
-    private static final int MAX_PERMISSION_RETRIES = 3;
-    private static final long PERMISSION_RETRY_BASE_MS = 400L;
+    private static final int MAX_PERMISSION_REDISCOVERIES = 3;
+    private static final long PERMISSION_REDISCOVERY_BASE_MS = 500L;
     private static final long RECONNECT_SETTLE_MS = 900L;
 
     private final ExecutorService cameraWorker = Executors.newSingleThreadExecutor();
@@ -52,8 +52,10 @@ final class FlirCameraController {
     private final Listener listener;
     private final Object updateLock = new Object();
     private final AtomicBoolean claimed = new AtomicBoolean();
+    private final AtomicBoolean scanInFlight = new AtomicBoolean();
     private final AtomicBoolean framePending = new AtomicBoolean();
     private final AtomicInteger consecutiveFrameSkips = new AtomicInteger();
+    private final AtomicInteger discoveryGeneration = new AtomicInteger();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Camera camera;
     private Stream stream;
@@ -65,31 +67,48 @@ final class FlirCameraController {
     }
 
     void discoverAndConnect(Activity activity) {
-        if (claimed.get()) return;
+        discoverAndConnect(activity, 0);
+    }
+
+    private void discoverAndConnect(Activity activity, int recoveryAttempt) {
+        if (claimed.get() || !scanInFlight.compareAndSet(false, true)) return;
         closing = false;
-        reportUsbInventory(activity);
+        int generation = discoveryGeneration.incrementAndGet();
+        reportUsbInventory(activity, generation);
+        listener.onUsbDiagnostic(
+                "discovery-start",
+                "fresh FLIR discovery · generation=" + generation + " · recovery=" + recoveryAttempt + "/" + MAX_PERMISSION_REDISCOVERIES);
         listener.onCameraState("discovering", null);
         DiscoveryFactory.getInstance().scan(new DiscoveryEventListener() {
             @Override public void onCameraFound(DiscoveredCamera discoveredCamera) {
+                if (!isActiveGeneration(generation)) return;
                 Identity identity = discoveredCamera.getIdentity();
                 if (identity.communicationInterface != CommunicationInterface.USB
                         || !claimed.compareAndSet(false, true)) return;
+                scanInFlight.set(false);
                 DiscoveryFactory.getInstance().stop(CommunicationInterface.USB);
+                listener.onUsbDiagnostic(
+                        "identity-found",
+                        "fresh FLIR USB identity selected · generation=" + generation);
                 listener.onCameraState("permission-required", null);
-                requestPermission(identity, activity, 0);
+                resolvePermission(identity, activity, generation, recoveryAttempt);
             }
 
             @Override public void onDiscoveryError(CommunicationInterface communicationInterface, ErrorCode errorCode) {
+                if (!isActiveGeneration(generation)) return;
+                scanInFlight.set(false);
                 claimed.set(false);
                 listener.onCameraState("failed", "discovery-" + errorCode.toString().toLowerCase(Locale.ROOT));
             }
         }, CommunicationInterface.USB);
     }
 
-    private void requestPermission(Identity identity, Activity activity, int retry) {
-        if (closing || activity.isFinishing() || activity.isDestroyed()) {
+    private void resolvePermission(Identity identity, Activity activity, int generation, int recoveryAttempt) {
+        if (!isActiveGeneration(generation) || activity.isFinishing() || activity.isDestroyed()) {
             claimed.set(false);
-            listener.onUsbDiagnostic("permission-aborted", "foreground activity closed before USB authorization");
+            listener.onUsbDiagnostic(
+                    "permission-aborted",
+                    "foreground activity closed before USB authorization · generation=" + generation);
             listener.onCameraState("failed", "usb-permission-activity-closed");
             return;
         }
@@ -97,39 +116,82 @@ final class FlirCameraController {
         listener.onUsbDiagnostic(
                 "permission-check",
                 alreadyGranted
-                        ? "FLIR USB authorization already granted"
-                        : "FLIR USB authorization required · attempt=" + (retry + 1));
+                        ? "FLIR USB authorization already granted · generation=" + generation
+                        : "FLIR USB authorization required · generation=" + generation);
+        if (FlirPermissionPolicy.afterGrantCheck(alreadyGranted) == FlirPermissionPolicy.GrantAction.CONNECT) {
+            listener.onUsbDiagnostic(
+                    "permission-bypassed",
+                    "existing device-scoped authorization reused without another prompt · generation=" + generation);
+            connect(identity, generation);
+            return;
+        }
+
+        listener.onUsbDiagnostic(
+                "permission-request",
+                "requesting device-scoped FLIR USB access once · generation=" + generation);
         mainHandler.post(() -> usbPermissions.requestFlirOnePermisson(identity, activity, new UsbPermissionHandler.UsbPermissionListener() {
                     @Override public void permissionGranted(Identity grantedIdentity) {
-                        listener.onUsbDiagnostic("permission-granted", "Quest granted device-scoped FLIR USB access");
-                        connect(grantedIdentity);
+                        if (!isActiveGeneration(generation)) return;
+                        listener.onUsbDiagnostic(
+                                "permission-granted",
+                                "Quest granted device-scoped FLIR USB access · generation=" + generation);
+                        connect(grantedIdentity, generation);
                     }
 
                     @Override public void permissionDenied(Identity deniedIdentity) {
+                        if (!isActiveGeneration(generation)) return;
                         claimed.set(false);
-                        listener.onUsbDiagnostic("permission-denied", "operator denied device-scoped FLIR USB access");
+                        listener.onUsbDiagnostic(
+                                "permission-denied",
+                                "operator denied device-scoped FLIR USB access · generation=" + generation);
                         listener.onCameraState("permission-denied", "usb-permission-denied");
                     }
 
                     @Override public void error(ErrorType errorType, Identity failedIdentity) {
-                        if (errorType == ErrorType.DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION
-                                && retry < MAX_PERMISSION_RETRIES
-                                && !closing) {
-                            int nextRetry = retry + 1;
-                            long delayMs = PERMISSION_RETRY_BASE_MS * nextRetry;
-                            listener.onUsbDiagnostic(
-                                    "permission-retry",
-                                    "FLIR device re-enumerating during authorization · retry=" + nextRetry + "/" + MAX_PERMISSION_RETRIES + " · delay=" + delayMs + "ms");
-                            mainHandler.postDelayed(() -> requestPermission(identity, activity, nextRetry), delayMs);
+                        if (!isActiveGeneration(generation)) return;
+                        String errorName = errorType.toString();
+                        if (FlirPermissionPolicy.afterPermissionError(
+                                errorName,
+                                recoveryAttempt,
+                                MAX_PERMISSION_REDISCOVERIES) == FlirPermissionPolicy.ErrorAction.REDISCOVER) {
+                            rediscoverAfterPermissionError(activity, generation, recoveryAttempt + 1, errorName);
                             return;
                         }
                         claimed.set(false);
                         listener.onUsbDiagnostic(
                                 "permission-error",
-                                "FLIR USB authorization failed · " + errorType.toString().toLowerCase(Locale.ROOT) + " · retries=" + retry);
+                                "FLIR USB authorization failed · " + errorName.toLowerCase(Locale.ROOT)
+                                        + " · generation=" + generation
+                                        + " · recoveries=" + recoveryAttempt);
                         listener.onCameraState("failed", "usb-permission-" + errorType.toString().toLowerCase(Locale.ROOT));
                     }
                 }));
+    }
+
+    private void rediscoverAfterPermissionError(
+            Activity activity,
+            int failedGeneration,
+            int nextRecoveryAttempt,
+            String errorName) {
+        if (!discoveryGeneration.compareAndSet(failedGeneration, failedGeneration + 1)) return;
+        DiscoveryFactory.getInstance().stop(CommunicationInterface.USB);
+        scanInFlight.set(false);
+        claimed.set(false);
+        long delayMs = PERMISSION_REDISCOVERY_BASE_MS * nextRecoveryAttempt;
+        listener.onUsbDiagnostic(
+                "permission-rediscovery",
+                "discarding stale FLIR identity after " + errorName.toLowerCase(Locale.ROOT)
+                        + " · next-recovery=" + nextRecoveryAttempt + "/" + MAX_PERMISSION_REDISCOVERIES
+                        + " · delay=" + delayMs + "ms");
+        listener.onCameraState("reconnecting", "usb-identity-refresh");
+        int rediscoveryToken = failedGeneration + 1;
+        mainHandler.postDelayed(() -> {
+            if (closing
+                    || discoveryGeneration.get() != rediscoveryToken
+                    || activity.isFinishing()
+                    || activity.isDestroyed()) return;
+            discoverAndConnect(activity, nextRecoveryAttempt);
+        }, delayMs);
     }
 
     void close() {
@@ -141,7 +203,7 @@ final class FlirCameraController {
         close(() -> mainHandler.postDelayed(() -> discoverAndConnect(activity), RECONNECT_SETTLE_MS));
     }
 
-    private void reportUsbInventory(Activity activity) {
+    private void reportUsbInventory(Activity activity, int generation) {
         UsbManager manager = activity.getSystemService(UsbManager.class);
         if (manager == null) {
             listener.onUsbDiagnostic("manager-unavailable", "Quest did not expose Android UsbManager");
@@ -155,7 +217,7 @@ final class FlirCameraController {
         if (flirDevices.isEmpty()) {
             listener.onUsbDiagnostic(
                     "not-enumerated",
-                    "Quest enumerated " + devices.size() + " USB device(s), but no FLIR VID 09cb device");
+                    "Quest enumerated " + devices.size() + " USB device(s), but no FLIR VID 09cb device · generation=" + generation);
             return;
         }
         for (UsbDevice device : flirDevices) {
@@ -163,18 +225,21 @@ final class FlirCameraController {
                     "enumerated",
                     String.format(
                             Locale.ROOT,
-                            "FLIR USB vid=%04x pid=%04x class=%d permission=%s product=%s",
+                            "FLIR USB vid=%04x pid=%04x class=%d permission=%s product=%s generation=%d",
                             device.getVendorId(),
                             device.getProductId(),
                             device.getDeviceClass(),
                             manager.hasPermission(device),
-                            safeUsbText(device.getProductName())));
+                            safeUsbText(device.getProductName()),
+                            generation));
         }
     }
 
     private void close(Runnable afterClose) {
         closing = true;
+        discoveryGeneration.incrementAndGet();
         DiscoveryFactory.getInstance().stop(CommunicationInterface.USB);
+        scanInFlight.set(false);
         cameraWorker.execute(() -> {
             try {
                 if (stream != null && stream.isStreaming()) stream.stop();
@@ -203,15 +268,25 @@ final class FlirCameraController {
         frameWorker.shutdown();
     }
 
-    private void connect(Identity identity) {
+    private void connect(Identity identity, int generation) {
+        if (!isActiveGeneration(generation)) return;
+        listener.onUsbDiagnostic(
+                "connect-start",
+                "opening FLIR stream with authorized identity · generation=" + generation);
         listener.onCameraState("connecting", null);
         cameraWorker.execute(() -> {
             try {
+                if (!isActiveGeneration(generation)) return;
                 Camera next = new Camera();
                 next.connect(identity, errorCode -> {
+                    if (!isActiveGeneration(generation)) return;
                     claimed.set(false);
                     listener.onCameraState("offline", "camera-disconnected-" + safeReason(errorCode));
                 }, new ConnectParameters());
+                if (!isActiveGeneration(generation)) {
+                    next.disconnect();
+                    return;
+                }
                 camera = next;
                 stream = next.getStreams().get(0);
                 if (!stream.isThermal()) throw new IOException("No thermal stream was exposed.");
@@ -231,6 +306,10 @@ final class FlirCameraController {
                 listener.onCameraState("failed", "camera-connect-" + safeReason(error));
             }
         });
+    }
+
+    private boolean isActiveGeneration(int generation) {
+        return !closing && discoveryGeneration.get() == generation;
     }
 
     private void queueFrame() {

@@ -1,10 +1,12 @@
 package io.mxgenius.sensorbridge
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -34,6 +36,10 @@ import com.meta.spatial.vr.VRFeature
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.StatusListener {
+    companion object {
+        private const val HEADSET_CAMERA_PERMISSION_REQUEST = 4211
+    }
+
     private val followHead = AtomicBoolean(true)
     private var bridgeService: SensorBridgeService? = null
     private var bound = false
@@ -54,7 +60,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             bridgeService = (binder as SensorBridgeService.LocalBinder).service()
             bound = true
             bridgeService?.setStatusListener(this@ThermalImmersiveActivity)
-            bridgeService?.prepareHeadsetCamera()
+            if (hasHeadsetCameraPermissions()) bridgeService?.prepareHeadsetCamera()
             tracePanelReadyIfPossible()
             renderPanel()
         }
@@ -102,6 +108,9 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
                 rootView.findViewById<Button>(R.id.immersive_commission).setOnClickListener {
                     bridgeService?.startCommissioning(this)
                 }
+                rootView.findViewById<Button>(R.id.immersive_arm_snapshot).setOnClickListener {
+                    requestHeadsetCameraPermissionsIfNeeded()
+                }
                 rootView.findViewById<Button>(R.id.immersive_panel_mode).setOnClickListener {
                     launchPanelModeInHome()
                 }
@@ -138,6 +147,25 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             bound = false
         }
         super.onStop()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != HEADSET_CAMERA_PERMISSION_REQUEST) return
+        val granted = hasHeadsetCameraPermissions()
+        if (granted) bridgeService?.prepareHeadsetCamera()
+        bridgeService?.recordTrace(
+            "N21",
+            "SNAPSHOT",
+            if (granted) "permission-granted" else "permission-denied",
+            if (granted) "Quest RGB snapshot permissions granted" else "Quest RGB snapshot permissions denied; thermal remains available",
+            if (granted) "success" else "warn",
+        )
+        renderPanel()
     }
 
     override fun onSceneReady() {
@@ -210,6 +238,10 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
                 isEnabled = bridgeService?.canConnectCamera() == true && bridgeService?.commissioningRunning() != true
                 text = if (bridgeService?.commissioningRunning() == true) "DIAGNOSTIC RUNNING…" else "RUN FULL DIAGNOSTIC"
             }
+            root.findViewById<Button>(R.id.immersive_arm_snapshot).apply {
+                isEnabled = bridgeService != null && bridgeService?.headsetCameraArmed() != true
+                text = if (bridgeService?.headsetCameraArmed() == true) "RGB SNAPSHOT ARMED" else "ARM RGB SNAPSHOT"
+            }
             root.findViewById<Button>(R.id.immersive_pin_toggle).text =
                 if (followHead.get()) "PIN HERE" else "FOLLOW HEAD"
             root.findViewById<Button>(R.id.immersive_reconnect).isEnabled =
@@ -232,6 +264,22 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             "ready",
             "native immersive panel created; browser transport is no longer on the frame path",
             "success",
+        )
+    }
+
+    private fun hasHeadsetCameraPermissions(): Boolean =
+        checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestHeadsetCameraPermissionsIfNeeded() {
+        if (hasHeadsetCameraPermissions()) {
+            bridgeService?.prepareHeadsetCamera()
+            renderPanel()
+            return
+        }
+        requestPermissions(
+            arrayOf(Manifest.permission.CAMERA, HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION),
+            HEADSET_CAMERA_PERMISSION_REQUEST,
         )
     }
 

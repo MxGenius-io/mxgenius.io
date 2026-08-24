@@ -266,6 +266,10 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
     }
 
+    boolean headsetCameraArmed() {
+        return headsetCameraForegroundReady;
+    }
+
     String sessionId() {
         return activation == null ? null : activation.sessionId;
     }
@@ -425,8 +429,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private void onSnapshotRequest(String requestId, LocalThermalBroker.SnapshotResponder responder) {
         HeadsetSnapshotController controller = headsetSnapshots;
         if (!headsetCameraForegroundReady || controller == null) {
-            responder.failure("snapshot-not-armed", "open the companion once and grant headset camera access");
-            trace("N22", "SNAPSHOT", "blocked", "capture requested before headset camera foreground preparation", "error");
+            responder.failure("snapshot-not-armed", "use ARM RGB SNAPSHOT in the native panel before capture");
+            trace("N22", "SNAPSHOT", "blocked", "capture requested before explicit headset camera arming", "error");
             return;
         }
         trace("N22", "SNAPSHOT", "opening", "opening Quest passthrough RGB camera for one frame", "info");

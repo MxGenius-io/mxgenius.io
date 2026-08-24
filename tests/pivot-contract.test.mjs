@@ -28,6 +28,7 @@ const companionImmersiveActivity = await read('services/xr-flir-companion/app/sr
 const companionFollowSystem = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/ThermalPanelFollowSystem.kt');
 const companionService = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/SensorBridgeService.java');
 const companionCamera = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/FlirCameraController.java');
+const companionPermissionPolicy = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/FlirPermissionPolicy.java');
 const headsetSnapshotCamera = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/HeadsetSnapshotController.java');
 const companionLayout = await read('services/xr-flir-companion/app/src/main/res/layout/activity_main.xml');
 const localThermalBroker = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/LocalThermalBroker.java');
@@ -78,7 +79,7 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
 });
 
 test('Quest companion config uses the current Alpha candidate build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.12'/);
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.13'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
@@ -90,15 +91,15 @@ test('Quest companion config uses the current Alpha candidate build identity', (
   assert.equal(metaRelease.uploadedBuild.versionCode, 12);
   assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.12');
   assert.equal(metaRelease.uploadedBuild.status, 'UploadedPendingMetaVerification');
-  assert.equal(metaRelease.build.versionCode, 12);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.12');
+  assert.equal(metaRelease.build.versionCode, 13);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.13');
   assert.match(metaRelease.build.metaTestStatus, /PendingLocalBuild|LocalBuildValidated/);
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 12/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.12"/);
+  assert.match(companionGradle, /versionCode = 13/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.13"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -174,9 +175,16 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(companionActivity, /recordUsbAttachment/);
   assert.match(companionCamera, /UsbManager/);
   assert.match(companionCamera, /hasFlirOnePermission/);
-  assert.match(companionCamera, /DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION/);
-  assert.match(companionCamera, /MAX_PERMISSION_RETRIES = 3/);
+  assert.match(companionPermissionPolicy, /INVALID_IDENTITY/);
+  assert.match(companionPermissionPolicy, /DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION/);
+  assert.match(companionCamera, /MAX_PERMISSION_REDISCOVERIES = 3/);
+  assert.match(companionCamera, /permission-bypassed/);
+  assert.match(companionCamera, /permission-rediscovery/);
+  assert.match(companionCamera, /discoveryGeneration/);
+  assert.match(companionCamera, /scanInFlight/);
   assert.match(companionCamera, /RECONNECT_SETTLE_MS = 900L/);
+  assert.match(companionLayout, /@\+id\/arm_snapshot/);
+  assert.doesNotMatch(companionActivity, /^\s{8}requestHeadsetCameraPermissionsIfNeeded\(\);$/m);
   assert.match(companionService, /"stable-session"/);
   assert.match(companionService, /\.put\("usbState", usbState\)/);
 });

@@ -30,6 +30,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     private TextView cameraStatus;
     private ImageView thermalPreview;
     private Button connectCamera;
+    private Button armSnapshot;
     private Button openImmersive;
     private SensorBridgeService service;
     private boolean bound;
@@ -76,10 +77,11 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             cameraConnectRequested = true;
             if (service != null) service.connectCamera(this);
         });
+        armSnapshot = findViewById(R.id.arm_snapshot);
+        armSnapshot.setOnClickListener(view -> requestHeadsetCameraPermissionsIfNeeded());
         openImmersive = findViewById(R.id.return_to_browser);
         openImmersive.setOnClickListener(view -> openImmersiveScene());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
-        requestHeadsetCameraPermissionsIfNeeded();
         Intent initialIntent = getIntent();
         if (isUsbAttachment(initialIntent)) {
             activate(new Intent());
@@ -102,6 +104,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     granted ? "Quest RGB snapshot permissions granted" : "Quest RGB snapshot permissions denied; thermal remains available",
                     granted ? "success" : "warn");
         }
+        armSnapshot.setText(granted ? "RGB SNAPSHOT ARMED" : "ARM RGB SNAPSHOT");
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -145,6 +148,10 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     && !"reconnecting".equals(camera);
             connectCamera.setEnabled(service != null && service.canConnectCamera() && cameraIdle);
             connectCamera.setText("streaming".equals(camera) ? "FLIR ONE streaming" : "Connect FLIR ONE");
+            armSnapshot.setText(service != null && service.headsetCameraArmed()
+                    ? "RGB SNAPSHOT ARMED"
+                    : "ARM RGB SNAPSHOT");
+            armSnapshot.setEnabled(service == null || !service.headsetCameraArmed());
             boolean managedLaunch = activation != null;
             openImmersive.setEnabled(firstFrameReceived);
             openImmersive.setText(firstFrameReceived
@@ -247,7 +254,10 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     }
 
     private void requestHeadsetCameraPermissionsIfNeeded() {
-        if (hasHeadsetCameraPermissions()) return;
+        if (hasHeadsetCameraPermissions()) {
+            if (service != null) service.prepareHeadsetCamera();
+            return;
+        }
         requestPermissions(
                 new String[] {
                         Manifest.permission.CAMERA,

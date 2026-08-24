@@ -95,6 +95,13 @@
         android:layout_marginTop="10dp"
         android:text="RUN FULL DIAGNOSTIC" />
 
+    <Button
+        android:id="@+id/immersive_arm_snapshot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="ARM RGB SNAPSHOT" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

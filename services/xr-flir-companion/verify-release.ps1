@@ -116,7 +116,7 @@ foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistra
 foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
-foreach ($requiredUsbLifecycleToken in @('UsbManager', 'hasFlirOnePermission', 'DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION', 'MAX_PERMISSION_RETRIES', 'RECONNECT_SETTLE_MS', 'stable-session')) {
+foreach ($requiredUsbLifecycleToken in @('UsbManager', 'hasFlirOnePermission', 'INVALID_IDENTITY', 'DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION', 'MAX_PERMISSION_REDISCOVERIES', 'permission-bypassed', 'permission-rediscovery', 'discoveryGeneration', 'RECONNECT_SETTLE_MS', 'stable-session')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
 }
 
