@@ -20,6 +20,8 @@ const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'ut
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const applicationStyles = await readFile(new URL('../app-styles.css', import.meta.url), 'utf8');
+const nativeARBridge = await readFile(new URL('../../jetnet-simulator/ios/App/App/JetNetNativePlugin.swift', import.meta.url), 'utf8');
+const nativeInfo = await readFile(new URL('../../jetnet-simulator/ios/App/App/Info.plist', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.url), 'utf8');
@@ -374,6 +376,30 @@ test('iOS wrapper exposes the fleet globe through the native AR camera bridge', 
   assert.match(application, /plugin\.addListener\('cameraPose'/);
   assert.match(application, /mxgenius:ar-camera-pose/);
   assert.match(application, /plugin\.addListener\('pinSelected'/);
+  assert.match(nativeARBridge, /AVCaptureDevice\.authorizationStatus\(for: \.video\)/);
+  assert.match(nativeARBridge, /AVCaptureDevice\.requestAccess\(for: \.video\)/);
+  assert.match(nativeARBridge, /raycastQuery\(from: screenPoint, allowing: \.existingPlaneGeometry/);
+  assert.match(nativeARBridge, /raycastQuery\(from: screenPoint, allowing: \.estimatedPlane/);
+  assert.match(nativeARBridge, /ARAnchor\(name: "MXGeniusFleetGlobe", transform: transform\)/);
+  assert.match(nativeARBridge, /renderer\(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor\)/);
+  assert.match(nativeInfo, /<key>NSCameraUsageDescription<\/key>/);
+
+  const capabilityCheck = nativeARBridge.slice(
+    nativeARBridge.indexOf('@objc func isARSupported'),
+    nativeARBridge.indexOf('@objc func showGlobe')
+  );
+  assert.doesNotMatch(capabilityCheck, /requestAccess|session\.run/, 'passive AR support checks must not request camera access');
+});
+
+test('mobile globe panels keep controls reachable and avoid overlapping drawers', () => {
+  assert.match(dashboard, /class="globe-sidebar-wrapper collapsed"/);
+  assert.doesNotMatch(dashboard, /id="globeContainer" style=/);
+  assert.match(applicationStyles, /\.globe-texture-buttons \{[\s\S]*overflow-y: auto/);
+  assert.match(applicationStyles, /\.globe-sheet \{[\s\S]*width: calc\(100% - 52px\)/);
+  assert.match(applicationStyles, /\.globe-sheet-toggle \{[\s\S]*width: 40px/);
+  assert.match(application, /const setSheetState = \(nextState\) =>/);
+  assert.match(application, /if \(currentState > 0 && sidebarWrapper\)/);
+  assert.match(application, /if \(willExpand\) setSheetState\(0\)/);
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {

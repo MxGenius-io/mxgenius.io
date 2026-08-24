@@ -4355,34 +4355,44 @@ function setupGlobeSheet() {
   if (!sheet || !handle) return;
   const states = ['', 'half', 'full'];
   let currentState = 0;
-  handle.addEventListener('click', () => {
-    currentState = (currentState + 1) % states.length;
+  const filterHamburger = document.getElementById('globeFilterHamburger');
+  const sidebarWrapper = document.getElementById('globeSidebarWrapper');
+  const hamburgerIcon = document.getElementById('globeHamburgerIcon');
+  const setSheetState = (nextState) => {
+    currentState = Math.min(Math.max(nextState, 0), states.length - 1);
     sheet.className = 'globe-sheet' + (states[currentState] ? ' ' + states[currentState] : '');
+    sheet.setAttribute('aria-expanded', currentState > 0 ? 'true' : 'false');
+    if (currentState > 0 && sidebarWrapper) {
+      sidebarWrapper.classList.add('collapsed');
+      if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(180deg)';
+    }
+  };
+  sheet._setState = setSheetState;
+  setSheetState(0);
+  handle.addEventListener('click', () => {
+    setSheetState((currentState + 1) % states.length);
   });
   const closeBtn = document.getElementById('globeSheetToggle');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       if (currentState > 0) {
-        currentState = 0;
-        sheet.className = 'globe-sheet';
+        setSheetState(0);
       } else {
-        currentState = 1;
-        sheet.className = 'globe-sheet half';
+        setSheetState(1);
       }
     });
   }
   // Hamburger filter toggle
-  const filterHamburger = document.getElementById('globeFilterHamburger');
-  const sidebarWrapper = document.getElementById('globeSidebarWrapper');
-  const hamburgerIcon = document.getElementById('globeHamburgerIcon');
   if (filterHamburger && sidebarWrapper) {
     filterHamburger.addEventListener('click', (e) => {
       e.stopPropagation();
+      const willExpand = sidebarWrapper.classList.contains('collapsed');
+      if (willExpand) setSheetState(0);
       sidebarWrapper.classList.toggle('collapsed');
       if (sidebarWrapper.classList.contains('collapsed')) {
-        hamburgerIcon.style.transform = 'rotate(180deg)';
+        if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(180deg)';
       } else {
-        hamburgerIcon.style.transform = 'rotate(0deg)';
+        if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(0deg)';
       }
     });
   }
@@ -4421,8 +4431,7 @@ function setupGlobeSheet() {
   if (gc) {
     gc.addEventListener('click', (e) => {
       if (!sheet.contains(e.target)) {
-        currentState = 0;
-        sheet.className = 'globe-sheet';
+        setSheetState(0);
       }
     });
   }
@@ -4432,7 +4441,8 @@ function handleGlobeClick(point) {
   if (!point || !point.aircraft) return;
   const sheet = document.getElementById('globeSheet');
   const results = document.getElementById('globeSheetResults');
-  sheet.className = 'globe-sheet full';
+  if (typeof sheet._setState === 'function') sheet._setState(2);
+  else sheet.className = 'globe-sheet full';
   results.innerHTML = `<div class="drill-header"><span class="drill-icao">${escapeMarkup(point.icao)}</span>${point.city ? '<span>' + escapeMarkup(point.city) + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span></div>` +
     point.aircraft.map(ac => {
       const mro = buildMROSignals(ac);

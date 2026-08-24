@@ -317,7 +317,8 @@ summary:focus-visible {
   }
 
   #globeContainer {
-    height: 310px !important;
+    height: clamp(380px, calc(100dvh - 132px), 560px) !important;
+    min-height: 380px;
   }
   .capability-toolbar { align-items:stretch; flex-direction:column; }
   .capability-search input { width:100%; min-width:0; }
@@ -357,4 +358,12 @@ summary:focus-visible {
 .btn-globe-vr:disabled {
   cursor: default;
   opacity: 0.42;
+}
+
+@media (max-width: 680px) {
+  .chat-panel,
+  .chat-panel.advisory-open {
+    width: calc(100vw - 44px);
+    max-width: 420px;
+  }
 }
