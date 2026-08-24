@@ -12,11 +12,15 @@ import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.os.Binder;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.SystemClock;
 
 import com.flir.thermalsdk.androidsdk.ThermalSdkAndroid;
 import com.flir.thermalsdk.log.ThermalLog;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class SensorBridgeService extends Service implements FlirCameraController.Listener {
@@ -31,6 +36,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         void onStatus(String bridge, String relay, String camera);
         void onFrame(Bitmap bitmap);
         default void onTrace(List<String> entries) {}
+        default void onCommissioning(String summary) {}
     }
 
     static final String ACTION_STOP = "io.mxgenius.sensorbridge.STOP";
@@ -42,8 +48,10 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private static final int TRACE_HISTORY_LIMIT = 64;
     private final LocalBinder binder = new LocalBinder();
     private final ExecutorService lifecycleWorker = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService commissioningWorker = Executors.newSingleThreadScheduledExecutor();
     private final Object traceLock = new Object();
     private final ArrayDeque<String> traceHistory = new ArrayDeque<>();
+    private final ThermalCommissioningRun commissioning = new ThermalCommissioningRun();
     private RelayClient relay;
     private volatile LocalThermalTransport localTransport;
     private volatile FlirCameraController camera;
@@ -58,6 +66,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile boolean headsetCameraForegroundReady;
     private String relayState = "not connected (optional)";
     private String cameraState = "standby";
+    private String lastCommissioningPayload;
     private long lastPreviewAtMs;
 
     public final class LocalBinder extends Binder {
@@ -76,6 +85,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                 stableNodeId(),
                 this::onRelayState,
                 this::onSnapshotRequest,
+                this::onBrowserCommissioningAck,
                 BuildConfig.DEBUG);
         trace("N01", "SERVICE", "foreground", "foreground service created before FLIR initialization", "success");
         setBridgeState("starting", false, "foreground-active");
@@ -144,6 +154,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         LocalThermalTransport transport = localTransport;
         if (transport != null) transport.close();
         lifecycleWorker.shutdownNow();
+        commissioningWorker.shutdownNow();
         super.onDestroy();
     }
 
@@ -151,6 +162,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         statusListener = listener;
         publishStatus();
         listener.onTrace(traceHistorySnapshot());
+        listener.onCommissioning(commissioningSummary());
     }
 
     void clearStatusListener(StatusListener listener) {
@@ -177,6 +189,40 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         } else {
             trace("N18", "FLIR", "blocked", "camera reconnect requested before SDK readiness", "error");
         }
+    }
+
+    void startCommissioning(Activity activity) {
+        FlirCameraController current = camera;
+        if (!cameraRuntimeReady || current == null) {
+            trace("C00", "COMMISSION", "blocked", "FLIR runtime is not ready", "error");
+            return;
+        }
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "");
+        ThermalCommissioningRun.Snapshot report = commissioning.start(runId, sessionId(), System.currentTimeMillis());
+        firstFrameTraced = false;
+        publishCommissioning(report);
+        trace("C01", "COMMISSION", "started", "deterministic run " + runId.substring(0, 12) + " · build " + BuildConfig.VERSION_NAME, "info");
+        trace("C02", "COMMISSION", "cold-reconnect", "releasing prior FLIR stream before discovery", "info");
+        cameraState = "reconnecting";
+        publishStatus();
+        current.reconnect(activity);
+        commissioningWorker.schedule(
+                () -> publishCommissioning(commissioning.firstFrameTimeout(runId, System.currentTimeMillis())),
+                ThermalCommissioningRun.FIRST_FRAME_TIMEOUT_MS,
+                TimeUnit.MILLISECONDS);
+    }
+
+    String commissioningSummary() {
+        ThermalCommissioningRun.Snapshot report = commissioning.snapshot();
+        if (report.runId == null) {
+            String retained = getSharedPreferences("commissioning", MODE_PRIVATE).getString("last_summary", null);
+            return retained == null ? "NOT RUN · press RUN FULL DIAGNOSTIC" : "LAST · " + retained;
+        }
+        return report.summary();
+    }
+
+    boolean commissioningRunning() {
+        return "running".equals(commissioning.snapshot().result);
     }
 
     boolean canConnectCamera() {
@@ -215,9 +261,22 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         return activation == null ? localLabel + " · waiting for scene" : activation.relayLabel();
     }
 
+    String browserHandoffUrl() {
+        BridgeActivation current = activation;
+        return current != null && current.canHandoffToBrowser() ? current.browserHandoffUrl() : null;
+    }
+
     @Override public void onCameraState(String state, String reason) {
         cameraState = state;
         traceCameraState(state, reason);
+        ThermalCommissioningRun.Snapshot activeReport = commissioning.snapshot();
+        boolean terminalCameraState = "failed".equals(state)
+                || "permission-denied".equals(state)
+                || ("offline".equals(state) && activeReport.firstFrameAtMs > 0);
+        if ("running".equals(activeReport.result) && terminalCameraState) {
+            String detail = reason == null || reason.isBlank() ? state : reason;
+            publishCommissioning(commissioning.onCameraFailure(state, detail, System.currentTimeMillis()));
+        }
         LocalThermalTransport transport = localTransport;
         if (transport != null) transport.sendSourceStatus(state, reason);
         RelayClient current = relay;
@@ -230,6 +289,26 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         if (!firstFrameTraced) {
             firstFrameTraced = true;
             trace("N13", "FRAME", "decoded", "first native thermal frame decoded", "success");
+        }
+        ThermalCommissioningRun.Snapshot before = commissioning.snapshot();
+        ThermalCommissioningRun.Snapshot after = commissioning.onFrame(System.currentTimeMillis());
+        if (before.firstFrameAtMs == 0 && after.firstFrameAtMs > 0 && "soaking".equals(after.phase)) {
+            trace("C03", "COMMISSION", "first-frame", "native thermal frame accepted; 15 second soak started", "success");
+            publishCommissioning(after);
+            String runId = after.runId;
+            commissioningWorker.schedule(() -> {
+                ThermalCommissioningRun.Snapshot evaluated = commissioning.evaluateNativeSoak(runId, System.currentTimeMillis());
+                publishCommissioning(evaluated);
+                if ("awaiting-browser".equals(evaluated.phase)) {
+                    trace("C04", "COMMISSION", "native-pass", evaluated.nativeFrames + " frames · max gap " + evaluated.maxFrameGapMs + "ms", "success");
+                    commissioningWorker.schedule(
+                            () -> publishCommissioning(commissioning.browserTimeout(runId, System.currentTimeMillis())),
+                            ThermalCommissioningRun.BROWSER_TIMEOUT_MS,
+                            TimeUnit.MILLISECONDS);
+                }
+            }, ThermalCommissioningRun.SOAK_DURATION_MS, TimeUnit.MILLISECONDS);
+        } else if (after.nativeFrames > 0 && after.nativeFrames % 30 == 0 && after.nativeFrames != before.nativeFrames) {
+            publishCommissioning(after);
         }
         long now = SystemClock.elapsedRealtime();
         StatusListener currentListener = statusListener;
@@ -245,6 +324,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     @Override public void onFrameDiagnostic(String state, String detail) {
         trace("N20", "FRAME", state, detail, "recovered".equals(state) ? "success" : "warn");
+        if ("skipped".equals(state)) publishCommissioning(commissioning.onTransientSkip(System.currentTimeMillis()));
     }
 
     private void onRelayState(String state) {
@@ -253,9 +333,52 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         updateNotification();
     }
 
+    private void onBrowserCommissioningAck(String runId, int renderedFrames) {
+        ThermalCommissioningRun.Snapshot before = commissioning.snapshot();
+        ThermalCommissioningRun.Snapshot after = commissioning.acknowledgeBrowser(runId, renderedFrames, System.currentTimeMillis());
+        publishCommissioning(after);
+        if (!before.terminal() && "pass".equals(after.result)) {
+            trace("C05", "COMMISSION", "pass", "browser acknowledged " + renderedFrames + " ordered rendered frames", "success");
+        }
+    }
+
     private void publishStatus() {
         StatusListener current = statusListener;
-        if (current != null) current.onStatus(bridgeLabel(), relayState, cameraState);
+        if (current != null) {
+            current.onStatus(bridgeLabel(), relayState, cameraState);
+            current.onCommissioning(commissioningSummary());
+        }
+    }
+
+    private void publishCommissioning(ThermalCommissioningRun.Snapshot report) {
+        if (report.runId == null) return;
+        String json = commissioningJson(report);
+        if (json.equals(lastCommissioningPayload)) return;
+        lastCommissioningPayload = json;
+        getSharedPreferences("commissioning", MODE_PRIVATE).edit()
+                .putString("last_report", json)
+                .putString("last_summary", report.summary())
+                .apply();
+        LocalThermalTransport transport = localTransport;
+        if (transport != null) transport.sendCommissioning(json);
+        StatusListener current = statusListener;
+        if (current != null) current.onCommissioning(report.summary());
+        if (report.terminal() && "fail".equals(report.result)) {
+            trace("C00", "COMMISSION", report.failureBoundary, report.failureDetail, "error");
+        }
+    }
+
+    private static String commissioningJson(ThermalCommissioningRun.Snapshot report) {
+        try {
+            return new JSONObject(report.toJson(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+                    .put("deviceManufacturer", Build.MANUFACTURER)
+                    .put("deviceModel", Build.MODEL)
+                    .put("androidSdk", Build.VERSION.SDK_INT)
+                    .put("osRelease", Build.VERSION.RELEASE)
+                    .toString();
+        } catch (JSONException error) {
+            return report.toJson(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE);
+        }
     }
 
     private void onSnapshotRequest(String requestId, LocalThermalBroker.SnapshotResponder responder) {

@@ -87,6 +87,8 @@ foreach ($requiredImmersiveToken in @(
     '@+id/immersive_thermal_preview',
     '@+id/immersive_pin_toggle',
     '@+id/immersive_reconnect',
+    '@+id/immersive_commission',
+    '@+id/immersive_commission_status',
     '@+id/immersive_trace'
 )) {
     Assert-ReleaseRequirement ($immersiveLayoutSource.Contains($requiredImmersiveToken)) "native immersive panel is missing $requiredImmersiveToken"
@@ -107,6 +109,9 @@ foreach ($requiredSnapshotToken in @('HeadsetSnapshotController', 'headset.snaps
 }
 foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistration', 'ThermalPanelFollowSystem', 'N16', 'N18')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredSpatialToken)) "native Spatial workspace is missing $requiredSpatialToken"
+}
+foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
@@ -182,7 +187,7 @@ foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'a
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
-foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_trace')) {
+foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
 }
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {

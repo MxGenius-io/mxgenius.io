@@ -171,6 +171,47 @@ public final class LocalThermalBrokerTest {
         }
     }
 
+    @Test public void commissioningAckReachesRunControllerOnlyFromAuthenticatedBrowser() throws Exception {
+        int port = freePort();
+        CountDownLatch ackReceived = new CountDownLatch(1);
+        AtomicReference<String> ack = new AtomicReference<>();
+        LocalThermalBroker broker = new LocalThermalBroker(
+                new InetSocketAddress("127.0.0.1", port),
+                Set.of("https://mxgenius.io"),
+                "quest-sensor-test",
+                state -> {},
+                (requestId, responder) -> responder.failure("unused", "unused"),
+                (runId, renderedFrames) -> {
+                    ack.set(runId + ":" + renderedFrames);
+                    ackReceived.countDown();
+                });
+        broker.activate("case-42", TOKEN);
+        broker.start();
+        assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
+
+        WebSocketClient client = new WebSocketClient(
+                uri(port, TOKEN),
+                new Draft_6455(),
+                Map.of("Origin", "https://mxgenius.io"),
+                0) {
+            @Override public void onOpen(ServerHandshake handshake) {
+                send("{\"type\":\"commissioning.browser_ack\",\"runId\":\"run-commission-01\",\"renderedFrames\":10}");
+            }
+            @Override public void onMessage(String message) {}
+            @Override public void onMessage(ByteBuffer bytes) {}
+            @Override public void onClose(int code, String reason, boolean remote) {}
+            @Override public void onError(Exception error) {}
+        };
+        try {
+            assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(ackReceived.await(3, TimeUnit.SECONDS));
+            assertTrue("run-commission-01:10".equals(ack.get()));
+        } finally {
+            client.closeBlocking();
+            broker.stop(1000);
+        }
+    }
+
     private static WebSocketClient client(
             int port,
             String origin,

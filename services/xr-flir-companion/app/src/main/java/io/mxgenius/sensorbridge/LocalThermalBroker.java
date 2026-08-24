@@ -33,6 +33,10 @@ final class LocalThermalBroker extends WebSocketServer {
         void request(String requestId, SnapshotResponder responder);
     }
 
+    interface CommissioningHandler {
+        void acknowledgeBrowser(String runId, int renderedFrames);
+    }
+
     static final int DEFAULT_PORT = 4109;
     private static final String PATH = "/thermal";
     private final Set<String> allowedOrigins;
@@ -40,6 +44,7 @@ final class LocalThermalBroker extends WebSocketServer {
     private final String nodeId;
     private final Listener listener;
     private final SnapshotHandler snapshotHandler;
+    private final CommissioningHandler commissioningHandler;
     private final CountDownLatch started = new CountDownLatch(1);
     private static final int HISTORY_LIMIT = 64;
     private final Object eventHistoryLock = new Object();
@@ -51,7 +56,8 @@ final class LocalThermalBroker extends WebSocketServer {
 
     LocalThermalBroker(InetSocketAddress address, Set<String> allowedOrigins, String nodeId, Listener listener) {
         this(address, allowedOrigins, nodeId, listener,
-                (requestId, responder) -> responder.failure("snapshot-unavailable", "headset snapshot capture is unavailable"));
+                (requestId, responder) -> responder.failure("snapshot-unavailable", "headset snapshot capture is unavailable"),
+                (runId, renderedFrames) -> {});
     }
 
     LocalThermalBroker(
@@ -60,11 +66,22 @@ final class LocalThermalBroker extends WebSocketServer {
             String nodeId,
             Listener listener,
             SnapshotHandler snapshotHandler) {
+        this(address, allowedOrigins, nodeId, listener, snapshotHandler, (runId, renderedFrames) -> {});
+    }
+
+    LocalThermalBroker(
+            InetSocketAddress address,
+            Set<String> allowedOrigins,
+            String nodeId,
+            Listener listener,
+            SnapshotHandler snapshotHandler,
+            CommissioningHandler commissioningHandler) {
         super(address);
         this.allowedOrigins = Set.copyOf(allowedOrigins);
         this.nodeId = nodeId;
         this.listener = listener;
         this.snapshotHandler = snapshotHandler;
+        this.commissioningHandler = commissioningHandler;
         setReuseAddr(true);
         setConnectionLostTimeout(15);
     }
@@ -100,6 +117,10 @@ final class LocalThermalBroker extends WebSocketServer {
 
     void publishTrace(String step, String vector, String state, String detail, String level) {
         publishRetained(traceJson(step, vector, state, detail, level));
+    }
+
+    void publishCommissioning(String reportJson) {
+        if (reportJson != null && !reportJson.isBlank()) publishRetained(reportJson);
     }
 
     void publishFrame(byte[] frame) {
@@ -168,6 +189,15 @@ final class LocalThermalBroker extends WebSocketServer {
                         sendSnapshotFailure(connection, requestId, code, detail);
                     }
                 });
+            } else if ("commissioning.browser_ack".equals(type)) {
+                String runId = payload.optString("runId", "");
+                int renderedFrames = payload.optInt("renderedFrames", 0);
+                if (!runId.matches("^[A-Za-z0-9_-]{8,80}$") || renderedFrames < 1 || renderedFrames > 10_000) {
+                    publishTrace("B10", "COMMISSION", "rejected", "browser render acknowledgement was malformed", "error");
+                    return;
+                }
+                publishTrace("B10", "COMMISSION", "acknowledged", "authenticated browser rendered " + renderedFrames + " ordered frames", "success");
+                commissioningHandler.acknowledgeBrowser(runId, renderedFrames);
             }
         } catch (JSONException error) {
             publishTrace("B00", "BROKER", "protocol-error", "invalid browser control message", "error");
@@ -226,7 +256,8 @@ final class LocalThermalBroker extends WebSocketServer {
                             .put("flir-one-pro-usb-c")
                             .put("mxgs-1")
                             .put("thermal-jpeg")
-                            .put("headset-snapshot"));
+                            .put("headset-snapshot")
+                            .put("thermal-commissioning-v1"));
             return new JSONObject().put("type", "node.status").put("status", "connected").put("node", node).toString();
         } catch (JSONException error) {
             throw new IllegalStateException(error);

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -45,6 +46,8 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
     private var bridgeState = "starting"
     private var relayState = "native spatial"
     private var cameraState = "standby"
+    private var commissioningState = "NOT RUN · press RUN FULL DIAGNOSTIC"
+    private var commissioningHandoffStarted = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -95,6 +98,9 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
                 rootView.findViewById<Button>(R.id.immersive_reconnect).setOnClickListener {
                     connectRequested = true
                     bridgeService?.reconnectCamera(this)
+                }
+                rootView.findViewById<Button>(R.id.immersive_commission).setOnClickListener {
+                    bridgeService?.startCommissioning(this)
                 }
                 rootView.findViewById<Button>(R.id.immersive_panel_mode).setOnClickListener {
                     launchPanelModeInHome()
@@ -180,6 +186,15 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         renderPanel()
     }
 
+    override fun onCommissioning(summary: String) {
+        commissioningState = summary
+        renderPanel()
+        if (summary.startsWith("NATIVE PASS") && !commissioningHandoffStarted) {
+            commissioningHandoffStarted = true
+            runOnUiThread { launchCommissioningBrowserHandoff() }
+        }
+    }
+
     private fun renderPanel() {
         val root = panelRoot ?: return
         runOnUiThread {
@@ -189,6 +204,12 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             root.findViewById<TextView>(R.id.immersive_camera_status).text = "FLIR ONE · $cameraState"
             root.findViewById<TextView>(R.id.immersive_bridge_status).text =
                 "Native spatial bridge · $bridgeState · optional transport $relayState"
+            root.findViewById<TextView>(R.id.immersive_commission_status).text =
+                "COMMISSIONING · $commissioningState"
+            root.findViewById<Button>(R.id.immersive_commission).apply {
+                isEnabled = bridgeService?.canConnectCamera() == true && bridgeService?.commissioningRunning() != true
+                text = if (bridgeService?.commissioningRunning() == true) "DIAGNOSTIC RUNNING…" else "RUN FULL DIAGNOSTIC"
+            }
             root.findViewById<Button>(R.id.immersive_pin_toggle).text =
                 if (followHead.get()) "PIN HERE" else "FOLLOW HEAD"
             root.findViewById<Button>(R.id.immersive_reconnect).isEnabled =
@@ -237,6 +258,30 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra("extra_launch_in_home_pending_intent", pendingPanelIntent)
         startActivity(homeIntent)
+        finish()
+    }
+
+    private fun launchCommissioningBrowserHandoff() {
+        val handoffUrl = bridgeService?.browserHandoffUrl()
+        if (handoffUrl.isNullOrBlank()) {
+            commissioningHandoffStarted = false
+            bridgeService?.recordTrace(
+                "C00",
+                "COMMISSION",
+                "browser-handoff",
+                "native soak passed but no authenticated browser handoff was available",
+                "error",
+            )
+            return
+        }
+        bridgeService?.recordTrace(
+            "C04",
+            "COMMISSION",
+            "browser-handoff",
+            "native soak passed; reopening the authenticated Meta Browser scene",
+            "success",
+        )
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(handoffUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         finish()
     }
 }

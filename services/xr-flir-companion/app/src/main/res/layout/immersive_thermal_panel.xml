@@ -59,10 +59,20 @@
         android:textColor="#9DB1C6"
         android:textSize="13sp" />
 
+    <TextView
+        android:id="@+id/immersive_commission_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="COMMISSIONING · NOT RUN"
+        android:textColor="#67E8F9"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
     <ScrollView
         android:id="@+id/immersive_trace_scroll"
         android:layout_width="match_parent"
-        android:layout_height="150dp"
+        android:layout_height="130dp"
         android:layout_marginTop="10dp"
         android:background="#CC02050D"
         android:fillViewport="true"
@@ -78,10 +88,17 @@
             android:textSize="11sp" />
     </ScrollView>
 
+    <Button
+        android:id="@+id/immersive_commission"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="RUN FULL DIAGNOSTIC" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal">
 
         <Button

@@ -145,6 +145,9 @@ export class XRSensorOrb {
     this.frames = 0;
     this.lastFrameAt = 0;
     this.latestFrameTimestamp = 0n;
+    this.commissioning = null;
+    this.commissioningFrameBaseline = 0;
+    this.commissioningAckSent = false;
     this.rightHand = null;
     this.rightController = null;
     this.cameraPosition = new THREE.Vector3();
@@ -718,6 +721,26 @@ export class XRSensorOrb {
           const state = clean(message.state, 'unknown');
           const detail = clean(message.detail, 'no detail');
           this.trace(`${step} ${vector}`, `${state} · ${detail}`, message.level || 'info');
+        } else if (message.type === 'commissioning.status') {
+          const runId = clean(message.runId);
+          const phase = clean(message.phase, 'unknown');
+          const result = clean(message.result, 'running');
+          if (!runId) return;
+          const previousRunId = this.commissioning?.runId;
+          const previousPhase = this.commissioning?.phase;
+          this.commissioning = { ...message, runId, phase, result };
+          if (phase === 'awaiting-browser' && (previousRunId !== runId || previousPhase !== phase)) {
+            this.commissioningFrameBaseline = this.frames;
+            this.commissioningAckSent = false;
+          }
+          const boundary = message.failureBoundary ? ` · ${clean(message.failureBoundary)}` : '';
+          const detail = message.failureDetail ? ` · ${clean(message.failureDetail)}` : '';
+          this.trace(
+            result === 'pass' ? 'W14 PASS' : result === 'fail' ? 'W14 FAIL' : 'W13 COMMISSION',
+            `${phase} · native ${Number(message.nativeFrames) || 0} · browser ${Number(message.browserFrames) || 0}/${Number(message.requiredBrowserFrames) || 10}${boundary}${detail}`,
+            result === 'pass' ? 'success' : result === 'fail' ? 'error' : phase === 'awaiting-browser' ? 'success' : 'info'
+          );
+          this.drawPanel();
         } else if (message.type === 'bridge.status') {
           const phase = clean(message.phase, 'unknown');
           this.bridgeRuntimeStatus = phase;
@@ -865,9 +888,24 @@ export class XRSensorOrb {
     this.thermalTexture.needsUpdate = true;
     this.sourceStatus = 'streaming';
     const formatLabel = format === 1 ? 'JPEG' : format === 2 ? 'RGBA' : 'Y16';
+    this.acknowledgeCommissioningRender();
     if (this.frames === 1) this.trace('W10 RENDER', `first thermal frame rendered · ${width}×${height} ${formatLabel}`, 'success');
     else if (this.frames % 30 === 0) this.trace('FRAME', `#${this.frames} rendered · ${width}×${height} ${formatLabel}`, 'success');
     this.setState('streaming');
+  }
+
+  acknowledgeCommissioningRender() {
+    if (this.commissioningAckSent || this.commissioning?.phase !== 'awaiting-browser') return;
+    const renderedFrames = this.frames - this.commissioningFrameBaseline;
+    const requiredFrames = Math.max(1, Number(this.commissioning.requiredBrowserFrames) || 10);
+    if (renderedFrames < requiredFrames || !this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({
+      type: 'commissioning.browser_ack',
+      runId: this.commissioning.runId,
+      renderedFrames
+    }));
+    this.commissioningAckSent = true;
+    this.trace('W13 COMMISSION', `${renderedFrames} ordered frames rendered · authenticated acknowledgement sent`, 'success');
   }
 
   resizeThermalCanvas(width, height) {

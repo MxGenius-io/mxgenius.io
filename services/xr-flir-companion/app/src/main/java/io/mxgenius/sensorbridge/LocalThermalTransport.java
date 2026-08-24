@@ -22,6 +22,7 @@ final class LocalThermalTransport implements ThermalTransport {
             String nodeId,
             LocalThermalBroker.Listener listener,
             LocalThermalBroker.SnapshotHandler snapshotHandler,
+            LocalThermalBroker.CommissioningHandler commissioningHandler,
             boolean debugBuild) {
         Set<String> origins = debugBuild
                 ? Set.of("https://mxgenius.io", "https://www.mxgenius.io", "http://localhost", "http://127.0.0.1")
@@ -31,7 +32,8 @@ final class LocalThermalTransport implements ThermalTransport {
                 origins,
                 nodeId,
                 listener,
-                snapshotHandler);
+                snapshotHandler,
+                commissioningHandler);
     }
 
     boolean startAndAwait(long timeout, TimeUnit unit) throws InterruptedException {
@@ -58,6 +60,10 @@ final class LocalThermalTransport implements ThermalTransport {
 
     void sendTrace(String step, String vector, String state, String detail, String level) {
         broker.publishTrace(step, vector, state, detail, level);
+    }
+
+    void sendCommissioning(String reportJson) {
+        broker.publishCommissioning(reportJson);
     }
 
     @Override public void sendFrame(Bitmap bitmap) {
