@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalThermalTransport implements ThermalTransport {
@@ -28,8 +29,9 @@ final class LocalThermalTransport implements ThermalTransport {
                 listener);
     }
 
-    void start() {
+    boolean startAndAwait(long timeout, TimeUnit unit) throws InterruptedException {
         broker.start();
+        return broker.awaitStarted(timeout, unit);
     }
 
     void activate(BridgeActivation next) {
@@ -43,6 +45,10 @@ final class LocalThermalTransport implements ThermalTransport {
 
     @Override public void sendSourceStatus(String status, String reason) {
         broker.publishSourceStatus(status, reason);
+    }
+
+    void sendBridgeStatus(String phase, boolean ready, String reason) {
+        broker.publishBridgeStatus(phase, ready, reason);
     }
 
     @Override public void sendFrame(Bitmap bitmap) {

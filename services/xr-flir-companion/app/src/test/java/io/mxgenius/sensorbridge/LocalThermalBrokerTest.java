@@ -14,6 +14,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,6 +76,48 @@ public final class LocalThermalBrokerTest {
             assertTrue(closed.await(3, TimeUnit.SECONDS));
         } finally {
             if (client.isOpen()) client.closeBlocking();
+            broker.stop(1000);
+        }
+    }
+
+    @Test public void authorizedBrowserReceivesNativeStartupHistory() throws Exception {
+        int port = freePort();
+        LocalThermalBroker broker = new LocalThermalBroker(
+                new InetSocketAddress("127.0.0.1", port),
+                Set.of("https://mxgenius.io"),
+                "quest-sensor-test",
+                state -> {});
+        broker.publishBridgeStatus("starting", false, "foreground-active");
+        broker.publishBridgeStatus("ready", true, "camera-runtime-ready");
+        broker.activate("case-42", TOKEN);
+        broker.start();
+        assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
+
+        CountDownLatch readyReceived = new CountDownLatch(1);
+        CopyOnWriteArrayList<String> messages = new CopyOnWriteArrayList<>();
+        WebSocketClient client = new WebSocketClient(
+                uri(port, TOKEN),
+                new Draft_6455(),
+                Map.of("Origin", "https://mxgenius.io"),
+                0) {
+            @Override public void onOpen(ServerHandshake handshake) {}
+            @Override public void onMessage(String message) {
+                messages.add(message);
+                if (message.contains("\"type\":\"bridge.status\"")
+                        && message.contains("\"phase\":\"ready\"")) readyReceived.countDown();
+            }
+            @Override public void onMessage(ByteBuffer bytes) {}
+            @Override public void onClose(int code, String reason, boolean remote) {}
+            @Override public void onError(Exception error) {}
+        };
+        try {
+            assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(readyReceived.await(3, TimeUnit.SECONDS));
+            assertTrue(messages.stream().anyMatch(message ->
+                    message.contains("\"type\":\"bridge.status\"")
+                            && message.contains("\"phase\":\"starting\"")));
+        } finally {
+            client.closeBlocking();
             broker.stop(1000);
         }
     }

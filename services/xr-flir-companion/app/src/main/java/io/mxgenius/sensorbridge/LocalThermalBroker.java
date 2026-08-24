@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +30,8 @@ final class LocalThermalBroker extends WebSocketServer {
     private final String nodeId;
     private final Listener listener;
     private final CountDownLatch started = new CountDownLatch(1);
+    private final Object bridgeHistoryLock = new Object();
+    private final ArrayDeque<String> bridgeHistory = new ArrayDeque<>();
     private volatile String sessionId;
     private volatile String token;
     private volatile String sourceStatus = "standby";
@@ -67,6 +70,15 @@ final class LocalThermalBroker extends WebSocketServer {
         for (WebSocket consumer : consumers) if (consumer.isOpen()) consumer.send(message);
     }
 
+    void publishBridgeStatus(String phase, boolean ready, String reason) {
+        String message = bridgeStatusJson(phase, ready, reason);
+        synchronized (bridgeHistoryLock) {
+            if (bridgeHistory.size() >= 12) bridgeHistory.removeFirst();
+            bridgeHistory.addLast(message);
+        }
+        for (WebSocket consumer : consumers) if (consumer.isOpen()) consumer.send(message);
+    }
+
     void publishFrame(byte[] frame) {
         if (frame == null) return;
         for (WebSocket consumer : consumers) if (consumer.isOpen()) consumer.send(frame);
@@ -80,6 +92,9 @@ final class LocalThermalBroker extends WebSocketServer {
         consumers.add(connection);
         connection.send(helloJson());
         connection.send(nodeStatusJson());
+        synchronized (bridgeHistoryLock) {
+            for (String message : bridgeHistory) connection.send(message);
+        }
         String status = sourceStatusJson();
         if (status != null) connection.send(status);
         listener.onState("local connected");
@@ -167,6 +182,21 @@ final class LocalThermalBroker extends WebSocketServer {
             return message.toString();
         } catch (JSONException error) {
             return null;
+        }
+    }
+
+    private String bridgeStatusJson(String phase, boolean ready, String reason) {
+        try {
+            JSONObject message = new JSONObject()
+                    .put("type", "bridge.status")
+                    .put("phase", phase)
+                    .put("ready", ready)
+                    .put("version", BuildConfig.VERSION_NAME)
+                    .put("observedAtMs", System.currentTimeMillis());
+            if (reason != null && !reason.isBlank()) message.put("reason", reason);
+            return message.toString();
+        } catch (JSONException error) {
+            return "{\"type\":\"bridge.status\",\"phase\":\"failed\",\"ready\":false}";
         }
     }
 

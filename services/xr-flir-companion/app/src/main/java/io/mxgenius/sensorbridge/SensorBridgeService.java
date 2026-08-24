@@ -16,10 +16,13 @@ import com.flir.thermalsdk.androidsdk.ThermalSdkAndroid;
 import com.flir.thermalsdk.log.ThermalLog;
 
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class SensorBridgeService extends Service implements FlirCameraController.Listener {
     interface StatusListener {
-        void onStatus(String relay, String camera);
+        void onStatus(String bridge, String relay, String camera);
         void onFrame(Bitmap bitmap);
     }
 
@@ -28,11 +31,16 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private static final String CHANNEL_ID = "mxg_sensor_bridge";
     private static final long PREVIEW_INTERVAL_MS = 100L;
     private final LocalBinder binder = new LocalBinder();
+    private final ExecutorService lifecycleWorker = Executors.newSingleThreadExecutor();
     private RelayClient relay;
-    private LocalThermalTransport localTransport;
-    private FlirCameraController camera;
+    private volatile LocalThermalTransport localTransport;
+    private volatile FlirCameraController camera;
     private BridgeActivation activation;
     private StatusListener statusListener;
+    private volatile String bridgeState = "starting";
+    private volatile String bridgeReason = "service-created";
+    private volatile boolean cameraRuntimeReady;
+    private volatile boolean destroyed;
     private String relayState = "not connected (optional)";
     private String cameraState = "standby";
     private long lastPreviewAtMs;
@@ -43,12 +51,11 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     @Override public void onCreate() {
         super.onCreate();
-        ThermalSdkAndroid.init(getApplicationContext(), ThermalLog.LogLevel.INFO);
-        camera = new FlirCameraController(this);
         createNotificationChannel();
-        startForeground(NOTIFICATION_ID, notification("Standalone FLIR viewer ready"));
+        startForeground(NOTIFICATION_ID, notification("Preparing sensor bridge…"));
         localTransport = new LocalThermalTransport(stableNodeId(), this::onRelayState, BuildConfig.DEBUG);
-        localTransport.start();
+        setBridgeState("starting", false, "foreground-active");
+        lifecycleWorker.execute(this::initializeRuntime);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -70,7 +77,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
         try {
             BridgeActivation next = BridgeActivation.fromServiceIntent(intent, BuildConfig.DEBUG);
-            localTransport.activate(next);
+            LocalThermalTransport transport = localTransport;
+            if (transport != null) transport.activate(next);
             if (relay != null) relay.close();
             activation = next;
             relay = null;
@@ -96,10 +104,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     @Override public void onDestroy() {
+        destroyed = true;
+        setBridgeState("stopped", false, "service-stopped");
         statusListener = null;
-        if (camera != null) camera.shutdown();
+        FlirCameraController currentCamera = camera;
+        if (currentCamera != null) currentCamera.shutdown();
         if (relay != null) relay.close();
-        if (localTransport != null) localTransport.close();
+        LocalThermalTransport transport = localTransport;
+        if (transport != null) transport.close();
+        lifecycleWorker.shutdownNow();
         super.onDestroy();
     }
 
@@ -113,7 +126,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     void connectCamera(Activity activity) {
-        camera.discoverAndConnect(activity);
+        FlirCameraController current = camera;
+        if (cameraRuntimeReady && current != null) current.discoverAndConnect(activity);
+    }
+
+    boolean canConnectCamera() {
+        return cameraRuntimeReady && camera != null;
     }
 
     String sessionId() {
@@ -121,12 +139,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     String relayLabel() {
-        return activation == null ? localTransport.label() + " · waiting for scene" : activation.relayLabel();
+        LocalThermalTransport transport = localTransport;
+        String localLabel = transport == null ? "local transport starting" : transport.label();
+        return activation == null ? localLabel + " · waiting for scene" : activation.relayLabel();
     }
 
     @Override public void onCameraState(String state, String reason) {
         cameraState = state;
-        localTransport.sendSourceStatus(state, reason);
+        LocalThermalTransport transport = localTransport;
+        if (transport != null) transport.sendSourceStatus(state, reason);
         RelayClient current = relay;
         if (current != null) current.sendSourceStatus(state, reason);
         publishStatus();
@@ -140,7 +161,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             lastPreviewAtMs = now;
             currentListener.onFrame(bitmap);
         }
-        localTransport.sendFrame(bitmap);
+        LocalThermalTransport transport = localTransport;
+        if (transport != null) transport.sendFrame(bitmap);
         RelayClient currentRelay = relay;
         if (currentRelay != null) currentRelay.sendFrame(bitmap);
     }
@@ -153,7 +175,53 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     private void publishStatus() {
         StatusListener current = statusListener;
-        if (current != null) current.onStatus(relayState, cameraState);
+        if (current != null) current.onStatus(bridgeLabel(), relayState, cameraState);
+    }
+
+    private void initializeRuntime() {
+        LocalThermalTransport transport = localTransport;
+        if (transport == null || destroyed) return;
+        try {
+            setBridgeState("broker-starting", false, "binding-loopback-4109");
+            if (!transport.startAndAwait(4, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("loopback-start-timeout");
+            }
+            if (destroyed) return;
+            setBridgeState("broker-ready", false, "loopback-4109-listening");
+            setBridgeState("sdk-starting", false, "flir-atlas-" + BuildConfig.FLIR_SDK_VERSION);
+            ThermalSdkAndroid.init(getApplicationContext(), ThermalLog.LogLevel.INFO);
+            if (destroyed) return;
+            camera = new FlirCameraController(this);
+            cameraRuntimeReady = true;
+            setBridgeState("ready", true, "camera-runtime-ready");
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            if (!destroyed) setBridgeState("failed", false, "startup-interrupted");
+        } catch (RuntimeException | LinkageError error) {
+            cameraRuntimeReady = false;
+            setBridgeState("failed", false, startupReason(error));
+        }
+    }
+
+    private void setBridgeState(String state, boolean ready, String reason) {
+        bridgeState = state;
+        bridgeReason = reason;
+        LocalThermalTransport transport = localTransport;
+        if (transport != null) transport.sendBridgeStatus(state, ready, reason);
+        publishStatus();
+        updateNotification();
+    }
+
+    private String bridgeLabel() {
+        return bridgeReason == null || bridgeReason.isBlank()
+                ? bridgeState
+                : bridgeState + " · " + bridgeReason;
+    }
+
+    private static String startupReason(Throwable error) {
+        if (error instanceof UnsatisfiedLinkError) return "native-library-load";
+        String name = error.getClass().getSimpleName();
+        return name == null || name.isBlank() ? "startup-error" : "startup-" + name.toLowerCase();
     }
 
     private String stableNodeId() {
@@ -182,7 +250,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     private void updateNotification() {
-        String text = "FLIR " + cameraState + " · WebXR " + relayState;
+        String text = "Bridge " + bridgeState + " · FLIR " + cameraState + " · WebXR " + relayState;
         getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, notification(text));
     }
 }

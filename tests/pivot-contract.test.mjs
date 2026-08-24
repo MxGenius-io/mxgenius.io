@@ -72,23 +72,25 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config uses the current published Alpha entitlement and build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.5'/);
+test('Quest companion config uses the current published Alpha build identity', () => {
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.6'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.publishedBuild.versionCode, 5);
-  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.5');
+  assert.equal(metaRelease.publishedBuild.versionCode, 6);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
+  assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.build.versionCode, 5);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.5');
+  assert.equal(metaRelease.build.versionCode, 6);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.6');
+  assert.equal(metaRelease.build.metaTestStatus, 'Complete');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 5/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.5"/);
+  assert.match(companionGradle, /versionCode = 6/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.6"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -107,7 +109,12 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.doesNotMatch(companionManifest, /BLUETOOTH_CONNECT|hardware\.bluetooth/);
   assert.match(companionActivity, /Standalone · local thermal preview/);
   assert.match(companionActivity, /startForegroundService\(serviceIntent\)/);
-  assert.match(companionService, /void connectCamera\(Activity activity\) \{\s*camera\.discoverAndConnect\(activity\)/);
+  assert.match(companionService, /void connectCamera\(Activity activity\)[\s\S]*cameraRuntimeReady[\s\S]*discoverAndConnect\(activity\)/);
+  assert.ok(
+    companionService.indexOf('startForeground(NOTIFICATION_ID') < companionService.indexOf('lifecycleWorker.execute(this::initializeRuntime)'),
+    'foreground mode must be entered before asynchronous native initialization'
+  );
+  assert.match(companionService, /setBridgeState\("ready", true, "camera-runtime-ready"\)/);
   assert.doesNotMatch(companionService, /PiDiagnosticsClient|activation-required/);
   assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
   assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
@@ -118,7 +125,7 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(localThermalBroker, /127\.0\.0\.1|allowedOrigins/);
   assert.match(localThermalBroker, /invalid thermal session/);
   assert.match(localThermalTransport, /MxgsFrameEncoder\.jpeg/);
-  assert.match(companionService, /localTransport\.sendFrame\(bitmap\)/);
+  assert.match(companionService, /transport\.sendFrame\(bitmap\)/);
   assert.match(sensorOrb, /this\.diagnosticsSocket = socket/);
   assert.match(sensorOrb, /this\.socket = socket/);
   assert.match(sensorOrb, /piDiagnosticsBridge/);

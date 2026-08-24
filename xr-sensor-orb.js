@@ -129,6 +129,7 @@ export class XRSensorOrb {
     this.diagnosticsReconnectAttempt = 0;
     this.diagnostics = null;
     this.sourceStatus = 'standby';
+    this.bridgeRuntimeStatus = 'unknown';
     this.companionStatus = 'unknown';
     this.nodes = new Map();
     this.scans = [];
@@ -577,6 +578,7 @@ export class XRSensorOrb {
     this.onStatus({
       state: this.state,
       sourceStatus: this.sourceStatus,
+      bridgeRuntimeStatus: this.bridgeRuntimeStatus,
       companionStatus: this.companionStatus,
       thermalTransport: this.state,
       thermalSource: this.sourceStatus,
@@ -620,6 +622,19 @@ export class XRSensorOrb {
         if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
           this.trace('HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
+          this.drawPanel();
+        } else if (message.type === 'bridge.status') {
+          const phase = clean(message.phase, 'unknown');
+          this.bridgeRuntimeStatus = phase;
+          if (message.ready === true) this.companionStatus = 'ready';
+          else if (['failed', 'stopped'].includes(phase)) this.companionStatus = 'offline';
+          else this.companionStatus = 'starting';
+          this.trace(
+            'BRIDGE',
+            `${phase}${message.reason ? ` · ${message.reason}` : ''}${message.version ? ` · ${message.version}` : ''}`,
+            message.ready === true ? 'success' : phase === 'failed' ? 'error' : phase === 'stopped' ? 'warn' : 'info'
+          );
+          this.emitStatus();
           this.drawPanel();
         } else if (message.type === 'source.status') {
           this.sourceStatus = message.status || 'unknown';
@@ -821,7 +836,9 @@ export class XRSensorOrb {
     ctx.fillStyle = '#e9f8ff';
     ctx.font = '600 24px system-ui, sans-serif';
     ctx.fillText(
-      `THERMAL ${clean(this.state, 'offline').toUpperCase()}/${clean(this.sourceStatus, 'standby').toUpperCase()} · PI ${clean(this.diagnosticsState).toUpperCase()}`,
+      this.presentation === 'head-screen'
+        ? `THERMAL ${clean(this.state, 'offline').toUpperCase()}/${clean(this.sourceStatus, 'standby').toUpperCase()} · BRIDGE ${clean(this.bridgeRuntimeStatus).toUpperCase()}`
+        : `THERMAL ${clean(this.state, 'offline').toUpperCase()}/${clean(this.sourceStatus, 'standby').toUpperCase()} · PI ${clean(this.diagnosticsState).toUpperCase()}`,
       42,
       98
     );

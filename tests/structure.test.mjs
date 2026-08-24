@@ -572,7 +572,7 @@ test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => 
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {
-  assert.match(dashboard, /src="runtime-config\.js\?v=3"/);
+  assert.match(dashboard, /src="runtime-config\.js\?v=4"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /https:\/\/mxg-fleet\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /allowInsecurePilot: false/);

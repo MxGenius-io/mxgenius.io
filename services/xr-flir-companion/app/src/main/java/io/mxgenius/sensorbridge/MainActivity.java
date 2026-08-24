@@ -16,6 +16,7 @@ import android.widget.TextView;
 
 public final class MainActivity extends Activity implements SensorBridgeService.StatusListener {
     private TextView sessionStatus;
+    private TextView bridgeStatus;
     private TextView relayStatus;
     private TextView cameraStatus;
     private ImageView thermalPreview;
@@ -35,8 +36,10 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         @Override public void onServiceDisconnected(ComponentName name) {
             bound = false;
             service = null;
+            bridgeStatus.setText("Bridge · service stopped");
             relayStatus.setText("WebXR · service stopped");
             cameraStatus.setText("FLIR ONE · service stopped");
+            connectCamera.setEnabled(false);
         }
     };
 
@@ -44,6 +47,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         sessionStatus = findViewById(R.id.session_status);
+        bridgeStatus = findViewById(R.id.bridge_status);
         relayStatus = findViewById(R.id.relay_status);
         cameraStatus = findViewById(R.id.camera_status);
         thermalPreview = findViewById(R.id.thermal_preview);
@@ -81,11 +85,13 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         super.onDestroy();
     }
 
-    @Override public void onStatus(String relay, String camera) {
+    @Override public void onStatus(String bridge, String relay, String camera) {
         runOnUiThread(() -> {
+            bridgeStatus.setText("Bridge · " + bridge);
             relayStatus.setText("WebXR · " + relay);
             cameraStatus.setText("FLIR ONE · " + camera);
-            connectCamera.setEnabled(!"streaming".equals(camera) && !"connecting".equals(camera));
+            boolean cameraIdle = !"streaming".equals(camera) && !"connecting".equals(camera);
+            connectCamera.setEnabled(service != null && service.canConnectCamera() && cameraIdle);
             connectCamera.setText("streaming".equals(camera) ? "FLIR ONE streaming" : "Connect FLIR ONE");
         });
     }
@@ -119,8 +125,9 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     : "Standalone · " + activationMessage);
             relayStatus.setText("WebXR · not connected (optional)");
         }
-        cameraStatus.setText("FLIR ONE · ready to connect");
-        connectCamera.setEnabled(true);
+        bridgeStatus.setText("Bridge · starting · foreground-active");
+        cameraStatus.setText("FLIR ONE · waiting for bridge readiness");
+        connectCamera.setEnabled(false);
     }
 
     private void renderActivation() {
