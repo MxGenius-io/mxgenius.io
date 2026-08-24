@@ -37,6 +37,7 @@ const MX3DViewer = {
   context: {},
   pendingSelector: null,
   tutorial: null,
+  currentModel: null,
 
   frame() {
     return document.getElementById('viewer-iframe');
@@ -155,6 +156,7 @@ window.addEventListener('message', (event) => {
   if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
   const message = event.data || {};
   if (message.type === 'mxgenius.viewer.ready') {
+    MX3DViewer.currentModel = message.model && typeof message.model === 'object' ? { ...message.model } : null;
     MX3DViewer.post({ type: 'mxgenius.viewer.set-context', context: MX3DViewer.context });
     if (MX3DViewer.tutorial) {
       MX3DViewer.post({ type: 'mxgenius.viewer.set-tutorial', tutorial: MX3DViewer.tutorial });
@@ -162,12 +164,16 @@ window.addEventListener('message', (event) => {
     if (MX3DViewer.pendingSelector) {
       MX3DViewer.post({ type: 'mxgenius.viewer.highlight-part', selector: MX3DViewer.pendingSelector });
     }
+    configureViewerARCapability();
   }
   if (message.type === 'mxgenius.viewer.part-selected') {
     window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
   }
   if (message.type === 'mxgenius.viewer.xr-action') {
     window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
+  }
+  if (message.type === 'mxgenius.viewer.ar-request') {
+    openViewerInAR(message.scene || {});
   }
 });
 
@@ -4488,6 +4494,67 @@ let nativeARListenersBound = false;
 
 function nativeARGlobePlugin() {
   return globalThis.Capacitor?.Plugins?.JetNetNative || null;
+}
+
+async function configureViewerARCapability() {
+  const plugin = nativeARGlobePlugin();
+  if (!plugin?.isARSupported) {
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
+    return;
+  }
+  try {
+    const capability = await plugin.isARSupported();
+    MX3DViewer.post({
+      type: 'mxgenius.viewer.ar-capability',
+      supported: Boolean(capability?.supported),
+      anchors: 2,
+      pointCloud: true
+    });
+  } catch (error) {
+    console.warn('Native viewer AR capability check failed', error);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
+  }
+}
+
+async function openViewerInAR(scene = {}) {
+  const plugin = nativeARGlobePlugin();
+  if (!plugin?.showSpatialScene && !plugin?.showGlobe) return;
+
+  const activeCase = MXCaseState.active?.case || {};
+  const modelName = String(scene.modelName || MX3DViewer.currentModel?.name || 'Selected 3D model');
+  const modelType = String(scene.modelType || 'aircraft component');
+  const rows = [
+    { label: 'MODEL', value: modelName },
+    { label: 'TYPE', value: modelType },
+    { label: 'REVISION', value: String(scene.revision || MX3DViewer.currentModel?.revision || 'Current') },
+    { label: 'STATUS', value: String(scene.operationalStatus || MX3DViewer.currentModel?.operationalStatus || 'Reference model') },
+    { label: 'CASE', value: String(activeCase.id || activeCase.case_id || MX3DViewer.context.caseId || 'No active case') },
+    { label: 'AI PRESENCE', value: 'Spatial point cloud ready' }
+  ];
+  const payload = {
+    pins: allClusters.length ? buildNativeARGlobePins() : [],
+    distance: 0.82,
+    radius: 0.16,
+    scene: {
+      ...scene,
+      title: scene.title || 'MXGENIUS 3D + JETNET',
+      subtitle: scene.subtitle || 'Anchored model inspection workspace',
+      modelName,
+      modelType,
+      source: 'MXGenius 3D Viewer + JETNET',
+      rows
+    }
+  };
+
+  MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'opening' });
+  try {
+    if (plugin.showSpatialScene) await plugin.showSpatialScene(payload);
+    else await plugin.showGlobe(payload);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'opened' });
+  } catch (error) {
+    console.error('Unable to open the native 3D viewer AR scene', error);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'failed', message: error?.message || 'Native AR failed' });
+  }
 }
 
 function nativeARPinColor(cluster) {

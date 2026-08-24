@@ -107,7 +107,15 @@
             gap: 20px;
             flex-shrink: 0;
             z-index: 100;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+            overscroll-behavior-x: contain;
+            -webkit-overflow-scrolling: touch;
         }
+
+        .header::-webkit-scrollbar { display: none; }
+        .header > * { flex-shrink: 0; }
 
         .header-logo {
             height: 44px;
@@ -710,8 +718,11 @@
         @media (max-width: 768px) {
             .header {
                 padding: 0 12px;
-                gap: 12px;
+                gap: 8px;
             }
+
+            #back-to-dashboard-btn { margin-right: 0 !important; }
+            .header-model-select { min-width: 150px; max-width: 170px; }
 
             .header-logo {
                 height: 32px;
@@ -741,7 +752,8 @@
             }
         }
 
-        #enter-vr-button {
+        #enter-vr-button,
+        #enter-ar-button {
             position: static !important;
             inset: auto !important;
             width: auto !important;
@@ -760,14 +772,22 @@
             transition: background 0.2s ease, border-color 0.2s ease;
         }
 
-        #enter-vr-button:hover:not(:disabled) {
+        #enter-vr-button:hover:not(:disabled),
+        #enter-ar-button:hover:not(:disabled) {
             background: rgba(255,255,255,0.15);
             border-color: rgba(255,255,255,0.4);
         }
 
-        #enter-vr-button:disabled {
+        #enter-vr-button:disabled,
+        #enter-ar-button:disabled {
             cursor: default;
             opacity: 0.55;
+        }
+
+        #enter-ar-button {
+            border-color: rgba(34, 211, 238, 0.58) !important;
+            background: rgba(8, 67, 82, 0.72) !important;
+            color: #b9f6ff !important;
         }
 
         #procedure-media-button {
@@ -816,6 +836,9 @@
         <select class="header-model-select" id="model-select">
             <option value="">No models loaded</option>
         </select>
+        <div id="ar-button-container" style="margin-left: 0;" hidden>
+            <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
+        </div>
         <label for="model-upload-input" class="header-back-btn" style="margin-left:8px; margin-right:0; cursor:pointer;" title="Upload a tenant-scoped GLB model">Upload GLB</label>
         <input id="model-upload-input" type="file" accept=".glb,model/gltf-binary" hidden>
 
@@ -1135,6 +1158,7 @@
             
             container.appendChild(renderer.domElement);
             setupXRButton();
+            setupNativeARButton();
 
             // Controls
             controls = new OrbitControls(camera, renderer.domElement);
@@ -1558,8 +1582,10 @@
                         id: entry.modelId || entry.id || null,
                         name: entry.name || entry.file || 'Unknown model',
                         file: entry.file || null,
+                        type: entry.type || null,
                         revision: entry.revision || null,
-                        operationalStatus: entry.operationalStatus || 'unclassified'
+                        operationalStatus: entry.operationalStatus || 'unclassified',
+                        description: entry.description || ''
                     }
                 }, window.location.origin);
             }
@@ -1676,6 +1702,34 @@
                 xrAnimationScrubber?.setPresenting(false);
                 xrVoice?.setPresenting(false);
                 restoreSceneFromXR();
+            });
+        }
+
+        function setupNativeARButton() {
+            const container = document.getElementById('ar-button-container');
+            const button = document.getElementById('enter-ar-button');
+            if (!container || !button) return;
+
+            button.addEventListener('click', () => {
+                if (button.disabled || window.parent === window) return;
+                const entry = currentCatalogEntry() || {};
+                button.disabled = true;
+                button.textContent = 'Opening AR…';
+                window.parent.postMessage({
+                    type: 'mxgenius.viewer.ar-request',
+                    version: 1,
+                    scene: {
+                        title: 'MXGENIUS 3D + JETNET',
+                        subtitle: 'Anchored model inspection workspace',
+                        modelName: entry.name || entry.file || 'Selected 3D model',
+                        modelType: entry.type || 'aircraft component',
+                        source: 'MXGenius 3D Viewer',
+                        revision: entry.revision || null,
+                        operationalStatus: entry.operationalStatus || 'unclassified',
+                        description: entry.description || '',
+                        context: { ...viewerContext }
+                    }
+                }, window.location.origin);
             });
         }
 
@@ -2228,6 +2282,24 @@
                     configureProcedureMedia(message.tutorial);
                 } else if (message.type === 'mxgenius.viewer.clear-selection') {
                     clearPartSelection();
+                } else if (message.type === 'mxgenius.viewer.ar-capability') {
+                    const arContainer = document.getElementById('ar-button-container');
+                    const arButton = document.getElementById('enter-ar-button');
+                    const supported = Boolean(message.supported);
+                    if (arContainer) arContainer.hidden = !supported;
+                    if (arButton) {
+                        arButton.disabled = !supported;
+                        arButton.textContent = 'AR Scene';
+                        arButton.title = supported
+                            ? 'Open this model context with the anchored Jetnet and AI workspace'
+                            : 'Native AR is unavailable on this device';
+                    }
+                } else if (message.type === 'mxgenius.viewer.ar-state') {
+                    const arButton = document.getElementById('enter-ar-button');
+                    if (arButton && message.state !== 'opening') {
+                        arButton.disabled = false;
+                        arButton.textContent = 'AR Scene';
+                    }
                 }
             });
 
