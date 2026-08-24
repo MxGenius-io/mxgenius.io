@@ -2183,6 +2183,10 @@ Rules:
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
       if (event.state === 'failed') realtimeModeEnabled = false;
+      if (['disconnected', 'failed'].includes(event.state)) {
+        nativeARRealtimeOwnsSession = false;
+        resetNativeARSpatialAudio();
+      }
       if (event.state === 'user-speaking') {
         cancelRealtimeStructuredTurn();
         pendingRealtimeUserText = '';
@@ -2190,6 +2194,10 @@ Rules:
         suppressNextRealtimeAssistantBubble = false;
       }
       setRealtimeUiState(event.state, event.reason);
+      await setNativeARRealtimeState(event.state, event.reason || '');
+      if (['listening', 'user-speaking', 'thinking', 'speaking'].includes(event.state) && latestNativeARSpatialAudio) {
+        void updateNativeARSpatialAudio(latestNativeARSpatialAudio);
+      }
       return;
     }
     if (event.type === 'microphone') {
@@ -4491,6 +4499,11 @@ function handleGlobeResize() {
 
 const MAX_NATIVE_AR_PINS = 750;
 let nativeARListenersBound = false;
+let nativeARRealtimeOwnsSession = false;
+let nativeARSpatialAudioContext = null;
+let nativeARSpatialAudioPanner = null;
+let nativeARSpatialAudioElement = null;
+let latestNativeARSpatialAudio = null;
 
 function nativeARGlobePlugin() {
   return globalThis.Capacitor?.Plugins?.JetNetNative || null;
@@ -4507,7 +4520,7 @@ async function configureViewerARCapability() {
     MX3DViewer.post({
       type: 'mxgenius.viewer.ar-capability',
       supported: Boolean(capability?.supported),
-      anchors: 2,
+      anchors: 3,
       pointCloud: true
     });
   } catch (error) {
@@ -4591,6 +4604,168 @@ function buildNativeARGlobePins() {
     }));
 }
 
+function nativeARAircraftSummary(aircraft) {
+  const aircraftid = safeRecordId(aircraft?.aircraftid);
+  if (aircraftid === null) return null;
+  const signals = buildMROSignals(aircraft);
+  return {
+    aircraftid,
+    regnbr: aircraft.regnbr || '',
+    make: aircraft.make || '',
+    model: aircraft.model || '',
+    owner: aircraft.owner || aircraft.operator || '',
+    urgency: signals.isAOG ? 'AOG' : signals.isVeryHighTime ? '12K+ AFTT' : signals.isHighTime ? '8K+ AFTT' : 'Other'
+  };
+}
+
+async function populateNativeARLocation(plugin, cluster) {
+  if (!plugin?.updateJetnetPanel || !cluster) return;
+  await plugin.updateJetnetPanel({
+    panel: {
+      mode: 'location',
+      icao: cluster.icao || 'UNKNOWN',
+      location: [cluster.city, cluster.country].filter(Boolean).join(', ') || 'Fleet location',
+      aircraft: (cluster.aircraft || []).map(nativeARAircraftSummary).filter(Boolean).slice(0, 5)
+    }
+  });
+}
+
+async function nativeARImageDataURL(sourceURL) {
+  const objectURL = await MXApplicationClient.aircraftImageBlobUrl(sourceURL, { bearer: BEARER });
+  if (!objectURL) return '';
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const candidate = new Image();
+      candidate.onload = () => resolve(candidate);
+      candidate.onerror = () => reject(new Error('Aircraft image could not be decoded'));
+      candidate.src = objectURL;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 360;
+    canvas.height = 230;
+    const context = canvas.getContext('2d');
+    const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } finally {
+    URL.revokeObjectURL(objectURL);
+  }
+}
+
+async function populateNativeARAircraft(plugin, selection) {
+  if (!plugin?.updateJetnetPanel || !selection?.aircraftid) return;
+  try {
+    const bundle = await MXApplicationClient.aircraftBundle({ id: selection.aircraftid, token: TOKEN });
+    const aircraft = bundle?.aircraft?.aircraft || {};
+    const identification = aircraft.identification || {};
+    const airframe = aircraft.airframe || {};
+    const engines = bundle?.engines?.engines || [];
+    const pictureURLs = (bundle?.pictures?.pictures || []).map((picture) => picture.pictureurl).filter((url) => /^https:\/\//i.test(String(url))).slice(0, 3);
+    const settledPictures = await Promise.allSettled(pictureURLs.map(nativeARImageDataURL));
+    const pictures = settledPictures.filter((result) => result.status === 'fulfilled' && result.value).map((result) => result.value);
+    await plugin.updateJetnetPanel({
+      panel: {
+        mode: 'aircraft',
+        aircraftid: selection.aircraftid,
+        registration: identification.regnbr || selection.registration || '',
+        makeModel: [identification.make || selection.make, identification.model || selection.model].filter(Boolean).join(' '),
+        owner: selection.owner || aircraft.companyrelationships?.[0]?.name || '',
+        serial: identification.sernbr || '',
+        year: identification.yearmfg || identification.yeardlv || '',
+        airframeTime: airframe.aftt || airframe.estaftt || '',
+        engines: engines.map((engine) => [engine.engine_make, engine.engine_model].filter(Boolean).join(' ')).filter(Boolean).join(' · '),
+        base: [identification.baseicao, identification.basecity, identification.basecountry].filter(Boolean).join(' · '),
+        pictures
+      }
+    });
+  } catch (error) {
+    console.warn('Unable to populate native AR Jetnet aircraft panel', error);
+    await plugin.updateJetnetPanel({
+      panel: {
+        mode: 'aircraft',
+        aircraftid: selection.aircraftid,
+        registration: selection.registration || '',
+        makeModel: [selection.make, selection.model].filter(Boolean).join(' '),
+        owner: selection.owner || '',
+        pictures: []
+      }
+    });
+  }
+}
+
+async function setNativeARRealtimeState(state, message = '') {
+  try {
+    await nativeARGlobePlugin()?.setAIRealtimeState?.({ state, message });
+  } catch (_) {}
+}
+
+async function toggleNativeARRealtime() {
+  if (!realtimeSession) {
+    await setNativeARRealtimeState('failed', 'Realtime voice is unavailable in this wrapper');
+    return;
+  }
+  const connected = realtimeSession.connecting || !['disconnected', 'failed'].includes(realtimeSession.state);
+  if (connected) {
+    nativeARRealtimeOwnsSession = false;
+    realtimeModeEnabled = false;
+    realtimeSession.disconnect();
+    await setNativeARRealtimeState('disconnected', 'MIC idle · Realtime socket closed');
+    resetNativeARSpatialAudio();
+    return;
+  }
+  nativeARRealtimeOwnsSession = true;
+  realtimeModeEnabled = true;
+  realtimeMicEnabled = true;
+  realtimeSession.setMicrophoneEnabled(true);
+  await setNativeARRealtimeState('connecting', 'Opening the same MXGenius Realtime channel used by VR…');
+  await startRealtimeVoice();
+}
+
+function resetNativeARSpatialAudio() {
+  if (nativeARSpatialAudioElement) nativeARSpatialAudioElement.volume = 1;
+  if (nativeARSpatialAudioContext) void nativeARSpatialAudioContext.close();
+  nativeARSpatialAudioContext = null;
+  nativeARSpatialAudioPanner = null;
+  nativeARSpatialAudioElement = null;
+}
+
+async function updateNativeARSpatialAudio(spatial) {
+  latestNativeARSpatialAudio = spatial;
+  const audioElement = realtimeSession?.audioElement;
+  if (!audioElement || !spatial?.relative) return;
+  try {
+    if (!nativeARSpatialAudioContext || nativeARSpatialAudioElement !== audioElement) {
+      resetNativeARSpatialAudio();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Web Audio unavailable');
+      nativeARSpatialAudioContext = new AudioContextClass();
+      const source = nativeARSpatialAudioContext.createMediaElementSource(audioElement);
+      nativeARSpatialAudioPanner = nativeARSpatialAudioContext.createPanner();
+      nativeARSpatialAudioPanner.panningModel = 'HRTF';
+      nativeARSpatialAudioPanner.distanceModel = 'inverse';
+      nativeARSpatialAudioPanner.refDistance = 0.32;
+      nativeARSpatialAudioPanner.maxDistance = 6;
+      nativeARSpatialAudioPanner.rolloffFactor = 1.45;
+      source.connect(nativeARSpatialAudioPanner).connect(nativeARSpatialAudioContext.destination);
+      nativeARSpatialAudioElement = audioElement;
+    }
+    if (nativeARSpatialAudioContext.state === 'suspended') await nativeARSpatialAudioContext.resume();
+    const { x = 0, y = 0, z = -1 } = spatial.relative;
+    if (nativeARSpatialAudioPanner.positionX) {
+      const time = nativeARSpatialAudioContext.currentTime;
+      nativeARSpatialAudioPanner.positionX.setTargetAtTime(Number(x), time, 0.04);
+      nativeARSpatialAudioPanner.positionY.setTargetAtTime(Number(y), time, 0.04);
+      nativeARSpatialAudioPanner.positionZ.setTargetAtTime(Number(z), time, 0.04);
+    } else {
+      nativeARSpatialAudioPanner.setPosition(Number(x), Number(y), Number(z));
+    }
+  } catch (error) {
+    audioElement.volume = Math.max(0.04, Math.min(1, Number(spatial.gain) || 1));
+  }
+}
+
 async function openGlobeInAR() {
   const plugin = nativeARGlobePlugin();
   const button = document.getElementById('globeArButton');
@@ -4630,12 +4805,28 @@ async function configureNativeARGlobe() {
         globalThis.MXARCameraPose = pose;
         window.dispatchEvent(new CustomEvent('mxgenius:ar-camera-pose', { detail: pose }));
       });
-      await plugin.addListener('pinSelected', ({ id }) => {
+      await plugin.addListener('pinSelected', async ({ id }) => {
         const cluster = allClusters.find((item) => item.icao === id);
-        if (cluster) handleGlobeClick(cluster);
+        if (cluster) {
+          handleGlobeClick(cluster);
+          await populateNativeARLocation(plugin, cluster);
+        }
       });
-      await plugin.addListener('arSessionState', (state) => {
+      await plugin.addListener('aircraftSelected', async (selection) => {
+        await populateNativeARAircraft(plugin, selection);
+      });
+      await plugin.addListener('aiSpatialAudio', (spatial) => {
+        void updateNativeARSpatialAudio(spatial);
+      });
+      await plugin.addListener('arSessionState', async (state) => {
         button.dataset.arState = state?.state || '';
+        if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
+        if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
+          nativeARRealtimeOwnsSession = false;
+          realtimeModeEnabled = false;
+          realtimeSession?.disconnect();
+          resetNativeARSpatialAudio();
+        }
         window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
       });
     }

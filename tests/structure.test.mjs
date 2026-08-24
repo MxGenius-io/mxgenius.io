@@ -328,6 +328,20 @@ test('Realtime WebRTC is mounted without exposing server credentials', () => {
   assert.doesNotMatch(`${dashboard}\n${application}\n${client}\n${realtimeClient}`, /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/);
 });
 
+test('native AR preserves independent anchors, VR data flow, and spatial Realtime audio', () => {
+  assert.match(application, /anchors: 3/);
+  assert.match(application, /plugin\.addListener\('pinSelected'/);
+  assert.match(application, /plugin\.addListener\('aircraftSelected'/);
+  assert.match(application, /MXApplicationClient\.aircraftBundle/);
+  assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl/);
+  assert.match(application, /state\?\.state === 'ai-mic-toggle-request'/);
+  assert.match(application, /await startRealtimeVoice\(\)/);
+  assert.match(application, /realtimeSession\.disconnect\(\)/);
+  assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);
+  assert.match(application, /panningModel = 'HRTF'/);
+  assert.match(application, /distanceModel = 'inverse'/);
+});
+
 test('3D viewer exposes raycast selection through the application boundary', () => {
   assert.match(viewer, /new THREE\.Raycaster\(\)/);
   assert.match(viewer, /intersectObject\(currentModel, true\)/);
@@ -379,7 +393,7 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(viewer, /mxgenius\.viewer\.ar-capability/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.ar-request'/);
   assert.match(application, /plugin\.showSpatialScene/);
-  assert.match(application, /anchors: 2/);
+  assert.match(application, /anchors: 3/);
   assert.match(application, /pointCloud: true/);
 });
 
