@@ -4473,6 +4473,100 @@ function handleGlobeResize() {
   if (c) globeInstance.width(c.clientWidth).height(c.clientHeight);
 }
 
+const MAX_NATIVE_AR_PINS = 750;
+let nativeARListenersBound = false;
+
+function nativeARGlobePlugin() {
+  return globalThis.Capacitor?.Plugins?.JetNetNative || null;
+}
+
+function nativeARPinColor(cluster) {
+  if (cluster.hasActiveCase) return '#00d4ff';
+  if (cluster.hasAog || cluster.hasVeryHighTime) return '#ff4444';
+  if (cluster.hasHighTime) return '#f59e0b';
+  return '#10b981';
+}
+
+function buildNativeARGlobePins() {
+  return [...allClusters]
+    .sort((first, second) => {
+      const priority = (cluster) => (cluster.hasActiveCase ? 8 : 0) + (cluster.hasAog ? 4 : 0) + (cluster.hasVeryHighTime ? 2 : 0) + (cluster.hasHighTime ? 1 : 0);
+      return priority(second) - priority(first) || second.aircraft.length - first.aircraft.length;
+    })
+    .slice(0, MAX_NATIVE_AR_PINS)
+    .map((cluster) => ({
+      id: cluster.icao,
+      lat: Number(cluster.lat),
+      lng: Number(cluster.lng),
+      title: cluster.icao,
+      subtitle: `${cluster.aircraft.length.toLocaleString()} aircraft${cluster.city ? ` · ${cluster.city}` : ''}`,
+      color: nativeARPinColor(cluster),
+      data: {
+        icao: cluster.icao,
+        count: cluster.aircraft.length,
+        city: cluster.city || '',
+        country: cluster.country || '',
+        hasActiveCase: Boolean(cluster.hasActiveCase),
+        hasAog: Boolean(cluster.hasAog),
+        hasVeryHighTime: Boolean(cluster.hasVeryHighTime),
+        hasHighTime: Boolean(cluster.hasHighTime)
+      }
+    }));
+}
+
+async function openGlobeInAR() {
+  const plugin = nativeARGlobePlugin();
+  const button = document.getElementById('globeArButton');
+  if (!plugin?.showGlobe || !allClusters.length) return;
+  button.disabled = true;
+  try {
+    await plugin.showGlobe({
+      pins: buildNativeARGlobePins(),
+      distance: 0.85,
+      radius: 0.18
+    });
+  } catch (error) {
+    console.error('Unable to open native AR globe', error);
+    button.title = `AR unavailable: ${error?.message || 'native session failed'}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function configureNativeARGlobe() {
+  const button = document.getElementById('globeArButton');
+  const plugin = nativeARGlobePlugin();
+  if (!button || !plugin?.isARSupported) return;
+
+  try {
+    const capability = await plugin.isARSupported();
+    if (!capability?.supported) return;
+    button.hidden = false;
+    button.disabled = !allClusters.length;
+    if (!button.dataset.bound) {
+      button.dataset.bound = 'true';
+      button.addEventListener('click', openGlobeInAR);
+    }
+    if (!nativeARListenersBound && plugin.addListener) {
+      nativeARListenersBound = true;
+      await plugin.addListener('cameraPose', (pose) => {
+        globalThis.MXARCameraPose = pose;
+        window.dispatchEvent(new CustomEvent('mxgenius:ar-camera-pose', { detail: pose }));
+      });
+      await plugin.addListener('pinSelected', ({ id }) => {
+        const cluster = allClusters.find((item) => item.icao === id);
+        if (cluster) handleGlobeClick(cluster);
+      });
+      await plugin.addListener('arSessionState', (state) => {
+        button.dataset.arState = state?.state || '';
+        window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
+      });
+    }
+  } catch (error) {
+    console.warn('Native AR globe capability check failed', error);
+  }
+}
+
 function openGlobeInVR() {
   if (!allClusters.length) return;
   const payload = {
@@ -4546,6 +4640,7 @@ async function loadGlobe() {
       vrButton.addEventListener('click', openGlobeInVR);
     }
   }
+  configureNativeARGlobe();
 
   if (!globeInstance) {
     container.innerHTML = '';

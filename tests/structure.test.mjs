@@ -364,6 +364,18 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
   assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision/);
 });
 
+test('iOS wrapper exposes the fleet globe through the native AR camera bridge', () => {
+  assert.match(dashboard, /id="globeArButton"/);
+  assert.match(dashboard, /Open fleet globe in augmented reality/);
+  assert.match(application, /Capacitor\?\.Plugins\?\.JetNetNative/);
+  assert.match(application, /plugin\.isARSupported\(\)/);
+  assert.match(application, /plugin\.showGlobe\(\{/);
+  assert.match(application, /MAX_NATIVE_AR_PINS = 750/);
+  assert.match(application, /plugin\.addListener\('cameraPose'/);
+  assert.match(application, /mxgenius:ar-camera-pose/);
+  assert.match(application, /plugin\.addListener\('pinSelected'/);
+});
+
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
   assert.match(dashboard, /3d-viewer\/index\.html\?v=11/);
   assert.match(viewer, /id="procedure-media-video"/);

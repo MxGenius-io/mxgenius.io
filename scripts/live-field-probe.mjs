@@ -114,7 +114,7 @@ await check('Dashboard release assets', 'frontend', async () => {
   for (const marker of [
     'application-client.js?v=18',
     'realtime-client.js?v=4',
-    'app.js?v=27',
+    'app.js?v=37',
     'id="chatAttachBtn"',
     'value="gpt-5.5"'
   ]) {
@@ -124,14 +124,15 @@ await check('Dashboard release assets', 'frontend', async () => {
 });
 
 await check('Realtime companion bundle', 'frontend', async () => {
-  const response = await request(`${SITE}/app.js?v=27&probe=${encodeURIComponent(runId)}`);
+  const response = await request(`${SITE}/app.js?v=37&probe=${encodeURIComponent(runId)}`);
   requireCondition(response.status === 200, `app.js returned ${response.status}`);
   const source = await response.text();
   for (const marker of [
     'mxg.chat.structured_response',
     'collectApplicationDisplayContext',
     'suppressNextRealtimeAssistantBubble',
-    'pendingRealtimeImages'
+    'pendingRealtimeImages',
+    'configureNativeARGlobe'
   ]) {
     requireCondition(source.includes(marker), `Missing companion marker: ${marker}`);
   }
