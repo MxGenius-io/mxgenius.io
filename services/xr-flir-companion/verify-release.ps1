@@ -57,7 +57,14 @@ foreach ($requiredManifestToken in @(
     'com.oculus.supportedDevices',
     'com.oculus.vrshell.SHELL_MAIN',
     'com.oculus.intent.category.2D',
+    'com.oculus.intent.category.VR',
     'com.oculus.vrshell.panel_activity',
+    'ThermalImmersiveActivity',
+    'libossdk.oculus.so',
+    'android.permission.CAMERA',
+    'horizonos.permission.HEADSET_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'dataSync|camera',
     '@mipmap/mxgenius_launcher',
     '@mipmap/mxgenius_launcher_round'
 )) {
@@ -74,7 +81,19 @@ foreach ($forbiddenLayoutToken in @('@+id/connect_pi', '@+id/pi_status', 'Connec
     Assert-ReleaseRequirement (-not $layoutSource.Contains($forbiddenLayoutToken)) "standalone FLIR panel still contains $forbiddenLayoutToken"
 }
 
-$companionSources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'app\src\main\java') -Recurse -Filter '*.java' |
+$immersiveLayoutSourcePath = Join-Path $projectRoot 'app\src\main\res\layout\immersive_thermal_panel.xml'
+$immersiveLayoutSource = Get-Content -Raw -LiteralPath $immersiveLayoutSourcePath
+foreach ($requiredImmersiveToken in @(
+    '@+id/immersive_thermal_preview',
+    '@+id/immersive_pin_toggle',
+    '@+id/immersive_reconnect',
+    '@+id/immersive_trace'
+)) {
+    Assert-ReleaseRequirement ($immersiveLayoutSource.Contains($requiredImmersiveToken)) "native immersive panel is missing $requiredImmersiveToken"
+}
+
+$companionSources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'app\src\main\java') -Recurse -File |
+    Where-Object { $_.Extension -in @('.java', '.kt') } |
     ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName } |
     Out-String
 foreach ($forbiddenSourceToken in @('PiDiagnosticsClient', 'pi-diagnostics-rfcomm', 'edge-diagnostics-1')) {
@@ -82,6 +101,12 @@ foreach ($forbiddenSourceToken in @('PiDiagnosticsClient', 'pi-diagnostics-rfcom
 }
 foreach ($requiredTransportToken in @('LocalThermalBroker', 'ThermalTransport', '127.0.0.1')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredTransportToken)) "Quest-local thermal transport is missing $requiredTransportToken"
+}
+foreach ($requiredSnapshotToken in @('HeadsetSnapshotController', 'headset.snapshot.request', 'headset.snapshot.result', 'N21', 'N23')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredSnapshotToken)) "Quest snapshot seam is missing $requiredSnapshotToken"
+}
+foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistration', 'ThermalPanelFollowSystem', 'N16', 'N18')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredSpatialToken)) "native Spatial workspace is missing $requiredSpatialToken"
 }
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
@@ -140,7 +165,13 @@ foreach ($requiredPackagedToken in @(
     'com.oculus.supportedDevices',
     'com.oculus.vrshell.SHELL_MAIN',
     'com.oculus.intent.category.2D',
-    'com.oculus.vrshell.panel_activity'
+    'com.oculus.intent.category.VR',
+    'com.oculus.vrshell.panel_activity',
+    'ThermalImmersiveActivity',
+    'libossdk.oculus.so',
+    'android.permission.CAMERA',
+    'horizonos.permission.HEADSET_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_CAMERA'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
 }
@@ -151,6 +182,9 @@ foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'a
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
+foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_trace')) {
+    Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
+}
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {
     Assert-ReleaseRequirement (-not $packagedResources.Contains("id/$forbiddenPackagedLayoutToken")) "packaged standalone panel still contains id/$forbiddenPackagedLayoutToken"
 }

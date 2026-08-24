@@ -37,9 +37,17 @@ function wrapLines(context, value, maxWidth, maxLines) {
 }
 
 export class XRRealtimePresence {
-  constructor({ sessionProvider, contextProvider = () => null, pointCount = 720, pointSize = 0.0012, onAction = () => {} } = {}) {
+  constructor({
+    sessionProvider,
+    contextProvider = () => null,
+    pointCount = 720,
+    pointSize = 0.0012,
+    onSnapshotRequest = null,
+    onAction = () => {}
+  } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
     this.contextProvider = contextProvider;
+    this.onSnapshotRequest = typeof onSnapshotRequest === 'function' ? onSnapshotRequest : null;
     this.onAction = onAction;
     this.state = 'disconnected';
     this.userText = '';
@@ -53,6 +61,7 @@ export class XRRealtimePresence {
     this.connectAttempt = 0;
     this.connectPromise = null;
     this.disposed = false;
+    this.snapshotBusy = false;
     this.handledCalls = new Set();
     this.audioContext = null;
     this.analysers = [];
@@ -121,17 +130,35 @@ export class XRRealtimePresence {
     this.micTexture = new THREE.CanvasTexture(this.micCanvas);
     this.micTexture.colorSpace = THREE.SRGBColorSpace;
     this.micButton = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.24, 0.09),
+      new THREE.PlaneGeometry(0.18, 0.09),
       new THREE.MeshBasicMaterial({ map: this.micTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
     this.micButton.name = 'MXGeniusRealtimeMic';
-    this.micButton.position.set(0, -0.205, 0.012);
+    this.micButton.position.set(-0.105, -0.205, 0.012);
     this.micButton.userData.xrVoiceAction = 'toggle-realtime';
-    this.micButton.userData.xrHitSize = { width: 0.24, height: 0.09 };
+    this.micButton.userData.xrHitSize = { width: 0.18, height: 0.09 };
     this.micButton.visible = false;
     this.group.add(this.micButton);
+
+    this.snapshotCanvas = document.createElement('canvas');
+    this.snapshotCanvas.width = 320;
+    this.snapshotCanvas.height = 144;
+    this.snapshotContext = this.snapshotCanvas.getContext('2d');
+    this.snapshotTexture = new THREE.CanvasTexture(this.snapshotCanvas);
+    this.snapshotTexture.colorSpace = THREE.SRGBColorSpace;
+    this.snapshotButton = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.18, 0.09),
+      new THREE.MeshBasicMaterial({ map: this.snapshotTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    this.snapshotButton.name = 'MXGeniusRealtimeSnapshot';
+    this.snapshotButton.position.set(0.105, -0.205, 0.012);
+    this.snapshotButton.userData.xrVoiceAction = 'capture-snapshot';
+    this.snapshotButton.userData.xrHitSize = { width: 0.18, height: 0.09 };
+    this.snapshotButton.visible = false;
+    this.group.add(this.snapshotButton);
     this.drawPanel();
     this.drawMicButton();
+    this.drawSnapshotButton();
   }
 
   createPointCloud() {
@@ -175,12 +202,14 @@ export class XRRealtimePresence {
   }
 
   interactiveObjects() {
-    return [this.dockTarget ? this.micButton : this.hitTarget, this.pinTarget];
+    return [this.dockTarget ? this.micButton : this.hitTarget, this.snapshotButton, this.pinTarget]
+      .filter((object) => object.visible);
   }
 
   setDockTarget(target = null) {
     this.dockTarget = target;
     this.micButton.visible = Boolean(target);
+    this.snapshotButton.visible = Boolean(target && this.onSnapshotRequest);
     this.hitTarget.visible = !target;
     if (target) {
       this.panel.position.set(0.58, 0.27, 0);
@@ -192,7 +221,9 @@ export class XRRealtimePresence {
   }
 
   controlInstruction() {
-    return this.dockTarget ? 'Tap mic: voice | tap diamond: pin' : 'Tap cloud: voice | tap diamond: pin';
+    return this.dockTarget
+      ? 'Tap mic: voice | tap SNAP: send one headset frame | diamond: pin'
+      : 'Tap cloud: voice | tap diamond: pin';
   }
 
   owns(object) {
@@ -212,6 +243,10 @@ export class XRRealtimePresence {
       this.setPinned(!this.pinned, input);
       return true;
     }
+    if (target?.userData?.xrVoiceAction === 'capture-snapshot') {
+      void this.captureSnapshot(input);
+      return true;
+    }
     void this.toggle(input);
     return true;
   }
@@ -227,10 +262,16 @@ export class XRRealtimePresence {
   fingerTargetAt(point) {
     if (!this.presenting || !this.group.visible) return null;
     if (this.dockTarget) {
-      this.micButton.updateMatrixWorld(true);
-      this.micButton.worldToLocal(this.localPoint.copy(point));
-      if (Math.abs(this.localPoint.z) < 0.04 && Math.abs(this.localPoint.x) <= 0.12 && Math.abs(this.localPoint.y) <= 0.045) {
-        return this.micButton;
+      for (const button of [this.micButton, this.snapshotButton]) {
+        if (!button.visible) continue;
+        button.updateMatrixWorld(true);
+        button.worldToLocal(this.localPoint.copy(point));
+        const { width, height } = button.userData.xrHitSize;
+        if (Math.abs(this.localPoint.z) < 0.04
+          && Math.abs(this.localPoint.x) <= width / 2
+          && Math.abs(this.localPoint.y) <= height / 2) {
+          return button;
+        }
       }
     } else {
       this.hitTarget.updateMatrixWorld(true);
@@ -264,6 +305,52 @@ export class XRRealtimePresence {
       return;
     }
     await this.connect(input);
+  }
+
+  async captureSnapshot(input = 'xr') {
+    if (this.disposed || this.snapshotBusy) return;
+    if (!this.onSnapshotRequest) {
+      this.toolText = 'Headset snapshot bridge is unavailable';
+      this.drawPanel();
+      return;
+    }
+    if (!this.session || ['disconnected', 'connecting', 'failed'].includes(this.state)) {
+      this.toolText = 'Start the live voice session before taking a snapshot';
+      this.drawPanel();
+      return;
+    }
+    this.snapshotBusy = true;
+    this.toolText = 'Capturing one headset frame…';
+    this.drawPanel();
+    this.drawSnapshotButton();
+    this.onAction('realtime-snapshot-request', input, { state: this.state });
+    try {
+      const snapshot = await this.onSnapshotRequest();
+      if (this.disposed || !this.session) throw new Error('Live model session closed before snapshot delivery');
+      if (!snapshot?.dataUrl || !/^data:image\/jpeg;base64,/i.test(snapshot.dataUrl)) {
+        throw new Error('Quest companion returned an invalid snapshot');
+      }
+      const sent = this.session.sendUserMessage({
+        text: 'Use this headset snapshot as visual context for the active maintenance session. Describe what is visible and connect it to the current discussion.',
+        images: [{ dataUrl: snapshot.dataUrl }]
+      });
+      if (!sent) throw new Error('Live model data channel is not open');
+      this.userText = `Headset snapshot attached · ${snapshot.width || '?'}×${snapshot.height || '?'}`;
+      this.toolText = 'Snapshot sent to the active model context';
+      this.panelTarget = 1;
+      this.onAction('realtime-snapshot-sent', input, {
+        width: snapshot.width || 0,
+        height: snapshot.height || 0,
+        eye: snapshot.eye || 'unknown'
+      });
+    } catch (error) {
+      this.toolText = cleanText(error?.message, 'Headset snapshot failed');
+      this.onAction('realtime-snapshot-failed', input, { reason: this.toolText });
+    } finally {
+      this.snapshotBusy = false;
+      this.drawPanel();
+      this.drawSnapshotButton();
+    }
   }
 
   async connect(input) {
@@ -413,6 +500,7 @@ export class XRRealtimePresence {
     this.ring.material.color.setHex(color);
     this.drawPanel();
     this.drawMicButton();
+    this.drawSnapshotButton();
   }
 
   async attachAudioAnalysers() {
@@ -512,6 +600,23 @@ export class XRRealtimePresence {
     ctx.textAlign = 'center';
     ctx.fillText(active ? 'MIC ON' : 'MIC', 192, 91);
     this.micTexture.needsUpdate = true;
+  }
+
+  drawSnapshotButton() {
+    if (!this.snapshotContext) return;
+    const ctx = this.snapshotContext;
+    const active = Boolean(this.session) && !['disconnected', 'connecting', 'failed'].includes(this.state);
+    ctx.clearRect(0, 0, this.snapshotCanvas.width, this.snapshotCanvas.height);
+    ctx.fillStyle = 'rgba(5, 18, 31, 0.97)';
+    ctx.fillRect(4, 4, this.snapshotCanvas.width - 8, this.snapshotCanvas.height - 8);
+    ctx.strokeStyle = this.snapshotBusy ? '#fbbf24' : active ? '#a78bfa' : '#64748b';
+    ctx.lineWidth = 7;
+    ctx.strokeRect(4, 4, this.snapshotCanvas.width - 8, this.snapshotCanvas.height - 8);
+    ctx.fillStyle = active ? '#edf6ff' : '#94a3b8';
+    ctx.font = '700 38px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.snapshotBusy ? 'WAIT' : 'SNAP', this.snapshotCanvas.width / 2, 94);
+    this.snapshotTexture.needsUpdate = true;
   }
 
   update(delta, time, { camera = null } = {}) {

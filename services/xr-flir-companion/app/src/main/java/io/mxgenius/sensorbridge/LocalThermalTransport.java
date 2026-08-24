@@ -18,7 +18,11 @@ final class LocalThermalTransport implements ThermalTransport {
     private volatile BridgeActivation activation;
     private volatile long lastFrameAtMs;
 
-    LocalThermalTransport(String nodeId, LocalThermalBroker.Listener listener, boolean debugBuild) {
+    LocalThermalTransport(
+            String nodeId,
+            LocalThermalBroker.Listener listener,
+            LocalThermalBroker.SnapshotHandler snapshotHandler,
+            boolean debugBuild) {
         Set<String> origins = debugBuild
                 ? Set.of("https://mxgenius.io", "https://www.mxgenius.io", "http://localhost", "http://127.0.0.1")
                 : Set.of("https://mxgenius.io", "https://www.mxgenius.io");
@@ -26,7 +30,8 @@ final class LocalThermalTransport implements ThermalTransport {
                 new InetSocketAddress("127.0.0.1", LocalThermalBroker.DEFAULT_PORT),
                 origins,
                 nodeId,
-                listener);
+                listener,
+                snapshotHandler);
     }
 
     boolean startAndAwait(long timeout, TimeUnit unit) throws InterruptedException {

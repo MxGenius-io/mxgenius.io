@@ -7,4 +7,11 @@
         <item name="android:navigationBarColor">#050914</item>
         <item name="android:colorAccent">#22D3EE</item>
     </style>
+
+    <style name="SpatialPanelTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorAccent">#22D3EE</item>
+    </style>
 </resources>

@@ -12,6 +12,8 @@ const PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY = 'mxg_pi_diagnostics_bridge_url';
 const FRAME_MAGIC = 0x4d584753;
 const MAX_THERMAL_PIXELS = 1920 * 1080;
 const MAX_HANDSHAKE_TRACE_ENTRIES = 64;
+const MAX_SNAPSHOT_DATA_URL_CHARS = 1_450_000;
+const SNAPSHOT_TIMEOUT_MS = 10_000;
 
 function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -124,6 +126,7 @@ export class XRSensorOrb {
     this.screenPinned = false;
     this.state = 'unconfigured';
     this.socket = null;
+    this.pendingSnapshots = new Map();
     this.reconnectTimer = null;
     this.reconnectAttempt = 0;
     this.diagnosticsState = 'unconfigured';
@@ -408,6 +411,40 @@ export class XRSensorOrb {
     }
   }
 
+  requestHeadsetSnapshot({ timeoutMs = SNAPSHOT_TIMEOUT_MS } = {}) {
+    if (this.disposed) return Promise.reject(new Error('Sensor scene is closed'));
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error('Quest snapshot bridge is not connected'));
+    }
+    const requestId = globalThis.crypto?.randomUUID?.()
+      || `snapshot_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    const boundedTimeout = THREE.MathUtils.clamp(Number(timeoutMs) || SNAPSHOT_TIMEOUT_MS, 2000, 20000);
+    this.trace('W11 SNAPSHOT', 'request sent · waiting for one Quest RGB frame', 'info');
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingSnapshots.delete(requestId);
+        this.trace('W12 SNAPSHOT', 'timed out · companion did not return a frame', 'error');
+        reject(new Error('Headset snapshot timed out'));
+      }, boundedTimeout);
+      this.pendingSnapshots.set(requestId, { resolve, reject, timer });
+      try {
+        this.socket.send(JSON.stringify({ type: 'headset.snapshot.request', requestId }));
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingSnapshots.delete(requestId);
+        reject(error);
+      }
+    });
+  }
+
+  failPendingSnapshots(reason = 'Quest snapshot bridge disconnected') {
+    for (const pending of this.pendingSnapshots.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
+    }
+    this.pendingSnapshots.clear();
+  }
+
   handleObject(object, input = 'unknown') {
     let node = object;
     while (node && !node.userData?.xrSensorAction) node = node.parent;
@@ -503,6 +540,7 @@ export class XRSensorOrb {
       socket.addEventListener('message', (event) => this.handleMessage(event));
       socket.addEventListener('close', (event) => {
         if (this.socket === socket) this.socket = null;
+        this.failPendingSnapshots('Quest snapshot bridge disconnected');
         this.trace(
           'W00 SOCKET',
           `closed ${event.code || 1006} · ${event.reason || (event.wasClean ? 'clean close' : 'no bridge response')}`,
@@ -640,7 +678,34 @@ export class XRSensorOrb {
     if (typeof event.data === 'string') {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === 'bridge.hello') {
+        if (message.type === 'headset.snapshot.result') {
+          const pending = this.pendingSnapshots.get(message.requestId);
+          if (!pending) return;
+          clearTimeout(pending.timer);
+          this.pendingSnapshots.delete(message.requestId);
+          if (message.status !== 'ok') {
+            const detail = clean(message.detail, message.code || 'Headset snapshot failed');
+            this.trace('W12 SNAPSHOT', detail, 'error');
+            pending.reject(new Error(detail));
+            return;
+          }
+          if (typeof message.dataUrl !== 'string'
+            || !/^data:image\/jpeg;base64,/i.test(message.dataUrl)
+            || message.dataUrl.length > MAX_SNAPSHOT_DATA_URL_CHARS) {
+            this.trace('W12 SNAPSHOT', 'rejected · invalid or oversized JPEG result', 'error');
+            pending.reject(new Error('Headset snapshot payload was invalid or oversized'));
+            return;
+          }
+          const result = {
+            dataUrl: message.dataUrl,
+            width: Number(message.width) || 0,
+            height: Number(message.height) || 0,
+            eye: clean(message.eye, 'unknown'),
+            capturedAtMs: Number(message.capturedAtMs) || Date.now()
+          };
+          this.trace('W12 SNAPSHOT', `${result.width}×${result.height} ${result.eye}-eye JPEG received`, 'success');
+          pending.resolve(result);
+        } else if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
           this.trace('W06 HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
           this.drawPanel();
@@ -972,6 +1037,7 @@ export class XRSensorOrb {
     clearTimeout(this.diagnosticsReconnectTimer);
     this.reconnectTimer = null;
     this.diagnosticsReconnectTimer = null;
+    this.failPendingSnapshots('Sensor scene closed before snapshot completed');
 
     const thermalSocket = this.socket;
     const diagnosticsSocket = this.diagnosticsSocket;

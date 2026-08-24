@@ -1,6 +1,6 @@
 # Quest thermal handshake trace
 
-The WebXR diagnostics panel shows the last ten events. The browser page retains up to 64 events in its verbose trace. Native events are retained by the Quest bridge and replayed when Meta Browser connects.
+The native immersive panel shows the latest 18 events and the Quest service retains up to 64. The Meta Browser trace remains available for the optional loopback compatibility path, but the browser is no longer required to display native FLIR pixels.
 
 ## Expected order
 
@@ -9,8 +9,8 @@ The WebXR diagnostics panel shows the last ten events. The browser page retains 
 | `W01` | Pairing | Browser session created or restored from the native handoff. |
 | `N01` | Service | Android foreground service started. |
 | `N02` | Activation | Browser session and local token accepted by the bridge. |
-| `N03` | Broker | Bridge began binding loopback port 4109. |
-| `N04` | Broker | Loopback broker is listening. |
+| `N03` | Broker | Optional loopback broker began binding port 4109. |
+| `N04` | Broker | Optional loopback broker is listening; failure here does not stop FLIR startup. |
 | `N05` | SDK | FLIR Atlas initialization began. |
 | `N06` | SDK | FLIR camera runtime is ready. |
 | `N07` | FLIR | Camera discovery was requested from a foreground activity. |
@@ -20,8 +20,16 @@ The WebXR diagnostics panel shows the last ten events. The browser page retains 
 | `N11` | FLIR | A thermal stream was discovered and configured. |
 | `N12` | FLIR | Native stream callbacks began. |
 | `N13` | Frame | The bridge decoded its first native thermal frame. |
-| `N14` | Handoff | The first frame was confirmed and browser handoff was scheduled. |
-| `N15` | Handoff | The bridge asked Horizon OS to open Meta Browser. |
+| `N14` | Spatial | The first frame was confirmed and native immersive launch was scheduled. |
+| `N15` | Spatial | Horizon OS was asked to open the native immersive activity. |
+| `N16` | Spatial | The native thermal panel was created in the Quest scene. |
+| `N17` | Spatial | The panel changed between head-follow and world-pinned placement. |
+| `N18` | FLIR | A manual reconnect was requested from the immersive panel. |
+| `N19` | Spatial | The thermal viewer returned to its Horizon 2D panel. |
+| `N20` | Frame | A transient FLIR frame update was skipped or subsequently recovered. |
+
+The following steps are optional browser compatibility telemetry, not part of the native frame path:
+
 | `W02` | Socket | Meta Browser attempted the Quest loopback WebSocket. |
 | `W03` | Socket | The WebSocket opened. |
 | `B03` | Broker | Browser origin, session, and token were accepted. |
@@ -36,14 +44,17 @@ The WebXR diagnostics panel shows the last ten events. The browser page retains 
 | `W09` | Frame | The first MXGS envelope passed browser validation. |
 | `W10` | Render | The first thermal frame was drawn into the VR texture. |
 
-Any `N00`, `B00`, or `W00` entry is a failure. The last successful numbered step identifies the completed side of the failing connection vector.
+Any `N00`, `B00`, or `W00` entry is a failure in its named vector. A `B00` or `W00` does not invalidate native display if the trace reaches `N13` and `N16`.
 
 Common boundaries:
 
-- Stops before `N04`: Android loopback broker startup.
 - Stops at `N09`: USB permission or FLIR discovery.
 - Stops before `N13`: FLIR connection or native frame decoding.
-- Reaches `N15` but not `W03`: Meta Browser could not open the loopback WebSocket.
+- Reaches `N13` but not `N16`: native Spatial activity or panel creation.
+- Reaches `N16` with no image: native panel view update/rendering.
+- Repeated `N20 skipped` without `N20 recovered`: FLIR frame production is unstable; report the retained reason and count.
+- Stops before `N04`: optional Android loopback broker startup; native FLIR should continue.
+- Reaches `N15` but not `W03`: optional Meta Browser loopback did not reconnect.
 - Reaches `W03` but not `B05`: session pairing mismatch.
 - Reaches `W08` but not `W09`: no frame reached the browser.
 - Reaches `W09` but not `W10`: browser frame decoding or texture rendering.

@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Standalone thermal viewer"
+            android:text="Native thermal workspace"
             android:textColor="#F4FBFF"
             android:textSize="28sp"
             android:textStyle="bold" />
@@ -85,7 +85,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="When opened from MxGenius, this panel owns FLIR permission and startup, then hands the live stream back to Meta Browser. The foreground bridge stays active while the WebXR thermal screen is pinned in your space."
+            android:text="This app owns FLIR permission, decoding, and the immersive thermal panel in one process. After the first native frame it enters spatial mode; PIN HERE freezes the screen in the world and FOLLOW HEAD restores head-relative placement."
             android:textColor="#718DA3"
             android:textSize="13sp" />
     </LinearLayout>

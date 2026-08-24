@@ -60,21 +60,21 @@
   </div>
   <a class="back" href="dashboard.html">Back to dashboard</a>
   <section class="sensor-setup" id="sensorSetup" aria-live="polite">
-    <strong>FLIR THERMAL · QUEST LOCAL</strong>
-    <span id="sensorSetupStatus">Checking the independent Quest thermal link…</span>
+    <strong>FLIR THERMAL · NATIVE QUEST</strong>
+    <span id="sensorSetupStatus">Launch the native thermal workspace to connect and pin the FLIR panel…</span>
     <ol class="sensor-chain" aria-label="Sensor connection stages">
-      <li id="sensorRelayStep" data-state="required">1 · THERMAL LINK</li>
-      <li id="sensorCompanionStep" data-state="blocked">2 · QUEST APP</li>
+      <li id="sensorRelayStep" data-state="required">1 · APP HANDOFF</li>
+      <li id="sensorCompanionStep" data-state="blocked">2 · NATIVE PANEL</li>
       <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
     </ol>
     <div class="sensor-actions">
-      <a id="openSensorCompanion" href="#">Open FLIR companion</a>
+      <a id="openSensorCompanion" href="#">Open native thermal workspace</a>
       <a id="sensorCompanionEntitlement" href="#" hidden>Check Meta Alpha access</a>
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
     <small class="sensor-install-help">Alpha access grants entitlement; install from Quest Library → Not installed while signed into the invited account.</small>
     <details class="sensor-trace-shell" open>
-      <summary>VERBOSE HANDSHAKE TRACE · ALSO RENDERED IN VR</summary>
+      <summary>BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR</summary>
       <pre class="sensor-trace" id="sensorTrace">Waiting for sensor preflight…</pre>
     </details>
   </section>
@@ -82,8 +82,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=3';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=6';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=4';
+    import { XRSensorOrb } from './xr-sensor-orb.js?v=7';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
@@ -153,7 +153,7 @@
     const companionEntitlementUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionEntitlementUrl || '';
     let companionActivationPending = false;
     let sensorSources = deriveSensorSourceState({ thermalBridgeUrl, piDiagnosticsBridgeUrl, remoteWitnessUrl });
-    let activationTimeout = null;
+    let companionLaunchAt = 0;
 
     try {
       const customLaunchUrl = buildSensorCompanionLaunchUrl({
@@ -201,25 +201,23 @@
         ? 'Thermal connected'
         : activation.state === 'relay-required'
           ? 'Thermal link required'
-          : companionActivationPending ? 'Opening companion…' : 'Open FLIR companion';
+          : companionActivationPending ? 'Opening native workspace…' : 'Open native thermal workspace';
     }
     openSensorCompanion.addEventListener('click', (event) => {
       if (openSensorCompanion.getAttribute('aria-disabled') === 'true') {
         event.preventDefault();
         return;
       }
-      xrSensors.trace('LAUNCH', `opening ${companionPackage} with session bind`, 'info');
+      xrSensors.trace('LAUNCH', `opening native thermal workspace ${companionPackage}`, 'info');
       companionActivationPending = true;
+      companionLaunchAt = Date.now();
       renderSensorSetup();
-      clearTimeout(activationTimeout);
-      activationTimeout = setTimeout(() => {
-        if (sensorSources.companion !== 'ready') {
-          companionActivationPending = false;
-          sensorSources.companion = 'missing';
-          xrSensors.trace('LAUNCH', 'companion did not check in within 12s · verify Alpha install', 'error');
-          renderSensorSetup();
-        }
-      }, 12000);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && companionActivationPending && Date.now() - companionLaunchAt > 1000) {
+        companionActivationPending = false;
+        renderSensorSetup();
+      }
     });
     sensorCompanionEntitlement.addEventListener('click', () => {
       xrSensors.trace('INSTALL', 'opening Alpha entitlement page · install from Quest Library after joining', 'warn');
@@ -285,7 +283,6 @@
         };
         if (companionStatus === 'ready') {
           companionActivationPending = false;
-          clearTimeout(activationTimeout);
         }
         renderSensorSetup();
         if (renderer.xr.isPresenting && thermalTransport !== 'connected') {
@@ -304,6 +301,7 @@
     const xrVoice = new XRRealtimePresence({
       pointCount: sensorOnlyScene ? 1800 : 720,
       pointSize: sensorOnlyScene ? 0.0007 : 0.0012,
+      onSnapshotRequest: () => xrSensors.requestHeadsetSnapshot(),
       onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
         detail: { action, input, target, context: { surface: sceneSurface } }
       }))
@@ -1189,7 +1187,6 @@
     function disposeScene() {
       if (sceneDisposed) return;
       sceneDisposed = true;
-      clearTimeout(activationTimeout);
       renderer.setAnimationLoop(null);
       xrSensors.dispose();
       xrVoice.dispose?.();

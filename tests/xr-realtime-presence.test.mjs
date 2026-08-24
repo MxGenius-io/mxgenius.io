@@ -8,7 +8,7 @@ const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url
 const sensors = await readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 
-test('XR voice presence is a dense point cloud with a dedicated mic and pin controls', () => {
+test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and pin controls', () => {
   assert.match(presence, /new THREE\.Points\(/);
   assert.match(presence, /new THREE\.CanvasTexture\(/);
   assert.match(presence, /toggle-pin/);
@@ -16,6 +16,11 @@ test('XR voice presence is a dense point cloud with a dedicated mic and pin cont
   assert.match(globe, /pointCount: sensorOnlyScene \? 1800 : 720/);
   assert.match(globe, /pointSize: sensorOnlyScene \? 0\.0007 : 0\.0012/);
   assert.match(presence, /MXGeniusRealtimeMic/);
+  assert.match(presence, /MXGeniusRealtimeSnapshot/);
+  assert.match(presence, /capture-snapshot/);
+  assert.match(presence, /sendUserMessage\(\{/);
+  assert.match(presence, /images: \[\{ dataUrl: snapshot\.dataUrl \}\]/);
+  assert.match(presence, /Start the live voice session before taking a snapshot/);
   assert.match(presence, /Tap mic: voice/);
   assert.match(presence, /setDockTarget/);
   assert.match(presence, /this\.connectPromise/);
@@ -48,7 +53,7 @@ test('sensor scene supports a head-following or world-pinned thermal screen whil
   assert.match(globe, /xrSensors\.setPresenting\(true\)/);
   assert.match(globe, /xrSensors\.startPreflight\(\)/);
   assert.match(globe, /mxgenius:\/\/sensor-bridge/);
-  assert.match(globe, /FLIR THERMAL · QUEST LOCAL/);
+  assert.match(globe, /FLIR THERMAL · NATIVE QUEST/);
   assert.match(sensors, /MXGeniusSensorOrb/);
   assert.match(sensors, /MXGeniusThermalScreenRig/);
   assert.match(sensors, /MXGeniusThermalPixels/);
@@ -75,7 +80,8 @@ test('sensor scene supports a head-following or world-pinned thermal screen whil
   assert.match(sensors, /credentials redacted/);
   assert.match(sensors, /bridge\.hello/);
   assert.match(sensors, /connection error · verify bridge is installed and running/);
-  assert.match(globe, /VERBOSE HANDSHAKE TRACE · ALSO RENDERED IN VR/);
+  assert.match(globe, /BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR/);
+  assert.match(globe, /Open native thermal workspace/);
   assert.match(globe, /Quest Library → Not installed/);
   assert.match(sensors, /this\.thermalTexture\.magFilter = THREE\.NearestFilter/);
   assert.match(sensors, /timestamp !== this\.latestFrameTimestamp/);
@@ -83,6 +89,10 @@ test('sensor scene supports a head-following or world-pinned thermal screen whil
   assert.match(globe, /if \(!event\.persisted\) disposeScene\(\)/);
   assert.match(sensors, /bridge\.session/);
   assert.match(sensors, /flir-one-pro-usb-c/);
+  assert.match(sensors, /headset\.snapshot\.request/);
+  assert.match(sensors, /headset\.snapshot\.result/);
+  assert.match(sensors, /this\.pendingSnapshots/);
+  assert.match(globe, /onSnapshotRequest: \(\) => xrSensors\.requestHeadsetSnapshot\(\)/);
 });
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {

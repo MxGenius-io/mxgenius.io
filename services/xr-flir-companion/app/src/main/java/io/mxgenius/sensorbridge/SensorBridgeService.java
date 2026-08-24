@@ -5,8 +5,11 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.os.Binder;
 import android.os.IBinder;
@@ -15,6 +18,9 @@ import android.os.SystemClock;
 import com.flir.thermalsdk.androidsdk.ThermalSdkAndroid;
 import com.flir.thermalsdk.log.ThermalLog;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,17 +30,24 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     interface StatusListener {
         void onStatus(String bridge, String relay, String camera);
         void onFrame(Bitmap bitmap);
+        default void onTrace(List<String> entries) {}
     }
 
     static final String ACTION_STOP = "io.mxgenius.sensorbridge.STOP";
     private static final int NOTIFICATION_ID = 4107;
     private static final String CHANNEL_ID = "mxg_sensor_bridge";
-    private static final long PREVIEW_INTERVAL_MS = 100L;
+    // FLIR acquisition stays at the camera's native cadence. XML-backed Spatial panels
+    // only need a bounded preview cadence to avoid repeatedly rebuilding their texture.
+    private static final long PREVIEW_INTERVAL_MS = 150L;
+    private static final int TRACE_HISTORY_LIMIT = 64;
     private final LocalBinder binder = new LocalBinder();
     private final ExecutorService lifecycleWorker = Executors.newSingleThreadExecutor();
+    private final Object traceLock = new Object();
+    private final ArrayDeque<String> traceHistory = new ArrayDeque<>();
     private RelayClient relay;
     private volatile LocalThermalTransport localTransport;
     private volatile FlirCameraController camera;
+    private volatile HeadsetSnapshotController headsetSnapshots;
     private BridgeActivation activation;
     private StatusListener statusListener;
     private volatile String bridgeState = "starting";
@@ -42,6 +55,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile boolean cameraRuntimeReady;
     private volatile boolean destroyed;
     private volatile boolean firstFrameTraced;
+    private volatile boolean headsetCameraForegroundReady;
     private String relayState = "not connected (optional)";
     private String cameraState = "standby";
     private long lastPreviewAtMs;
@@ -53,8 +67,16 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     @Override public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        startForeground(NOTIFICATION_ID, notification("Preparing sensor bridge…"));
-        localTransport = new LocalThermalTransport(stableNodeId(), this::onRelayState, BuildConfig.DEBUG);
+        startForeground(
+                NOTIFICATION_ID,
+                notification("Preparing sensor bridge…"),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        headsetSnapshots = new HeadsetSnapshotController(this);
+        localTransport = new LocalThermalTransport(
+                stableNodeId(),
+                this::onRelayState,
+                this::onSnapshotRequest,
+                BuildConfig.DEBUG);
         trace("N01", "SERVICE", "foreground", "foreground service created before FLIR initialization", "success");
         setBridgeState("starting", false, "foreground-active");
         lifecycleWorker.execute(this::initializeRuntime);
@@ -115,6 +137,9 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         statusListener = null;
         FlirCameraController currentCamera = camera;
         if (currentCamera != null) currentCamera.shutdown();
+        HeadsetSnapshotController currentSnapshots = headsetSnapshots;
+        headsetSnapshots = null;
+        if (currentSnapshots != null) currentSnapshots.shutdown();
         if (relay != null) relay.close();
         LocalThermalTransport transport = localTransport;
         if (transport != null) transport.close();
@@ -125,6 +150,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     void setStatusListener(StatusListener listener) {
         statusListener = listener;
         publishStatus();
+        listener.onTrace(traceHistorySnapshot());
     }
 
     void clearStatusListener(StatusListener listener) {
@@ -141,8 +167,42 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
     }
 
+    void reconnectCamera(Activity activity) {
+        FlirCameraController current = camera;
+        if (cameraRuntimeReady && current != null) {
+            trace("N18", "FLIR", "reconnect", "operator requested a clean camera reconnect", "info");
+            cameraState = "reconnecting";
+            publishStatus();
+            current.reconnect(activity);
+        } else {
+            trace("N18", "FLIR", "blocked", "camera reconnect requested before SDK readiness", "error");
+        }
+    }
+
     boolean canConnectCamera() {
         return cameraRuntimeReady && camera != null;
+    }
+
+    boolean prepareHeadsetCamera() {
+        boolean granted = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION) == PackageManager.PERMISSION_GRANTED;
+        if (!granted) {
+            trace("N21", "SNAPSHOT", "permission-required", "Quest RGB snapshot permission has not been granted", "warn");
+            return false;
+        }
+        if (headsetCameraForegroundReady) return true;
+        try {
+            startForeground(
+                    NOTIFICATION_ID,
+                    notification("FLIR bridge ready · headset snapshot armed"),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
+            headsetCameraForegroundReady = true;
+            trace("N21", "SNAPSHOT", "armed", "one-shot Quest RGB capture is ready", "success");
+            return true;
+        } catch (RuntimeException error) {
+            trace("N21", "SNAPSHOT", "blocked", "Horizon OS rejected camera foreground preparation", "error");
+            return false;
+        }
     }
 
     String sessionId() {
@@ -183,6 +243,10 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         if (currentRelay != null) currentRelay.sendFrame(bitmap);
     }
 
+    @Override public void onFrameDiagnostic(String state, String detail) {
+        trace("N20", "FRAME", state, detail, "recovered".equals(state) ? "success" : "warn");
+    }
+
     private void onRelayState(String state) {
         relayState = state;
         publishStatus();
@@ -194,18 +258,46 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         if (current != null) current.onStatus(bridgeLabel(), relayState, cameraState);
     }
 
+    private void onSnapshotRequest(String requestId, LocalThermalBroker.SnapshotResponder responder) {
+        HeadsetSnapshotController controller = headsetSnapshots;
+        if (!headsetCameraForegroundReady || controller == null) {
+            responder.failure("snapshot-not-armed", "open the companion once and grant headset camera access");
+            trace("N22", "SNAPSHOT", "blocked", "capture requested before headset camera foreground preparation", "error");
+            return;
+        }
+        trace("N22", "SNAPSHOT", "opening", "opening Quest passthrough RGB camera for one frame", "info");
+        controller.capture(new HeadsetSnapshotController.Callback() {
+            @Override public void onCaptured(byte[] jpeg, int width, int height, String eye) {
+                trace("N23", "SNAPSHOT", "captured", width + "x" + height + " " + eye + "-eye JPEG captured; camera released", "success");
+                responder.success(jpeg, width, height, eye);
+            }
+
+            @Override public void onFailure(String code, String detail) {
+                trace("N23", "SNAPSHOT", code, detail, "error");
+                responder.failure(code, detail);
+            }
+        });
+    }
+
     private void initializeRuntime() {
         LocalThermalTransport transport = localTransport;
         if (transport == null || destroyed) return;
         try {
             trace("N03", "BROKER", "binding", "binding Quest loopback port 4109", "info");
             setBridgeState("broker-starting", false, "binding-loopback-4109");
-            if (!transport.startAndAwait(4, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("loopback-start-timeout");
+            try {
+                if (transport.startAndAwait(4, TimeUnit.SECONDS)) {
+                    trace("N04", "BROKER", "listening", "optional Quest loopback broker is accepting browser clients", "success");
+                    setBridgeState("broker-ready", false, "optional-loopback-4109-listening");
+                } else {
+                    trace("N04", "BROKER", "unavailable", "optional loopback broker timed out; native spatial mode continues", "warn");
+                    setBridgeState("broker-unavailable", false, "native-spatial-continuing");
+                }
+            } catch (RuntimeException error) {
+                trace("N04", "BROKER", "unavailable", "optional loopback broker failed; native spatial mode continues", "warn");
+                setBridgeState("broker-unavailable", false, "native-spatial-continuing");
             }
             if (destroyed) return;
-            trace("N04", "BROKER", "listening", "Quest loopback broker is accepting browser clients", "success");
-            setBridgeState("broker-ready", false, "loopback-4109-listening");
             trace("N05", "SDK", "initializing", "initializing FLIR Atlas " + BuildConfig.FLIR_SDK_VERSION, "info");
             setBridgeState("sdk-starting", false, "flir-atlas-" + BuildConfig.FLIR_SDK_VERSION);
             ThermalSdkAndroid.init(getApplicationContext(), ThermalLog.LogLevel.INFO);
@@ -246,8 +338,23 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     private void trace(String step, String vector, String state, String detail, String level) {
+        String entry = step + " · " + vector + " · " + state + " · " + detail;
+        List<String> snapshot;
+        synchronized (traceLock) {
+            traceHistory.addLast(entry);
+            while (traceHistory.size() > TRACE_HISTORY_LIMIT) traceHistory.removeFirst();
+            snapshot = new ArrayList<>(traceHistory);
+        }
+        StatusListener current = statusListener;
+        if (current != null) current.onTrace(snapshot);
         LocalThermalTransport transport = localTransport;
         if (transport != null) transport.sendTrace(step, vector, state, detail, level);
+    }
+
+    private List<String> traceHistorySnapshot() {
+        synchronized (traceLock) {
+            return new ArrayList<>(traceHistory);
+        }
     }
 
     private void setBridgeState(String state, boolean ready, String reason) {
