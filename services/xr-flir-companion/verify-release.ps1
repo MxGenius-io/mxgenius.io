@@ -117,29 +117,31 @@ foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commission
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
 foreach ($requiredUsbLifecycleToken in @(
-    'AndroidUsbPermissionGate',
-    'UsbHandshakePolicy',
-    'FLIR_ONE_PRODUCT_ID',
-    'ENUMERATION_POLL_MS',
-    'ACTION_USB_DEVICE_ATTACHED',
-    'ACTION_USB_DEVICE_DETACHED',
-    'requestPermission(device, permissionIntent)',
-    'EXTRA_PERMISSION_GRANTED',
-    'RECEIVER_NOT_EXPORTED',
-    'permission-device-absent',
-    'permission-grant-received',
-    'permission-stable',
-    'WAITING_FOR_DEVICE',
+    'UsbPermissionHandler',
+    'requestFlirOnePermisson',
+    'hasFlirOnePermission',
+    'DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION',
+    'permissionGranted',
+    'permissionDenied',
+    'DiscoveryFactory',
+    'CommunicationInterface.USB',
+    'permission-retry',
     'discoveryGeneration',
-    'RECONNECT_SETTLE_MS',
     'stable-session'
 )) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
 }
-foreach ($forbiddenUsbLifecycleToken in @('MAX_PERMISSION_GATE_RESTARTS', 'usb-device-not-enumerated')) {
-    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenUsbLifecycleToken)) "Quest USB lifecycle still contains bounded retry behavior $forbiddenUsbLifecycleToken"
+foreach ($forbiddenUsbLifecycleToken in @(
+    'AndroidUsbPermissionGate',
+    'UsbHandshakePolicy',
+    'requestPermission(device, permissionIntent)',
+    'ENUMERATION_POLL_MS',
+    'GRANT_STABILITY_DELAY_MS',
+    'MAX_PERMISSION_GATE_RESTARTS',
+    'usb-device-not-enumerated'
+)) {
+    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenUsbLifecycleToken)) "Quest USB lifecycle still contains custom permission behavior $forbiddenUsbLifecycleToken"
 }
-Assert-ReleaseRequirement (-not $companionSources.Contains('UsbPermissionHandler')) 'FLIR UsbPermissionHandler must not own the Quest permission transaction'
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
 $usbFilterPath = Join-Path $resourceRoot 'xml\flir_usb_devices.xml'

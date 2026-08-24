@@ -356,16 +356,16 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         usbState = state;
         usbDetail = detail == null || detail.isBlank() ? state : detail;
         String step = switch (state) {
-            case "enumerated" -> "U01";
-            case "permission-requested", "permission-result", "permission-grant-received" -> "U02";
-            case "handshake-resync", "permission-unstable", "permission-device-absent", "detached", "settling", "event-recovering", "inventory-recovering" -> "U03";
-            case "permission-stable" -> "U04";
-            case "permission-denied", "permission-error", "manager-unavailable", "receiver-error", "policy-error" -> "U00";
+            case "discovery-start", "identity-found", "attached" -> "U01";
+            case "permission-requested" -> "U02";
+            case "permission-retry", "reconnect" -> "U03";
+            case "permission-existing", "permission-granted", "connect-start" -> "U04";
+            case "permission-denied", "permission-error" -> "U00";
             default -> "U01";
         };
         String level = switch (state) {
-            case "handshake-resync", "permission-unstable", "permission-device-absent", "detached", "settling", "permission-waiting", "permission-inconclusive", "event-recovering", "inventory-recovering" -> "warn";
-            case "permission-denied", "permission-error", "manager-unavailable", "receiver-error", "policy-error" -> "error";
+            case "permission-retry", "reconnect" -> "warn";
+            case "permission-denied", "permission-error" -> "error";
             default -> "info";
         };
         trace(step, "USB", state, usbDetail, level);
