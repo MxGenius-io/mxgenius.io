@@ -351,16 +351,15 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         usbDetail = detail == null || detail.isBlank() ? state : detail;
         String step = switch (state) {
             case "enumerated" -> "U01";
-            case "permission-check" -> "U02";
-            case "permission-retry", "settling" -> "U03";
-            case "permission-granted" -> "U04";
-            case "permission-denied", "permission-error", "permission-aborted", "manager-unavailable" -> "U00";
+            case "permission-requested", "permission-grant-received" -> "U02";
+            case "permission-gate-restart", "permission-unstable", "settling" -> "U03";
+            case "permission-stable" -> "U04";
+            case "permission-denied", "permission-error", "permission-timeout", "manager-unavailable" -> "U00";
             default -> "U01";
         };
         String level = switch (state) {
-            case "permission-granted", "enumerated" -> "success";
-            case "permission-retry", "settling", "not-enumerated" -> "warn";
-            case "permission-denied", "permission-error", "permission-aborted", "manager-unavailable" -> "error";
+            case "permission-gate-restart", "permission-unstable", "settling", "not-enumerated" -> "warn";
+            case "permission-denied", "permission-error", "permission-timeout", "manager-unavailable" -> "error";
             default -> "info";
         };
         trace(step, "USB", state, usbDetail, level);
@@ -495,11 +494,11 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         String detail = reason == null || reason.isBlank() ? state : state + " · " + reason;
         switch (state) {
             case "discovering" -> trace("N08", "FLIR", "discovering", "USB camera discovery scan started", "info");
-            case "permission-required" -> trace("N09", "USB", "permission", "FLIR ONE found; Android USB approval requested", "info");
+            case "permission-required" -> trace("N09", "USB", "permission", "waiting for Android FLIR USB authorization", "info");
             case "permission-denied" -> trace("N09", "USB", "denied", detail, "error");
-            case "connecting" -> trace("N10", "FLIR", "connecting", "USB permission granted; opening camera", "success");
-            case "ready" -> trace("N11", "FLIR", "stream-ready", "thermal stream discovered and configured", "success");
-            case "streaming" -> trace("N12", "FLIR", "streaming", "native thermal stream callback started", "success");
+            case "connecting" -> trace("N10", "FLIR", "connecting", "Android USB grant confirmed; blocking Camera.connect started", "info");
+            case "ready" -> trace("N11", "FLIR", "stream-ready", "Camera.connect returned and thermal stream was configured", "info");
+            case "streaming" -> trace("N12", "FLIR", "streaming", "native callback registered; waiting for first decoded thermal frame", "info");
             case "failed", "offline" -> trace("N00", "FLIR", state, detail, "error");
             default -> trace("N07", "FLIR", state, detail, "info");
         }

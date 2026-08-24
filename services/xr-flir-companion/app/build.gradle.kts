@@ -19,8 +19,8 @@ android {
         applicationId = "io.mxgenius.sensorbridge"
         minSdk = 34
         targetSdk = 34
-        versionCode = 13
-        versionName = "0.1.0-poc.13"
+        versionCode = 14
+        versionName = "0.1.0-poc.14"
         buildConfigField("String", "FLIR_SDK_VERSION", "\"2.22.0\"")
         ndk { abiFilters += "arm64-v8a" }
     }
