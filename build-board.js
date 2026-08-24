@@ -14,7 +14,7 @@
   const starterCards = [
     {
       id: 'question-sprint-configuration',
-      lane: 'question',
+      lane: 'sprint',
       title: 'Which physical configuration is the sprint target?',
       message: 'Lock the casing/model, thermal-camera position, Pi placement, battery representation, and cable route that the next integrated apparatus should prove.',
       owner: 'Joshua Millard + Thomas Hagy',
@@ -24,36 +24,36 @@
       updates: []
     },
     {
-      id: 'question-demonstration-done',
+      id: 'question-operations-connections',
       lane: 'question',
-      title: 'What must the demonstration prove to count as done?',
-      message: 'Confirm the minimum evidence for secure mounting, protected power/data routing, heat, balance, visibility, ergonomics, assembly order, and serviceability.',
-      owner: 'Dwayne Tillman',
-      author: 'Team board starter',
-      created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'question-thermal-acceptance-duration',
-      lane: 'question',
-      title: 'What qualifies poc.12 as thermally stable?',
-      message: 'Set the required number and duration of consecutive commissioning runs, including pin, reconnect, and headset-state changes, before the Quest thermal bridge is accepted.',
-      owner: 'Dwayne Tillman',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T10:18:00Z',
-      updated_at: '2026-08-24T10:18:00Z',
-      updates: []
-    },
-    {
-      id: 'question-ios-build33-owner',
-      lane: 'question',
-      title: 'Who signs off TestFlight Build 33?',
-      message: 'Assign the owner for physical-device acceptance and feedback sign-off after Apple finishes processing the build.',
+      title: 'What third-party connections does Operations need?',
+      message: 'List every external system or provider required for daily operations across parts and procurement, fleet data, manuals and maintenance records, communications, accounting, identity, storage, and remote support. For each connection, name the owner, access or credential status, sandbox and production availability, priority, and any blocking dependency.',
       owner: 'Unassigned',
       author: 'Week 23 closeout',
-      created_at: '2026-08-24T10:18:00Z',
-      updated_at: '2026-08-24T10:18:00Z',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
+      updates: []
+    },
+    {
+      id: 'question-pi-poc-stack',
+      lane: 'question',
+      title: 'Which POC devices and programs should run with the Pi?',
+      message: 'Name the hardware and software we want to prove with the Raspberry Pi, including sensors, scanners, cameras, microphones, radios, local services or models, protocols, power and data requirements, intended workflow, priority, and the evidence that would count as a successful POC.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
+      updates: []
+    },
+    {
+      id: 'question-structured-output-example',
+      lane: 'question',
+      title: 'Can we provide a model structured-output example to mimic?',
+      message: 'Attach one real or representative example of the exact structured output expected from the model: schema, field names, section order, labels, actions, evidence or citations, and empty or error states. A screenshot, annotated picture, or card image is preferred when available.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
       updates: []
     },
     {

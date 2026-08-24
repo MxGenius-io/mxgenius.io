@@ -58,8 +58,10 @@ test('the starter build list reflects the known apparatus work without live-test
   assert.match(js, /Accept Quest Sensor Bridge poc\.12 on hardware/);
   assert.match(js, /Complete TestFlight Build 33 device acceptance/);
   assert.match(js, /Run Rocky acceptance on Feedback and Parts/);
-  assert.match(js, /What qualifies poc\.12 as thermally stable\?/);
-  assert.match(js, /Who signs off TestFlight Build 33\?/);
+  assert.match(js, /What third-party connections does Operations need\?/);
+  assert.match(js, /Which POC devices and programs should run with the Pi\?/);
+  assert.match(js, /Can we provide a model structured-output example to mimic\?/);
+  assert.doesNotMatch(js, /What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?/);
   assert.match(js, /Disposition the FLIR libssh2 advisory/);
   assert.match(js, /Separate thermal and Pi transport paths/);
   assert.match(js, /Publish the shared provisional-patent workspace/);
