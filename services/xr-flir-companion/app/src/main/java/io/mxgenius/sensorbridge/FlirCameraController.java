@@ -2,6 +2,8 @@ package io.mxgenius.sensorbridge;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.flir.thermalsdk.ErrorCode;
 import com.flir.thermalsdk.ErrorCodeException;
@@ -27,6 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class FlirCameraController {
+    private static final int MAX_PERMISSION_ATTEMPTS = 2;
+
     interface Listener {
         void onCameraState(String state, String reason);
         void onFrame(Bitmap bitmap);
@@ -37,6 +41,7 @@ final class FlirCameraController {
     private final ExecutorService cameraWorker = Executors.newSingleThreadExecutor();
     private final ExecutorService frameWorker = Executors.newSingleThreadExecutor();
     private final UsbPermissionHandler usbPermissions = new UsbPermissionHandler();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Listener listener;
     private final Object updateLock = new Object();
     private final AtomicBoolean claimed = new AtomicBoolean();
@@ -72,7 +77,7 @@ final class FlirCameraController {
                 listener.onUsbDiagnostic(
                         "identity-found",
                         "FLIR Atlas discovered a USB identity · generation=" + generation);
-                activity.runOnUiThread(() -> requestPermissionOrConnect(identity, activity, generation));
+                mainHandler.post(() -> requestPermissionOrConnect(identity, activity, generation));
             }
 
             @Override public void onDiscoveryError(
@@ -106,15 +111,20 @@ final class FlirCameraController {
             connect(identity, generation);
             return;
         }
-        requestFlirPermission(identity, activity, generation);
+        requestFlirPermission(identity, activity, generation, 1);
     }
 
-    private void requestFlirPermission(Identity identity, Activity activity, int generation) {
+    private void requestFlirPermission(
+            Identity identity,
+            Activity activity,
+            int generation,
+            int attempt) {
         if (!isActiveGeneration(generation)) return;
         listener.onCameraState("permission-required", null);
         listener.onUsbDiagnostic(
                 "permission-requested",
                 "FLIR UsbPermissionHandler requested device access; waiting for its callback"
+                        + " · attempt=" + attempt
                         + " · generation=" + generation);
         try {
             usbPermissions.requestFlirOnePermisson(
@@ -143,13 +153,29 @@ final class FlirCameraController {
                         @Override public void error(ErrorType errorType, Identity failedIdentity) {
                             if (!isActiveGeneration(generation)) return;
                             if (errorType == ErrorType.DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION) {
+                                if (attempt >= MAX_PERMISSION_ATTEMPTS) {
+                                    claimed.set(false);
+                                    listener.onUsbDiagnostic(
+                                            "permission-error",
+                                            "FLIR UsbPermissionHandler reported device unavailable after the single deferred retry"
+                                                    + " · attempt=" + attempt
+                                                    + " · generation=" + generation);
+                                    listener.onCameraState(
+                                            "failed",
+                                            "usb-permission-device_unavailable_when_asked_permission");
+                                    return;
+                                }
                                 listener.onUsbDiagnostic(
                                         "permission-retry",
-                                        "FLIR documented a null Android UsbDevice on the first request;"
-                                                + " repeating UsbPermissionHandler for the same identity"
+                                        "FLIR reported device unavailable; queuing one retry after its receiver returns"
+                                                + " · next-attempt=" + (attempt + 1)
                                                 + " · generation=" + generation);
-                                activity.runOnUiThread(
-                                        () -> requestFlirPermission(identity, activity, generation));
+                                mainHandler.post(
+                                        () -> requestFlirPermission(
+                                                identity,
+                                                activity,
+                                                generation,
+                                                attempt + 1));
                                 return;
                             }
                             claimed.set(false);
@@ -179,7 +205,7 @@ final class FlirCameraController {
         listener.onUsbDiagnostic(
                 "reconnect",
                 "stopping the active FLIR stream before starting documented discovery again");
-        close(() -> activity.runOnUiThread(() -> discoverAndConnect(activity)));
+        close(() -> mainHandler.post(() -> discoverAndConnect(activity)));
     }
 
     private void close(Runnable afterClose) {

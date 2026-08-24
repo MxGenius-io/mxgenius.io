@@ -356,7 +356,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         usbState = state;
         usbDetail = detail == null || detail.isBlank() ? state : detail;
         String step = switch (state) {
-            case "discovery-start", "identity-found", "attached" -> "U01";
+            case "discovery-start", "identity-found" -> "U01";
             case "permission-requested" -> "U02";
             case "permission-retry", "reconnect" -> "U03";
             case "permission-existing", "permission-granted", "connect-start" -> "U04";
@@ -369,10 +369,6 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             default -> "info";
         };
         trace(step, "USB", state, usbDetail, level);
-    }
-
-    void recordUsbAttachment(String detail) {
-        onUsbDiagnostic("attached", detail == null || detail.isBlank() ? "Quest delivered FLIR USB attachment" : detail);
     }
 
     private void onRelayState(String state) {

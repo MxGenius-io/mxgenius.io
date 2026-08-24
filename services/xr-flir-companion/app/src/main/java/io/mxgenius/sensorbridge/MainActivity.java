@@ -7,8 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.graphics.Bitmap;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -19,8 +17,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-
-import java.util.Locale;
 
 public final class MainActivity extends Activity implements SensorBridgeService.StatusListener {
     private static final int HEADSET_CAMERA_PERMISSION_REQUEST = 4210;
@@ -38,8 +34,6 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     private boolean cameraConnectRequested;
     private boolean spatialLaunchStarted;
     private boolean firstFrameReceived;
-    private boolean usbAttachmentPending;
-    private String pendingUsbAttachmentDetail;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private final ServiceConnection connection = new ServiceConnection() {
@@ -48,9 +42,6 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             bound = true;
             service.setStatusListener(MainActivity.this);
             if (hasHeadsetCameraPermissions()) service.prepareHeadsetCamera();
-            if (usbAttachmentPending && pendingUsbAttachmentDetail != null) {
-                service.recordUsbAttachment(pendingUsbAttachmentDetail);
-            }
             renderActivation();
         }
 
@@ -82,13 +73,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         openImmersive = findViewById(R.id.return_to_browser);
         openImmersive.setOnClickListener(view -> openImmersiveScene());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
-        Intent initialIntent = getIntent();
-        if (isUsbAttachment(initialIntent)) {
-            activate(new Intent());
-            handleUsbAttachment(initialIntent);
-        } else {
-            activate(initialIntent);
-        }
+        activate(getIntent());
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -110,10 +95,6 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (isUsbAttachment(intent)) {
-            handleUsbAttachment(intent);
-            return;
-        }
         activate(intent);
     }
 
@@ -166,15 +147,6 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     && !"discovering".equals(camera)
                     && !"waiting-usb".equals(camera)
                     && !"permission-required".equals(camera)) {
-                cameraConnectRequested = true;
-                service.connectCamera(this);
-            }
-            if (usbAttachmentPending
-                    && bridge.startsWith("ready")
-                    && service != null
-                    && service.canConnectCamera()
-                    && cameraIdle) {
-                usbAttachmentPending = false;
                 cameraConnectRequested = true;
                 service.connectCamera(this);
             }
@@ -266,31 +238,6 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                         HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION
                 },
                 HEADSET_CAMERA_PERMISSION_REQUEST);
-    }
-
-    private static boolean isUsbAttachment(Intent intent) {
-        return intent != null && UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction());
-    }
-
-    private void handleUsbAttachment(Intent intent) {
-        UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice.class);
-        pendingUsbAttachmentDetail = device == null
-                ? "Quest delivered FLIR USB attachment without device metadata"
-                : String.format(
-                        Locale.ROOT,
-                        "Quest attached USB vid=%04x pid=%04x class=%d",
-                        device.getVendorId(),
-                        device.getProductId(),
-                        device.getDeviceClass());
-        usbAttachmentPending = true;
-        if (service != null) {
-            service.recordUsbAttachment(pendingUsbAttachmentDetail);
-            if (service.canStartCameraDiscovery()) {
-                usbAttachmentPending = false;
-                cameraConnectRequested = true;
-                service.connectCamera(this);
-            }
-        }
     }
 
     private void openImmersiveScene() {

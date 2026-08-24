@@ -73,7 +73,7 @@ if (-not (Test-Path -LiteralPath $projectWrapper -PathType Leaf)) {
     throw "Project Gradle wrapper not found: $projectWrapper"
 }
 $assembleTask = if ($Configuration -eq 'Release') { ':app:assembleRelease' } else { ':app:assembleDebug' }
-& $projectWrapper --project-dir $projectRoot ':app:testDebugUnitTest' $assembleTask
+& $projectWrapper --no-daemon --project-dir $projectRoot ':app:testDebugUnitTest' $assembleTask
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $apkName = if ($Configuration -eq 'Release') { 'app-release.apk' } else { 'app-debug.apk' }

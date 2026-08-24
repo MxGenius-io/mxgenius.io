@@ -65,15 +65,18 @@ foreach ($requiredManifestToken in @(
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
     'android.hardware.usb.host',
-    'android.hardware.usb.action.USB_DEVICE_ATTACHED',
-    '@xml/flir_usb_devices',
     'dataSync|camera',
     '@mipmap/mxgenius_launcher',
     '@mipmap/mxgenius_launcher_round'
 )) {
     Assert-ReleaseRequirement ($manifestSource.Contains($requiredManifestToken)) "Android manifest is missing $requiredManifestToken"
 }
-foreach ($forbiddenManifestToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+foreach ($forbiddenManifestToken in @(
+    'android.permission.BLUETOOTH_CONNECT',
+    'android.hardware.bluetooth',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED',
+    '@xml/flir_usb_devices'
+)) {
     Assert-ReleaseRequirement (-not $manifestSource.Contains($forbiddenManifestToken)) "FLIR companion must not depend on $forbiddenManifestToken"
 }
 
@@ -127,6 +130,8 @@ foreach ($requiredUsbLifecycleToken in @(
     'CommunicationInterface.USB',
     'permission-retry',
     'discoveryGeneration',
+    'MAX_PERMISSION_ATTEMPTS',
+    'mainHandler.post',
     'stable-session'
 )) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
@@ -138,16 +143,15 @@ foreach ($forbiddenUsbLifecycleToken in @(
     'ENUMERATION_POLL_MS',
     'GRANT_STABILITY_DELAY_MS',
     'MAX_PERMISSION_GATE_RESTARTS',
-    'usb-device-not-enumerated'
+    'usb-device-not-enumerated',
+    'runOnUiThread(() -> requestFlirPermission'
 )) {
     Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenUsbLifecycleToken)) "Quest USB lifecycle still contains custom permission behavior $forbiddenUsbLifecycleToken"
 }
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
 $usbFilterPath = Join-Path $resourceRoot 'xml\flir_usb_devices.xml'
-Assert-ReleaseRequirement (Test-Path -LiteralPath $usbFilterPath -PathType Leaf) 'FLIR USB attachment filter is missing'
-$usbFilterSource = Get-Content -Raw -LiteralPath $usbFilterPath
-Assert-ReleaseRequirement ($usbFilterSource.Contains('vendor-id="2507"')) 'FLIR USB attachment filter does not target USB-IF VID 09cb'
+Assert-ReleaseRequirement (-not (Test-Path -LiteralPath $usbFilterPath -PathType Leaf)) 'competing FLIR USB attachment filter is still present'
 Assert-ReleaseRequirement (-not (Test-Path -LiteralPath (Join-Path $resourceRoot 'drawable-nodpi\mxgenius_launcher.png'))) 'obsolete drawable-nodpi launcher image is still packaged'
 foreach ($density in @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')) {
     foreach ($icon in @('mxgenius_launcher.png', 'mxgenius_launcher_round.png', 'mxgenius_launcher_foreground.png')) {
@@ -210,19 +214,22 @@ foreach ($requiredPackagedToken in @(
     'android.permission.CAMERA',
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
-    'android.hardware.usb.host',
-    'android.hardware.usb.action.USB_DEVICE_ATTACHED'
+    'android.hardware.usb.host'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
 }
-foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+foreach ($forbiddenPackagedToken in @(
+    'android.permission.BLUETOOTH_CONNECT',
+    'android.hardware.bluetooth',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED'
+)) {
     Assert-ReleaseRequirement (-not $manifestTree.Contains($forbiddenPackagedToken)) "packaged FLIR manifest still contains $forbiddenPackagedToken"
 }
 
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
-Assert-ReleaseRequirement ($packagedResources.Contains('xml/flir_usb_devices')) 'packaged FLIR USB attachment filter is missing'
+Assert-ReleaseRequirement (-not $packagedResources.Contains('xml/flir_usb_devices')) 'competing FLIR USB attachment filter is still packaged'
 foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
 }
