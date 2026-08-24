@@ -22,7 +22,10 @@ function clean(value, fallback = '') {
 function traceSafe(value, fallback = '—') {
   return clean(value, fallback)
     .replace(/([?&](?:token|localToken|access_token)=)[^&#\s]+/gi, '$1[redacted]')
-    .replace(/[A-Za-z0-9_-]{32,128}/g, '[redacted]');
+    .replace(/(authorization\s*[:=]\s*(?:bearer|basic)\s+)[^\s,;]+/gi, '$1[redacted]')
+    .replace(/((?:token|localToken|access_token)\s*[:=]\s*)["']?[A-Za-z0-9._~-]{8,256}["']?/gi, '$1[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, '[redacted]')
+    .replace(/\b[0-9a-f]{64}\b/gi, '[redacted]');
 }
 
 function bridgeLabel(value) {

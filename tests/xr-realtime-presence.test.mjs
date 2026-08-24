@@ -8,6 +8,12 @@ const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url
 const sensors = await readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 
+const traceHelpers = sensors.slice(
+  sensors.indexOf('function clean'),
+  sensors.indexOf('function bridgeLabel')
+);
+const traceSafe = Function(`${traceHelpers}; return traceSafe;`)();
+
 test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and pin controls', () => {
   assert.match(presence, /new THREE\.Points\(/);
   assert.match(presence, /new THREE\.CanvasTexture\(/);
@@ -93,6 +99,17 @@ test('sensor scene supports a head-following or world-pinned thermal screen whil
   assert.match(sensors, /headset\.snapshot\.result/);
   assert.match(sensors, /this\.pendingSnapshots/);
   assert.match(globe, /onSnapshotRequest: \(\) => xrSensors\.requestHeadsetSnapshot\(\)/);
+});
+
+test('XR trace keeps native failure reasons while redacting actual credential shapes', () => {
+  const reason = 'offline · camera-disconnected-error-code-connection-lost-during-stream';
+  assert.equal(traceSafe(reason), reason);
+  assert.equal(
+    traceSafe('ws://127.0.0.1/thermal?sessionId=case-42&token=abcdefghijklmnopqrstuvwxyz0123456789'),
+    'ws://127.0.0.1/thermal?sessionId=case-42&token=[redacted]'
+  );
+  assert.equal(traceSafe('Authorization: Bearer secret-value-123456789'), 'Authorization: Bearer [redacted]');
+  assert.equal(traceSafe(`digest ${'a'.repeat(64)}`), 'digest [redacted]');
 });
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
