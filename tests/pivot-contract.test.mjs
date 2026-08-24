@@ -77,7 +77,7 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
 });
 
 test('Quest companion config uses the current Alpha candidate build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.17'/);
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.18'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
@@ -86,18 +86,18 @@ test('Quest companion config uses the current Alpha candidate build identity', (
   assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
   assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.uploadedBuild.versionCode, 17);
-  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.17');
+  assert.equal(metaRelease.uploadedBuild.versionCode, 18);
+  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.18');
   assert.equal(metaRelease.uploadedBuild.status, 'UploadedPendingMetaVerification');
-  assert.equal(metaRelease.build.versionCode, 17);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.17');
+  assert.equal(metaRelease.build.versionCode, 18);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.18');
   assert.equal(metaRelease.build.metaTestStatus, 'UploadedPendingMetaVerification');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 17/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.17"/);
+  assert.match(companionGradle, /versionCode = 18/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.18"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -140,6 +140,13 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(companionService, /setBridgeState\("ready", true, "camera-runtime-ready"\)/);
   assert.doesNotMatch(companionService, /PiDiagnosticsClient|activation-required/);
   assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
+  assert.match(companionLayout, /android:id="@\+id\/enter_immersive"/);
+  assert.match(companionLayout, /android:id="@\+id\/power_guidance"/);
+  assert.match(companionActivity, /R\.id\.enter_immersive/);
+  assert.match(companionActivity, /requestImmersiveEntry/);
+  assert.match(companionActivity, /operator requested native immersive mode after the first decoded frame/);
+  assert.doesNotMatch(companionActivity, /postDelayed\(this::openImmersiveScene/);
+  assert.doesNotMatch(companionActivity, /startActivity\(immersive\);\s*finish\(\)/);
   assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
   assert.match(companionActivity, /if \(data != null\)[\s\S]*BridgeActivation\.fromIntent/);
   assert.match(companionActivity, /Intent serviceIntent = new Intent\(this, SensorBridgeService\.class\)[\s\S]*startForegroundService\(serviceIntent\)/);

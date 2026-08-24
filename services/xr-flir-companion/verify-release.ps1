@@ -83,6 +83,9 @@ foreach ($forbiddenManifestToken in @(
 $layoutSourcePath = Join-Path $projectRoot 'app\src\main\res\layout\activity_main.xml'
 $layoutSource = Get-Content -Raw -LiteralPath $layoutSourcePath
 Assert-ReleaseRequirement ($layoutSource.Contains('@+id/thermal_preview')) 'standalone panel is missing the native thermal preview'
+Assert-ReleaseRequirement ($layoutSource.Contains('@+id/enter_immersive')) 'standalone panel is missing explicit native VR entry'
+Assert-ReleaseRequirement ($layoutSource.Contains('@+id/power_guidance')) 'standalone panel is missing powered USB guidance'
+Assert-ReleaseRequirement ($layoutSource.Contains('ENTER VR')) 'standalone panel is missing the operator VR action'
 foreach ($forbiddenLayoutToken in @('@+id/connect_pi', '@+id/pi_status', 'Connect MxGenius Pi')) {
     Assert-ReleaseRequirement (-not $layoutSource.Contains($forbiddenLayoutToken)) "standalone FLIR panel still contains $forbiddenLayoutToken"
 }
@@ -229,6 +232,8 @@ foreach ($forbiddenPackagedToken in @(
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
+Assert-ReleaseRequirement ($packagedResources.Contains('id/enter_immersive')) 'packaged standalone panel is missing id/enter_immersive'
+Assert-ReleaseRequirement ($packagedResources.Contains('id/power_guidance')) 'packaged standalone panel is missing id/power_guidance'
 Assert-ReleaseRequirement (-not $packagedResources.Contains('xml/flir_usb_devices')) 'competing FLIR USB attachment filter is still packaged'
 foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"

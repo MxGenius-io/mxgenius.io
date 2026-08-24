@@ -54,6 +54,22 @@
             android:layout_marginTop="8dp"
             android:textColor="#9DB1C6"
             android:textSize="15sp" />
+        <TextView
+            android:id="@+id/power_guidance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="LIVE THERMAL · Keep the FLIR on a powered USB-C path. A power drop can detach and re-enumerate the camera."
+            android:textColor="#FBBF24"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+        <Button
+            android:id="@+id/enter_immersive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:enabled="false"
+            android:text="ENTER VR · WAITING FOR THERMAL FRAME" />
         <ImageView
             android:id="@+id/thermal_preview"
             android:layout_width="match_parent"
@@ -75,13 +91,6 @@
             android:layout_marginTop="10dp"
             android:text="ARM RGB SNAPSHOT" />
         <Button
-            android:id="@+id/return_to_browser"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:enabled="false"
-            android:text="Waiting for FLIR stream…" />
-        <Button
             android:id="@+id/stop_bridge"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -91,7 +100,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="This app owns FLIR permission, decoding, and the immersive thermal panel in one process. After the first native frame it enters spatial mode; PIN HERE freezes the screen in the world and FOLLOW HEAD restores head-relative placement."
+            android:text="This app owns FLIR permission, decoding, and the immersive thermal panel in one process. After the first native frame, press ENTER VR; PIN HERE freezes the screen in the world and FOLLOW HEAD restores head-relative placement."
             android:textColor="#718DA3"
             android:textSize="13sp" />
     </LinearLayout>

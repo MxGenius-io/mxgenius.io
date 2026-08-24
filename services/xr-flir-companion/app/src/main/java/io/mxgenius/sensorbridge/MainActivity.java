@@ -10,8 +10,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Handler;
-import android.os.Looper;
 import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.Button;
@@ -32,9 +30,8 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     private boolean bound;
     private BridgeActivation activation;
     private boolean cameraConnectRequested;
-    private boolean spatialLaunchStarted;
+    private boolean immersiveLaunchInFlight;
     private boolean firstFrameReceived;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
@@ -70,8 +67,8 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         });
         armSnapshot = findViewById(R.id.arm_snapshot);
         armSnapshot.setOnClickListener(view -> requestHeadsetCameraPermissionsIfNeeded());
-        openImmersive = findViewById(R.id.return_to_browser);
-        openImmersive.setOnClickListener(view -> openImmersiveScene());
+        openImmersive = findViewById(R.id.enter_immersive);
+        openImmersive.setOnClickListener(view -> requestImmersiveEntry());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
         activate(getIntent());
     }
@@ -95,11 +92,17 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        activate(intent);
+        if (intent != null && intent.getData() != null) {
+            activate(intent);
+            return;
+        }
+        immersiveLaunchInFlight = false;
+        if (service != null) renderActivation();
     }
 
     @Override protected void onStart() {
         super.onStart();
+        immersiveLaunchInFlight = false;
         bindService(new Intent(this, SensorBridgeService.class), connection, Context.BIND_AUTO_CREATE);
     }
 
@@ -135,10 +138,14 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     : "ARM RGB SNAPSHOT");
             armSnapshot.setEnabled(service == null || !service.headsetCameraArmed());
             boolean managedLaunch = activation != null;
-            openImmersive.setEnabled(firstFrameReceived);
-            openImmersive.setText(firstFrameReceived
-                    ? "Enter native immersive thermal"
-                    : "streaming".equals(camera) ? "Waiting for first thermal frame…" : "Waiting for FLIR stream…");
+            openImmersive.setEnabled(firstFrameReceived && !immersiveLaunchInFlight);
+            openImmersive.setText(immersiveLaunchInFlight
+                    ? "OPENING NATIVE VR…"
+                    : firstFrameReceived
+                            ? "ENTER VR · LIVE THERMAL READY"
+                            : "streaming".equals(camera)
+                                    ? "ENTER VR · WAITING FOR FIRST FRAME"
+                                    : "ENTER VR · WAITING FOR FLIR STREAM");
             if (managedLaunch
                     && !cameraConnectRequested
                     && bridge.startsWith("ready")
@@ -157,22 +164,16 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         runOnUiThread(() -> {
             thermalPreview.setImageBitmap(bitmap);
             firstFrameReceived = true;
+            immersiveLaunchInFlight = false;
             openImmersive.setEnabled(true);
-            openImmersive.setText("Enter native immersive thermal");
-            if (activation != null && !spatialLaunchStarted) {
-                spatialLaunchStarted = true;
-                bridgeStatus.setText("Bridge · first frame ready · entering native spatial mode");
-                if (service != null) service.recordTrace(
-                        "N14", "SPATIAL", "ready", "first frame confirmed; native immersive launch scheduled", "success");
-                mainHandler.postDelayed(this::openImmersiveScene, 450L);
-            }
+            openImmersive.setText("ENTER VR · LIVE THERMAL READY");
         });
     }
 
     private void activate(Intent source) {
         activation = null;
         cameraConnectRequested = false;
-        spatialLaunchStarted = false;
+        immersiveLaunchInFlight = false;
         firstFrameReceived = false;
         String activationMessage = null;
         Uri data = source == null ? null : source.getData();
@@ -191,14 +192,14 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         if (activation != null) {
             sessionStatus.setText("Session · " + shortSession(activation.sessionId));
             relayStatus.setText("Spatial · native panel · optional transport " + activation.relayLabel());
-            openImmersive.setText("Waiting for FLIR stream…");
+            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
             openImmersive.setEnabled(false);
         } else {
             sessionStatus.setText(activationMessage == null
                     ? "Standalone · local thermal preview"
                     : "Standalone · " + activationMessage);
             relayStatus.setText("Spatial · native panel ready");
-            openImmersive.setText("Waiting for FLIR stream…");
+            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
             openImmersive.setEnabled(false);
         }
         bridgeStatus.setText("Bridge · starting · foreground-active");
@@ -240,6 +241,20 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                 HEADSET_CAMERA_PERMISSION_REQUEST);
     }
 
+    private void requestImmersiveEntry() {
+        if (!firstFrameReceived || immersiveLaunchInFlight) return;
+        immersiveLaunchInFlight = true;
+        openImmersive.setEnabled(false);
+        openImmersive.setText("OPENING NATIVE VR…");
+        if (service != null) service.recordTrace(
+                "N14",
+                "SPATIAL",
+                "operator-entry",
+                "operator requested native immersive mode after the first decoded frame",
+                "success");
+        openImmersiveScene();
+    }
+
     private void openImmersiveScene() {
         try {
             if (service != null) service.recordTrace(
@@ -248,11 +263,10 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             if (activation != null) activation.putInto(immersive);
             immersive.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(immersive);
-            finish();
         } catch (RuntimeException error) {
             if (service != null) service.recordTrace(
                     "N15", "SPATIAL", "failed", "native immersive activity could not be opened", "error");
-            spatialLaunchStarted = false;
+            immersiveLaunchInFlight = false;
             bridgeStatus.setText("Bridge · streaming · native spatial launch failed");
             openImmersive.setEnabled(true);
         }

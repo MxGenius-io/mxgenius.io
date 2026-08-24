@@ -20,7 +20,7 @@ The native immersive panel shows the latest 18 events and the Quest service reta
 | `N11` | FLIR | A thermal stream was discovered and configured. |
 | `N12` | FLIR | Native stream callbacks began. |
 | `N13` | Frame | The bridge decoded its first native thermal frame. |
-| `N14` | Spatial | The first frame was confirmed and native immersive launch was scheduled. |
+| `N14` | Spatial | The operator pressed the explicit VR-entry button after the first frame was confirmed. |
 | `N15` | Spatial | Horizon OS was asked to open the native immersive activity. |
 | `N16` | Spatial | The native thermal panel was created in the Quest scene. |
 | `N17` | Spatial | The panel changed between head-follow and world-pinned placement. |
