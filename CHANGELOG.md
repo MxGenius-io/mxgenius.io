@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-08-24: Completed the browser half of the MXGenius iOS spatial-AR sprint: the fleet globe now supplies native urgency metadata for browser-matched map filters, globe raycasts populate the JetNet location panel, aircraft selections load detail and gallery data, and the native AI microphone opens and closes the same authenticated Realtime voice session used by the browser and VR scene. Added a scoped `MXRealtimeVoiceBridge` so the AR controls can safely reach the chat-owned WebRTC session, including clean disconnect and distance-aware HRTF audio access. The matching native wrapper shipped as MXGenius 3.2.0 build 33 and was accepted for TestFlight processing.
 - 2026-08-19: Unblocked the parts stock lifecycle, which could previously receive a part and never release it: every confirmed unit was inserted with its status hardcoded to `quarantine` and no code moved it anywhere else, so only one of the eleven inventory event types the schema defines was reachable. Added the stock unit transition graph to the shared domain crate, then the movements that use it — receiving-inspection disposition (`POST /api/parts/units/:id/transitions`), issue, transfer, reserve, return, scrap, ship, per-unit cycle counting (`POST .../quantity`), and lot splitting (`POST .../splits`) — plus versioned metadata correction (`PATCH /api/parts/units/:id`, emitting `metadata_corrected`) and inventory location CRUD. Every ledger mutation carries a signed single-use confirmation bound to the unit and its version; releasing stock from quarantine is additionally restricted to Quality, Manager, and Administrator as an inspection buy-off, while rejecting stays open to any role that can receive. Added a Shortages view setting open-case `part_requirements` against genuinely free stock (quarantined, reserved, and issued stock excluded, unacceptable condition codes excluded, AOG first), a Locations view, status and location filters on the inventory grid, and a manual-entry path in the receiving wizard, which previously could not create a part at all without an image upload. All eleven event types are now reachable and a test asserts it.
 - 2026-08-18: Added a full triage workflow to the org-wide Feedback Queue: every report now gets a stable ticket number (`FB-1042`, shown to the submitter too, including in the post-submit confirmation), a Manager/Administrator-gated `PATCH /api/feedback/:id` route moves a report through status (New / In progress / Needs info / Resolved / Declined) and records admin-only internal notes (never returned to the submitter), and the Feedback Queue (Admin) page exposes both from the detail view alongside a one-click "Contact submitter" mailto link and a "hide resolved & declined" filter on by default. The `GET /api/feedback/admin` route (added earlier today) backs the queue itself. Assignee and in-app notifications remain out of scope.
 - 2026-08-17: Added lean v1 "Report a Bug" and "Request a Feature" feedback entry points: two independent header icons (and a `b` shortcut for bugs) open a dashboard-wide reporter modal with automatic viewport screenshot capture, freehand/rectangle/arrow/text annotation, clipboard-paste image replacement, and a title/description form (severity, Low/Medium/High, applies to bug reports only); submissions persist to a new `feedback_reports` table with an optional private blob-backed screenshot, a dismissable post-submit confirmation message, and a My Feedback page in Settings listing a reporter's own submissions. AI enrichment, dedup, notifications, an admin queue, and mockups are explicitly deferred to a later phase.
@@ -16,6 +17,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ---
 
 ## [Unreleased]
+
+### Added — Native iOS spatial AR parity
+
+- Added the native AR bridge payload for browser-matched Active Case, AOG, 12K+ AFTT, 8K+ AFTT, Other, and All globe filters.
+- Connected native globe peg and raycast selections to the existing JetNet location workflow, with aircraft-row selections loading authenticated aircraft details and bounded gallery images.
+- Connected native AI spatial-audio updates to the browser's Realtime media element using HRTF panning and inverse-distance attenuation.
+
+### Fixed — Native AR Realtime voice
+
+- Added a scoped `MXRealtimeVoiceBridge` around the chat-owned WebRTC session so the native AR microphone can connect, disconnect, mute, and expose its audio element without referencing out-of-scope state.
+- Made AR scene closure cleanly disconnect a Realtime session opened by AR and reset its spatial-audio graph.
+- Added structure-test coverage for the native-to-Realtime bridge; the full suite passes with 221 tests.
 
 ### Changed — Landing page hero and carousel
 
