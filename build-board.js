@@ -68,6 +68,39 @@
       updates: []
     },
     {
+      id: 'sprint-quest-poc12-acceptance',
+      lane: 'sprint',
+      title: 'Accept Quest Sensor Bridge poc.12 on hardware',
+      message: 'Repeat the full FLIR commissioning run, require U01 enumeration, U02 authorization, U04 grant, and W14 PASS, then pin and reconnect the thermal panel without flicker, panic, or an orphaned camera session.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-ios-build33-acceptance',
+      lane: 'sprint',
+      title: 'Complete TestFlight Build 33 device acceptance',
+      message: 'After Apple processing, validate portrait and landscape launch, AR globe placement, independent anchors, CAM-follow and world lock, panel navigation, Realtime microphone control, and spatial audio on a physical device.',
+      owner: 'Team',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-feedback-parts-acceptance',
+      lane: 'sprint',
+      title: 'Run Rocky acceptance on Feedback and Parts',
+      message: 'Exercise real team roles through feedback submission and triage, receiving, procurement, traceability, rotable/core obligations, cannibalization gates, and bulk-import rollback; record remaining gaps as tickets.',
+      owner: 'Thomas Hagy',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
       id: 'complete-sensor-bridge',
       lane: 'complete',
       title: 'Quest Sensor Bridge accepted in Alpha',
@@ -98,6 +131,50 @@
       author: 'Team board starter',
       created_at: '2026-08-17T00:00:00Z',
       updated_at: '2026-08-17T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-deck-landing-page',
+      lane: 'complete',
+      title: 'Publish the investor-deck landing page',
+      message: 'The pitch deck now drives one flowing public story with aviation imagery, the retained media carousel, a compact AI entry point, the canonical logo, and current live smoke coverage.',
+      owner: 'Joshua Millard + Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-feedback-parts-azure',
+      lane: 'complete',
+      title: 'Promote Feedback and Parts expansion to Azure',
+      message: 'The authenticated feedback/debug flow and Parts migrations 0019–0023 reached a healthy production revision with readiness, fail-closed access, and rollback gates preserved.',
+      owner: 'Thomas Hagy + Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-ios-build33-upload',
+      lane: 'complete',
+      title: 'Upload native spatial AR Build 33 to TestFlight',
+      message: 'The signed MxGenius 3.2.0 arm64 archive adds the ARKit fleet globe, independent anchors, camera placement, world lock, Realtime microphone control, spatial audio, and native MxGenius branding; App Store Connect accepted the upload.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-map-xr-refinement',
+      lane: 'complete',
+      title: 'Refine the fleet map and XR sensor workspace',
+      message: 'Higher-quality map textures, stable zoom clusters, panel-safe marker layering, denser AI particles, managed mic lifecycle, snapshots, and the head-follow/world-pin thermal screen are integrated.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
       updates: []
     }
   ];

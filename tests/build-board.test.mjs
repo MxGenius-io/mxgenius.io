@@ -55,8 +55,14 @@ test('the starter build list reflects the known apparatus work without live-test
   assert.match(js, /Refine the apparatus mount and cable routing/);
   assert.match(js, /Run the integrated headset apparatus test/);
   assert.match(js, /Smoke-check the recovered manual image path/);
+  assert.match(js, /Accept Quest Sensor Bridge poc\.12 on hardware/);
+  assert.match(js, /Complete TestFlight Build 33 device acceptance/);
+  assert.match(js, /Run Rocky acceptance on Feedback and Parts/);
   assert.match(js, /Separate thermal and Pi transport paths/);
   assert.match(js, /Publish the shared provisional-patent workspace/);
+  assert.match(js, /Publish the investor-deck landing page/);
+  assert.match(js, /Promote Feedback and Parts expansion to Azure/);
+  assert.match(js, /Upload native spatial AR Build 33 to TestFlight/);
 });
 
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {

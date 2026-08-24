@@ -30,6 +30,8 @@ const reportDisplay = await readFile(new URL('../report-display.html', import.me
 const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
 const week19Report = await readFile(new URL('../Generated Reports/week-19/week-19-report.md', import.meta.url), 'utf8');
 const week22Report = await readFile(new URL('../Generated Reports/week-22/week-22-report.md', import.meta.url), 'utf8');
+const week23Report = await readFile(new URL('../Generated Reports/week-23/week-23-report.md', import.meta.url), 'utf8');
+const week23ReportScript = await readFile(new URL('../Generated Reports/week-23/week-23-report.js', import.meta.url), 'utf8');
 
 function matches(pattern, text = dashboard) {
   return [...text.matchAll(pattern)].map((match) => match[1]);
@@ -94,11 +96,25 @@ test('report display preserves external image schemes and constrains report medi
 });
 
 test('progress banner identifies the latest published report', () => {
-  assert.match(progress, />Week 22 Ready</);
+  assert.match(progress, />Week 23 Ready</);
   assert.match(progress, /Workflow Hardening &amp; Parts/);
   assert.match(progress, /Fleet, Market &amp; Demo Integration/);
   assert.doesNotMatch(progress, /viewReport\(20\)|viewReport\(21\)/);
   assert.match(progress, /viewReport\(22\)/);
+  assert.match(progress, /viewReport\(23\)/);
+});
+
+test('week 23 report credits the team and preserves release evidence boundaries', () => {
+  assert.match(week23Report, /## Executive Summary/);
+  assert.match(week23Report, /Kudos first to Josh/);
+  assert.match(week23Report, /Rocky turned “report a bug” into an accountable debug flow/);
+  assert.match(week23Report, /Native iOS became its own spatial experience/);
+  assert.match(week23Report, /60 commits after the Week 22 cutoff/);
+  assert.match(week23Report, /signed MxGenius 3\.2\.0 Build 33/);
+  assert.match(week23Report, /0\.1\.0-poc\.12/);
+  assert.match(week23Report, /not treated as a resolved hardware issue until repeat testing is stable/);
+  const embeddedReport = week23ReportScript.match(/^reportLoaded\(`([\s\S]*)`\);\s*$/)?.[1];
+  assert.equal(embeddedReport, week23Report.trimEnd());
 });
 
 test('week 22 report separates validated plumbing from pending live headset tests', async () => {
