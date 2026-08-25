@@ -1,6 +1,144 @@
 # MXGenius Azure Deployment Plan
 
-Status: Deployed — 2026-08-22 Feedback and Parts Expansion
+Status: Deployed — 2026-08-25 Parts Model Extraction
+
+## Parts Model Extraction Delta — 2026-08-25
+
+### Project overview and approval
+
+- **Goal:** promote the completed Parts receiving extraction path that sends the
+  existing private JPEG, PNG, WebP, or PDF asset through the MXGenius Responses
+  model, returns strict-schema candidate metadata, and keeps Rocky's existing
+  human review and receiving controls authoritative.
+- **Path:** MODIFY the existing production application plane with one immutable
+  `mxg-core` image revision and the already-published static frontend at Git
+  commit `f8d95cbf1cef574b5cd0d75c98bef0444788b93a`.
+- **Approval:** on August 25, 2026, the user explicitly authorized pushing the
+  build-ready change to Azure and asked for confirmation before notifying Rocky.
+- **Azure context:** reuse `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), `centralus`, resource group
+  `mxg-rg-50106`, registry `mxgacr50106`, Container Apps environment
+  `mxg-cae-50106`, and Container App `mxg-core`.
+- **Classification / scale / budget:** existing small production pilot,
+  cost-optimized within the current service envelope. No data-residency,
+  subscription-policy, or architecture change is introduced; the live
+  subscription currently has no policy assignments.
+
+### Components, recipe, and architecture
+
+| Component | Type | Technology | Deployment target |
+|---|---|---|---|
+| Parts extraction API | Containerized API | Rust / Axum / SQLx / OpenAI Responses | Existing `mxg-core` Container App |
+| Parts review | Static frontend | HTML / CSS / JavaScript | Existing GitHub Pages release from `main` |
+| Evidence | Private files | Existing Azure Blob Storage | Existing `documents` container |
+| Extraction audit | Relational state | Existing PostgreSQL schema | Existing production database |
+
+- **Recipe:** existing Azure CLI + remote ACR build + Container Apps revision
+  promotion. No AZD, Bicep, Terraform, new resource, or generated infrastructure
+  artifact applies to this application-only delta.
+- **Specialized technology check:** no Copilot SDK, Azure Functions, APIM,
+  AI-gateway, AKS, or cross-cloud marker applies.
+- **Capacity:** 0 new Azure resources, 0 new replicas, and no SKU, quota, region,
+  scale, ingress, or topology change. Existing resource totals and service
+  quotas are unchanged, so no provisioning capacity is consumed.
+
+### Release contents and security boundaries
+
+- Include backend commit `86895d1a59129b9f686f32c2cdb3f2049d1e5062`,
+  replacing the Document Intelligence plus regex request path with the existing
+  server-held Responses client and strict schema.
+- Include frontend closure commit
+  `f8d95cbf1cef574b5cd0d75c98bef0444788b93a`, showing extraction warnings,
+  source excerpts, page references, and an authenticated private-source preview
+  through the existing `assetId`.
+- Reuse the existing `OPENAI_API_KEY` secret reference `openai-key`; create no
+  credential and expose no key or Blob URL to the browser. Responses use
+  `store: false` and model-derived values carry no synthetic confidence, which
+  keeps every candidate in human review.
+- Preserve all current Container App environment variables, secrets, managed
+  identity, RBAC, ingress, revision mode, and scale settings. The dormant
+  Document Intelligence setting and role remain unchanged for rollback safety.
+- No database migration is included. Existing extraction run fields already
+  record provider, model version, source references, and candidates.
+
+### Validation and promotion gates
+
+- [x] User approved this application-only plan and the existing subscription and
+  Central US location.
+- [x] Git `main` is clean, synchronized with `origin/main`, and pinned to
+  `f8d95cbf1cef574b5cd0d75c98bef0444788b93a`.
+- [x] `npm test` passes (224 tests, 0 failures).
+- [x] `cargo fmt --all -- --check` passes.
+- [x] `cargo test --locked --workspace` passes (193 tests, 0 failures).
+- [x] `cargo clippy --locked --workspace --all-targets -- -D warnings` passes.
+- [x] `cargo build --locked --release -p mxgenius-mcp` passes.
+- [x] Live preflight returns HTTP 200 for `/healthz`, `/readyz`, and `/adapterz`.
+- [x] Live configuration confirms `OPENAI_API_KEY` still references
+  `openai-key`, and that key can access the configured/default extraction model.
+- [x] A remote ACR build publishes one immutable
+  `mxg-core:parts-model-f8d95cb-20260825` image.
+- [x] One new revision with suffix `partsmodel-f8d95cb` becomes Healthy,
+  Running, latest-ready, and receives 100% traffic in existing Single mode.
+- [x] Post-promotion health/readiness/adapter checks return HTTP 200,
+  unauthenticated Parts extraction fails closed, and startup logs contain no
+  migration, panic, or server-start failure.
+
+### Validation proof
+
+Validated at `2026-08-25T06:42:47-04:00` against source commit
+`f8d95cbf1cef574b5cd0d75c98bef0444788b93a`:
+
+- The frontend suite passed 224 tests; Rust formatting, 193 workspace tests,
+  strict Clippy, and the locked optimized release build all passed.
+- Azure ACR build-only run `cj1x` built the complete 18-step Dockerfile from
+  the exact `services/mcp` context with `--no-push` and completed successfully.
+- The current production revision returned HTTP 200 from `/healthz`,
+  `/readyz`, and `/adapterz` before promotion.
+- The existing `openai-key` secret reference was resolved without disclosure;
+  the API was reachable and `gpt-5.4-mini` was available.
+- The subscription is Enabled, the existing resource group, Container Apps
+  environment, registry, and app all report successful/running state, and the
+  subscription has no Azure Policy assignments.
+- Static infrastructure and RBAC validation are not applicable because this
+  application-only release contains no Bicep, Terraform, resource, identity,
+  or role-assignment change. Live verification confirms the app identity still
+  has `Storage Blob Data Contributor` on the private `documents` container;
+  the dormant Document Intelligence role is preserved for rollback.
+- The current app uses its existing ACR credential secret, so no new `AcrPull`
+  assignment or RBAC propagation wait is introduced. Rollback digest is
+  `sha256:49c9d45e8d4d30ab015ab3af81d18d94bab82a0e5e4f977bf9e6b045f2a64696`.
+
+### Deployment proof
+
+Deployed and verified at `2026-08-25T06:52:03-04:00`:
+
+- ACR run `cj1y` published
+  `mxgacr50106.azurecr.io/mxg-core:parts-model-f8d95cb-20260825` with digest
+  `sha256:0ff7da2287b185da78057191be66abf60e79ec5abc1ed180a66bb8ad76be3384`.
+- Container Apps revision `mxg-core--partsmodel-f8d95cb` is active, Healthy,
+  Running, Provisioned, and latest-ready with one replica. Existing Single
+  revision mode sends 100% of ingress traffic to the latest revision.
+- The app reports provisioning `Succeeded` and serves the promoted image at
+  `https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io`.
+- Post-promotion `/healthz`, `/readyz`, and `/adapterz` each returned HTTP 200;
+  unauthenticated `POST /api/parts/assets/{id}/extractions` returned HTTP 401.
+- Startup logs show existing migrations recognized, 45 tools / 15 resources /
+  8 prompts loaded, and the server listening on port 3030 with no panic,
+  migration failure, or startup error.
+- `OPENAI_API_KEY` remains bound to `openai-key`. No secret value was printed,
+  changed, or exposed.
+- `https://mxgenius.io/dashboard.html` returned HTTP 200 and references the
+  release-matched `parts-workspace.css?v=15` and
+  `parts-workspace.js?v=19` assets.
+
+### Rollback
+
+- The prior rollback image remains available as
+  `mxgacr50106.azurecr.io/mxg-core:feedback-parts-9cc2b10-20260822` and revision
+  `mxg-core--feedbackparts9cc2b10`.
+- If the candidate fails to build, start, become ready, authenticate, reach the
+  model boundary, or pass health checks, restore the prior image. Do not delete
+  resources, data, assets, revisions, secrets, or role assignments.
 
 ## Feedback and Parts Expansion Delta — 2026-08-22
 
