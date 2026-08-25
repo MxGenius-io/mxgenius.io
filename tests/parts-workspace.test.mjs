@@ -69,6 +69,23 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /crypto\.randomUUID\(\)/);
   });
 
+  await t.test('model warnings and source evidence stay attached to the existing asset review', () => {
+    assert.match(js, /state\.extractionWarnings = Array\.isArray\(extraction\.warnings\)/);
+    assert.match(js, /candidate\.sourceRegion\?\.sourceExcerpt/);
+    assert.match(js, /candidate\.sourceRegion\?\.pageNumber/);
+    assert.match(js, /escapeHtml\(warning\.trim\(\)\)/);
+    assert.match(js, /escapeHtml\(sourceExcerpt\)/);
+    assert.match(js, /id="btnWizardViewSource"/);
+    assert.match(js, /client\.downloadAsset\(\{ assetId: state\.asset\.id/);
+    assert.match(js, /URL\.createObjectURL\(blob\)/);
+    assert.match(js, /URL\.revokeObjectURL\(state\.sourcePreviewUrl\)/);
+    assert.match(js, /viewer\.setAttribute\('sandbox', ''\)/);
+    assert.match(js, /function closeWizard\(\) \{\s*clearWizardSourcePreview\(\)/);
+    assert.match(css, /\.extraction-warning-panel/);
+    assert.match(css, /\.candidate-source-evidence/);
+    assert.match(css, /\.wizard-source-preview/);
+  });
+
   await t.test('receiving can proceed to details without uploading evidence', () => {
     assert.match(js, /id="btnWizardSkipCapture"/);
     assert.match(js, /async function skipCapture/);

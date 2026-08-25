@@ -20,7 +20,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed — Parts document extraction
 
-- Routed Parts evidence extraction through the existing MXGenius Responses model and Azure-provided `OPENAI_API_KEY`, replacing the separate Document Intelligence plus regex path. JPEG, PNG, WebP, and PDF evidence now produces strict-schema candidate metadata with source excerpts and optional page references; model-derived fields remain proposals with no synthetic confidence score, so the existing human-review and receiving controls stay authoritative.
+- Routed Parts evidence extraction through the existing MXGenius Responses model and Azure-provided `OPENAI_API_KEY`, replacing the separate Document Intelligence plus regex path. JPEG, PNG, WebP, and PDF evidence now produces strict-schema candidate metadata with source excerpts and optional page references; the existing `assetId` opens the private source beside those excerpts and any extraction warnings in Rocky's review screen. Model-derived fields remain proposals with no synthetic confidence score, so the existing human-review and receiving controls stay authoritative.
 
 ### Added — Native iOS spatial AR parity
 

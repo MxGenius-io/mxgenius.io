@@ -12,6 +12,8 @@ const MXPartsWorkspace = (() => {
     asset: null,
     extractionRun: null,
     candidates: [],
+    extractionWarnings: [],
+    sourcePreviewUrl: null,
     locations: [],
     status: '',
     location: '',
@@ -1251,6 +1253,11 @@ const MXPartsWorkspace = (() => {
             <section class="wizard-step-content" id="wizardStep2">
               <h3>Review extracted values</h3>
               <p>Accept, edit, or reject each suggestion. This does not yet create inventory.</p>
+              <div class="wizard-source-actions">
+                <button class="btn-quiet" id="btnWizardViewSource" type="button">View source</button>
+                <span id="wizardSourceName"></span>
+              </div>
+              <div id="wizardSourcePreview" class="wizard-source-preview" hidden></div>
               <div id="wizardExtractedData"></div>
               <button class="btn-primary" id="btnWizardApproveData">Save review</button>
             </section>
@@ -1339,6 +1346,7 @@ const MXPartsWorkspace = (() => {
     byId('btnCloseDrawer')?.addEventListener('click', closeDrawer);
     byId('btnWizardProcessCapture')?.addEventListener('click', processCapture);
     byId('btnWizardSkipCapture')?.addEventListener('click', skipCapture);
+    byId('btnWizardViewSource')?.addEventListener('click', toggleWizardSource);
     byId('btnWizardApproveData')?.addEventListener('click', approveExtraction);
     byId('btnWizardReviewConfirm')?.addEventListener('click', showConfirmation);
     byId('btnWizardSubmit')?.addEventListener('click', submitReceiving);
@@ -1819,10 +1827,12 @@ const MXPartsWorkspace = (() => {
   }
 
   function resetWizard() {
+    clearWizardSourcePreview();
     state.draft = null;
     state.asset = null;
     state.extractionRun = null;
     state.candidates = [];
+    state.extractionWarnings = [];
     const file = byId('wizardFileInput');
     if (file) file.value = '';
     ['wizardInputPartNumber', 'wizardInputDescription', 'wizardInputManufacturer',
@@ -1830,6 +1840,7 @@ const MXPartsWorkspace = (() => {
       .forEach((id) => { if (byId(id)) byId(id).value = ''; });
     if (byId('wizardQty')) byId('wizardQty').value = '1';
     if (byId('wizardMessage')) byId('wizardMessage').textContent = '';
+    if (byId('wizardSourceName')) byId('wizardSourceName').textContent = '';
   }
 
   function openWizard() {
@@ -1839,6 +1850,7 @@ const MXPartsWorkspace = (() => {
   }
 
   function closeWizard() {
+    clearWizardSourcePreview();
     byId('receivingWizard').hidden = true;
   }
 
@@ -1869,6 +1881,52 @@ const MXPartsWorkspace = (() => {
     return 'other';
   }
 
+  function clearWizardSourcePreview() {
+    if (state.sourcePreviewUrl) URL.revokeObjectURL(state.sourcePreviewUrl);
+    state.sourcePreviewUrl = null;
+    const preview = byId('wizardSourcePreview');
+    if (preview) {
+      preview.replaceChildren();
+      preview.hidden = true;
+    }
+    const button = byId('btnWizardViewSource');
+    if (button) button.textContent = 'View source';
+  }
+
+  async function toggleWizardSource() {
+    const preview = byId('wizardSourcePreview');
+    const button = byId('btnWizardViewSource');
+    if (!preview || !button || !state.asset?.id) return;
+    if (state.sourcePreviewUrl) {
+      preview.hidden = !preview.hidden;
+      button.textContent = preview.hidden ? 'View source' : 'Hide source';
+      return;
+    }
+    button.disabled = true;
+    wizardMessage('Opening the private source…');
+    try {
+      const blob = await client.downloadAsset({ assetId: state.asset.id, session: await session() });
+      const url = URL.createObjectURL(blob);
+      state.sourcePreviewUrl = url;
+      const viewer = document.createElement(blob.type.startsWith('image/') ? 'img' : 'iframe');
+      viewer.src = url;
+      if (viewer.tagName === 'IMG') {
+        viewer.alt = `Uploaded source: ${state.asset.originalFilename || 'parts evidence'}`;
+      } else {
+        viewer.title = `Uploaded source: ${state.asset.originalFilename || 'parts evidence'}`;
+        viewer.setAttribute('sandbox', '');
+      }
+      preview.replaceChildren(viewer);
+      preview.hidden = false;
+      button.textContent = 'Hide source';
+      wizardMessage('Compare each suggestion with the uploaded source.');
+    } catch (error) {
+      wizardMessage(errorMessage(error), 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function processCapture() {
     const button = byId('btnWizardProcessCapture');
     const file = byId('wizardFileInput')?.files?.[0];
@@ -1895,6 +1953,9 @@ const MXPartsWorkspace = (() => {
       const extraction = await client.requestExtraction({ assetId: state.asset.id, session: currentSession });
       state.extractionRun = extraction.run;
       state.candidates = extraction.candidates || [];
+      state.extractionWarnings = Array.isArray(extraction.warnings) ? extraction.warnings : [];
+      const sourceName = byId('wizardSourceName');
+      if (sourceName) sourceName.textContent = state.asset.originalFilename || file.name;
 
       // Hands-free path: the server marks which fields a human must actually
       // look at. When none of them do, accept the confident ones and go
@@ -1960,18 +2021,26 @@ const MXPartsWorkspace = (() => {
 
   function renderCandidates() {
     const area = byId('wizardExtractedData');
+    const warnings = state.extractionWarnings
+      .filter((warning) => typeof warning === 'string' && warning.trim())
+      .map((warning) => `<li>${escapeHtml(warning.trim())}</li>`)
+      .join('');
+    const warningPanel = warnings
+      ? `<aside class="extraction-warning-panel" role="status"><strong>Source needs attention</strong><ul>${warnings}</ul></aside>`
+      : '';
     if (!state.candidates.length) {
-      area.innerHTML = '<div class="empty-state">No OCR suggestions were returned.</div>';
+      area.innerHTML = `${warningPanel}<div class="empty-state">No document suggestions were returned.</div>`;
       return;
     }
     const confident = state.candidates.filter((candidate) => !candidate.requiresReview);
     const review = state.candidates.filter((candidate) => candidate.requiresReview);
-    area.innerHTML = `
+    area.innerHTML = `${warningPanel}
       ${confident.length ? `<div class="ocr-accepted"><h4>Read confidently — accepted</h4>${confident.map((candidate) => `
         <div class="ocr-accepted-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
           <span>${escapeHtml(candidate.fieldName)}</span>
           <strong>${escapeHtml(candidate.proposedValue || '')}</strong>
           <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
+          ${candidateSourceEvidence(candidate)}
         </div>`).join('')}</div>` : ''}
       ${review.map((candidate) => `
       <div class="ocr-field-row" data-candidate-id="${escapeHtml(candidate.id)}" data-field-name="${escapeHtml(candidate.fieldName)}">
@@ -1986,7 +2055,19 @@ const MXPartsWorkspace = (() => {
           </select>
         </label>
         <span>${candidate.confidence == null ? '—' : `${Math.round(candidate.confidence * 100)}%`}</span>
+        ${candidateSourceEvidence(candidate)}
       </div>`).join('')}`;
+  }
+
+  function candidateSourceEvidence(candidate) {
+    const sourceExcerpt = typeof candidate.sourceRegion?.sourceExcerpt === 'string'
+      ? candidate.sourceRegion.sourceExcerpt.trim()
+      : '';
+    if (!sourceExcerpt) return '';
+    const pageNumber = Number.isInteger(candidate.sourceRegion?.pageNumber)
+      ? ` · page ${candidate.sourceRegion.pageNumber}`
+      : '';
+    return `<p class="candidate-source-evidence"><span>Source${escapeHtml(pageNumber)}</span>${escapeHtml(sourceExcerpt)}</p>`;
   }
 
   async function approveExtraction() {
