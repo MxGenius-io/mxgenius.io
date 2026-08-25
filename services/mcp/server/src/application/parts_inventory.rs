@@ -120,6 +120,7 @@ pub struct PartAssetDto {
 #[derive(Debug, FromRow)]
 pub struct PartAssetStorage {
     pub id: Uuid,
+    pub original_filename: String,
     pub media_type: String,
     pub byte_size: i64,
     pub sha256: String,
@@ -631,7 +632,7 @@ impl<'a> PartsInventoryRepository<'a> {
         asset_id: Uuid,
     ) -> Result<PartAssetStorage, PartsInventoryError> {
         sqlx::query_as::<_, PartAssetStorage>(
-            r#"SELECT id,media_type,byte_size,sha256,storage_key,processing_state
+            r#"SELECT id,original_filename,media_type,byte_size,sha256,storage_key,processing_state
                FROM part_assets WHERE organization_id=$1 AND id=$2"#,
         )
         .bind(context.organization_id.0)
@@ -668,6 +669,8 @@ impl<'a> PartsInventoryRepository<'a> {
         &self,
         context: &ExecutionContext,
         asset_id: Uuid,
+        provider: &str,
+        model_version: &str,
     ) -> Result<ExtractionRunDto, PartsInventoryError> {
         let asset = self.asset_storage(context, asset_id).await?;
         if !matches!(
@@ -697,14 +700,15 @@ impl<'a> PartsInventoryRepository<'a> {
             r#"INSERT INTO extraction_runs
                (id,organization_id,asset_id,state,provider,model_version,
                 requested_by,started_at,created_at,updated_at)
-               VALUES ($1,$2,$3,'processing','azure_document_intelligence',
-                       'prebuilt-layout',$4,now(),now(),now())
+               VALUES ($1,$2,$3,'processing',$4,$5,$6,now(),now(),now())
                RETURNING id,asset_id,state,provider,model_version,failure_code,
                          started_at,completed_at,created_at"#,
         )
         .bind(Uuid::new_v4())
         .bind(context.organization_id.0)
         .bind(asset_id)
+        .bind(provider)
+        .bind(model_version)
         .bind(context.user_id.0)
         .fetch_one(self.pool)
         .await?;

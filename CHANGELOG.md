@@ -18,6 +18,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Parts document extraction
+
+- Routed Parts evidence extraction through the existing MXGenius Responses model and Azure-provided `OPENAI_API_KEY`, replacing the separate Document Intelligence plus regex path. JPEG, PNG, WebP, and PDF evidence now produces strict-schema candidate metadata with source excerpts and optional page references; model-derived fields remain proposals with no synthetic confidence score, so the existing human-review and receiving controls stay authoritative.
+
 ### Added — Native iOS spatial AR parity
 
 - Added the native AR bridge payload for browser-matched Active Case, AOG, 12K+ AFTT, 8K+ AFTT, Other, and All globe filters.

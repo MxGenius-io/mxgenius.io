@@ -6,6 +6,7 @@ const html = readFileSync('dashboard.html', 'utf8');
 const js = readFileSync('parts-workspace.js', 'utf8');
 const client = readFileSync('application-client.js', 'utf8');
 const css = readFileSync('parts-workspace.css', 'utf8');
+const partsHttp = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
 
 test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html contains parts navigation', () => {
@@ -32,6 +33,16 @@ test('Parts Frontend Shell requirements', async (t) => {
     }
     assert.match(client, /\/api\/parts/);
     assert.doesNotMatch(client, /mockUnits|unit-\s*\+\s*Date\.now/);
+  });
+
+  await t.test('document extraction uses the MXGenius model pipeline behind human review', () => {
+    assert.match(partsHttp, /PARTS_EXTRACTION_PROVIDER: &str = "openai_responses"/);
+    assert.match(partsHttp, /\.post\(OPENAI_RESPONSES_URL\)/);
+    assert.match(partsHttp, /"type": "json_schema"/);
+    assert.match(partsHttp, /"strict": true/);
+    assert.match(partsHttp, /"store": false/);
+    assert.match(partsHttp, /confidence: None/);
+    assert.doesNotMatch(partsHttp, /azure_document_intelligence|prebuilt-layout/);
   });
 
   await t.test('parts-workspace.js avoids direct fetch calls', () => {
