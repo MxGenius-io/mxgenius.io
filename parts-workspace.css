@@ -925,3 +925,73 @@
   .import-row { grid-template-columns: 1fr; gap: 2px; }
   .import-controls select { min-width: 0; width: 100%; }
 }
+
+/* -- reports ------------------------------------------------------------- */
+
+.report-controls .parts-form-grid + .parts-form-grid {
+  margin-top: 12px;
+}
+
+/* A report is wide by nature. It scrolls inside its own box so the workspace
+   around it never gains a horizontal scrollbar. */
+.report-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.report-table th,
+.report-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.report-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.report-table tbody tr:hover {
+  background: rgba(127, 127, 127, 0.06);
+}
+
+/* Figures line up digit over digit so a column of quantities can be compared
+   by eye rather than read one row at a time. */
+.report-table .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-table .is-negative {
+  color: #b3382c;
+}
+
+@media (max-width: 720px) {
+  .report-table {
+    font-size: 0.78rem;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 6px 8px;
+  }
+}

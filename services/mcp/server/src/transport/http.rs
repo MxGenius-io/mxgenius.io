@@ -30,6 +30,10 @@ use crate::application::part_imports::{ImportRequestQuery, PartImportRepository}
 use crate::application::part_procurement::{
     CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
 };
+use crate::application::part_reporting::{
+    inventory_movements_csv, movement_summary_csv, part_activity_csv, part_events_csv,
+    supplier_performance_csv, PartReportingRepository, ReportQuery,
+};
 use crate::application::part_traceability::{
     CreateEventInput, CreateShipmentInput, EventQuery, PartTraceabilityRepository,
     ShipmentStatusInput,
@@ -183,6 +187,14 @@ pub fn router_with_health_and_manual(
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
+        .route(
+            "/api/parts/reports/movements",
+            get(report_inventory_movements),
+        )
+        .route("/api/parts/reports/fitments", get(report_part_events))
+        .route("/api/parts/reports/summary", get(report_movement_summary))
+        .route("/api/parts/reports/suppliers", get(report_supplier_performance))
+        .route("/api/parts/reports/part-activity", get(report_part_activity))
         .route(
             "/api/parts/imports",
             get(list_part_imports).post(apply_part_import),
@@ -3814,6 +3826,152 @@ async fn download_part_import_template(
         )
             .into_response(),
         Err(error) => parts_error(error, "parts.import.template"),
+    }
+}
+
+/// Renders a report as a spreadsheet download.
+fn csv_report(filename: &str, body: String) -> Response {
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{filename}\""),
+            ),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+async fn report_inventory_movements(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReportQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartReportingRepository::new(pool)
+        .list_inventory_movements(&context, &query)
+        .await
+    {
+        Ok(page) if query.wants_csv() => csv_report(
+            "mxgenius-parts-movements.csv",
+            inventory_movements_csv(&page.rows),
+        ),
+        Ok(page) => (
+            StatusCode::OK,
+            Json(json!({"rows": page.rows, "nextCursor": page.next_cursor})),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.reports.movements"),
+    }
+}
+
+async fn report_part_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReportQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartReportingRepository::new(pool)
+        .list_part_events(&context, &query)
+        .await
+    {
+        Ok(page) if query.wants_csv() => {
+            csv_report("mxgenius-parts-fitments.csv", part_events_csv(&page.rows))
+        }
+        Ok(page) => (
+            StatusCode::OK,
+            Json(json!({"rows": page.rows, "nextCursor": page.next_cursor})),
+        )
+            .into_response(),
+        Err(error) => parts_error(error, "parts.reports.fitments"),
+    }
+}
+
+async fn report_movement_summary(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReportQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartReportingRepository::new(pool)
+        .movement_summary(&context, &query)
+        .await
+    {
+        Ok(rows) if query.wants_csv() => {
+            csv_report("mxgenius-parts-summary.csv", movement_summary_csv(&rows))
+        }
+        Ok(rows) => (StatusCode::OK, Json(json!({"rows": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.reports.summary"),
+    }
+}
+
+async fn report_supplier_performance(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReportQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartReportingRepository::new(pool)
+        .supplier_performance(&context, &query)
+        .await
+    {
+        Ok(rows) if query.wants_csv() => csv_report(
+            "mxgenius-parts-suppliers.csv",
+            supplier_performance_csv(&rows),
+        ),
+        Ok(rows) => (StatusCode::OK, Json(json!({"rows": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.reports.suppliers"),
+    }
+}
+
+async fn report_part_activity(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReportQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match PartReportingRepository::new(pool)
+        .part_activity(&context, &query)
+        .await
+    {
+        Ok(rows) if query.wants_csv() => {
+            csv_report("mxgenius-parts-activity.csv", part_activity_csv(&rows))
+        }
+        Ok(rows) => (StatusCode::OK, Json(json!({"rows": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.reports.activity"),
     }
 }
 

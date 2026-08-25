@@ -34,3 +34,4 @@ release gates.
 | `0021_rotables_and_cores.sql`            | serialized rotable register, core exchange obligations, and warranty claims |
 | `0022_cannibalizations.sql`              | gated cannibalization records correlating a donor removal with a receiver install |
 | `0023_part_imports.sql`                  | reversible bulk-import batches with an append-only change journal, plus a soft delete on parts |
+| `0024_part_reporting_indexes.sql`        | date-ranged timeline indexes over the parts journals, orders, and shipments so historical reports keyset-scan instead of sequential-scan |

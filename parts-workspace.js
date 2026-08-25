@@ -15,7 +15,11 @@ const MXPartsWorkspace = (() => {
     locations: [],
     status: '',
     location: '',
-    view: 'inventory'
+    view: 'inventory',
+    // The active report, its filters, and the keyset cursor that continues
+    // it. Rows accumulate across pages so "load more" appends rather than
+    // replaces the research the operator is reading.
+    report: { name: 'movements', rows: [], cursor: null, loading: false }
   };
 
   function switchView(view) {
@@ -32,6 +36,7 @@ const MXPartsWorkspace = (() => {
     const rotables = byId('partsRotablesView');
     const robs = byId('partsRobsView');
     const imports = byId('partsImportView');
+    const reports = byId('partsReportsView');
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
@@ -40,6 +45,7 @@ const MXPartsWorkspace = (() => {
     if (rotables) rotables.hidden = view !== 'rotables';
     if (robs) robs.hidden = view !== 'cannibalizations';
     if (imports) imports.hidden = view !== 'imports';
+    if (reports) reports.hidden = view !== 'reports';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
     if (view === 'locations') renderLocations();
@@ -47,6 +53,271 @@ const MXPartsWorkspace = (() => {
     if (view === 'rotables') loadRotables();
     if (view === 'cannibalizations') loadRobs();
     if (view === 'imports') loadImportBatches();
+    if (view === 'reports') showReportControls();
+  }
+
+  // -- reporting ----------------------------------------------------------
+  //
+  // One spec drives the picker, the filter controls, the table, and the CSV
+  // export, so a report can never render columns its export does not carry.
+  // `paged` marks the timeline reads: the rollups group before they return
+  // and so arrive whole.
+
+  const INVENTORY_EVENT_TYPES = [
+    ['', 'Any event'], ['receive', 'Receive'], ['inspect_pass', 'Inspection passed'],
+    ['inspect_reject', 'Inspection rejected'], ['issue', 'Issue'], ['transfer', 'Transfer'],
+    ['adjust', 'Adjust'], ['return', 'Return'], ['ship', 'Ship'], ['scrap', 'Scrap'],
+    ['split', 'Split'], ['metadata_corrected', 'Metadata corrected']
+  ];
+  const REMOVAL_REASONS = [
+    ['', 'Any reason'], ['scheduled', 'Scheduled'], ['unscheduled', 'Unscheduled'],
+    ['cannibalized', 'Cannibalized'], ['repair', 'Repair']
+  ];
+  const EVENT_KINDS = [['', 'Installs and removals'], ['install', 'Installs only'], ['removal', 'Removals only']];
+
+  const REPORT_FILTERS = {
+    eventType: { label: 'Event type', control: 'select', options: INVENTORY_EVENT_TYPES },
+    eventKind: { label: 'Event kind', control: 'select', options: EVENT_KINDS },
+    removalReason: { label: 'Removal reason', control: 'select', options: REMOVAL_REASONS },
+    partNumber: { label: 'Part number', control: 'text', placeholder: 'Exact part number' },
+    partNumberLike: { label: 'Part number', control: 'text', placeholder: 'Any part containing…', field: 'partNumber' },
+    partSerial: { label: 'Serial number', control: 'text', placeholder: 'Exact serial' },
+    aircraftId: { label: 'Aircraft', control: 'text', placeholder: 'Tail number' },
+    locationCode: { label: 'Location', control: 'location', placeholder: 'Bin code' },
+    supplier: { label: 'Supplier', control: 'text', placeholder: 'Any supplier containing…' }
+  };
+
+  const REPORTS = {
+    movements: {
+      label: 'Stock movements',
+      scope: 'One row per ledger entry: every receive, issue, transfer, adjustment, and scrap.',
+      paged: true,
+      filters: ['eventType', 'partNumber', 'locationCode'],
+      columns: [
+        { key: 'createdAt', label: 'When', kind: 'datetime' },
+        { key: 'eventType', label: 'Event' },
+        { key: 'partNumber', label: 'Part' },
+        { key: 'serialNumber', label: 'Serial' },
+        { key: 'quantityDelta', label: 'Qty', kind: 'delta', align: 'right' },
+        { key: 'fromLocation', label: 'From' },
+        { key: 'toLocation', label: 'To' },
+        { key: 'actor', label: 'Recorded by' }
+      ]
+    },
+    fitments: {
+      label: 'Installs and removals',
+      scope: 'Where a part went on or came off. Filter to a part number and serial for that unit\u2019s full lineage.',
+      paged: true,
+      filters: ['eventKind', 'partNumber', 'partSerial', 'aircraftId', 'removalReason'],
+      columns: [
+        { key: 'eventAt', label: 'When', kind: 'datetime' },
+        { key: 'eventKind', label: 'Event' },
+        { key: 'partNumber', label: 'Part' },
+        { key: 'partSerial', label: 'Serial' },
+        { key: 'aircraftId', label: 'Aircraft' },
+        { key: 'positionReference', label: 'Position' },
+        { key: 'removalReason', label: 'Reason' },
+        { key: 'performedBy', label: 'Performed by' }
+      ]
+    },
+    summary: {
+      label: 'Movement summary',
+      scope: 'Totals by event type. In and out stay separate, because a period that received 400 and issued 400 is not a quiet one.',
+      filters: [],
+      columns: [
+        { key: 'eventType', label: 'Event' },
+        { key: 'eventCount', label: 'Events', align: 'right' },
+        { key: 'quantityIn', label: 'Qty in', kind: 'number', align: 'right' },
+        { key: 'quantityOut', label: 'Qty out', kind: 'number', align: 'right' },
+        { key: 'netQuantity', label: 'Net', kind: 'delta', align: 'right' },
+        { key: 'distinctParts', label: 'Parts', align: 'right' },
+        { key: 'firstAt', label: 'First', kind: 'date' },
+        { key: 'lastAt', label: 'Last', kind: 'date' }
+      ]
+    },
+    suppliers: {
+      label: 'Supplier performance',
+      scope: 'Spend and delivery by supplier, over orders actually placed in the range. Drafts are excluded.',
+      filters: ['supplier'],
+      columns: [
+        { key: 'supplier', label: 'Supplier' },
+        { key: 'orderCount', label: 'Orders', align: 'right' },
+        { key: 'totalSpendUsd', label: 'Spend', kind: 'money', align: 'right' },
+        { key: 'averageOrderUsd', label: 'Avg order', kind: 'money', align: 'right' },
+        { key: 'averageLeadTimeDays', label: 'Lead time', kind: 'days', align: 'right' },
+        { key: 'deliveredOrders', label: 'Delivered', align: 'right' },
+        { key: 'backorderedOrders', label: 'Backordered', align: 'right' },
+        { key: 'cancelledOrders', label: 'Cancelled', align: 'right' },
+        { key: 'lastOrderedAt', label: 'Last order', kind: 'date' }
+      ]
+    },
+    partActivity: {
+      label: 'Part activity',
+      scope: 'What happened to each part number across the stock ledger and the fitment journal together.',
+      filters: ['partNumberLike'],
+      columns: [
+        { key: 'partNumber', label: 'Part' },
+        { key: 'description', label: 'Description' },
+        { key: 'receivedCount', label: 'Received', align: 'right' },
+        { key: 'issuedCount', label: 'Issued', align: 'right' },
+        { key: 'scrappedCount', label: 'Scrapped', align: 'right' },
+        { key: 'netQuantity', label: 'Net qty', kind: 'delta', align: 'right' },
+        { key: 'installCount', label: 'Installs', align: 'right' },
+        { key: 'removalCount', label: 'Removals', align: 'right' },
+        { key: 'cannibalizedCount', label: 'Robbed', align: 'right' },
+        { key: 'distinctAircraft', label: 'Aircraft', align: 'right' },
+        { key: 'lastActivityAt', label: 'Last activity', kind: 'date' }
+      ]
+    }
+  };
+
+  function currentReport() {
+    return REPORTS[state.report.name] || REPORTS.movements;
+  }
+
+  function reportStatusMessage(message, kind = '') {
+    const element = byId('reportStatus');
+    if (!element) return;
+    element.className = `parts-inline-status ${kind}`.trim();
+    element.textContent = message;
+  }
+
+  // Renders the picker, the report-specific filter controls, and the scope
+  // note. Called on tab entry and whenever the chosen report changes.
+  function showReportControls() {
+    const picker = byId('reportName');
+    if (!picker) return;
+    if (!picker.options.length) {
+      picker.innerHTML = optionList(
+        Object.entries(REPORTS).map(([name, spec]) => [name, spec.label]),
+        state.report.name);
+      picker.addEventListener('change', () => {
+        state.report = { name: picker.value, rows: [], cursor: null, loading: false };
+        showReportControls();
+        byId('reportResults').innerHTML = '';
+        byId('btnReportMore').hidden = true;
+        reportStatusMessage('');
+      });
+    }
+    const spec = currentReport();
+    byId('reportScopeHint').textContent = spec.scope;
+    byId('reportFilters').innerHTML = spec.filters.map((name) => {
+      const filter = REPORT_FILTERS[name];
+      if (filter.control === 'select') {
+        return `<label>${escapeHtml(filter.label)}<select data-report-filter="${escapeHtml(name)}">${optionList(filter.options, '')}</select></label>`;
+      }
+      const list = filter.control === 'location' ? ' list="partsLocationOptions"' : '';
+      return `<label>${escapeHtml(filter.label)}<input data-report-filter="${escapeHtml(name)}"${list} placeholder="${escapeHtml(filter.placeholder || '')}"></label>`;
+    }).join('');
+  }
+
+  // Collects the range and the visible filters into the query the server
+  // takes. A filter whose spec carries `field` sends under that name instead,
+  // which is how two different controls can both narrow `partNumber`.
+  function reportFilters() {
+    const filters = {
+      from: byId('reportFrom')?.value || '',
+      to: byId('reportTo')?.value || ''
+    };
+    document.querySelectorAll('[data-report-filter]').forEach((control) => {
+      const name = control.dataset.reportFilter;
+      const field = REPORT_FILTERS[name]?.field || name;
+      const value = control.value.trim();
+      if (value) filters[field] = value;
+    });
+    return filters;
+  }
+
+  function formatCell(value, kind) {
+    if (value === null || value === undefined || value === '') return '';
+    switch (kind) {
+      case 'datetime': return new Date(value).toLocaleString();
+      case 'date': return new Date(value).toLocaleDateString();
+      case 'money': return `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case 'days': return `${Number(value).toFixed(1)} d`;
+      case 'number': return Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
+      case 'delta': {
+        const amount = Number(value);
+        // Sign carries the meaning in a ledger view, so it is always shown.
+        return `${amount > 0 ? '+' : ''}${amount.toLocaleString(undefined, { maximumFractionDigits: 3 })}`;
+      }
+      default: return String(value);
+    }
+  }
+
+  function renderReport() {
+    const spec = currentReport();
+    const results = byId('reportResults');
+    const { rows } = state.report;
+    if (!rows.length) {
+      results.innerHTML = '<div class="empty-state">No records match this report and range.</div>';
+      byId('btnReportMore').hidden = true;
+      return;
+    }
+    const head = spec.columns
+      .map((column) => `<th${column.align === 'right' ? ' class="numeric"' : ''}>${escapeHtml(column.label)}</th>`)
+      .join('');
+    const body = rows.map((row) => `<tr>${spec.columns.map((column) => {
+      const text = formatCell(row[column.key], column.kind);
+      const negative = column.kind === 'delta' && Number(row[column.key]) < 0;
+      const classes = [column.align === 'right' ? 'numeric' : '', negative ? 'is-negative' : '']
+        .filter(Boolean).join(' ');
+      return `<td${classes ? ` class="${classes}"` : ''}>${escapeHtml(text)}</td>`;
+    }).join('')}</tr>`).join('');
+    results.innerHTML = `<div class="report-table-scroll"><table class="report-table">
+        <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    byId('btnReportMore').hidden = !state.report.cursor;
+  }
+
+  // `append` is what separates "load more" from a fresh run: a new run starts
+  // the rows over, a continuation adds to what is already on screen.
+  async function runReport(append = false) {
+    if (state.report.loading) return;
+    const spec = currentReport();
+    state.report.loading = true;
+    reportStatusMessage(append ? 'Loading more\u2026' : 'Running the report\u2026');
+    try {
+      const filters = reportFilters();
+      if (append && state.report.cursor) filters.cursor = state.report.cursor;
+      const { rows, nextCursor } = await client.reports.run({
+        report: state.report.name,
+        filters,
+        session: await session()
+      });
+      state.report.rows = append ? state.report.rows.concat(rows) : rows;
+      state.report.cursor = spec.paged ? nextCursor : null;
+      reportStatusMessage(state.report.rows.length
+        ? `${state.report.rows.length} row${state.report.rows.length === 1 ? '' : 's'}${state.report.cursor ? ', more available' : ''}`
+        : '');
+      renderReport();
+    } catch (error) {
+      reportStatusMessage(errorMessage(error), 'error');
+    } finally {
+      state.report.loading = false;
+    }
+  }
+
+  async function exportReport() {
+    reportStatusMessage('Preparing the export\u2026');
+    try {
+      // The export carries the same filters as the run, at the largest page
+      // the server allows, so a spreadsheet is not silently the first 100
+      // rows of a longer answer.
+      const blob = await client.reports.export({
+        report: state.report.name,
+        filters: { ...reportFilters(), limit: 500 },
+        session: await session()
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `mxgenius-${state.report.name}.csv`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      reportStatusMessage('');
+    } catch (error) {
+      reportStatusMessage(errorMessage(error), 'error');
+    }
   }
 
   function shortageRow(row) {
@@ -1053,6 +1324,7 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab" data-view="cannibalizations" role="tab" aria-selected="false">Robs<span id="robCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
                 <button class="parts-view-tab" data-view="imports" role="tab" aria-selected="false">Import</button>
+                <button class="parts-view-tab" data-view="reports" role="tab" aria-selected="false">Reports</button>
               </div>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
             </div>
@@ -1209,6 +1481,30 @@ const MXPartsWorkspace = (() => {
               <label class="shortage-toggle"><input type="checkbox" id="locationsIncludeInactive"> Show retired locations</label>
               <div id="partsLocationList"></div>
             </div>
+            <div id="partsReportsView" hidden>
+              <section class="unit-action-block report-controls">
+                <h3>Historical reports</h3>
+                <p class="unit-action-hint">Every report reads the append-only journals directly. Nothing here is a stored total, so a report and the ledger it summarizes cannot disagree.</p>
+                <div class="parts-form-grid">
+                  <label>Report
+                    <select id="reportName"></select>
+                  </label>
+                  <label>From<input type="date" id="reportFrom"></label>
+                  <label>To<input type="date" id="reportTo"></label>
+                </div>
+                <div id="reportFilters" class="parts-form-grid"></div>
+                <div class="unit-action-row">
+                  <button class="btn-primary" id="btnRunReport">Run report</button>
+                  <button class="btn-quiet" id="btnExportReport">Export CSV</button>
+                </div>
+                <p class="unit-action-hint" id="reportScopeHint"></p>
+              </section>
+              <div id="reportStatus" class="parts-inline-status" aria-live="polite"></div>
+              <div id="reportResults"></div>
+              <div class="unit-action-row">
+                <button class="btn-quiet" id="btnReportMore" hidden>Load more</button>
+              </div>
+            </div>
           </div>
           <datalist id="partsLocationOptions"></datalist>
         </main>
@@ -1320,6 +1616,9 @@ const MXPartsWorkspace = (() => {
     ['requestStatusFilter', 'requestPriorityFilter', 'requestOverdueOnly', 'requestMissingNeedBy']
       .forEach((id) => byId(id)?.addEventListener('change', loadRequests));
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
+    byId('btnRunReport')?.addEventListener('click', () => runReport(false));
+    byId('btnReportMore')?.addEventListener('click', () => runReport(true));
+    byId('btnExportReport')?.addEventListener('click', exportReport);
     byId('btnCreateLocation')?.addEventListener('click', createLocation);
     byId('btnCreateRotable')?.addEventListener('click', createRotable);
     byId('btnProposeRob')?.addEventListener('click', proposeRob);

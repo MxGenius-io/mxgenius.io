@@ -1084,6 +1084,50 @@ const MXApplicationClient = (() => {
       return (await applicationRequest('/api/parts/imports/template', {
         session, contentType: null })).blob();
     },
+    // -- reporting ------------------------------------------------------
+    //
+    // Every report shares one query shape, so one builder serves all five.
+    // Blank filters are dropped rather than sent empty, because the server
+    // reads an empty string as a filter that matches nothing.
+    reports: (() => {
+      const REPORT_PATHS = {
+        movements: '/api/parts/reports/movements',
+        fitments: '/api/parts/reports/fitments',
+        summary: '/api/parts/reports/summary',
+        suppliers: '/api/parts/reports/suppliers',
+        partActivity: '/api/parts/reports/part-activity'
+      };
+      const reportParams = (filters = {}) => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value === undefined || value === null) return;
+          const text = String(value).trim();
+          if (text) params.set(key, text);
+        });
+        return params;
+      };
+      const path = (report) => {
+        const found = REPORT_PATHS[report];
+        if (!found) throw new Error(`Unknown report: ${report}`);
+        return found;
+      };
+      return {
+        names: Object.keys(REPORT_PATHS),
+        /// Returns `{ rows, nextCursor }`. The rollups have no cursor, so
+        /// theirs is always undefined and paging simply never advances.
+        run: async ({ report, filters = {}, session = {} }) => {
+          const params = reportParams(filters);
+          const payload = await applicationJson(`${path(report)}?${params}`, { session });
+          return { rows: payload.rows || [], nextCursor: payload.nextCursor || null };
+        },
+        /// The same query rendered as a spreadsheet. Returns a Blob.
+        export: async ({ report, filters = {}, session = {} }) => {
+          const params = reportParams({ ...filters, format: 'csv' });
+          return (await applicationRequest(`${path(report)}?${params}`, {
+            session, contentType: null })).blob();
+        }
+      };
+    })(),
     listShortages: async ({ includeCovered = false, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (includeCovered) params.set('includeCovered', 'true');
