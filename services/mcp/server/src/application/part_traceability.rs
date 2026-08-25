@@ -27,19 +27,25 @@ pub struct PartShipmentDto {
     pub carrier: Option<String>,
     pub tracking_number: Option<String>,
     pub status: String,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub shipped_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub received_at: Option<OffsetDateTime>,
     pub received_by: Option<String>,
     pub certificate_number: Option<String>,
     pub certificate_type: Option<String>,
     pub notes: Option<String>,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateShipmentInput {
+    // The path segment owns the parent; the handler overwrites whatever
+    // arrives here, so a body that omits it is correct, not incomplete.
+    #[serde(default)]
     pub part_requirement_id: Uuid,
     pub part_order_id: Option<Uuid>,
     pub purpose: Option<String>,
@@ -74,11 +80,13 @@ pub struct PartEventDto {
     pub part_number: String,
     pub part_serial: Option<String>,
     pub position_reference: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
     pub event_at: OffsetDateTime,
     pub performed_by: Option<String>,
     pub removal_reason: Option<String>,
     pub notes: Option<String>,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -93,6 +101,7 @@ pub struct CreateEventInput {
     pub part_number: String,
     pub part_serial: Option<String>,
     pub position_reference: Option<String>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub event_at: Option<OffsetDateTime>,
     pub performed_by: Option<String>,
     pub removal_reason: Option<String>,

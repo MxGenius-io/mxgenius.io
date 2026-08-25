@@ -1262,7 +1262,7 @@ const MXPartsWorkspace = (() => {
                 <label>Manufacturer<input id="wizardInputManufacturer"></label>
                 <label>Serial number<input id="wizardInputSerialNumber"></label>
                 <label>Quantity<input type="number" min="0.001" step="0.001" id="wizardQty" value="1" required></label>
-                <label>Location<input id="wizardLocation" placeholder="RECEIVING" required></label>
+                <label>Location<select id="wizardLocation" required></select></label>
                 <label>Condition
                   <select id="wizardCondition"><option>NE</option><option>NS</option><option>OH</option><option selected>SV</option><option>RP</option><option>AR</option><option>US</option><option>SC</option></select>
                 </label>
@@ -1519,9 +1519,33 @@ const MXPartsWorkspace = (() => {
         option.label = location.name && location.name !== location.code ? location.name : '';
         return option;
       }));
+      fillLocationSelect();
     } catch {
-      // A missing location list only costs autocomplete; typing still works.
+      // Movement fields fall back to typing, but the receiving select has no
+      // free-text fallback, so it has to say why it is empty.
+      state.locations = [];
+      fillLocationSelect('Locations could not be loaded');
     }
+  }
+
+  // Receiving commits a unit to a real bin, so its location is a closed choice
+  // rather than free text: a typo there creates stock nobody can find. Only
+  // active bins appear, because `loadLocations` does not ask for retired ones.
+  function fillLocationSelect(problem = '') {
+    const select = byId('wizardLocation');
+    if (!select) return;
+    const previous = select.value;
+    const placeholder = problem
+      || (state.locations.length ? 'Select a location' : 'No locations defined yet');
+    select.innerHTML = [`<option value="">${escapeHtml(placeholder)}</option>`]
+      .concat(state.locations.map((location) => {
+        const label = location.name && location.name !== location.code
+          ? `${location.code} — ${location.name}`
+          : location.code;
+        return `<option value="${escapeHtml(location.code)}">${escapeHtml(label)}</option>`;
+      }))
+      .join('');
+    if (previous) select.value = previous;
   }
 
   const CONDITION_CODES = ['NE', 'NS', 'OH', 'SV', 'RP', 'AR', 'US', 'SC'];

@@ -66,12 +66,14 @@ pub struct PartRequestDto {
     pub quantity_fulfilled: i32,
     pub status: String,
     pub priority: String,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub required_by: Option<OffsetDateTime>,
     pub notes: Option<String>,
     pub requested_by_name: Option<String>,
     pub acceptable_conditions: Value,
     pub open_order_count: i64,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     pub is_overdue: bool,
     pub days_overdue: Option<i64>,
@@ -116,9 +118,11 @@ pub struct PartOrderDto {
     pub order_number: Option<String>,
     pub supplier_id: Option<Uuid>,
     pub supplier_name: Option<String>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub ordered_at: Option<OffsetDateTime>,
     pub buyer_name: Option<String>,
     pub backordered: bool,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub backorder_eta: Option<OffsetDateTime>,
     pub purchase_cost_usd: Option<f64>,
     pub account_used: Option<String>,
@@ -126,18 +130,24 @@ pub struct PartOrderDto {
     pub invoice_number: Option<String>,
     pub invoice_amount_usd: Option<f64>,
     pub repair_vs_rental: Option<String>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub quote_approved_at: Option<OffsetDateTime>,
     pub repair_pricing_usd: Option<f64>,
     pub savings_usd: Option<f64>,
     pub notes: Option<String>,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateOrderInput {
+    // The path segment owns the parent; the handler overwrites whatever
+    // arrives here, so a body that omits it is correct, not incomplete.
+    #[serde(default)]
     pub part_requirement_id: Uuid,
     pub order_kind: String,
     pub type_of_buy: String,
@@ -167,6 +177,7 @@ pub struct RequestChangeDto {
     pub old_value: Option<String>,
     pub new_value: Option<String>,
     pub actor_user_id: Uuid,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 

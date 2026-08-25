@@ -29,7 +29,9 @@ pub struct RotableUnitDto {
     pub times_repaired: i32,
     pub notes: Option<String>,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 

@@ -53,6 +53,10 @@
   border-bottom: 1px solid var(--border);
 }
 
+.parts-search-bar[hidden] {
+  display: none;
+}
+
 .parts-search-bar .search-input {
   flex: 1 1 14rem;
 }
@@ -78,6 +82,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+}
+
+.inventory-grid[hidden] {
+  display: none;
 }
 
 .inventory-card {

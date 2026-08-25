@@ -29,16 +29,21 @@ pub struct CannibalizationDto {
     pub transferred_hours: Option<f64>,
     pub transferred_cycles: Option<i32>,
     pub backfill_order_id: Option<Uuid>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub cannibalized_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub expected_rts_without: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub expected_rts_with: Option<OffsetDateTime>,
     pub rts_impact_rationale: Option<String>,
     pub status: String,
     pub proposed_by: Uuid,
     pub approved_by: Option<Uuid>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub decided_at: Option<OffsetDateTime>,
     pub notes: Option<String>,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -62,7 +67,9 @@ pub struct ProposeCannibalizationInput {
     pub is_life_limited: Option<bool>,
     pub transferred_hours: Option<f64>,
     pub transferred_cycles: Option<i32>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub expected_rts_without: Option<OffsetDateTime>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
     pub expected_rts_with: Option<OffsetDateTime>,
     pub rts_impact_rationale: Option<String>,
     pub notes: Option<String>,

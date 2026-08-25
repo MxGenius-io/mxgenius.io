@@ -75,7 +75,9 @@ pub struct ImportBatchDto {
     pub rows_skipped: i32,
     pub uploaded_by: Uuid,
     pub rolled_back_by: Option<Uuid>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub rolled_back_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub version: i64,
 }

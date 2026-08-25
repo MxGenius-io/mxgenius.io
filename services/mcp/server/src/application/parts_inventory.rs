@@ -39,7 +39,9 @@ pub struct StockUnitDto {
     pub owner_type: String,
     pub metadata: Value,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub received_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 
@@ -56,9 +58,12 @@ pub struct ReceivingDraftDto {
     pub part_id: Option<Uuid>,
     pub status: String,
     pub proposed_fields: Value,
+    #[serde(with = "time::serde::rfc3339")]
     pub expires_at: OffsetDateTime,
     pub version: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 
@@ -113,7 +118,9 @@ pub struct PartAssetDto {
     pub byte_size: i64,
     pub sha256: String,
     pub processing_state: String,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub uploaded_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -136,8 +143,11 @@ pub struct ExtractionRunDto {
     pub provider: String,
     pub model_version: Option<String>,
     pub failure_code: Option<String>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub started_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub completed_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -165,6 +175,7 @@ pub struct ExtractionCandidateDto {
     pub review_state: String,
     pub final_value: Option<String>,
     pub confirmed_by: Option<Uuid>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub confirmed_at: Option<OffsetDateTime>,
     /// Stamped, not stored: whether a human has to look at this field before
     /// it can be accepted.
@@ -201,6 +212,7 @@ pub struct InventoryEventDto {
     pub correlation_id: Uuid,
     pub notes: Option<String>,
     pub payload: Value,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -218,6 +230,7 @@ pub struct PartShortageDto {
     pub part_number: String,
     pub description: String,
     pub required_quantity: f64,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub required_by: Option<OffsetDateTime>,
     pub acceptable_conditions: Value,
     pub available_quantity: f64,
@@ -234,7 +247,9 @@ pub struct InventoryLocationDto {
     pub barcode: Option<String>,
     pub active: bool,
     pub metadata: Value,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 
