@@ -1047,7 +1047,7 @@ const MXPartsWorkspace = (() => {
               <p class="parts-subtitle">Traceable receiving, documents, and inventory history</p>
             </div>
             <div class="parts-toolbar">
-              <button type="button" class="guided-help-trigger" data-guide-id="parts-management" aria-label="Explain the controlled parts workflow" aria-expanded="false">?</button>
+              <button type="button" class="guided-help-trigger guided-help-trigger--labeled" data-guide-id="parts-management" aria-label="Explain the controlled parts workflow" aria-expanded="false">?</button>
               <div class="parts-view-switch" role="tablist" aria-label="Parts view">
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
                 <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>

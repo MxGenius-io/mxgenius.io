@@ -123,7 +123,7 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=13"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=14"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);

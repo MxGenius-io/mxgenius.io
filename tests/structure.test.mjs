@@ -553,7 +553,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=15/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=16/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -709,7 +709,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
-  assert.match(dashboard, /guided-tooltip\.css\?v=2/);
+  assert.match(dashboard, /guided-tooltip\.css\?v=3/);
   assert.match(dashboard, /onboarding\.css\?v=3/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
@@ -741,6 +741,10 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltip, /Video \+ voiceover script ready/);
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__video/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
+  assert.match(dashboard, /id="guidedTourButton"/);
+  assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
+  assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
+  assert.match(guidedTooltipStyles, /\.guided-help-trigger--labeled::after/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {
