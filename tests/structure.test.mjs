@@ -37,6 +37,8 @@ const gitAttributes = await readFile(new URL('../.gitattributes', import.meta.ur
 const mcpGitAttributes = await readFile(new URL('../services/mcp/.gitattributes', import.meta.url), 'utf8');
 const liveProbe = await readFile(new URL('../scripts/live-field-probe.mjs', import.meta.url), 'utf8');
 const pagesWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const rustToolchain = await readFile(new URL('../services/mcp/rust-toolchain.toml', import.meta.url), 'utf8');
 const reportDisplay = await readFile(new URL('../report-display.html', import.meta.url), 'utf8');
 const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
 const week19Report = await readFile(new URL('../Generated Reports/week-19/week-19-report.md', import.meta.url), 'utf8');
@@ -100,6 +102,19 @@ test('Pages release retains generated report content', () => {
     /cp -R --[^\n]*"Generated Reports"[^\n]*_site\//,
     'the Pages artifact must include the report scripts, images, and media referenced by report-display.html'
   );
+});
+
+test('Pages validation uses supported and reproducible toolchains', () => {
+  assert.equal(packageManifest.engines.node, '>=24');
+  assert.match(pagesWorkflow, /uses: actions\/checkout@v7/g);
+  assert.match(pagesWorkflow, /uses: actions\/setup-node@v7/);
+  assert.match(pagesWorkflow, /node-version: '24'/);
+  assert.match(pagesWorkflow, /uses: actions\/configure-pages@v6/);
+  assert.match(pagesWorkflow, /uses: actions\/upload-pages-artifact@v5/);
+  assert.match(pagesWorkflow, /uses: actions\/deploy-pages@v5/);
+  assert.match(pagesWorkflow, /toolchain: 1\.98\.0/);
+  assert.match(rustToolchain, /channel = "1\.98\.0"/);
+  assert.doesNotMatch(pagesWorkflow, /node-version: '20'/);
 });
 
 test('report display preserves external image schemes and constrains report media', () => {
