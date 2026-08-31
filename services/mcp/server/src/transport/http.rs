@@ -2,6 +2,11 @@
 //! The runtime returns JSON responses and deliberately does not open an SSE
 //! channel; `GET /mcp` therefore returns 405 as allowed by the protocol.
 
+// Transport helpers intentionally propagate fully formed Axum responses as
+// typed errors; boxing them would complicate handler composition without
+// changing the HTTP wire contract.
+#![allow(clippy::result_large_err)]
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
