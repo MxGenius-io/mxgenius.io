@@ -7,12 +7,10 @@
 //! not_configured` and the runtime envelope carries a `NOT_CONFIGURED`
 //! warning. No mock data, no simulated success.
 //!
-//! The `parts.alternates` tool has no supersession table in the supplied
-//! migrations, so it stays `not_configured` in every mode. The remaining
-//! four tools (`resolve`, `inventory`, `rank_options`,
-//! `attach_certificate`) write through to `parts`, `stock_units`,
-//! `part_source_options`, and `certificate_records` exactly as the
-//! application service expects.
+//! All five tools (`resolve`, `alternates`, `inventory`, `rank_options`,
+//! `attach_certificate`) write through to `parts`, `part_alternates`,
+//! `stock_units`, `part_source_options`, and `certificate_records` exactly as
+//! the application service expects.
 
 use std::sync::Arc;
 
@@ -28,6 +26,7 @@ use mxgenius_shared::contracts::{
     PartsRankOptionsResponse, PartsResolveMatch, PartsResolveRequest, PartsResolveResponse,
 };
 use mxgenius_shared::domain::evidence::ConfidenceBasis;
+use mxgenius_shared::domain::part_alternate::AlternateRelation;
 use sha2::Digest as _;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -43,21 +42,7 @@ pub fn register(reg: &mut Registry, pool: Option<sqlx::PgPool>) {
     match pool.clone() {
         Some(pool) => {
             reg.register_typed_tool(wrap(Arc::new(PartsResolveTool { pool: pool.clone() })));
-            reg.register_typed_tool(wrap(not_configured::<
-                PartsAlternatesRequest,
-                PartsAlternatesResponse,
-                _,
-            >(
-                "mxg.parts.alternates",
-                "Part Alternates",
-                "Return supersessions and alternates with applicability and authoritative evidence.",
-                Action::PartsRead,
-                |_input| PartsAlternatesResponse {
-                    alternates: vec![],
-                    supersessions: vec![],
-                    insufficient_evidence: true,
-                },
-            )));
+            reg.register_typed_tool(wrap(Arc::new(PartsAlternatesTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsInventoryTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsRankOptionsTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsAttachCertificateTool { pool })));
@@ -217,6 +202,125 @@ impl Tool for PartsResolveTool {
                 code: StableErrorCode::EntityNotFound,
                 severity: "warn".into(),
                 message: "no parts matched the supplied identifier".into(),
+                retryable: false,
+            });
+            env.confidence.score = 0.0;
+        }
+        Ok(env)
+    }
+}
+
+// --- alternates -----------------------------------------------------------
+
+pub struct PartsAlternatesTool {
+    pool: Arc<sqlx::PgPool>,
+}
+
+#[async_trait]
+impl Tool for PartsAlternatesTool {
+    type Request = PartsAlternatesRequest;
+    type Response = PartsAlternatesResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        spec::<Self::Request, Self::Response>(
+            "mxg.parts.alternates",
+            "Part Alternates",
+            "Return supersessions and alternates with applicability and authoritative evidence.",
+            Action::PartsRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: PartsAlternatesRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let part_id = input.part_id.0;
+
+        // Read both directions in one pass. A mutual alternate is stored once,
+        // so querying only `part_id` would return half the catalog depending
+        // on which way each row happened to be written. `direction` says which
+        // side matched so the relation can be inverted for the rows found from
+        // the far side.
+        let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Option<String>, i32)> =
+            sqlx::query_as(
+                r#"SELECT p.id, p.part_number, p.description, p.manufacturer,
+                          a.relation, a.one_way, a.authority, 1 AS direction
+                   FROM part_alternates a
+                   JOIN parts p ON p.id = a.alternate_part_id
+                   WHERE a.part_id = $1 AND a.retired_at IS NULL
+                   UNION ALL
+                   SELECT p.id, p.part_number, p.description, p.manufacturer,
+                          a.relation, a.one_way, a.authority, -1 AS direction
+                   FROM part_alternates a
+                   JOIN parts p ON p.id = a.part_id
+                   WHERE a.alternate_part_id = $1 AND a.retired_at IS NULL
+                     -- A one-way claim does not read back from the far side:
+                     -- the substitute is approved in one direction only.
+                     AND a.one_way = false
+                   ORDER BY 2"#,
+            )
+            .bind(part_id)
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| parts_db_error("parts alternates", e))?;
+
+        let mut alternates = Vec::new();
+        let mut supersessions = Vec::new();
+        for (id, part_number, description, manufacturer, relation, _one_way, authority, direction)
+            in rows
+        {
+            let Some(parsed) = AlternateRelation::parse(&relation) else {
+                // An unknown relation is a schema drift, not a substitute to
+                // offer. Skipping is the safe direction for an airworthiness
+                // claim.
+                continue;
+            };
+            let effective = if direction < 0 { parsed.inverted() } else { parsed };
+            let entry = PartsResolveMatch {
+                part_id: mxgenius_shared::domain::ids::PartId(id),
+                part_number,
+                description,
+                manufacturer,
+                // The authority the operator asserted the claim against. An
+                // unsourced claim says so rather than reading as approved.
+                applicability: match authority.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+                    Some(source) => format!("{}: {source}", effective.as_str()),
+                    None => format!("{}: no authority recorded", effective.as_str()),
+                },
+                ambiguity_state: "asserted".into(),
+            };
+            if effective.is_supersession() {
+                supersessions.push(entry);
+            } else {
+                alternates.push(entry);
+            }
+        }
+
+        let insufficient_evidence = alternates.is_empty() && supersessions.is_empty();
+        let mut env = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            PartsAlternatesResponse {
+                alternates,
+                supersessions,
+                insufficient_evidence,
+            },
+        );
+        env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        env.confidence.explanation =
+            "operator-asserted interchangeability claims from the shared catalog".into();
+        if insufficient_evidence {
+            // No recorded claim is not evidence that no alternate exists. The
+            // partial status keeps the caller from reading silence as "this
+            // part has no substitute".
+            env.status = EnvelopeStatus::Partial;
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "warn".into(),
+                message: "no interchangeability has been asserted for this part; \
+                          absence of a claim is not a determination that none exists"
+                    .into(),
                 retryable: false,
             });
             env.confidence.score = 0.0;

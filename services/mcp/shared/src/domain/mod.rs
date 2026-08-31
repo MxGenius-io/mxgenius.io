@@ -16,6 +16,7 @@ pub mod evidence;
 pub mod ids;
 pub mod organization;
 pub mod part;
+pub mod part_alternate;
 pub mod part_import;
 pub mod part_import_test;
 pub mod part_request;
@@ -35,6 +36,7 @@ pub use evidence::{Confidence, ConfidenceBasis, Evidence, EvidenceKind, SourceTy
 pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
 pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
+pub use part_alternate::AlternateRelation;
 pub use part_import::{ImportFormat, ImportMode};
 pub use part_request::{
     PartOrderKind, PartOrderStatus, PartRequestPriority, PartRequestStatus, TypeOfBuy,

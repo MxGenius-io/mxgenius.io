@@ -638,3 +638,62 @@ test('Server-side paging', async (t) => {
     assert.doesNotMatch(js, /rows\.filter\(\(r\) => r\.isOverdue\)\.length/);
   });
 });
+
+test('Part interchangeability', async (t) => {
+  const migration = readFileSync(
+    'services/mcp/migrations/0025_part_alternates.sql', 'utf8');
+  const domain = readFileSync(
+    'services/mcp/shared/src/domain/part_alternate.rs', 'utf8');
+  const handler = readFileSync('services/mcp/server/src/handlers/parts.rs', 'utf8');
+
+  await t.test('the alternates tool is backed by a table rather than stubbed', () => {
+    assert.match(handler, /pub struct PartsAlternatesTool/);
+    assert.match(handler, /PartsAlternatesTool \{ pool/);
+    // The tool used to register as permanently not_configured because no
+    // supersession table existed.
+    assert.doesNotMatch(handler, /no supersession table in the supplied/);
+  });
+
+  await t.test('interchangeability is recorded as a sourced claim', () => {
+    // Asserting two part numbers interchange is an airworthiness claim, so it
+    // is never anonymous.
+    assert.match(migration, /authority/);
+    assert.match(migration, /asserted_by\s+uuid NOT NULL/);
+    assert.match(migration, /asserted_by_organization_id/);
+    assert.match(handler, /no authority recorded/);
+  });
+
+  await t.test('a part cannot be its own alternate', () => {
+    assert.match(migration, /part_alternates_no_self/);
+    assert.match(migration, /CHECK \(part_id <> alternate_part_id\)/);
+  });
+
+  await t.test('claims are withdrawn rather than deleted', () => {
+    assert.match(migration, /retired_at/);
+    // Uniqueness covers live rows only, so a corrected claim can replace a
+    // withdrawn one.
+    assert.match(migration, /part_alternates_live_pair_idx[\s\S]*?WHERE retired_at IS NULL/);
+  });
+
+  await t.test('a one-way claim does not read back from the far side', () => {
+    // The uprated part may replace the original; the original may not replace
+    // the uprated one.
+    assert.match(handler, /AND a\.one_way = false/);
+    assert.match(migration, /one_way\s+boolean NOT NULL DEFAULT false/);
+  });
+
+  await t.test('a supersession inverts when read from the other part', () => {
+    assert.match(domain, /pub fn inverted/);
+    assert.match(handler, /if direction < 0 \{ parsed\.inverted\(\) \}/);
+  });
+
+  await t.test('silence is not a determination that no alternate exists', () => {
+    assert.match(handler, /absence of a claim is not a determination/);
+    assert.match(handler, /EnvelopeStatus::Partial/);
+  });
+
+  await t.test('an unknown relation is skipped rather than offered', () => {
+    assert.match(migration, /CHECK \(relation IN \('alternate', 'supersedes', 'superseded_by'\)\)/);
+    assert.match(handler, /Skipping is the safe direction/);
+  });
+});
