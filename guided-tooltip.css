@@ -1,0 +1,161 @@
+.guided-tooltip-host:empty { display: none; }
+
+.guided-help-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  border: 1px solid rgba(103, 232, 249, 0.48);
+  border-radius: 50%;
+  background: rgba(5, 17, 31, 0.9);
+  color: #a5f3fc;
+  box-shadow: 0 0 0 1px rgba(3, 12, 24, 0.4), 0 6px 18px rgba(0, 0, 0, 0.22);
+  font: 800 0.76rem/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.guided-help-trigger:hover,
+.guided-help-trigger:focus-visible,
+.guided-help-trigger[aria-expanded="true"] {
+  border-color: #67e8f9;
+  background: rgba(8, 47, 65, 0.96);
+  color: #ecfeff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.guided-help-trigger--overlay {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 20;
+}
+
+.guided-tooltip-popover {
+  position: fixed;
+  z-index: 95000;
+  width: min(390px, calc(100vw - 24px));
+  max-height: min(620px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(103, 232, 249, 0.42);
+  border-radius: 13px;
+  background: rgba(4, 11, 24, 0.97);
+  color: #eafaff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58), 0 0 28px rgba(34, 211, 238, 0.08);
+  backdrop-filter: blur(18px);
+  animation: guided-tooltip-arrive 180ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.guided-tooltip-popover__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2px 2px 9px;
+  border-bottom: 1px solid rgba(103, 232, 249, 0.15);
+}
+
+.guided-tooltip-popover__header > div { flex: 1; min-width: 0; }
+.guided-tooltip-popover__header span {
+  display: block;
+  margin-bottom: 4px;
+  color: #67e8f9;
+  font: 700 0.57rem/1 ui-monospace, monospace;
+  letter-spacing: 0.11em;
+}
+.guided-tooltip-popover__header h2 {
+  margin: 0;
+  color: #f2fbff;
+  font: 700 0.95rem/1.25 system-ui, sans-serif;
+}
+.guided-tooltip-popover__close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a9bdd0;
+  font: 400 1.2rem/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+@keyframes guided-tooltip-arrive {
+  from { opacity: 0; transform: translateY(-5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.guided-tooltip-guide {
+  position: relative;
+  margin: 4px 0 12px;
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 10px;
+  background: rgba(5, 12, 25, 0.72);
+}
+
+.guided-tooltip-guide__eyebrow {
+  display: block;
+  padding: 7px 10px 5px;
+  color: #67e8f9;
+  font: 700 0.58rem/1 ui-monospace, monospace;
+  letter-spacing: 0.08em;
+}
+
+.guided-tooltip-guide__video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #02050d;
+}
+
+.guided-tooltip-guide__voiceover {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 8px 10px 10px;
+  height: 32px;
+}
+
+.guided-tooltip-guide__play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 14px;
+  border: 1px solid rgba(103, 232, 249, 0.5);
+  border-radius: 999px;
+  background: rgba(5, 17, 31, 0.92);
+  color: #eafaff;
+  font: 700 0.7rem/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.guided-tooltip-guide--scripted { padding: 0; }
+.guided-tooltip-guide--scripted summary {
+  padding: 9px 11px;
+  color: #9dd9e7;
+  font: 650 0.67rem/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.guided-tooltip-guide--scripted p {
+  margin: 0 !important;
+  padding: 0 11px 11px;
+  color: rgba(190, 204, 230, 0.7) !important;
+  font-size: 0.7rem !important;
+}
+
+@media (max-width: 640px) {
+  .guided-tooltip-popover {
+    inset: auto 8px 8px;
+    width: auto;
+    max-height: min(72vh, 620px);
+    border-radius: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guided-help-trigger,
+  .guided-tooltip-popover { animation: none; transition: none; }
+}

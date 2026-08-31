@@ -439,8 +439,14 @@ export class XRRealtimePresence {
       const caseInstruction = caseContext?.caseId
         ? `The active maintenance case is ${caseContext.caseId}.`
         : 'No maintenance case is active. Do not attempt a case-bound mutation.';
+      const fleetLocation = caseContext?.fleetLocation || null;
+      const fleetInstruction = caseContext?.surface === 'fleet-globe'
+        ? fleetLocation?.icao
+          ? `The selected JetNet fleet location is ${cleanText(fleetLocation.icao)} in ${cleanText([fleetLocation.city, fleetLocation.country].filter(Boolean).join(', '), 'an unknown location')}, representing ${Number(fleetLocation.count) || 0} cached aircraft. Use that location as the current fleet context.`
+          : 'The fleet globe is active, but no JetNet location is selected yet.'
+        : '';
       this.session?.configureTools(listed.tools, {
-        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
+        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
       });
       this.toolText = `${listed.tools?.length || 0} operations ready`;
       this.drawPanel();
@@ -600,6 +606,12 @@ export class XRRealtimePresence {
     ctx.textAlign = 'center';
     ctx.fillText(active ? 'MIC ON' : 'MIC', 192, 91);
     this.micTexture.needsUpdate = true;
+  }
+
+  async refreshContext() {
+    if (!this.session || ['disconnected', 'connecting', 'failed'].includes(this.state)) return false;
+    await this.configureTools();
+    return true;
   }
 
   drawSnapshotButton() {

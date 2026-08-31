@@ -3952,6 +3952,36 @@ async function showCompanyDetail(id) {
     if (!comp) { body.innerHTML = '<div class="empty-state">Company not found</div>'; return; }
 
     const ident = comp.identification || {};
+    const companyId = safeRecordId(ident.companyid ?? id);
+    const aircraftRelationships = Array.isArray(comp.aircraftrelationships) ? comp.aircraftrelationships : [];
+    const relationshipIds = [...new Set(
+      aircraftRelationships
+        .slice(0, 20)
+        .map((relationship) => safeRecordId(relationship.aircraftid))
+        .filter((aircraftId) => aircraftId !== null)
+    )];
+    const embeddedContacts = Array.isArray(comp.contacts)
+      ? comp.contacts.filter((contact) => contact && typeof contact === 'object')
+      : [];
+    const [contactsResult, aircraftResult] = await Promise.allSettled([
+      companyId === null
+        ? Promise.resolve({ contacts: embeddedContacts })
+        : MXApplicationClient.contactList({ token: TOKEN, bearer: BEARER, filters: { companyid: companyId } }),
+      relationshipIds.length === 0
+        ? Promise.resolve({ aircraft: [] })
+        : MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: { aclist: relationshipIds } })
+    ]);
+    const contacts = contactsResult.status === 'fulfilled' && Array.isArray(contactsResult.value?.contacts)
+      ? contactsResult.value.contacts
+      : embeddedContacts;
+    const aircraftRecords = aircraftResult.status === 'fulfilled' && Array.isArray(aircraftResult.value?.aircraft)
+      ? aircraftResult.value.aircraft
+      : [];
+    const tailNumberByAircraftId = new Map(
+      aircraftRecords
+        .map((aircraft) => [String(aircraft.aircraftid), String(aircraft.regnbr || '').trim()])
+        .filter(([, tailNumber]) => tailNumber)
+    );
     body.innerHTML = `
       <div class="detail-header">
         <div class="detail-title-group">
@@ -3984,36 +4014,38 @@ async function showCompanyDetail(id) {
           </div>
         </div>
 
-        ${comp.contacts && comp.contacts.length > 0 ? `
         <div class="detail-section full-width">
           <div class="detail-section-title">Contacts</div>
-          <table>
+          ${contacts.length > 0 ? `<table>
             <thead><tr><th>Name</th><th>Title</th><th>Email</th></tr></thead>
             <tbody>
-              ${comp.contacts.map(c => `
+              ${contacts.map(c => `
                 <tr>
-                  <td class="td-accent">${escapeMarkup([c.firstname, c.lastname].filter(Boolean).join(' '))}</td>
+                  <td class="td-accent">${escapeMarkup([c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' ') || 'Not available')}</td>
                   <td>${escapeMarkup(c.title || '-')}</td>
                   <td class="td-dim">${escapeMarkup(c.email || '-')}</td>
                 </tr>
               `).join('')}
             </tbody>
-          </table>
-        </div>` : ''}
+          </table>` : '<div class="empty-state">No contacts returned for this company.</div>'}
+        </div>
 
-        ${comp.aircraftrelationships && comp.aircraftrelationships.length > 0 ? `
+        ${aircraftRelationships.length > 0 ? `
         <div class="detail-section full-width">
-          <div class="detail-section-title">Aircraft Relationships (${comp.aircraftrelationships.length})</div>
+          <div class="detail-section-title">Aircraft Relationships (${aircraftRelationships.length})</div>
           <table>
-            <thead><tr><th>Aircraft ID</th><th>Relationship</th><th>Operator</th></tr></thead>
+            <thead><tr><th>Tail Number</th><th>Relationship</th><th>Operator</th></tr></thead>
             <tbody>
-              ${comp.aircraftrelationships.slice(0, 20).map(a => `
+              ${aircraftRelationships.slice(0, 20).map(a => {
+                const aircraftId = safeRecordId(a.aircraftid);
+                const tailNumber = aircraftId === null ? '' : tailNumberByAircraftId.get(String(aircraftId));
+                return `
                 <tr>
-                  <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
+                  <td class="td-mono ${aircraftId === null ? '' : 'td-accent related-aircraft'}" ${aircraftId === null ? '' : 'style="cursor:pointer"'} data-aircraft-id="${aircraftId ?? ''}" title="${aircraftId === null ? '' : `JetNet aircraft ID ${aircraftId}`}">${escapeMarkup(tailNumber || 'Not available')}</td>
                   <td>${escapeMarkup(a.relationtype)}</td>
-                  <td>${a.isoperator === 'Y' ? 'âœ“ Yes' : 'No'}</td>
+                  <td>${a.isoperator === 'Y' ? 'Yes' : 'No'}</td>
                 </tr>
-              `).join('')}
+              `}).join('')}
             </tbody>
           </table>
         </div>` : ''}
@@ -4536,9 +4568,14 @@ function nativeARGlobePlugin() {
   return globalThis.Capacitor?.Plugins?.JetNetNative || null;
 }
 
+function isNativeIOSGlobeHost() {
+  return globalThis.Capacitor?.isNativePlatform?.() === true
+    && globalThis.Capacitor?.getPlatform?.() === 'ios';
+}
+
 async function configureViewerARCapability() {
   const plugin = nativeARGlobePlugin();
-  if (!plugin?.isARSupported) {
+  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) {
     MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
     return;
   }
@@ -4797,7 +4834,7 @@ async function updateNativeARSpatialAudio(spatial) {
 async function openGlobeInAR() {
   const plugin = nativeARGlobePlugin();
   const button = document.getElementById('globeArButton');
-  if (!plugin?.showGlobe || !allClusters.length) return;
+  if (!isNativeIOSGlobeHost() || !plugin?.showGlobe || !allClusters.length) return;
   button.disabled = true;
   try {
     await plugin.showGlobe({
@@ -4815,13 +4852,19 @@ async function openGlobeInAR() {
 
 async function configureNativeARGlobe() {
   const button = document.getElementById('globeArButton');
+  const guide = document.getElementById('globeArGuide');
   const plugin = nativeARGlobePlugin();
-  if (!button || !plugin?.isARSupported) return;
+  if (!button) return;
+  button.hidden = true;
+  if (guide) guide.hidden = true;
+  button.disabled = true;
+  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) return;
 
   try {
     const capability = await plugin.isARSupported();
     if (!capability?.supported) return;
     button.hidden = false;
+    if (guide) guide.hidden = false;
     button.disabled = !allClusters.length;
     if (!button.dataset.bound) {
       button.dataset.bound = 'true';
@@ -4898,7 +4941,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=6');
+  window.location.assign('globe-vr.html?v=8');
 }
 
 async function loadGlobe() {

@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0d1117">
     <title>MXGenius — 3D Viewer</title>
+    <link rel="stylesheet" href="../guided-tooltip.css?v=2">
     <!-- Fonts: system fallback (airgap — no external CDN) -->
     <style>
         /* ============================================
@@ -673,6 +674,13 @@
             -webkit-backdrop-filter: blur(12px);
             z-index: 60;
         }
+        #part-inspector .guided-help-trigger { position: absolute; top: 9px; right: 9px; }
+
+        body[data-hud-preview="true"] #part-inspector,
+        body[data-hud-preview="true"] .watermark {
+            opacity: 0;
+            pointer-events: none;
+        }
 
         .part-inspector-label {
             font-family: var(--font-mono);
@@ -753,7 +761,9 @@
         }
 
         #enter-vr-button,
-        #enter-ar-button {
+        #enter-ar-button,
+        #hud-preview-button,
+        #hud-sound-button {
             position: static !important;
             inset: auto !important;
             width: auto !important;
@@ -773,7 +783,9 @@
         }
 
         #enter-vr-button:hover:not(:disabled),
-        #enter-ar-button:hover:not(:disabled) {
+        #enter-ar-button:hover:not(:disabled),
+        #hud-preview-button:hover:not(:disabled),
+        #hud-sound-button:hover:not(:disabled) {
             background: rgba(255,255,255,0.15);
             border-color: rgba(255,255,255,0.4);
         }
@@ -788,6 +800,30 @@
             border-color: rgba(34, 211, 238, 0.58) !important;
             background: rgba(8, 67, 82, 0.72) !important;
             color: #b9f6ff !important;
+        }
+
+        #hud-preview-button {
+            margin-left: 8px;
+            border-color: rgba(245, 185, 66, 0.5) !important;
+            color: #ffd98a !important;
+        }
+
+        #hud-preview-button[aria-pressed="true"] {
+            background: rgba(112, 74, 12, 0.72) !important;
+            border-color: rgba(245, 185, 66, 0.9) !important;
+            color: #fff3d4 !important;
+        }
+
+        #hud-sound-button {
+            margin-left: 8px;
+            border-color: rgba(103, 232, 249, 0.46) !important;
+            color: #b9f6ff !important;
+        }
+
+        #hud-sound-button[aria-pressed="false"] {
+            border-color: rgba(142, 166, 183, 0.32) !important;
+            color: #8ea6b7 !important;
+            background: rgba(255,255,255,0.03) !important;
         }
 
         #procedure-media-button {
@@ -815,6 +851,7 @@
             box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
         }
         .procedure-media-drawer[hidden] { display: none; }
+        #ar-button-container[hidden] { display: none !important; }
         .procedure-media-drawer__head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
         .procedure-media-drawer__head strong { flex: 1; color: var(--text-primary); font-size: 0.8rem; }
         .procedure-media-drawer__head button { border: 0; background: none; color: var(--text-muted); cursor: pointer; }
@@ -845,7 +882,11 @@
         <div id="xr-button-container" style="margin-left: 15px;">
             <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
         </div>
+        <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
+        <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
+        <span id="hud-audio-status" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Spatial interface sound is ready to start</span>
         <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
+        <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
         
         <div style="flex: 1;"></div>
         
@@ -948,6 +989,7 @@
 
         <div id="part-inspector" aria-live="polite">
             <div class="part-inspector-label">Part selection</div>
+            <button class="guided-help-trigger" type="button" data-guide-id="mesh-inspection" aria-label="Explain mesh inspection" aria-expanded="false">?</button>
             <div id="part-selection-name">Select a visible mesh</div>
             <div id="part-selection-path">Click a component to inspect its model hierarchy and mapping state.</div>
             <div id="part-selection-status">No selection</div>
@@ -980,6 +1022,7 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=10"></script>
     <script src="../realtime-client.js?v=2"></script>
+    <script src="../guided-tooltip.js?v=2"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
@@ -1003,7 +1046,9 @@
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRMediaPanel } from './xr-media-panel.js';
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=2';
+        import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
+        import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=1';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=5';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -1060,6 +1105,8 @@
         let viewerContext = {};
         let xrMediaPanel = null;
         let xrAnimationScrubber = null;
+        let xrMaintenanceHUD = null;
+        let xrUIAudio = null;
         let xrVoice = null;
         const xrControllers = [];
         const xrHands = [];
@@ -1142,6 +1189,13 @@
             renderer.setClearColor(0x000000, 0);
             renderer.xr.enabled = true;
 
+            try {
+                xrUIAudio = new XRUIAudio({ camera, onStateChange: updateXRAudioStatus });
+            } catch (error) {
+                console.warn('Spatial interface sound is unavailable:', error);
+                updateXRAudioStatus({ state: 'unavailable', muted: false, error: error?.message });
+            }
+
             xrMediaPanel = new XRMediaPanel({
                 video: document.getElementById('procedure-media-video'),
                 onAction: emitXRAction,
@@ -1150,8 +1204,14 @@
             scene.add(xrMediaPanel.group);
             xrAnimationScrubber = new XRAnimationScrubber({ onAction: emitXRAction });
             scene.add(xrAnimationScrubber.group);
+            xrMaintenanceHUD = new XRMaintenanceHUD({
+                onAction: emitXRAction,
+                onSound: (cue, options) => void xrUIAudio?.play(cue, options)
+            });
+            xrMaintenanceHUD.objects().forEach((object) => scene.add(object));
             xrVoice = new XRRealtimePresence({
                 contextProvider: () => viewerContext?.caseId ? { caseId: viewerContext.caseId } : null,
+                onSnapshotRequest: requestViewerSnapshot,
                 onAction: emitXRAction
             });
             scene.add(xrVoice.group);
@@ -1594,6 +1654,9 @@
                 pendingRemoteSelector = null;
                 selectPartBySelector(selector);
             }
+            if (document.getElementById('hud-preview-button')?.getAttribute('aria-pressed') === 'true') {
+                ensureMaintenanceHUDTarget();
+            }
         }
 
         function activateLocalProvider() {
@@ -1692,15 +1755,22 @@
             container.replaceChildren(button);
 
             renderer.xr.addEventListener('sessionstart', () => {
+                void xrUIAudio?.unlock();
                 stageSceneForXR('local-floor');
                 xrMediaPanel?.setPresenting(true);
                 xrAnimationScrubber?.setPresenting(true);
+                xrMaintenanceHUD?.setContext(viewerContext);
+                xrMaintenanceHUD?.setPresenting(true, camera);
+                ensureMaintenanceHUDTarget();
                 xrVoice?.setPresenting(true);
             });
             renderer.xr.addEventListener('sessionend', () => {
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
+                xrMaintenanceHUD?.setPresenting(false, camera);
                 xrVoice?.setPresenting(false);
+                xrUIAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
+                xrUIAudio?.stopCue('system_relocalizing_loop', { fadeMs: 70 });
                 restoreSceneFromXR();
             });
         }
@@ -1734,6 +1804,12 @@
         }
 
         function emitXRAction(action, input, target = {}) {
+            const cue = cueForXRAction(action, target);
+            if (cue) void xrUIAudio?.play(cue, { object: selectedMesh });
+            if (action === 'acquire' && !xrMaintenanceHUD?.targetObject) ensureMaintenanceHUDTarget();
+            else if (action === 'voice') void xrVoice?.toggle(input);
+            else if (action === 'capture') void xrVoice?.captureSnapshot(input);
+            else if (action === 'clear') clearPartSelection();
             const detail = { action, input, target, context: viewerContext };
             window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail }));
             if (window.parent !== window) {
@@ -1748,12 +1824,14 @@
         }
 
         function selectFromXRController(controller, index) {
+            void xrUIAudio?.unlock();
             xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
             const targets = [
                 ...(currentModel ? [currentModel] : []),
                 ...(xrVoice?.interactiveObjects() || []),
+                ...(xrMaintenanceHUD?.interactiveObjects() || []),
                 ...(xrMediaPanel?.interactiveObjects() || []),
                 ...(xrAnimationScrubber?.group.visible ? [xrAnimationScrubber.group] : [])
             ];
@@ -1761,6 +1839,7 @@
             if (!hit) return;
             const input = `controller-${index}`;
             if (xrVoice?.handleObject(hit.object, input)) return;
+            if (xrMaintenanceHUD?.handleObject(hit.object, input)) return;
             if (xrMediaPanel?.handleObject(hit.object, input)) return;
             if (xrAnimationScrubber?.owns(hit.object)) {
                 xrAnimationScrubber.scrubAtWorldPoint(hit.point, input);
@@ -1863,6 +1942,57 @@
             });
         }
 
+        async function requestViewerSnapshot() {
+            if (!renderer || !scene || !camera) throw new Error('3D viewer is not ready to capture evidence');
+            const drawingSize = renderer.getDrawingBufferSize(new THREE.Vector2());
+            const scale = Math.min(1, 1280 / Math.max(1, drawingSize.x), 720 / Math.max(1, drawingSize.y));
+            const width = Math.max(1, Math.round(drawingSize.x * scale));
+            const height = Math.max(1, Math.round(drawingSize.y * scale));
+            const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                type: THREE.UnsignedByteType,
+                depthBuffer: true
+            });
+            renderTarget.texture.colorSpace = THREE.SRGBColorSpace;
+            const captureCamera = renderer.xr.isPresenting
+                ? renderer.xr.getCamera(camera).cameras?.[0] || camera
+                : camera;
+            const previousTarget = renderer.getRenderTarget();
+            const xrEnabled = renderer.xr.enabled;
+            const pixels = new Uint8Array(width * height * 4);
+            try {
+                renderer.xr.enabled = false;
+                renderer.setRenderTarget(renderTarget);
+                renderer.clear();
+                renderer.render(scene, captureCamera);
+                renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, pixels);
+            } finally {
+                renderer.setRenderTarget(previousTarget);
+                renderer.xr.enabled = xrEnabled;
+                renderTarget.dispose();
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            const imageData = context.createImageData(width, height);
+            const rowBytes = width * 4;
+            for (let y = 0; y < height; y += 1) {
+                const sourceOffset = (height - y - 1) * rowBytes;
+                imageData.data.set(pixels.subarray(sourceOffset, sourceOffset + rowBytes), y * rowBytes);
+            }
+            context.putImageData(imageData, 0, 0);
+            return {
+                dataUrl: canvas.toDataURL('image/jpeg', 0.82),
+                width,
+                height,
+                eye: renderer.xr.isPresenting ? 'left' : 'viewer'
+            };
+        }
+
         function configureProcedureMedia(tutorial) {
             const ready = xrMediaPanel?.configure(tutorial) || false;
             const button = document.getElementById('procedure-media-button');
@@ -1891,6 +2021,13 @@
                 const tip = hand.joints?.['index-finger-tip'];
                 if (!tip?.visible) return;
                 tip.getWorldPosition(xrFingerPoint);
+                const hudTarget = xrMaintenanceHUD?.fingerTargetAt(xrFingerPoint);
+                if (hudTarget) {
+                    const previousHud = xrFingerTargets.get(index) || null;
+                    if (hudTarget !== previousHud) xrMaintenanceHUD.handleObject(hudTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, hudTarget);
+                    return;
+                }
                 const voiceTarget = xrVoice?.fingerTargetAt(xrFingerPoint);
                 if (voiceTarget) {
                     const previousVoice = xrFingerTargets.get(index) || null;
@@ -2042,6 +2179,7 @@
             selectedMesh = null;
             selectedOriginalMaterial = null;
             selectedHighlightMaterial = null;
+            xrMaintenanceHUD?.clearTarget({ forget: updatePanel });
 
             if (updatePanel) {
                 partSelectionName.textContent = 'Select a visible mesh';
@@ -2095,6 +2233,20 @@
                 }
             };
 
+            xrMaintenanceHUD?.setTarget(mesh, {
+                label: detail.selection.componentId || detail.selection.meshName,
+                state: mappingStatus === 'validated' || mappingStatus === 'mapped' ? 'confirmed' : 'candidate',
+                confidence: mappingStatus === 'validated' ? 0.98 : mappingStatus === 'mapped' ? 0.9 : 0.72,
+                measurement: mappingStatus === 'demo' ? 'VISUAL INSPECTION' : 'COMPONENT SELECTED',
+                measurementSource: mappingStatus === 'demo' ? 'Demo geometry · unverified' : `Mapping · ${mappingStatus}`,
+                summary: mappingStatus === 'demo'
+                    ? 'Geometry selected for interface rehearsal. Confirm component identity and applicable maintenance evidence before acting.'
+                    : 'Selected component is ready for evidence review and guided inspection.',
+                sources: mappingStatus === 'demo'
+                    ? ['MODEL GEOMETRY', 'CASE CONTEXT', 'MANUAL LOOKUP']
+                    : ['COMPONENT MAP', 'CASE HISTORY', 'MANUAL LOOKUP']
+            });
+
             partSelectionName.textContent = detail.selection.meshName;
             partSelectionPath.textContent = path || '(model root)';
             partSelectionStatus.textContent = mappingStatus;
@@ -2129,12 +2281,81 @@
             return Boolean(match);
         }
 
+        function ensureMaintenanceHUDTarget() {
+            if (!currentModel || selectedMesh) return Boolean(selectedMesh);
+            let firstVisibleMesh = null;
+            currentModel.traverse((node) => {
+                if (!firstVisibleMesh && node.isMesh && node.visible) firstVisibleMesh = node;
+            });
+            if (!firstVisibleMesh) return false;
+            const entry = currentCatalogEntry() || {};
+            xrMaintenanceHUD?.setTarget(firstVisibleMesh, {
+                label: firstVisibleMesh.name || entry.name || 'SELECTED COMPONENT',
+                state: 'candidate',
+                confidence: 0.72,
+                measurement: 'VISUAL INSPECTION',
+                measurementSource: 'Demo geometry · unverified',
+                summary: 'Spatial HUD preview is using the first visible mesh. Select a component to move the annotation to an exact target.',
+                sources: ['MODEL GEOMETRY', 'CASE CONTEXT', 'MANUAL LOOKUP']
+            });
+            return true;
+        }
+
+        function updateHUDPointerFocus(event) {
+            if (!xrMaintenanceHUD || renderer.xr.isPresenting || !xrMaintenanceHUD.group.visible) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const hit = raycaster.intersectObjects(xrMaintenanceHUD.interactiveObjects(), true)[0];
+            xrMaintenanceHUD.setFocusedObject(hit?.object || null);
+        }
+
+        function updateXRControllerHUDFocus() {
+            if (!renderer.xr.isPresenting || !xrMaintenanceHUD?.group.visible) return;
+            let focused = null;
+            for (const controller of xrControllers) {
+                xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
+                const hit = raycaster.intersectObjects(xrMaintenanceHUD.interactiveObjects(), true)[0];
+                if (hit) {
+                    focused = hit.object;
+                    break;
+                }
+            }
+            xrMaintenanceHUD.setFocusedObject(focused);
+        }
+
+        function updateXRAudioStatus(detail = {}) {
+            const button = document.getElementById('hud-sound-button');
+            const status = document.getElementById('hud-audio-status');
+            if (!button || !status) return;
+            const muted = Boolean(detail.muted);
+            const stateLabel = detail.state === 'ready'
+                ? 'ready'
+                : detail.state === 'degraded'
+                    ? 'partially available'
+                    : detail.state === 'unavailable'
+                        ? 'unavailable'
+                        : 'waiting for your first interaction';
+            button.setAttribute('aria-pressed', String(!muted));
+            button.textContent = muted ? 'Sound Off' : 'Sound On';
+            button.title = muted ? 'Enable spatial interface sound' : `Spatial interface sound is ${stateLabel}`;
+            status.textContent = muted
+                ? 'Spatial interface sound muted'
+                : `Spatial interface sound ${stateLabel}`;
+            document.body.dataset.xrAudio = muted ? 'muted' : String(detail.state || 'locked');
+        }
+
         function handlePartPick(event) {
             if (!currentModel || renderer.xr.isPresenting) return;
             const rect = renderer.domElement.getBoundingClientRect();
             pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(pointer, camera);
+            const hudHit = raycaster.intersectObjects(xrMaintenanceHUD?.interactiveObjects() || [], true)[0];
+            if (hudHit && xrMaintenanceHUD?.handleObject(hudHit.object, 'pointer')) return;
             const hit = raycaster.intersectObject(currentModel, true).find((item) => item.object?.isMesh);
             if (hit) selectPart(hit.object);
             else clearPartSelection();
@@ -2238,6 +2459,24 @@
         function setupEventListeners() {
             const procedureButton = document.getElementById('procedure-media-button');
             const procedureDrawer = document.getElementById('procedure-media-drawer');
+            const hudPreviewButton = document.getElementById('hud-preview-button');
+            const hudSoundButton = document.getElementById('hud-sound-button');
+            hudPreviewButton.addEventListener('click', () => {
+                void xrUIAudio?.unlock();
+                const preview = hudPreviewButton.getAttribute('aria-pressed') !== 'true';
+                hudPreviewButton.setAttribute('aria-pressed', String(preview));
+                hudPreviewButton.textContent = preview ? 'Hide HUD' : 'HUD Preview';
+                document.body.dataset.hudPreview = String(preview);
+                xrMaintenanceHUD?.setContext(viewerContext);
+                xrMaintenanceHUD?.setPreview(preview, camera);
+                if (preview) ensureMaintenanceHUDTarget();
+                else void xrUIAudio?.play('ui_back_close');
+            });
+            hudSoundButton.addEventListener('click', async () => {
+                const enable = hudSoundButton.getAttribute('aria-pressed') !== 'true';
+                xrUIAudio?.setMuted(!enable);
+                if (enable && await xrUIAudio?.unlock()) void xrUIAudio.play('ui_press_secondary');
+            });
             procedureButton.addEventListener('click', () => {
                 if (!procedureButton.disabled) procedureDrawer.hidden = !procedureDrawer.hidden;
             });
@@ -2246,8 +2485,11 @@
             });
 
             renderer.domElement.addEventListener('pointerdown', (event) => {
+                void xrUIAudio?.unlock();
                 if (event.button === 0) pointerDownPosition = { x: event.clientX, y: event.clientY };
             });
+            renderer.domElement.addEventListener('pointermove', updateHUDPointerFocus);
+            renderer.domElement.addEventListener('pointerleave', () => xrMaintenanceHUD?.setFocusedObject(null, { sound: false }));
             renderer.domElement.addEventListener('pointerup', (event) => {
                 if (!pointerDownPosition || event.button !== 0) return;
                 const distance = Math.hypot(
@@ -2258,6 +2500,15 @@
                 if (distance <= 5) handlePartPick(event);
             });
 
+            function isNativeIOSViewerHost() {
+                try {
+                    const capacitor = window.parent?.Capacitor || globalThis.Capacitor;
+                    return capacitor?.isNativePlatform?.() === true && capacitor?.getPlatform?.() === 'ios';
+                } catch {
+                    return false;
+                }
+            }
+
             window.addEventListener('message', (event) => {
                 if (event.source !== window.parent || event.origin !== window.location.origin) return;
                 const message = event.data || {};
@@ -2265,6 +2516,7 @@
                     viewerContext = message.context && typeof message.context === 'object'
                         ? { ...message.context }
                         : {};
+                    xrMaintenanceHUD?.setContext(viewerContext);
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                 } else if (message.type === 'mxgenius.viewer.highlight-part') {
                     const selector = message.selector || {};
@@ -2285,7 +2537,7 @@
                 } else if (message.type === 'mxgenius.viewer.ar-capability') {
                     const arContainer = document.getElementById('ar-button-container');
                     const arButton = document.getElementById('enter-ar-button');
-                    const supported = Boolean(message.supported);
+                    const supported = Boolean(message.supported) && isNativeIOSViewerHost();
                     if (arContainer) arContainer.hidden = !supported;
                     if (arButton) {
                         arButton.disabled = !supported;
@@ -2301,6 +2553,20 @@
                         arButton.textContent = 'AR Scene';
                     }
                 }
+            });
+
+            window.addEventListener('mxgenius:xr-audio-cue', (event) => {
+                const detail = event.detail || {};
+                if (typeof detail.cue === 'string') {
+                    void xrUIAudio?.play(detail.cue, {
+                        object: detail.object?.isObject3D ? detail.object : selectedMesh,
+                        gain: detail.gain,
+                        loop: detail.loop
+                    });
+                }
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) xrUIAudio?.stopAll({ fadeMs: 70 });
             });
 
             // Resize
@@ -2568,6 +2834,8 @@
             xrMediaPanel?.update(delta);
             xrAnimationScrubber?.syncFromAction();
             xrAnimationScrubber?.updatePresentation(delta);
+            xrMaintenanceHUD?.update(delta, time, { camera });
+            updateXRControllerHUDFocus();
             updateXRWorldGesture();
             if (activeModelProvider === 'local' && currentAction && animations.length) {
                 const idx = parseInt(document.getElementById('anim-select').value);

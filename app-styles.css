@@ -1784,6 +1784,11 @@ body.live-mode .api-status.connected .status-dot {
   scrollbar-width: none;
 }
 
+#globeArButton[hidden],
+#globeArGuide[hidden] {
+  display: none !important;
+}
+
 .globe-texture-buttons::-webkit-scrollbar {
   display: none;
 }

@@ -165,13 +165,44 @@ const MXCaseWorkspace = (() => {
     const form = event.currentTarget;
     const submitButton = byId('caseCreateButton');
     submitButton.disabled = true;
-    setStatus('Resolving aircraft and building case context…', 'working');
+    const registration = form.elements.registration.value.trim();
+    const discrepancy = form.elements.discrepancy.value.trim();
+    const priority = form.elements.priority.value;
+    const requestSession = session();
+    setStatus('Resolving aircraft…', 'working');
     try {
+      const lookupEnvelope = await MXApplicationClient.aircraft.lookup({
+        registration,
+        session: requestSession
+      });
+      const lookup = MXApplicationClient.caseWorkspace.output(lookupEnvelope);
+      const exactMatches = Array.isArray(lookup?.matches) ? lookup.matches : [];
+      const aircraftId = lookup?.aircraft_id
+        || (exactMatches.length === 1 ? exactMatches[0]?.aircraft_id : null);
+      if (!aircraftId) {
+        const error = new Error(exactMatches.length === 0
+          ? `No aircraft matched tail number ${registration}.`
+          : `Tail number ${registration} did not resolve to one aircraft.`);
+        error.code = exactMatches.length === 0 ? 'AIRCRAFT_NOT_FOUND' : 'AIRCRAFT_AMBIGUOUS';
+        throw error;
+      }
+      const createArguments = {
+        aircraft_id: aircraftId,
+        raw_discrepancy: discrepancy,
+        priority
+      };
+      setStatus('Confirming maintenance case creation…', 'working');
+      const confirmation = await MXApplicationClient.confirmations.issue({
+        toolName: 'mxg.maintenance_case.create',
+        arguments: createArguments,
+        session: requestSession
+      });
+      setStatus('Creating maintenance case and building context…', 'working');
       const result = await MXApplicationClient.caseWorkspace.runFirstSlice({
-        registration: form.elements.registration.value,
-        discrepancy: form.elements.discrepancy.value,
-        priority: form.elements.priority.value,
-        session: session()
+        registration,
+        discrepancy,
+        priority,
+        session: { ...requestSession, confirmationGrant: confirmation.token }
       });
       render(result);
       activeCase = result;

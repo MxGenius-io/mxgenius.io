@@ -43,24 +43,28 @@ const MXOnboarding = (() => {
     {
       target: '#signedInAs',
       title: 'Your Account and Access',
+      guideId: 'account-access',
       body: 'MXGenius reads your signed-in email and organization access before showing protected workspaces. Select your name here to review account and access settings.',
       position: 'bottom'
     },
     {
       target: '#mainNav',
       title: 'Navigation',
+      guideId: 'main-navigation',
       body: 'Move between Dashboard, Case Workspace, Parts Management, 3D Inspection, and Settings. The workspaces shown here follow your assigned role.',
       position: 'bottom'
     },
     {
       target: '#apiStatus',
       title: 'Connection Status',
+      guideId: 'connection-status',
       body: 'This indicator confirms when live fleet data and MXGenius services are ready. Wait for Fleet proxy ready before starting a lookup or receiving workflow.',
       position: 'bottom-left'
     },
     {
       target: '#chatToggleNav',
       title: 'AI Copilot',
+      guideId: 'ai-copilot',
       body: 'Ask about an aircraft, part, maintenance issue, or source record. MXGenius can organize the answer, but any operational change still requires your confirmation.',
       position: 'bottom-left'
     }
@@ -72,6 +76,7 @@ const MXOnboarding = (() => {
       {
         target: '#caseNav',
         title: 'Create a Maintenance Case',
+        guideId: 'maintenance-case',
         body: 'Start a maintenance event here. Enter the aircraft registration and discrepancy so evidence, findings, approvals, and follow-up work stay connected.',
         position: 'bottom',
         onEnter: () => switchTabSafe('case')
@@ -79,6 +84,7 @@ const MXOnboarding = (() => {
       {
         target: '#activeCaseCard, .active-case-card',
         title: 'Active Maintenance Case',
+        guideId: 'maintenance-case',
         body: 'The selected case stays visible across the application. Copilot responses, evidence, approvals, and 3D findings use this case as their working context.',
         position: 'bottom',
         onEnter: () => switchTabSafe('dashboard')
@@ -86,15 +92,25 @@ const MXOnboarding = (() => {
       {
         target: '#partsNav',
         title: 'Parts Management',
+        guideId: 'parts-management',
         body: 'Use Parts Management when a maintenance event needs receiving evidence, serialized inventory, trace review, or a scannable unit label.',
         position: 'bottom',
         onEnter: () => switchTabSafe('parts')
+      },
+      {
+        target: '#sensorSceneTab',
+        title: 'FLIR Sensor Diagnostics',
+        guideId: 'sensor-diagnostics',
+        body: 'Open the isolated sensor scene to connect the native Quest bridge, FLIR source, Pi diagnostics, and realtime evidence capture without loading fleet context.',
+        position: 'bottom-left',
+        onEnter: () => switchTabSafe('dashboard')
       }
     ],
     fleet: [
       {
         target: '.fleet-section, details:has(#globeViz), [id*="fleet"]',
         title: 'Fleet Context',
+        guideId: 'fleet-context',
         body: 'Your fleet lives here — an interactive globe with aircraft positions, a search explorer, and company/contact directory. Expand it to populate the dashboard charts below.',
         position: 'bottom',
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
@@ -102,6 +118,7 @@ const MXOnboarding = (() => {
       {
         target: '#aircraftExplorerCollapsible',
         title: 'Aircraft Explorer',
+        guideId: 'fleet-context',
         body: 'Expand Aircraft Explorer to search by registration, manufacturer, aircraft type, or reported operating context. Select an aircraft to open its source-backed details and FAA candidate check.',
         position: 'bottom',
         onEnter: () => { switchTabSafe('dashboard'); document.getElementById('aircraftExplorerCollapsible')?.setAttribute('open', ''); }
@@ -109,6 +126,7 @@ const MXOnboarding = (() => {
       {
         target: '#globeVrButton',
         title: 'Fleet View in XR',
+        guideId: 'fleet-xr',
         body: 'On Meta Quest, open MXGenius in the native Quest Browser, load Fleet Context, then choose View in XR. The passthrough globe supports controller selection and fingertip contact with its fleet markers.',
         position: 'bottom-left',
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
@@ -118,6 +136,7 @@ const MXOnboarding = (() => {
       {
         target: '.fleet-section, details:has(#globeViz), [id*="fleet"]',
         title: 'Find Your Aircraft',
+        guideId: 'fleet-context',
         body: 'Open Fleet Context and search by registration number. Select an aircraft to review its details and candidate FAA Airworthiness Directives from the live FAA source.',
         position: 'bottom',
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
@@ -125,6 +144,7 @@ const MXOnboarding = (() => {
       {
         target: '#chatToggleNav',
         title: 'Ask MXGenius',
+        guideId: 'ai-copilot',
         body: 'Type a question about your aircraft to get maintenance guidance, AD applicability, or general aviation knowledge. Try the suggestion pills for common queries.',
         position: 'bottom-left',
         onEnter: () => switchTabSafe('dashboard')
@@ -134,6 +154,7 @@ const MXOnboarding = (() => {
       {
         target: '#partsNav',
         title: 'Parts Management',
+        guideId: 'parts-management',
         body: 'This is the working inventory. Search by part number, description, or serial number, then select a unit to open its complete record.',
         position: 'bottom',
         onEnter: () => switchTabSafe('parts')
@@ -141,6 +162,7 @@ const MXOnboarding = (() => {
       {
         target: '#btnReceivePart',
         title: 'Receive a Part',
+        guideId: 'parts-management',
         body: 'Receiving follows four steps: upload a document or photo, review OCR suggestions, complete the inventory details, and confirm the new unit. OCR never approves a part for you.',
         position: 'bottom',
         onEnter: () => switchTabSafe('parts')
@@ -148,6 +170,7 @@ const MXOnboarding = (() => {
       {
         target: '#partsInventoryGrid',
         title: 'Open the Unit Record',
+        guideId: 'parts-management',
         body: 'Select a unit to review its overview, documents, inventory history, FAA references, and QR label. The QR code returns to the same controlled record.',
         position: 'top',
         onEnter: () => switchTabSafe('parts')
@@ -173,6 +196,7 @@ const MXOnboarding = (() => {
   }
 
   function clearPortal() {
+    window.MXGuidedTooltip?.stop();
     const p = portal();
     p.innerHTML = '';
   }
@@ -356,6 +380,9 @@ const MXOnboarding = (() => {
     const body = document.createElement('p');
     body.textContent = step.body;
 
+    const mediaHost = document.createElement('div');
+    mediaHost.className = 'guided-tooltip-host';
+
     const actions = document.createElement('div');
     actions.className = 'onboarding-tooltip__actions';
 
@@ -381,6 +408,7 @@ const MXOnboarding = (() => {
 
     tooltip.appendChild(stepLabel);
     tooltip.appendChild(title);
+    tooltip.appendChild(mediaHost);
     tooltip.appendChild(body);
     tooltip.appendChild(actions);
 
@@ -388,6 +416,10 @@ const MXOnboarding = (() => {
 
     // Position tooltip relative to target
     positionTooltip(tooltip, target, step.position);
+    void window.MXGuidedTooltip?.mount(mediaHost, step.guideId, {
+      autoplay: true,
+      onReady: () => positionTooltip(tooltip, target, step.position)
+    });
 
     // Focus management
     nextBtn.focus();

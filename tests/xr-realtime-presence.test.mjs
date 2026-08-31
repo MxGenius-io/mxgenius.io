@@ -7,6 +7,7 @@ const globe = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8
 const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
 const sensors = await readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const xrAudio = await readFile(new URL('../xr-ui-audio.js', import.meta.url), 'utf8');
 
 const traceHelpers = sensors.slice(
   sensors.indexOf('function clean'),
@@ -30,6 +31,8 @@ test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and
   assert.match(presence, /Tap mic: voice/);
   assert.match(presence, /setDockTarget/);
   assert.match(presence, /this\.connectPromise/);
+  assert.match(presence, /The selected JetNet fleet location is/);
+  assert.match(presence, /async refreshContext\(\)/);
   assert.match(presence, /realtimeSession\?\.disconnect\(\)/);
   assert.match(presence, /dispose\(\) \{/);
   assert.match(presence, /requires_human_approval/);
@@ -49,15 +52,16 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
 });
 
-test('sensor scene supports a head-following or world-pinned thermal screen while fleet retains its wrist presentation', () => {
-  assert.match(globe, /XRSensorOrb/);
-  assert.match(globe, /presentation: sensorOnlyScene \? 'head-screen' : 'wrist-orb'/);
+test('sensor scene owns the head-following thermal bridge while the fleet globe omits that runtime', () => {
+  assert.match(globe, /if \(sensorOnlyScene\) \(\{ XRSensorOrb: SensorOrbClass \} = await import/);
+  assert.match(globe, /if \(sensorOnlyScene\) xrSensors = new SensorOrbClass/);
+  assert.match(globe, /presentation: 'head-screen'/);
   assert.match(globe, /xrVoice\.setDockTarget\(xrSensors\.voiceDock\)/);
   assert.match(globe, /sensorPreviewMode/);
-  assert.match(globe, /if \(!sensorOnlyScene\) xrSensors\.setAnchors\(\{ rightHand \}\)/);
-  assert.match(globe, /xrSensors\.handleObject/);
-  assert.match(globe, /xrSensors\.setPresenting\(true\)/);
-  assert.match(globe, /xrSensors\.startPreflight\(\)/);
+  assert.match(globe, /xrSensors\?\.setAnchors\(\{ rightHand \}\)/);
+  assert.match(globe, /xrSensors\?\.handleObject/);
+  assert.match(globe, /xrSensors\?\.setPresenting\(true\)/);
+  assert.match(globe, /xrSensors\?\.startPreflight\(\)/);
   assert.match(globe, /mxgenius:\/\/sensor-bridge/);
   assert.match(globe, /FLIR THERMAL · NATIVE QUEST/);
   assert.match(sensors, /MXGeniusSensorOrb/);
@@ -98,7 +102,12 @@ test('sensor scene supports a head-following or world-pinned thermal screen whil
   assert.match(sensors, /headset\.snapshot\.request/);
   assert.match(sensors, /headset\.snapshot\.result/);
   assert.match(sensors, /this\.pendingSnapshots/);
-  assert.match(globe, /onSnapshotRequest: \(\) => xrSensors\.requestHeadsetSnapshot\(\)/);
+  assert.match(globe, /onSnapshotRequest: sensorOnlyScene \? \(\) => xrSensors\.requestHeadsetSnapshot\(\) : null/);
+  assert.match(globe, /emitSceneAction\('sensor-status'/);
+  assert.match(globe, /emitSceneAction\(action, input, target, xrSensors\.group\)/);
+  assert.match(xrAudio, /case 'toggle-thermal-screen'/);
+  assert.match(xrAudio, /case 'thermal-screen-anchor'/);
+  assert.match(xrAudio, /case 'sensor-status'/);
 });
 
 test('XR trace keeps native failure reasons while redacting actual credential shapes', () => {
@@ -114,7 +123,7 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
 
 test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=11"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=13"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);

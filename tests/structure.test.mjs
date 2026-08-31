@@ -3,6 +3,8 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import { test } from 'node:test';
 
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const rootReadme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+const featureCatalog = await readFile(new URL('../FEATURES.md', import.meta.url), 'utf8');
 const landing = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
@@ -16,9 +18,18 @@ const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url
 const viewerVrButton = await readFile(new URL('../3d-viewer/lib/webxr/VRButton.js', import.meta.url), 'utf8');
 const xrMediaPanel = await readFile(new URL('../3d-viewer/xr-media-panel.js', import.meta.url), 'utf8');
 const xrAnimationScrubber = await readFile(new URL('../3d-viewer/xr-animation-scrubber.js', import.meta.url), 'utf8');
+const xrMaintenanceHud = await readFile(new URL('../3d-viewer/xr-maintenance-hud.js', import.meta.url), 'utf8');
+const xrUiAudio = await readFile(new URL('../xr-ui-audio.js', import.meta.url), 'utf8');
+const xrGlobeHud = await readFile(new URL('../xr-globe-hud.js', import.meta.url), 'utf8');
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
+const guidedTooltip = await readFile(new URL('../guided-tooltip.js', import.meta.url), 'utf8');
+const guidedTooltipStyles = await readFile(new URL('../guided-tooltip.css', import.meta.url), 'utf8');
+const partsWorkspace = await readFile(new URL('../parts-workspace.js', import.meta.url), 'utf8');
+const tooltipManifest = JSON.parse(
+  await readFile(new URL('../assets/xr-ui-fx/audio/tooltips/scripts/manifest.json', import.meta.url), 'utf8')
+);
 const applicationStyles = await readFile(new URL('../app-styles.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
@@ -41,6 +52,11 @@ test('dashboard element IDs are unique', () => {
   const ids = matches(/\bid="([^"]+)"/g);
   const duplicates = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))].sort();
   assert.deepEqual(duplicates, []);
+});
+
+test('landing ChatGPT link uses the locally bundled official OpenAI Blossom', async () => {
+  assert.match(landing, /class="gpt-icon"[\s\S]*src="assets\/openai-blossom-white\.svg"/);
+  await access(new URL('../assets/openai-blossom-white.svg', import.meta.url));
 });
 
 test('landing navigation uses the canonical MxGenius logo asset', async () => {
@@ -397,10 +413,100 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
   assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision/);
 });
 
+test('root documentation exposes one status-marked product feature catalog', () => {
+  assert.match(rootReadme, /\[Complete feature catalog\]\(FEATURES\.md\)/);
+  assert.match(featureCatalog, /^# MXGenius feature catalog/m);
+  assert.match(featureCatalog, /## Status legend/);
+  for (const surface of [
+    'Identity, tenancy, and platform access',
+    'Fleet intelligence and JetNet',
+    'Maintenance cases',
+    'AI copilot, maintenance advisory, and Realtime voice',
+    'Controlled parts and inventory',
+    '3D inspection and digital-twin bridge',
+    'Fleet globe XR',
+    'Sensor bridge, FLIR, and Pi diagnostics',
+    'Native iOS AR',
+    'Onboarding, help, audio, and motion',
+    'Feedback, project workspaces, and reports',
+    'Compliance, manuals, weather, scheduling, and operations',
+    'Security, integrity, and release controls',
+    'Explicit product boundaries'
+  ]) assert.match(featureCatalog, new RegExp(surface.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(featureCatalog, /\[x\]/);
+  assert.match(featureCatalog, /\[~\]/);
+  assert.match(featureCatalog, /\[!\]/);
+  assert.match(featureCatalog, /\[-\]/);
+});
+
+test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal sequence', () => {
+  assert.match(viewer, /id="hud-preview-button"/);
+  assert.match(viewer, /import \{ XRMaintenanceHUD \}/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(true, camera\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.interactiveObjects\(\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.fingerTargetAt/);
+  assert.match(viewer, /raycaster\.intersectObjects\(xrMaintenanceHUD\?\.interactiveObjects\(\) \|\| \[\], true\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.update\(delta, time, \{ camera \}\)/);
+  assert.match(xrMaintenanceHud, /TOOL_ACTIONS/);
+  assert.match(xrMaintenanceHud, /OBSERVATION/);
+  assert.match(xrMaintenanceHud, /INTERPRETATION/);
+  assert.match(xrMaintenanceHud, /ACTION/);
+  assert.match(xrMaintenanceHud, /const brackets = windowedProgress/);
+  assert.match(xrMaintenanceHud, /const outline = windowedProgress/);
+  assert.match(xrMaintenanceHud, /const leader = windowedProgress/);
+  assert.match(xrMaintenanceHud, /const card = windowedProgress/);
+  assert.match(xrMaintenanceHud, /const effect = windowedProgress/);
+  assert.match(xrMaintenanceHud, /new THREE\.EdgesGeometry\(object\.geometry, 38\)/);
+  assert.match(xrMaintenanceHud, /edgeSegmentCount <= 220/);
+  assert.match(xrMaintenanceHud, /side: THREE\.BackSide/);
+  assert.match(xrMaintenanceHud, /prefers-reduced-motion: reduce/);
+  assert.match(xrMaintenanceHud, /clearTarget\(\)/);
+  assert.doesNotMatch(xrMaintenanceHud, /setInterval|visibility\s*=\s*!/);
+});
+
+test('WebXR maintenance audio maps every delivered cue and completes the live frontend actions', async () => {
+  assert.match(viewer, /id="hud-sound-button"/);
+  assert.match(viewer, /new XRUIAudio\(\{ camera, onStateChange: updateXRAudioStatus \}\)/);
+  assert.match(viewer, /xrVoice\?\.toggle\(input\)/);
+  assert.match(viewer, /xrVoice\?\.captureSnapshot\(input\)/);
+  assert.match(viewer, /onSnapshotRequest: requestViewerSnapshot/);
+  assert.match(viewer, /renderer\.readRenderTargetPixels/);
+  assert.match(viewer, /action === 'clear'\) clearPartSelection\(\)/);
+  assert.match(viewer, /updateHUDPointerFocus/);
+  assert.match(viewer, /updateXRControllerHUDFocus/);
+  assert.match(xrMaintenanceHud, /HUD_ACTION_CUES/);
+  assert.match(xrMaintenanceHud, /setFocusedObject/);
+  assert.match(xrUiAudio, /new THREE\.PositionalAudio\(this\.listener\)/);
+  assert.match(xrUiAudio, /linearRampToValueAtTime\(0/);
+  assert.match(xrUiAudio, /cueForXRAction/);
+  const cueFiles = [...xrUiAudio.matchAll(/file: '([^']+\.wav)'/g)].map((match) => match[1]);
+  assert.equal(cueFiles.length, 26);
+  await Promise.all(cueFiles.map((file) => access(new URL(`../assets/xr-ui-fx/audio/${file}`, import.meta.url))));
+});
+
+test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
+  assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=1'/);
+  assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=1'/);
+  assert.match(globeVr, /id="sceneSoundButton"/);
+  assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
+  assert.match(globeVr, /function emitSceneAction\(/);
+  assert.match(globeVr, /emitSceneAction\('sensor-status'/);
+  assert.match(globeVr, /emitSceneAction\('toggle-globe-rotation'/);
+  assert.match(globeVr, /emitSceneAction\(detail\.action/);
+  assert.match(xrUiAudio, /playAction\(action, target = \{\}, \{ object = null, gain = 1 \} = \{\}\)/);
+  assert.match(xrUiAudio, /case 'open-fleet-location'/);
+  assert.match(xrUiAudio, /case 'toggle-thermal-screen'/);
+  assert.match(xrUiAudio, /case 'sensor-status'/);
+});
+
 test('web wrapper exposes fleet and 3D viewer entry points for the native AR camera bridge', () => {
   assert.match(dashboard, /id="globeArButton"/);
   assert.match(dashboard, /Open fleet globe in augmented reality/);
   assert.match(application, /Capacitor\?\.Plugins\?\.JetNetNative/);
+  assert.match(application, /function isNativeIOSGlobeHost\(\)/);
+  assert.match(application, /Capacitor\?\.isNativePlatform\?\.\(\) === true/);
+  assert.match(application, /Capacitor\?\.getPlatform\?\.\(\) === 'ios'/);
+  assert.match(application, /if \(!isNativeIOSGlobeHost\(\) \|\| !plugin\?\.isARSupported\)/);
   assert.match(application, /plugin\.isARSupported\(\)/);
   assert.match(application, /plugin\.showGlobe\(\{/);
   assert.match(application, /MAX_NATIVE_AR_PINS = 750/);
@@ -410,6 +516,10 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(viewer, /id="enter-ar-button"/);
   assert.match(viewer, /mxgenius\.viewer\.ar-request/);
   assert.match(viewer, /mxgenius\.viewer\.ar-capability/);
+  assert.match(viewer, /function isNativeIOSViewerHost\(\)/);
+  assert.match(viewer, /Boolean\(message\.supported\) && isNativeIOSViewerHost\(\)/);
+  assert.match(viewer, /#ar-button-container\[hidden\] \{ display: none !important; \}/);
+  assert.match(applicationStyles, /#globeArButton\[hidden\],[\s\S]*#globeArGuide\[hidden\][\s\S]*display: none !important/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.ar-request'/);
   assert.match(application, /plugin\.showSpatialScene/);
   assert.match(application, /anchors: 3/);
@@ -428,7 +538,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=12/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=15/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -500,7 +610,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=6/);
+  assert.match(application, /globe-vr\.html\?v=8/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -532,7 +642,10 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(globeVr, /function captureGlobeGesture/);
   assert.match(globeVr, /mode: 'scale'/);
   assert.match(globeVr, /globeGroup\.scale\.setScalar/);
-  assert.match(globeVr, /FleetRotationToggle/);
+  assert.match(globeVr, /import \{ XRGlobeHUD \}/);
+  assert.match(globeVr, /new XRGlobeHUD\(\{ fleet, onAction: handleFleetHudAction \}\)/);
+  assert.match(globeVr, /fleetHud\.interactiveObjects\(\)/);
+  assert.match(globeVr, /fleetHud\.actionAtWorldPoint/);
   assert.match(globeVr, /toggleGlobeRotation/);
   assert.doesNotMatch(globeVr, /globeGroup\.quaternion\.copy/);
   assert.match(globeVr, /updateDetailsPresentation/);
@@ -541,13 +654,48 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(globeVr, /setFromUnitVectors/);
   assert.doesNotMatch(globeVr, /markerGeometry = new THREE\.SphereGeometry/);
   assert.doesNotMatch(globeVr, /HDRI|RGBELoader|EXRLoader/);
+  assert.match(xrGlobeHud, /FleetBrowserParityHUD/);
+  assert.match(xrGlobeHud, /FLEET CONTEXT/);
+  assert.match(xrGlobeHud, /SPATIAL COMMAND/);
+  assert.match(xrGlobeHud, /AIRCRAFT/);
+  assert.match(xrGlobeHud, /MAPPED/);
+  assert.match(xrGlobeHud, /COUNTRIES/);
+  assert.match(xrGlobeHud, /ACTIVE CASE/);
+  assert.match(xrGlobeHud, /HIGH TIME/);
+  assert.match(xrGlobeHud, /PAUSE ROTATION/);
+  assert.match(xrGlobeHud, /RECENTER/);
+  assert.match(xrGlobeHud, /type: 'texture'/);
+  assert.match(xrGlobeHud, /type: 'select-location'/);
+  assert.match(globeVr, /contextProvider: \(\) => sensorOnlyScene/);
+  assert.match(globeVr, /surface: 'fleet-globe'/);
+  assert.match(globeVr, /xrVoice\.refreshContext\(\)/);
+  assert.match(xrGlobeHud, /Math\.exp\(-10/);
+});
+
+test('company detail hydrates contacts and aircraft relationships with user-facing identifiers', () => {
+  assert.match(application, /contactList\(\{ token: TOKEN, bearer: BEARER, filters: \{ companyid: companyId \} \}\)/);
+  assert.match(application, /aircraftList\(\{ token: TOKEN, bearer: BEARER, filters: \{ aclist: relationshipIds \} \}\)/);
+  assert.match(application, /<th>Tail Number<\/th>/);
+  assert.match(application, /tailNumberByAircraftId/);
+  assert.doesNotMatch(application, /<th>Aircraft ID<\/th>/);
+});
+
+test('maintenance case creation binds the explicit submit action to a short-lived confirmation grant', () => {
+  assert.match(caseWorkspace, /MXApplicationClient\.aircraft\.lookup/);
+  assert.match(caseWorkspace, /toolName: 'mxg\.maintenance_case\.create'/);
+  assert.match(caseWorkspace, /raw_discrepancy: discrepancy/);
+  assert.match(caseWorkspace, /confirmationGrant: confirmation\.token/);
+  assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*confirmation/i);
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=4"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=2"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=5"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
-  assert.ok(onboardingIndex >= 0 && onboardingIndex < applicationIndex);
-  assert.match(dashboard, /onboarding\.css\?v=2/);
+  assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
+  assert.ok(onboardingIndex < applicationIndex);
+  assert.match(dashboard, /guided-tooltip\.css\?v=2/);
+  assert.match(dashboard, /onboarding\.css\?v=3/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /restart/);
@@ -563,10 +711,70 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /FAA references, and QR label/);
   assert.doesNotMatch(onboarding, /data-tab="operations"/);
   assert.match(onboarding, /target: '#globeVrButton'/);
+  assert.match(onboarding, /target: '#sensorSceneTab'/);
+  assert.match(onboarding, /guideId: 'sensor-diagnostics'/);
   assert.match(onboarding, /native Quest Browser/);
   assert.match(onboarding, /controller selection and fingertip contact/);
+  assert.match(onboarding, /MXGuidedTooltip\?\.mount/);
+  assert.match(onboarding, /MXGuidedTooltip\?\.stop/);
   assert.match(onboardingStyles, /\.onboarding-welcome/);
+  assert.match(guidedTooltip, /document\.createElement\('video'\)/);
+  assert.match(guidedTooltip, /document\.createElement\('audio'\)/);
+  assert.match(guidedTooltip, /track\.kind = 'captions'/);
+  assert.match(guidedTooltip, /video\.playsInline = true/);
+  assert.match(guidedTooltip, /prefers-reduced-motion: reduce/);
+  assert.match(guidedTooltip, /Video \+ voiceover script ready/);
+  assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__video/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
+});
+
+test('context help binds accessible anchored popovers across product surfaces', () => {
+  assert.match(guidedTooltip, /function open\(anchor, id/);
+  assert.match(guidedTooltip, /function close\(options/);
+  assert.match(guidedTooltip, /function bind\(root = document\)/);
+  assert.match(guidedTooltip, /\[data-guide-id\]/);
+  assert.match(guidedTooltip, /setAttribute\('role', 'dialog'\)/);
+  assert.match(guidedTooltip, /event\.key === 'Escape'/);
+  assert.match(guidedTooltip, /document\.addEventListener\('pointerdown'/);
+  assert.match(guidedTooltipStyles, /\.guided-help-trigger/);
+  assert.match(guidedTooltipStyles, /\.guided-tooltip-popover/);
+  assert.match(guidedTooltipStyles, /max-width: 640px/);
+
+  const surfaceMarkup = [dashboard, globeVr, viewer, partsWorkspace].join('\n');
+  const declaredIds = matches(/data-guide-id="([a-z0-9-]+)"/g, surfaceMarkup);
+  const manifestIds = new Set(tooltipManifest.tooltips.map((item) => item.id));
+  assert.ok(declaredIds.length >= 7, 'expected contextual help on browser, parts, globe/sensor, and viewer surfaces');
+  declaredIds.forEach((id) => assert.ok(manifestIds.has(id), `${id} needs a tooltip manifest entry`));
+  assert.match(globeVr, /sensorOnlyScene \? 'sensor-bridge-flow' : 'fleet-globe-controls'/);
+  assert.match(application, /guide\.hidden = false/);
+});
+
+test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
+  assert.equal(tooltipManifest.version, 1);
+  assert.ok(Array.isArray(tooltipManifest.tooltips));
+  assert.ok(tooltipManifest.tooltips.length >= 19);
+  const ids = tooltipManifest.tooltips.map((item) => item.id);
+  assert.equal(new Set(ids).size, ids.length, 'tooltip IDs must be unique');
+
+  for (const item of tooltipManifest.tooltips) {
+    assert.match(item.id, /^[a-z0-9-]+$/);
+    assert.ok(item.title && item.script, `${item.id} needs a title and narration script`);
+    assert.ok(['scripted', 'recording', 'ready', 'retired'].includes(item.status), `${item.id} has an unsupported status`);
+    if (item.status !== 'ready') continue;
+    await Promise.all([
+      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.video}`, import.meta.url)),
+      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url)),
+      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.captions}`, import.meta.url))
+    ]);
+  }
+
+  const productionGuides = tooltipManifest.tooltips.filter((item) => item.beats);
+  assert.ok(productionGuides.length >= 10);
+  productionGuides.forEach((item) => {
+    assert.ok(item.surface, `${item.id} needs a surface`);
+    assert.ok(Array.isArray(item.touchpoints) && item.touchpoints.length >= 3, `${item.id} needs mapped touchpoints`);
+    assert.ok(Array.isArray(item.beats) && item.beats.length === 4, `${item.id} needs a four-beat recording outline`);
+  });
 });
 
 test('compatibility-source cards escape text and avoid external identifiers in inline handlers', () => {
