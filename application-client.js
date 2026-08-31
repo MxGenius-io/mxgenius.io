@@ -691,12 +691,46 @@ const MXApplicationClient = (() => {
     return envelope.output;
   }
 
+  // `mxg.maintenance_case.create` is confirmation-gated, and a grant binds to the
+  // aircraft the case is opened against. The orchestration endpoint resolves that
+  // aircraft itself, so the registration has to be resolved here first: there is
+  // otherwise nothing to bind a grant to before the call is made.
+  async function caseCreateConfirmation(registration, session) {
+    const lookup = await callCapability(
+      'mxg.aircraft.lookup',
+      { registration },
+      { ...session, confirmationGrant: undefined }
+    );
+    const output = capabilityOutput(lookup);
+    const aircraftId = output?.aircraft_id;
+    if (!aircraftId) {
+      const matches = output?.matches || [];
+      const error = new Error(matches.length
+        ? 'That registration matches more than one aircraft.'
+        : 'No aircraft matches that registration.');
+      error.code = matches.length ? 'AIRCRAFT_AMBIGUOUS' : 'AIRCRAFT_NOT_FOUND';
+      error.matches = matches;
+      throw error;
+    }
+    const grant = await issueConfirmation({
+      toolName: 'mxg.maintenance_case.create',
+      arguments: { aircraft_id: aircraftId },
+      session
+    });
+    return grant.token;
+  }
+
   async function runFirstCaseSlice({ registration, discrepancy, priority = 'routine', include, session = {} }) {
+    // An insecure local server supplies its own trusted confirmation, and issues
+    // no grants; an authenticated one trusts nothing that is not signed, so a
+    // grant has to be minted here when the caller did not bring one.
+    const confirmationGrant = session.confirmationGrant
+      || (session.accessToken ? await caseCreateConfirmation(registration.trim(), session) : null);
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (session.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
     if (session.organizationId) headers['X-MXG-Organization-ID'] = session.organizationId;
     if (session.correlationId) headers['X-Correlation-ID'] = session.correlationId;
-    if (session.confirmationGrant) headers['X-MXG-Confirmation-Grant'] = session.confirmationGrant;
+    if (confirmationGrant) headers['X-MXG-Confirmation-Grant'] = confirmationGrant;
     const response = await fetch(`${MCP_BASE}/orchestration/cases/first-slice`, {
       method: 'POST',
       headers,

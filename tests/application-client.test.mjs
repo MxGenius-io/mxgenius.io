@@ -49,7 +49,9 @@ function harness(outputs, orchestration = null) {
           json: async () => ({
             token: 'single-use-grant',
             tool_name: request.tool_name,
-            object_id: request.arguments.case_id,
+            // Mirrors the server's own fallback: a create has no case to bind to,
+            // so the grant binds to the aircraft instead.
+            object_id: request.arguments.case_id ?? request.arguments.aircraft_id,
             object_version: request.arguments.expected_version
           })
         };
@@ -175,6 +177,70 @@ test('first case slice uses one authenticated backend orchestration request', as
   assert.equal(requests[0].options.headers['X-Correlation-ID'], '22222222-2222-2222-2222-222222222222');
   assert.equal(requests[0].options.headers['X-MXG-Confirmation-Grant'], 'single-use-grant');
   assert.equal(result.trace.length, 4);
+});
+
+test('first case slice mints an aircraft-bound confirmation grant when the caller has none', async () => {
+  const { client, requests } = harness({
+    'mxg.aircraft.lookup': {
+      aircraft_id: 'aircraft:1',
+      matches: [{ aircraft_id: 'aircraft:1', registration: 'N12345' }]
+    }
+  }, { payload: {
+    case_id: 'case-1',
+    aircraft: { aircraft_id: 'aircraft:1', matches: [] },
+    case: { case_id: 'case-1', version: 1 },
+    context: { timeline: [], documents: [], evidence_map: [], unresolved_conflicts: [] },
+    trace: []
+  }});
+
+  const result = await client.caseWorkspace.runFirstSlice({
+    registration: ' N12345 ',
+    discrepancy: 'hydraulic pressure low',
+    // No confirmationGrant: this is what the signed-in dashboard actually sends.
+    session: { accessToken: 'access-token', organizationId: 'org-1' }
+  });
+
+  assert.equal(result.caseId, 'case-1');
+
+  const confirmation = requests.find((entry) => entry.url.endsWith('/confirmations'));
+  assert.ok(confirmation, 'a confirmation grant must be requested');
+  assert.equal(confirmation.request.tool_name, 'mxg.maintenance_case.create');
+  assert.equal(confirmation.request.arguments.aircraft_id, 'aircraft:1');
+
+  const slice = requests.find((entry) => entry.url.endsWith('/orchestration/cases/first-slice'));
+  assert.equal(slice.options.headers['X-MXG-Confirmation-Grant'], 'single-use-grant');
+});
+
+test('first case slice needs no grant when no application session is signed in', async () => {
+  const { client, requests } = harness({}, { payload: {
+    case_id: 'case-1',
+    aircraft: { aircraft_id: 'aircraft:1', matches: [] },
+    case: { case_id: 'case-1', version: 1 },
+    context: { timeline: [], documents: [], evidence_map: [], unresolved_conflicts: [] },
+    trace: []
+  }});
+
+  await client.caseWorkspace.runFirstSlice({ registration: 'N12345', discrepancy: 'test' });
+
+  // An insecure local server carries its own trusted confirmation; asking it for
+  // a grant it does not issue would fail the call for no reason.
+  assert.equal(requests.filter((entry) => entry.url.endsWith('/confirmations')).length, 0);
+  assert.equal(requests.length, 1);
+});
+
+test('first case slice reports an unresolvable registration before it mints a grant', async () => {
+  const { client, requests } = harness({ 'mxg.aircraft.lookup': { matches: [] } });
+
+  await assert.rejects(
+    client.caseWorkspace.runFirstSlice({
+      registration: 'N00000',
+      discrepancy: 'test',
+      session: { accessToken: 'access-token' }
+    }),
+    (error) => error.code === 'AIRCRAFT_NOT_FOUND'
+  );
+  assert.equal(requests.filter((entry) => entry.url.endsWith('/confirmations')).length, 0);
+  assert.equal(requests.filter((entry) => entry.url.includes('first-slice')).length, 0);
 });
 
 test('first case slice stops before mutation when aircraft resolution is ambiguous', async () => {
