@@ -15,8 +15,8 @@ test('landing page is reachable and contains the deployed product shell', async 
   const response = await get('/?smoke=application-plane');
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /MXGenius - AI-Powered Aircraft Maintenance Platform/);
-  assert.match(html, /Request Access/);
+  assert.match(html, /MxGenius \| Aviation Maintenance Intelligence/);
+  assert.match(html, /Request a demo/);
 });
 
 test('dashboard shell and retained navigation are reachable', async () => {
@@ -60,4 +60,3 @@ test('known dormant technical-library bundles remain visibly unavailable', async
     assert.equal(response.status, 404, `${path} should remain an explicit known gap`);
   }
 });
-

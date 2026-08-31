@@ -68,12 +68,12 @@ if (-not $java) {
     $env:JAVA_HOME = Split-Path (Split-Path $knownJava.FullName -Parent) -Parent
 }
 
-$sampleWrapper = 'D:\AAog\Flir-SDK\samples-2.22.0\FlirOneCamera\gradlew.bat'
-if (-not (Test-Path -LiteralPath $sampleWrapper -PathType Leaf)) {
-    throw "FLIR sample Gradle wrapper not found: $sampleWrapper"
+$projectWrapper = Join-Path $projectRoot 'gradlew.bat'
+if (-not (Test-Path -LiteralPath $projectWrapper -PathType Leaf)) {
+    throw "Project Gradle wrapper not found: $projectWrapper"
 }
 $assembleTask = if ($Configuration -eq 'Release') { ':app:assembleRelease' } else { ':app:assembleDebug' }
-& $sampleWrapper --project-dir $projectRoot ':app:testDebugUnitTest' $assembleTask
+& $projectWrapper --no-daemon --project-dir $projectRoot ':app:testDebugUnitTest' $assembleTask
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $apkName = if ($Configuration -eq 'Release') { 'app-release.apk' } else { 'app-debug.apk' }

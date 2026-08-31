@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F2050914"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="MXGENIUS · LIVE THERMAL"
+            android:textColor="#67E8F9"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/immersive_session_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SESSION —"
+            android:textColor="#9DB1C6"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/immersive_thermal_preview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:background="#02050D"
+        android:contentDescription="Live FLIR ONE thermal pixels"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/immersive_camera_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="FLIR ONE · waiting"
+        android:textColor="#F4FBFF"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/immersive_bridge_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Native spatial bridge · starting"
+        android:textColor="#9DB1C6"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/immersive_commission_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="COMMISSIONING · NOT RUN"
+        android:textColor="#67E8F9"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <ScrollView
+        android:id="@+id/immersive_trace_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="130dp"
+        android:layout_marginTop="10dp"
+        android:background="#CC02050D"
+        android:fillViewport="true"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/immersive_trace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:text="Waiting for bridge trace…"
+            android:textColor="#A7F3D0"
+            android:textSize="11sp" />
+    </ScrollView>
+
+    <Button
+        android:id="@+id/immersive_commission"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="RUN FULL DIAGNOSTIC" />
+
+    <Button
+        android:id="@+id/immersive_arm_snapshot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="ARM RGB SNAPSHOT" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/immersive_pin_toggle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="PIN HERE" />
+
+        <Button
+            android:id="@+id/immersive_reconnect"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="RECONNECT FLIR" />
+
+        <Button
+            android:id="@+id/immersive_panel_mode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="2D PANEL" />
+    </LinearLayout>
+</LinearLayout>

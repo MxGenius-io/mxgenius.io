@@ -1,0 +1,27 @@
+id,filename,folder,trigger,character,duration_target_ms,spatial,loop,priority,status
+SND-001,ui_focus_soft.wav,audio/ui,Controller or gaze focus settles on an actionable control,Airy tactile tick with no pitch flourish,90,no,no,P3,needed
+SND-002,ui_press_primary.wav,audio/ui,Primary control is pressed,Short confident mechanical-soft click,120,no,no,P1,needed
+SND-003,ui_press_secondary.wav,audio/ui,Secondary control is pressed,Lighter dry click related to primary press,100,no,no,P2,needed
+SND-004,ui_cancel_retract.wav,audio/ui,Action is cancelled or cleared,Soft inward reverse sweep ending cleanly,240,no,no,P1,needed
+SND-005,ui_back_close.wav,audio/ui,Panel closes or user steps back,Muted downward tuck,160,no,no,P2,needed
+SND-006,workflow_step_advance.wav,audio/ui,Inspection advances to the next stage,Two-tone restrained upward confirmation,260,no,no,P1,needed
+SND-007,workflow_complete.wav,audio/ui,Record step completes and session is saved,Warm single resolution tone without celebration,420,no,no,P2,needed
+SND-008,voice_listen_start.wav,audio/ui,Voice orb begins listening,Soft breath-like aperture,220,no,no,P1,needed
+SND-009,voice_listen_stop.wav,audio/ui,Voice capture ends,Matching aperture closes,180,no,no,P1,needed
+SND-010,voice_processing_loop.wav,audio/ui,Local or cloud interpretation is pending,Very quiet organic digital texture,1200,no,yes,P3,needed
+SND-011,spatial_acquire.wav,audio/spatial,A target is acquired and a referent is created,Directional narrowing sweep resolving at target,520,yes,no,P1,needed
+SND-012,spatial_candidate.wav,audio/spatial,A candidate identification becomes visible,Soft unresolved amber harmonic with open tail,360,yes,no,P1,needed
+SND-013,spatial_confirm.wav,audio/spatial,A technician or trusted source confirms the referent,Stable compact green-toned chime,300,yes,no,P1,needed
+SND-014,spatial_rejected.wav,audio/spatial,New evidence invalidates a candidate,Low-energy dissolve with no error alarm,300,yes,no,P1,needed
+SND-015,spatial_guide_begin.wav,audio/spatial,Guidance path becomes active,Subtle directional rise from user toward target,420,yes,no,P2,needed
+SND-016,spatial_target_arrive.wav,audio/spatial,Technician reaches the guidance target,Small localized arrival ping,180,yes,no,P2,needed
+SND-017,evidence_capture.wav,audio/ui,Evidence snapshot is captured,Camera-adjacent tactile seal without mimicking a phone shutter,220,no,no,P1,needed
+SND-018,evidence_attached.wav,audio/ui,Captured evidence is attached to the active observation,Soft latch confirmation,260,no,no,P2,needed
+SND-019,provenance_open.wav,audio/ui,WHY provenance expands,Layered paper-thin unfold,260,no,no,P3,needed
+SND-020,system_relocalizing_loop.wav,audio/system,World tracking is lost and recovery is active,Nearly subliminal slow locator texture,1600,no,yes,P1,needed
+SND-021,system_relocalized.wav,audio/system,World anchors rebind successfully,Quiet focus snap with softened tail,280,no,no,P1,needed
+SND-022,system_degraded.wav,audio/system,A capability is lost but the workflow can continue,Single neutral descending interval,300,no,no,P1,needed
+SND-023,system_reconnected.wav,audio/system,A lost capability returns,Single neutral resolving interval,300,no,no,P2,needed
+SND-024,system_permission_needed.wav,audio/system,User action is required to restore a capability,Polite hollow knock with no alarm character,260,no,no,P2,needed
+SND-025,safety_attention.wav,audio/system,A safety-critical condition requires immediate attention,One decisive broadband attention cue with short tail,380,no,no,P0,needed
+SND-026,safety_acknowledged.wav,audio/system,Technician acknowledges a critical alert,Grounded low-mid confirmation tone,280,no,no,P0,needed

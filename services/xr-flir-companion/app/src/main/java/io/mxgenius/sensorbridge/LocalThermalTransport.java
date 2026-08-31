@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalThermalTransport implements ThermalTransport {
@@ -17,7 +18,12 @@ final class LocalThermalTransport implements ThermalTransport {
     private volatile BridgeActivation activation;
     private volatile long lastFrameAtMs;
 
-    LocalThermalTransport(String nodeId, LocalThermalBroker.Listener listener, boolean debugBuild) {
+    LocalThermalTransport(
+            String nodeId,
+            LocalThermalBroker.Listener listener,
+            LocalThermalBroker.SnapshotHandler snapshotHandler,
+            LocalThermalBroker.CommissioningHandler commissioningHandler,
+            boolean debugBuild) {
         Set<String> origins = debugBuild
                 ? Set.of("https://mxgenius.io", "https://www.mxgenius.io", "http://localhost", "http://127.0.0.1")
                 : Set.of("https://mxgenius.io", "https://www.mxgenius.io");
@@ -25,11 +31,14 @@ final class LocalThermalTransport implements ThermalTransport {
                 new InetSocketAddress("127.0.0.1", LocalThermalBroker.DEFAULT_PORT),
                 origins,
                 nodeId,
-                listener);
+                listener,
+                snapshotHandler,
+                commissioningHandler);
     }
 
-    void start() {
+    boolean startAndAwait(long timeout, TimeUnit unit) throws InterruptedException {
         broker.start();
+        return broker.awaitStarted(timeout, unit);
     }
 
     void activate(BridgeActivation next) {
@@ -43,6 +52,18 @@ final class LocalThermalTransport implements ThermalTransport {
 
     @Override public void sendSourceStatus(String status, String reason) {
         broker.publishSourceStatus(status, reason);
+    }
+
+    void sendBridgeStatus(String phase, boolean ready, String reason) {
+        broker.publishBridgeStatus(phase, ready, reason);
+    }
+
+    void sendTrace(String step, String vector, String state, String detail, String level) {
+        broker.publishTrace(step, vector, state, detail, level);
+    }
+
+    void sendCommissioning(String reportJson) {
+        broker.publishCommissioning(reportJson);
     }
 
     @Override public void sendFrame(Bitmap bitmap) {

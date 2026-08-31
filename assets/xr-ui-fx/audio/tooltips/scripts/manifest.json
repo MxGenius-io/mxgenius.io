@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "tooltips": [
+    {
+      "id": "account-access",
+      "title": "Your account and access",
+      "script": "Your signed-in identity and organization determine which protected workspaces are available. Open your account menu here whenever you need to confirm access.",
+      "video": "../../../visual/tooltips/account-access.mp4",
+      "voiceover": "../voiceover/account-access.wav",
+      "captions": "../captions/account-access.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "main-navigation",
+      "title": "Move between workspaces",
+      "script": "The main navigation keeps cases, parts, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.",
+      "video": "../../../visual/tooltips/main-navigation.mp4",
+      "voiceover": "../voiceover/main-navigation.wav",
+      "captions": "../captions/main-navigation.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "connection-status",
+      "title": "Know what is live",
+      "script": "Connection status tells you when MXGenius services and live fleet data are available. Wait for the required service before starting a protected workflow.",
+      "video": "../../../visual/tooltips/connection-status.mp4",
+      "voiceover": "../voiceover/connection-status.wav",
+      "captions": "../captions/connection-status.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "ai-copilot",
+      "title": "Use the AI copilot",
+      "script": "Ask about an aircraft, part, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.",
+      "video": "../../../visual/tooltips/ai-copilot.mp4",
+      "voiceover": "../voiceover/ai-copilot.wav",
+      "captions": "../captions/ai-copilot.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "maintenance-case",
+      "title": "Create a maintenance case",
+      "script": "Start with the aircraft and discrepancy. The case keeps evidence, findings, approvals, and follow-up work connected throughout the event.",
+      "video": "../../../visual/tooltips/maintenance-case.mp4",
+      "voiceover": "../voiceover/maintenance-case.wav",
+      "captions": "../captions/maintenance-case.vtt",
+      "surface": "browser",
+      "touchpoints": ["#caseExistingSelect", "#caseIntakeForm", "#caseMarkerControls", "#caseWorkspaceResult"],
+      "beats": [
+        "Choose an existing case or start a new operational record.",
+        "Describe the observed discrepancy without diagnosing it.",
+        "Attach evidence and spatial markers to the same case.",
+        "Review approvals and closure state before work is released."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "parts-management",
+      "title": "Work with controlled parts",
+      "script": "Use Parts Management to receive evidence, review model suggestions, manage serialized inventory, and return to the same controlled unit record from its QR label.",
+      "video": "../../../visual/tooltips/parts-management.mp4",
+      "voiceover": "../voiceover/parts-management.wav",
+      "captions": "../captions/parts-management.vtt",
+      "surface": "browser",
+      "touchpoints": ["#btnReceivePart", "#partsSearchInput", ".parts-view-switch", "#partsDrawer"],
+      "beats": [
+        "Receive a part and preserve the source document as evidence.",
+        "Review extraction suggestions before creating the controlled unit.",
+        "Track serial, status, location, requests, and rotable history.",
+        "Return to the same record from its QR label or linked maintenance case."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "fleet-context",
+      "title": "Explore fleet context",
+      "script": "Fleet Context combines mapped aircraft, search, and source-backed company information. Load it before opening charts or the fleet globe.",
+      "video": "../../../visual/tooltips/fleet-context.mp4",
+      "voiceover": "../voiceover/fleet-context.wav",
+      "captions": "../captions/fleet-context.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "fleet-xr",
+      "title": "Open the fleet globe in XR",
+      "script": "In the Quest Browser, open Fleet Context and choose View in XR. Select locations with a controller or fingertip, and use the same sound grammar as the sensor and inspection scenes.",
+      "video": "../../../visual/tooltips/fleet-xr.mp4",
+      "voiceover": "../voiceover/fleet-xr.wav",
+      "captions": "../captions/fleet-xr.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "sensor-diagnostics",
+      "title": "Open FLIR sensor diagnostics",
+      "script": "The isolated sensor scene connects the native Quest thermal bridge, FLIR source, Pi diagnostics, and realtime evidence capture without loading fleet data.",
+      "video": "../../../visual/tooltips/sensor-diagnostics.mp4",
+      "voiceover": "../voiceover/sensor-diagnostics.wav",
+      "captions": "../captions/sensor-diagnostics.vtt",
+      "status": "scripted"
+    },
+    {
+      "id": "fleet-globe-controls",
+      "title": "Navigate the fleet globe",
+      "script": "Filter the JetNet-backed fleet, select a mapped location, and open an aircraft record without leaving fleet context. The globe, list, and model copilot stay synchronized around the same selection.",
+      "video": "../../../visual/tooltips/fleet-globe-controls.mp4",
+      "voiceover": "../voiceover/fleet-globe-controls.wav",
+      "captions": "../captions/fleet-globe-controls.vtt",
+      "surface": "browser-and-xr-globe",
+      "touchpoints": ["#globeTextureButtons", "#globeSearch", "#globeTypeFilter", "#globeSheetResults", "XR location points"],
+      "beats": [
+        "Establish the fleet count, mapped count, and active filters.",
+        "Use search or aircraft type to narrow the JetNet result set.",
+        "Select a location point to reveal the aircraft represented there.",
+        "Carry the selected location and aircraft into model context."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "fleet-location-data",
+      "title": "Read a mapped fleet location",
+      "script": "A selected point represents a mapped JetNet location, not a live flight track. Review its aircraft, operator, model, and source context before asking the copilot to compare or summarize it.",
+      "video": "../../../visual/tooltips/fleet-location-data.mp4",
+      "voiceover": "../voiceover/fleet-location-data.wav",
+      "captions": "../captions/fleet-location-data.vtt",
+      "surface": "browser-and-xr-globe",
+      "touchpoints": ["#globeTooltip", "#globeSheetResults", "XR selected-location card"],
+      "beats": [
+        "Select a mapped point and name the location.",
+        "Scan the aircraft and operator records grouped at that point.",
+        "Open one aircraft to establish model context.",
+        "State clearly that this is registry and fleet context, not live tracking."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "aircraft-explorer",
+      "title": "Triage or find an aircraft",
+      "script": "Use Fleet Triage to scan high-time, for-sale, type, and region groups. Switch to Direct Search when you already know the make, registration, serial number, or country.",
+      "video": "../../../visual/tooltips/aircraft-explorer.mp4",
+      "voiceover": "../voiceover/aircraft-explorer.wav",
+      "captions": "../captions/aircraft-explorer.vtt",
+      "surface": "browser",
+      "touchpoints": ["#acModeScan", "#acScanBar", "#acModeDirect", "#acDirectBar", "#aircraftGrid"],
+      "beats": [
+        "Choose Fleet Triage for discovery or Direct Search for a known tail.",
+        "Apply the smallest useful set of filters.",
+        "Open a result to inspect its source-backed record.",
+        "Carry the chosen aircraft into fleet or maintenance context."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "3d-viewer-navigation",
+      "title": "Navigate the 3D inspection viewer",
+      "script": "Choose a model, orbit or reset the camera, and select visible components for inspection. Desktop HUD Preview mirrors the spatial interface before you enter a supported headset session.",
+      "video": "../../../visual/tooltips/3d-viewer-navigation.mp4",
+      "voiceover": "../voiceover/3d-viewer-navigation.wav",
+      "captions": "../captions/3d-viewer-navigation.vtt",
+      "surface": "3d-viewer",
+      "touchpoints": ["#model-select", "#canvas-container", "#reset-camera", "#hud-preview-button", "#enter-vr-button"],
+      "beats": [
+        "Choose a tenant model or upload an authorized GLB.",
+        "Orbit, zoom, and reset the inspection camera.",
+        "Select a visible mesh to reveal its hierarchy and mapping state.",
+        "Preview the spatial HUD, then enter VR when the device supports it."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "mesh-inspection",
+      "title": "Inspect and map a mesh",
+      "script": "Select a visible component to expose its model hierarchy and current asset mapping. Use that selection as the anchor for case findings, procedure media, and future exploded-view steps.",
+      "video": "../../../visual/tooltips/mesh-inspection.mp4",
+      "voiceover": "../voiceover/mesh-inspection.wav",
+      "captions": "../captions/mesh-inspection.vtt",
+      "surface": "3d-viewer",
+      "touchpoints": ["#canvas-container", "#part-inspector", "#part-selection-name", "#part-selection-status"],
+      "beats": [
+        "Select a component directly on the model.",
+        "Confirm its hierarchy path and mapping state in the inspector.",
+        "Link the selected component to a controlled asset or part record.",
+        "Use the mapped selection for case evidence and procedure content."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "procedure-media",
+      "title": "Open component procedure media",
+      "script": "When a selected mesh has paired procedure media, open it here. The video remains associated with the component and maintenance context rather than acting as a generic media player.",
+      "video": "../../../visual/tooltips/procedure-media.mp4",
+      "voiceover": "../voiceover/procedure-media.wav",
+      "captions": "../captions/procedure-media.vtt",
+      "surface": "3d-viewer",
+      "touchpoints": ["#procedure-media-button", "#procedure-media-drawer", "#procedure-media-video", "#procedure-media-pairing"],
+      "beats": [
+        "Select a component that has paired procedure media.",
+        "Open the media drawer without losing model context.",
+        "Confirm the component pairing shown beneath the video.",
+        "Return to the model at the same inspection state."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "thermal-mount-exploded",
+      "title": "Explore the thermal mount assembly",
+      "script": "Use the exploded sequence to understand the thermal mount assembly, select each component, and trace its relationship to the controlled part record. This guide becomes active when the authored assembly animation is available.",
+      "video": "../../../visual/tooltips/thermal-mount-exploded.mp4",
+      "voiceover": "../voiceover/thermal-mount-exploded.wav",
+      "captions": "../captions/thermal-mount-exploded.vtt",
+      "surface": "3d-viewer",
+      "touchpoints": ["#model-select", "#anim-select", "#anim-playpause", "#anim-scrubber", "#part-inspector"],
+      "beats": [
+        "Load the thermal mount assembly and identify the installed state.",
+        "Play or scrub the authored exploded animation.",
+        "Pause on a component and inspect its hierarchy and part mapping.",
+        "Reassemble the mount and return to the maintenance case."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "sensor-bridge-flow",
+      "title": "Connect the sensor bridge",
+      "script": "The browser hands the session to the native Quest thermal workspace, which connects the FLIR source and reports diagnostics back into the shared scene. Follow the three stages until the thermal source is streaming.",
+      "video": "../../../visual/tooltips/sensor-bridge-flow.mp4",
+      "voiceover": "../voiceover/sensor-bridge-flow.wav",
+      "captions": "../captions/sensor-bridge-flow.vtt",
+      "surface": "sensor-bridge",
+      "touchpoints": ["#openSensorCompanion", "#sensorRelayStep", "#sensorCompanionStep", "#sensorCameraStep", "#sensorTrace"],
+      "beats": [
+        "Open the native thermal workspace from the browser scene.",
+        "Confirm the app handoff and native panel stages.",
+        "Connect the FLIR ONE source and wait for streaming state.",
+        "Use the compatibility trace only when a stage does not advance."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "native-ar-globe",
+      "title": "Place the fleet globe in AR",
+      "script": "On a supported iOS host, place the fleet globe in your space, select a location, and inspect its JetNet-backed aircraft context. The AR control remains hidden on unsupported platforms.",
+      "video": "../../../visual/tooltips/native-ar-globe.mp4",
+      "voiceover": "../voiceover/native-ar-globe.wav",
+      "captions": "../captions/native-ar-globe.vtt",
+      "surface": "ios-ar",
+      "touchpoints": ["#globeArButton", "native AR placement", "native AR location pin", "native AR aircraft card"],
+      "beats": [
+        "Open AR from a supported iOS installation.",
+        "Place and scale the fleet globe in the room.",
+        "Select a location pin, then choose an aircraft.",
+        "Ask the model about the same selected fleet context."
+      ],
+      "status": "scripted"
+    },
+    {
+      "id": "model-context",
+      "title": "Carry the active selection into the copilot",
+      "script": "The copilot uses the aircraft, location, part, mesh, or maintenance case you selected as its active context. Confirm that selection and its sources before asking for a comparison, explanation, or next action.",
+      "video": "../../../visual/tooltips/model-context.mp4",
+      "voiceover": "../voiceover/model-context.wav",
+      "captions": "../captions/model-context.vtt",
+      "surface": "shared",
+      "touchpoints": ["#chatToggleNav", "active selection chip", "source references", "XR detail card"],
+      "beats": [
+        "Select the operational object you want to discuss.",
+        "Open the copilot and confirm the active context.",
+        "Ask a focused question grounded in the displayed sources.",
+        "Review and confirm any proposed operational action."
+      ],
+      "status": "scripted"
+    }
+  ]
+}

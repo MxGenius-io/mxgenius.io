@@ -3,6 +3,8 @@
 
   const WORKSPACE_KEY = 'apparatus-build-board';
   const WORKSPACE_TITLE = 'MXGenius Build Board';
+  const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -12,7 +14,7 @@
   const starterCards = [
     {
       id: 'question-sprint-configuration',
-      lane: 'question',
+      lane: 'sprint',
       title: 'Which physical configuration is the sprint target?',
       message: 'Lock the casing/model, thermal-camera position, Pi placement, battery representation, and cable route that the next integrated apparatus should prove.',
       owner: 'Joshua Millard + Thomas Hagy',
@@ -22,14 +24,36 @@
       updates: []
     },
     {
-      id: 'question-demonstration-done',
+      id: 'question-operations-connections',
       lane: 'question',
-      title: 'What must the demonstration prove to count as done?',
-      message: 'Confirm the minimum evidence for secure mounting, protected power/data routing, heat, balance, visibility, ergonomics, assembly order, and serviceability.',
-      owner: 'Dwayne Tillman',
-      author: 'Team board starter',
-      created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
+      title: 'What third-party connections does Operations need?',
+      message: 'List every external system or provider required for daily operations across parts and procurement, fleet data, manuals and maintenance records, communications, accounting, identity, storage, and remote support. For each connection, name the owner, access or credential status, sandbox and production availability, priority, and any blocking dependency.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
+      updates: []
+    },
+    {
+      id: 'question-pi-poc-stack',
+      lane: 'question',
+      title: 'Which POC devices and programs should run with the Pi?',
+      message: 'Name the hardware and software we want to prove with the Raspberry Pi, including sensors, scanners, cameras, microphones, radios, local services or models, protocols, power and data requirements, intended workflow, priority, and the evidence that would count as a successful POC.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
+      updates: []
+    },
+    {
+      id: 'question-structured-output-example',
+      lane: 'question',
+      title: 'Can we provide a model structured-output example to mimic?',
+      message: 'Attach one real or representative example of the exact structured output expected from the model: schema, field names, section order, labels, actions, evidence or citations, and empty or error states. A screenshot, annotated picture, or card image is preferred when available.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-08-24T10:30:00Z',
       updates: []
     },
     {
@@ -66,6 +90,50 @@
       updates: []
     },
     {
+      id: 'sprint-quest-poc12-acceptance',
+      lane: 'sprint',
+      title: 'Accept Quest Sensor Bridge poc.12 on hardware',
+      message: 'Repeat the full FLIR commissioning run, require U01 enumeration, U02 authorization, U04 grant, and W14 PASS, then pin and reconnect the thermal panel without flicker, panic, or an orphaned camera session.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-ios-build33-acceptance',
+      lane: 'sprint',
+      title: 'Complete TestFlight Build 33 device acceptance',
+      message: 'After Apple processing, validate portrait and landscape launch, AR globe placement, independent anchors, CAM-follow and world lock, panel navigation, Realtime microphone control, and spatial audio on a physical device.',
+      owner: 'Unassigned',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-feedback-parts-acceptance',
+      lane: 'sprint',
+      title: 'Run Rocky acceptance on Feedback and Parts',
+      message: 'Exercise real team roles through feedback submission and triage, receiving, procurement, traceability, rotable/core obligations, cannibalization gates, and bulk-import rollback; record remaining gaps as tickets.',
+      owner: 'Thomas Hagy',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-flir-libssh2-disposition',
+      lane: 'sprint',
+      title: 'Disposition the FLIR libssh2 advisory',
+      message: 'Resolve, mitigate, or formally accept the vendor-library advisory before public Meta submission; keep the current Quest release in the private Alpha lane until the decision is recorded.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T10:18:00Z',
+      updated_at: '2026-08-24T10:18:00Z',
+      updates: []
+    },
+    {
       id: 'complete-sensor-bridge',
       lane: 'complete',
       title: 'Quest Sensor Bridge accepted in Alpha',
@@ -97,6 +165,50 @@
       created_at: '2026-08-17T00:00:00Z',
       updated_at: '2026-08-17T00:00:00Z',
       updates: []
+    },
+    {
+      id: 'complete-deck-landing-page',
+      lane: 'complete',
+      title: 'Publish the investor-deck landing page',
+      message: 'The pitch deck now drives one flowing public story with aviation imagery, the retained media carousel, a compact AI entry point, the canonical logo, and current live smoke coverage.',
+      owner: 'Joshua Millard + Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-feedback-parts-azure',
+      lane: 'complete',
+      title: 'Promote Feedback and Parts expansion to Azure',
+      message: 'The authenticated feedback/debug flow and Parts migrations 0019–0023 reached a healthy production revision with readiness, fail-closed access, and rollback gates preserved.',
+      owner: 'Thomas Hagy + Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-ios-build33-upload',
+      lane: 'complete',
+      title: 'Upload native spatial AR Build 33 to TestFlight',
+      message: 'The signed MxGenius 3.2.0 arm64 archive adds the ARKit fleet globe, independent anchors, camera placement, world lock, Realtime microphone control, spatial audio, and native MxGenius branding; App Store Connect accepted the upload.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-map-xr-refinement',
+      lane: 'complete',
+      title: 'Refine the fleet map and XR sensor workspace',
+      message: 'Higher-quality map textures, stable zoom clusters, panel-safe marker layering, denser AI particles, managed mic lifecycle, snapshots, and the head-follow/world-pin thermal screen are integrated.',
+      owner: 'Dwayne Tillman',
+      author: 'Week 23 closeout',
+      created_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-08-24T09:48:00Z',
+      updates: []
     }
   ];
 
@@ -104,9 +216,11 @@
     version: 0,
     document: null,
     dirty: false,
-    saving: false
+    saving: false,
+    assetUrls: new Map()
   };
   const elements = {};
+  let composerPreviewUrl = '';
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -118,6 +232,13 @@
 
   function normalizeCard(value) {
     const card = value && typeof value === 'object' ? value : {};
+    const image = card.image && typeof card.image === 'object' && /^[0-9a-f-]{36}$/i.test(String(card.image.asset_id || ''))
+      ? {
+          asset_id: String(card.image.asset_id),
+          name: String(card.image.name || 'Card picture').slice(0, 180),
+          media_type: CARD_IMAGE_TYPES.has(card.image.media_type) ? card.image.media_type : 'image/jpeg'
+        }
+      : null;
     return {
       id: String(card.id || globalThis.crypto?.randomUUID?.() || `card-${Date.now()}`),
       lane: LANES.some(([lane]) => lane === card.lane) ? card.lane : 'question',
@@ -127,6 +248,7 @@
       author: String(card.author || 'Team member').slice(0, 120),
       created_at: card.created_at || new Date().toISOString(),
       updated_at: card.updated_at || card.created_at || new Date().toISOString(),
+      image,
       updates: Array.isArray(card.updates)
         ? card.updates.slice(-50).map((update) => ({
           id: String(update?.id || globalThis.crypto?.randomUUID?.() || `update-${Date.now()}`),
@@ -180,22 +302,22 @@
   function setSaveState(message, value = '') {
     elements.saveState.textContent = message;
     elements.saveState.dataset.state = value;
+    if (value !== 'error') elements.saveState.removeAttribute('title');
   }
 
   function setDirty() {
     state.dirty = true;
     elements.save.disabled = false;
-    elements.error.hidden = true;
     setSaveState('Unsaved changes', 'dirty');
   }
 
   function showError(error) {
     const message = error?.message || String(error);
-    elements.errorText.textContent = error?.code === 'WORKSPACE_VERSION_CONFLICT'
+    const display = error?.code === 'WORKSPACE_VERSION_CONFLICT'
       ? 'Someone else updated the board. Reload the team version before posting again.'
       : message;
-    elements.error.hidden = false;
-    setSaveState('Save failed', 'error');
+    setSaveState(display, 'error');
+    elements.saveState.title = message;
     elements.save.disabled = false;
   }
 
@@ -263,6 +385,36 @@
     container.append(details);
   }
 
+  async function hydrateCardImage(card, image) {
+    const assetId = card.image?.asset_id;
+    if (!assetId) return;
+    let pending = state.assetUrls.get(assetId);
+    if (!pending) {
+      pending = authenticatedSession()
+        .then((session) => globalThis.MXApplicationClient.projectWorkspaces.getAsset(
+          WORKSPACE_KEY,
+          assetId,
+          session
+        ))
+        .then((blob) => {
+          if (!(blob instanceof Blob) || !CARD_IMAGE_TYPES.has(blob.type)) {
+            throw new Error('The card asset is not a supported image.');
+          }
+          return URL.createObjectURL(blob);
+        });
+      state.assetUrls.set(assetId, pending);
+    }
+    try {
+      const url = await pending;
+      state.assetUrls.set(assetId, url);
+      if (!image.isConnected || image.dataset.assetId !== assetId) return;
+      image.src = url;
+      image.hidden = false;
+    } catch {
+      state.assetUrls.delete(assetId);
+    }
+  }
+
   function renderCard(card) {
     const article = makeElement('article', 'board-card');
     article.dataset.lane = card.lane;
@@ -273,7 +425,17 @@
       makeElement('h3', '', card.title)
     );
     topline.append(heading);
-    article.append(topline, makeElement('p', 'card-message', card.message));
+    article.append(topline);
+    if (card.image?.asset_id) {
+      const image = document.createElement('img');
+      image.className = 'card-image';
+      image.alt = card.image.name || `${card.title} card picture`;
+      image.dataset.assetId = card.image.asset_id;
+      image.hidden = true;
+      article.append(image);
+      void hydrateCardImage(card, image);
+    }
+    article.append(makeElement('p', 'card-message', card.message));
 
     const meta = makeElement('div', 'card-meta');
     meta.append(
@@ -354,7 +516,7 @@
   }
 
   async function loadBoard() {
-    elements.error.hidden = true;
+    elements.reload.disabled = true;
     setSaveState('Loading team board…');
     try {
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.get(
@@ -363,8 +525,10 @@
       );
       applyPayload(payload);
     } catch (error) {
-      showError(error);
       if (!state.document) applyPayload({ workspace: null });
+      showError(error);
+    } finally {
+      elements.reload.disabled = false;
     }
   }
 
@@ -402,8 +566,13 @@
     const title = elements.postTitle.value.trim();
     const message = elements.postMessage.value.trim();
     if (!title || !message) return;
+    const imageFile = elements.postImage.files?.[0] || null;
+    if (imageFile && (!CARD_IMAGE_TYPES.has(imageFile.type) || imageFile.size > MAX_CARD_IMAGE_BYTES)) {
+      showError(new Error('Card pictures must be JPG, PNG, or WebP files no larger than 8 MB.'));
+      return;
+    }
     const now = new Date().toISOString();
-    state.document.cards.unshift(normalizeCard({
+    const card = normalizeCard({
       id: globalThis.crypto?.randomUUID?.() || `card-${Date.now()}`,
       lane: elements.postLane.value,
       title,
@@ -413,26 +582,94 @@
       created_at: now,
       updated_at: now,
       updates: []
-    }));
-    elements.composer.reset();
-    elements.postLane.value = 'question';
+    });
+    state.document.cards.unshift(card);
+    elements.postSubmit.disabled = true;
     setDirty();
     renderBoard();
-    await persistBoard();
+    const saved = await persistBoard();
+    if (!saved) {
+      elements.postSubmit.disabled = false;
+      return;
+    }
+    if (imageFile) {
+      try {
+        const savedCard = state.document.cards.find((item) => item.id === card.id);
+        if (!savedCard) throw new Error('The new card could not be matched after saving.');
+        setSaveState('Uploading card picture…', 'saving');
+        const payload = await globalThis.MXApplicationClient.projectWorkspaces.uploadAsset(
+          WORKSPACE_KEY,
+          imageFile,
+          {
+            section: `board-card-${card.id}`.slice(0, 64),
+            note: `Card picture for ${title}`,
+            session: await authenticatedSession()
+          }
+        );
+        savedCard.image = {
+          asset_id: payload.asset.id,
+          name: payload.asset.original_filename || imageFile.name,
+          media_type: payload.asset.media_type || imageFile.type
+        };
+        savedCard.updated_at = new Date().toISOString();
+        setDirty();
+        renderBoard();
+        if (!await persistBoard()) {
+          elements.postSubmit.disabled = false;
+          return;
+        }
+      } catch (error) {
+        showError(error);
+        elements.postSubmit.disabled = false;
+        return;
+      }
+    }
+    elements.composer.reset();
+    elements.postLane.value = 'question';
+    clearComposerImage();
+    elements.postSubmit.disabled = false;
+  }
+
+  function clearComposerImage() {
+    if (composerPreviewUrl) URL.revokeObjectURL(composerPreviewUrl);
+    composerPreviewUrl = '';
+    elements.postImage.value = '';
+    elements.postImagePreviewImage.removeAttribute('src');
+    elements.postImagePreview.hidden = true;
+  }
+
+  function previewComposerImage() {
+    const file = elements.postImage.files?.[0];
+    if (!file) {
+      clearComposerImage();
+      return;
+    }
+    if (!CARD_IMAGE_TYPES.has(file.type) || file.size > MAX_CARD_IMAGE_BYTES) {
+      clearComposerImage();
+      showError(new Error('Card pictures must be JPG, PNG, or WebP files no larger than 8 MB.'));
+      return;
+    }
+    if (composerPreviewUrl) URL.revokeObjectURL(composerPreviewUrl);
+    composerPreviewUrl = URL.createObjectURL(file);
+    elements.postImagePreviewImage.src = composerPreviewUrl;
+    elements.postImagePreview.hidden = false;
   }
 
   function collectElements() {
     Object.assign(elements, {
       saveState: document.getElementById('boardSaveState'),
       save: document.getElementById('boardSave'),
-      error: document.getElementById('boardError'),
-      errorText: document.getElementById('boardErrorText'),
       reload: document.getElementById('boardReload'),
       composer: document.getElementById('boardComposer'),
       postLane: document.getElementById('postLane'),
       postTitle: document.getElementById('postTitle'),
       postOwner: document.getElementById('postOwner'),
       postMessage: document.getElementById('postMessage'),
+      postImage: document.getElementById('postImage'),
+      postImagePreview: document.getElementById('postImagePreview'),
+      postImagePreviewImage: document.getElementById('postImagePreviewImage'),
+      postImageClear: document.getElementById('postImageClear'),
+      postSubmit: document.getElementById('postSubmit'),
       questionCards: document.getElementById('questionCards'),
       sprintCards: document.getElementById('sprintCards'),
       completeCards: document.getElementById('completeCards'),
@@ -448,8 +685,17 @@
   function boot() {
     collectElements();
     elements.composer.addEventListener('submit', createPost);
+    elements.postImage.addEventListener('change', previewComposerImage);
+    elements.postImageClear.addEventListener('click', clearComposerImage);
     elements.save.addEventListener('click', persistBoard);
     elements.reload.addEventListener('click', loadBoard);
+    window.addEventListener('pagehide', () => {
+      clearComposerImage();
+      for (const value of state.assetUrls.values()) {
+        if (typeof value === 'string') URL.revokeObjectURL(value);
+      }
+      state.assetUrls.clear();
+    });
     loadBoard();
   }
 

@@ -203,6 +203,44 @@ test('concurrent connect requests share one in-flight operation', async () => {
   assert.equal(captureCount, 1);
 });
 
+test('disconnect during microphone permission closes the pending connection without a failed or hanging session', async () => {
+  const MXRealtime = loadClient();
+  const events = [];
+  let releaseCapture;
+  let peerClosed = false;
+  let trackStopped = false;
+  const capture = new Promise((resolve) => { releaseCapture = resolve; });
+  const track = { enabled: true, stop: () => { trackStopped = true; } };
+  const media = { getAudioTracks: () => [track], getTracks: () => [track] };
+  const peer = {
+    connectionState: 'new',
+    close: () => { peerClosed = true; },
+    createDataChannel: () => ({ addEventListener() {}, close() {} }),
+    addTrack() {},
+    createOffer: async () => ({ type: 'offer', sdp: 'v=0\r\no=offer' }),
+    setLocalDescription: async () => {},
+    setRemoteDescription: async () => {}
+  };
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0\r\no=answer' }),
+    peerFactory: () => peer,
+    mediaDevices: { getUserMedia: async () => { await capture; return media; } },
+    onEvent: (event) => events.push(event)
+  });
+
+  const pending = session.connect({ session: { accessToken: 'token' }, audioElement: {} });
+  session.disconnect();
+  releaseCapture();
+  await pending;
+
+  assert.equal(peerClosed, true);
+  assert.equal(trackStopped, true);
+  assert.equal(session.peer, null);
+  assert.equal(session.media, null);
+  assert.equal(session.state, 'disconnected');
+  assert.equal(events.some((event) => event.type === 'state' && event.state === 'failed'), false);
+});
+
 test('Realtime capture starts live and mute state is controlled without closing WebRTC', async () => {
   const MXRealtime = loadClient();
   const events = [];

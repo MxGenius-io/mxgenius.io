@@ -14,6 +14,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,6 +76,138 @@ public final class LocalThermalBrokerTest {
             assertTrue(closed.await(3, TimeUnit.SECONDS));
         } finally {
             if (client.isOpen()) client.closeBlocking();
+            broker.stop(1000);
+        }
+    }
+
+    @Test public void authorizedBrowserReceivesNativeStartupHistory() throws Exception {
+        int port = freePort();
+        LocalThermalBroker broker = new LocalThermalBroker(
+                new InetSocketAddress("127.0.0.1", port),
+                Set.of("https://mxgenius.io"),
+                "quest-sensor-test",
+                state -> {});
+        broker.publishBridgeStatus("starting", false, "foreground-active");
+        broker.publishTrace("N01", "SERVICE", "foreground", "foreground service created", "success");
+        broker.publishBridgeStatus("ready", true, "camera-runtime-ready");
+        broker.activate("case-42", TOKEN);
+        broker.start();
+        assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
+
+        CountDownLatch readyReceived = new CountDownLatch(1);
+        CountDownLatch traceReceived = new CountDownLatch(1);
+        CopyOnWriteArrayList<String> messages = new CopyOnWriteArrayList<>();
+        WebSocketClient client = new WebSocketClient(
+                uri(port, TOKEN),
+                new Draft_6455(),
+                Map.of("Origin", "https://mxgenius.io"),
+                0) {
+            @Override public void onOpen(ServerHandshake handshake) {}
+            @Override public void onMessage(String message) {
+                messages.add(message);
+                if (message.contains("\"type\":\"bridge.status\"")
+                        && message.contains("\"phase\":\"ready\"")) readyReceived.countDown();
+                if (message.contains("\"type\":\"bridge.trace\"")
+                        && message.contains("\"step\":\"N01\"")) traceReceived.countDown();
+            }
+            @Override public void onMessage(ByteBuffer bytes) {}
+            @Override public void onClose(int code, String reason, boolean remote) {}
+            @Override public void onError(Exception error) {}
+        };
+        try {
+            assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(readyReceived.await(3, TimeUnit.SECONDS));
+            assertTrue(traceReceived.await(3, TimeUnit.SECONDS));
+            assertTrue(messages.stream().anyMatch(message ->
+                    message.contains("\"type\":\"bridge.status\"")
+                            && message.contains("\"phase\":\"starting\"")));
+        } finally {
+            client.closeBlocking();
+            broker.stop(1000);
+        }
+    }
+
+    @Test public void snapshotResultReturnsOnlyToItsAuthenticatedRequester() throws Exception {
+        int port = freePort();
+        byte[] jpeg = new byte[] {(byte) 0xff, (byte) 0xd8, 0x11, 0x22, (byte) 0xff, (byte) 0xd9};
+        LocalThermalBroker broker = new LocalThermalBroker(
+                new InetSocketAddress("127.0.0.1", port),
+                Set.of("https://mxgenius.io"),
+                "quest-sensor-test",
+                state -> {},
+                (requestId, responder) -> responder.success(jpeg, 640, 480, "right"));
+        broker.activate("case-42", TOKEN);
+        broker.start();
+        assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
+
+        CountDownLatch snapshotReceived = new CountDownLatch(1);
+        AtomicReference<String> received = new AtomicReference<>();
+        WebSocketClient client = new WebSocketClient(
+                uri(port, TOKEN),
+                new Draft_6455(),
+                Map.of("Origin", "https://mxgenius.io"),
+                0) {
+            @Override public void onOpen(ServerHandshake handshake) {
+                send("{\"type\":\"headset.snapshot.request\",\"requestId\":\"snapshot-test-01\"}");
+            }
+            @Override public void onMessage(String message) {
+                if (!message.contains("\"type\":\"headset.snapshot.result\"")) return;
+                received.set(message);
+                snapshotReceived.countDown();
+            }
+            @Override public void onMessage(ByteBuffer bytes) {}
+            @Override public void onClose(int code, String reason, boolean remote) {}
+            @Override public void onError(Exception error) {}
+        };
+        try {
+            assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(snapshotReceived.await(3, TimeUnit.SECONDS));
+            assertTrue(received.get().contains("\"status\":\"ok\""));
+            assertTrue(received.get().contains("\"width\":640"));
+            assertTrue(received.get().contains("data:image/jpeg;base64,"));
+        } finally {
+            client.closeBlocking();
+            broker.stop(1000);
+        }
+    }
+
+    @Test public void commissioningAckReachesRunControllerOnlyFromAuthenticatedBrowser() throws Exception {
+        int port = freePort();
+        CountDownLatch ackReceived = new CountDownLatch(1);
+        AtomicReference<String> ack = new AtomicReference<>();
+        LocalThermalBroker broker = new LocalThermalBroker(
+                new InetSocketAddress("127.0.0.1", port),
+                Set.of("https://mxgenius.io"),
+                "quest-sensor-test",
+                state -> {},
+                (requestId, responder) -> responder.failure("unused", "unused"),
+                (runId, renderedFrames) -> {
+                    ack.set(runId + ":" + renderedFrames);
+                    ackReceived.countDown();
+                });
+        broker.activate("case-42", TOKEN);
+        broker.start();
+        assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
+
+        WebSocketClient client = new WebSocketClient(
+                uri(port, TOKEN),
+                new Draft_6455(),
+                Map.of("Origin", "https://mxgenius.io"),
+                0) {
+            @Override public void onOpen(ServerHandshake handshake) {
+                send("{\"type\":\"commissioning.browser_ack\",\"runId\":\"run-commission-01\",\"renderedFrames\":10}");
+            }
+            @Override public void onMessage(String message) {}
+            @Override public void onMessage(ByteBuffer bytes) {}
+            @Override public void onClose(int code, String reason, boolean remote) {}
+            @Override public void onError(Exception error) {}
+        };
+        try {
+            assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(ackReceived.await(3, TimeUnit.SECONDS));
+            assertTrue("run-commission-01:10".equals(ack.get()));
+        } finally {
+            client.closeBlocking();
             broker.stop(1000);
         }
     }

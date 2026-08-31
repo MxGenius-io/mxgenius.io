@@ -14,6 +14,6 @@
     "probe:rocky:live": "node scripts/rocky-gate-probe.mjs --scope=live"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }

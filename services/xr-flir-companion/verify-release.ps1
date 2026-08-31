@@ -57,24 +57,54 @@ foreach ($requiredManifestToken in @(
     'com.oculus.supportedDevices',
     'com.oculus.vrshell.SHELL_MAIN',
     'com.oculus.intent.category.2D',
+    'com.oculus.intent.category.VR',
     'com.oculus.vrshell.panel_activity',
+    'ThermalImmersiveActivity',
+    'libossdk.oculus.so',
+    'android.permission.CAMERA',
+    'horizonos.permission.HEADSET_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.hardware.usb.host',
+    'dataSync|camera',
     '@mipmap/mxgenius_launcher',
     '@mipmap/mxgenius_launcher_round'
 )) {
     Assert-ReleaseRequirement ($manifestSource.Contains($requiredManifestToken)) "Android manifest is missing $requiredManifestToken"
 }
-foreach ($forbiddenManifestToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+foreach ($forbiddenManifestToken in @(
+    'android.permission.BLUETOOTH_CONNECT',
+    'android.hardware.bluetooth',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED',
+    '@xml/flir_usb_devices'
+)) {
     Assert-ReleaseRequirement (-not $manifestSource.Contains($forbiddenManifestToken)) "FLIR companion must not depend on $forbiddenManifestToken"
 }
 
 $layoutSourcePath = Join-Path $projectRoot 'app\src\main\res\layout\activity_main.xml'
 $layoutSource = Get-Content -Raw -LiteralPath $layoutSourcePath
 Assert-ReleaseRequirement ($layoutSource.Contains('@+id/thermal_preview')) 'standalone panel is missing the native thermal preview'
+Assert-ReleaseRequirement ($layoutSource.Contains('@+id/enter_immersive')) 'standalone panel is missing explicit native VR entry'
+Assert-ReleaseRequirement ($layoutSource.Contains('@+id/power_guidance')) 'standalone panel is missing powered USB guidance'
+Assert-ReleaseRequirement ($layoutSource.Contains('ENTER VR')) 'standalone panel is missing the operator VR action'
 foreach ($forbiddenLayoutToken in @('@+id/connect_pi', '@+id/pi_status', 'Connect MxGenius Pi')) {
     Assert-ReleaseRequirement (-not $layoutSource.Contains($forbiddenLayoutToken)) "standalone FLIR panel still contains $forbiddenLayoutToken"
 }
 
-$companionSources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'app\src\main\java') -Recurse -Filter '*.java' |
+$immersiveLayoutSourcePath = Join-Path $projectRoot 'app\src\main\res\layout\immersive_thermal_panel.xml'
+$immersiveLayoutSource = Get-Content -Raw -LiteralPath $immersiveLayoutSourcePath
+foreach ($requiredImmersiveToken in @(
+    '@+id/immersive_thermal_preview',
+    '@+id/immersive_pin_toggle',
+    '@+id/immersive_reconnect',
+    '@+id/immersive_commission',
+    '@+id/immersive_commission_status',
+    '@+id/immersive_trace'
+)) {
+    Assert-ReleaseRequirement ($immersiveLayoutSource.Contains($requiredImmersiveToken)) "native immersive panel is missing $requiredImmersiveToken"
+}
+
+$companionSources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'app\src\main\java') -Recurse -File |
+    Where-Object { $_.Extension -in @('.java', '.kt') } |
     ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName } |
     Out-String
 foreach ($forbiddenSourceToken in @('PiDiagnosticsClient', 'pi-diagnostics-rfcomm', 'edge-diagnostics-1')) {
@@ -83,8 +113,48 @@ foreach ($forbiddenSourceToken in @('PiDiagnosticsClient', 'pi-diagnostics-rfcom
 foreach ($requiredTransportToken in @('LocalThermalBroker', 'ThermalTransport', '127.0.0.1')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredTransportToken)) "Quest-local thermal transport is missing $requiredTransportToken"
 }
+foreach ($requiredSnapshotToken in @('HeadsetSnapshotController', 'headset.snapshot.request', 'headset.snapshot.result', 'N21', 'N23')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredSnapshotToken)) "Quest snapshot seam is missing $requiredSnapshotToken"
+}
+foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistration', 'ThermalPanelFollowSystem', 'N16', 'N18')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredSpatialToken)) "native Spatial workspace is missing $requiredSpatialToken"
+}
+foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
+}
+foreach ($requiredUsbLifecycleToken in @(
+    'UsbPermissionHandler',
+    'requestFlirOnePermisson',
+    'hasFlirOnePermission',
+    'DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION',
+    'permissionGranted',
+    'permissionDenied',
+    'DiscoveryFactory',
+    'CommunicationInterface.USB',
+    'permission-retry',
+    'discoveryGeneration',
+    'MAX_PERMISSION_ATTEMPTS',
+    'mainHandler.post',
+    'stable-session'
+)) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredUsbLifecycleToken)) "Quest USB lifecycle is missing $requiredUsbLifecycleToken"
+}
+foreach ($forbiddenUsbLifecycleToken in @(
+    'AndroidUsbPermissionGate',
+    'UsbHandshakePolicy',
+    'requestPermission(device, permissionIntent)',
+    'ENUMERATION_POLL_MS',
+    'GRANT_STABILITY_DELAY_MS',
+    'MAX_PERMISSION_GATE_RESTARTS',
+    'usb-device-not-enumerated',
+    'runOnUiThread(() -> requestFlirPermission'
+)) {
+    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenUsbLifecycleToken)) "Quest USB lifecycle still contains custom permission behavior $forbiddenUsbLifecycleToken"
+}
 
 $resourceRoot = Join-Path $projectRoot 'app\src\main\res'
+$usbFilterPath = Join-Path $resourceRoot 'xml\flir_usb_devices.xml'
+Assert-ReleaseRequirement (-not (Test-Path -LiteralPath $usbFilterPath -PathType Leaf)) 'competing FLIR USB attachment filter is still present'
 Assert-ReleaseRequirement (-not (Test-Path -LiteralPath (Join-Path $resourceRoot 'drawable-nodpi\mxgenius_launcher.png'))) 'obsolete drawable-nodpi launcher image is still packaged'
 foreach ($density in @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')) {
     foreach ($icon in @('mxgenius_launcher.png', 'mxgenius_launcher_round.png', 'mxgenius_launcher_foreground.png')) {
@@ -140,17 +210,34 @@ foreach ($requiredPackagedToken in @(
     'com.oculus.supportedDevices',
     'com.oculus.vrshell.SHELL_MAIN',
     'com.oculus.intent.category.2D',
-    'com.oculus.vrshell.panel_activity'
+    'com.oculus.intent.category.VR',
+    'com.oculus.vrshell.panel_activity',
+    'ThermalImmersiveActivity',
+    'libossdk.oculus.so',
+    'android.permission.CAMERA',
+    'horizonos.permission.HEADSET_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.hardware.usb.host'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
 }
-foreach ($forbiddenPackagedToken in @('android.permission.BLUETOOTH_CONNECT', 'android.hardware.bluetooth')) {
+foreach ($forbiddenPackagedToken in @(
+    'android.permission.BLUETOOTH_CONNECT',
+    'android.hardware.bluetooth',
+    'android.hardware.usb.action.USB_DEVICE_ATTACHED'
+)) {
     Assert-ReleaseRequirement (-not $manifestTree.Contains($forbiddenPackagedToken)) "packaged FLIR manifest still contains $forbiddenPackagedToken"
 }
 
 $packagedResources = (& $aapt2 dump resources $resolvedApk 2>&1 | Out-String)
 Assert-ReleaseRequirement ($LASTEXITCODE -eq 0) 'aapt2 could not inspect packaged resources'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'packaged standalone panel is missing id/thermal_preview'
+Assert-ReleaseRequirement ($packagedResources.Contains('id/enter_immersive')) 'packaged standalone panel is missing id/enter_immersive'
+Assert-ReleaseRequirement ($packagedResources.Contains('id/power_guidance')) 'packaged standalone panel is missing id/power_guidance'
+Assert-ReleaseRequirement (-not $packagedResources.Contains('xml/flir_usb_devices')) 'competing FLIR USB attachment filter is still packaged'
+foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
+    Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
+}
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {
     Assert-ReleaseRequirement (-not $packagedResources.Contains("id/$forbiddenPackagedLayoutToken")) "packaged standalone panel still contains id/$forbiddenPackagedLayoutToken"
 }

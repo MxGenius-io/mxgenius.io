@@ -37,6 +37,7 @@ const MX3DViewer = {
   context: {},
   pendingSelector: null,
   tutorial: null,
+  currentModel: null,
 
   frame() {
     return document.getElementById('viewer-iframe');
@@ -155,6 +156,7 @@ window.addEventListener('message', (event) => {
   if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
   const message = event.data || {};
   if (message.type === 'mxgenius.viewer.ready') {
+    MX3DViewer.currentModel = message.model && typeof message.model === 'object' ? { ...message.model } : null;
     MX3DViewer.post({ type: 'mxgenius.viewer.set-context', context: MX3DViewer.context });
     if (MX3DViewer.tutorial) {
       MX3DViewer.post({ type: 'mxgenius.viewer.set-tutorial', tutorial: MX3DViewer.tutorial });
@@ -162,12 +164,16 @@ window.addEventListener('message', (event) => {
     if (MX3DViewer.pendingSelector) {
       MX3DViewer.post({ type: 'mxgenius.viewer.highlight-part', selector: MX3DViewer.pendingSelector });
     }
+    configureViewerARCapability();
   }
   if (message.type === 'mxgenius.viewer.part-selected') {
     window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
   }
   if (message.type === 'mxgenius.viewer.xr-action') {
     window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
+  }
+  if (message.type === 'mxgenius.viewer.ar-request') {
+    openViewerInAR(message.scene || {});
   }
 });
 
@@ -2177,6 +2183,10 @@ Rules:
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
       if (event.state === 'failed') realtimeModeEnabled = false;
+      if (['disconnected', 'failed'].includes(event.state)) {
+        nativeARRealtimeOwnsSession = false;
+        resetNativeARSpatialAudio();
+      }
       if (event.state === 'user-speaking') {
         cancelRealtimeStructuredTurn();
         pendingRealtimeUserText = '';
@@ -2184,6 +2194,10 @@ Rules:
         suppressNextRealtimeAssistantBubble = false;
       }
       setRealtimeUiState(event.state, event.reason);
+      await setNativeARRealtimeState(event.state, event.reason || '');
+      if (['listening', 'user-speaking', 'thinking', 'speaking'].includes(event.state) && latestNativeARSpatialAudio) {
+        void updateNativeARSpatialAudio(latestNativeARSpatialAudio);
+      }
       return;
     }
     if (event.type === 'microphone') {
@@ -2513,6 +2527,33 @@ Rules:
   }
 
   setupVoiceInput();
+  globalThis.MXRealtimeVoiceBridge = {
+    isAvailable: () => Boolean(realtimeSession),
+    isConnected: () => Boolean(realtimeSession?.connecting || !['disconnected', 'failed'].includes(realtimeSession?.state)),
+    audioElement: () => realtimeSession?.audioElement || null,
+    connect: async () => {
+      if (!realtimeSession) throw new Error('Realtime voice is unavailable in this wrapper');
+      realtimeModeEnabled = true;
+      realtimeMicEnabled = true;
+      stopTranscription({ resetVoiceState: false });
+      realtimeSession.setMicrophoneEnabled(true);
+      renderMicState();
+      await startRealtimeVoice();
+    },
+    disconnect: () => {
+      realtimeModeEnabled = false;
+      realtimeMicEnabled = false;
+      cancelRealtimeStructuredTurn();
+      pendingRealtimeUserText = '';
+      pendingRealtimeImages = [];
+      suppressNextRealtimeAssistantBubble = false;
+      if (realtimeSession?.state !== 'disconnected' && realtimeSession?.state !== 'failed') {
+        realtimeSession.disconnect();
+      }
+      setRealtimeUiState('disconnected', 'Voice disconnected');
+      renderMicState();
+    }
+  };
 }
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
@@ -3911,6 +3952,36 @@ async function showCompanyDetail(id) {
     if (!comp) { body.innerHTML = '<div class="empty-state">Company not found</div>'; return; }
 
     const ident = comp.identification || {};
+    const companyId = safeRecordId(ident.companyid ?? id);
+    const aircraftRelationships = Array.isArray(comp.aircraftrelationships) ? comp.aircraftrelationships : [];
+    const relationshipIds = [...new Set(
+      aircraftRelationships
+        .slice(0, 20)
+        .map((relationship) => safeRecordId(relationship.aircraftid))
+        .filter((aircraftId) => aircraftId !== null)
+    )];
+    const embeddedContacts = Array.isArray(comp.contacts)
+      ? comp.contacts.filter((contact) => contact && typeof contact === 'object')
+      : [];
+    const [contactsResult, aircraftResult] = await Promise.allSettled([
+      companyId === null
+        ? Promise.resolve({ contacts: embeddedContacts })
+        : MXApplicationClient.contactList({ token: TOKEN, bearer: BEARER, filters: { companyid: companyId } }),
+      relationshipIds.length === 0
+        ? Promise.resolve({ aircraft: [] })
+        : MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: { aclist: relationshipIds } })
+    ]);
+    const contacts = contactsResult.status === 'fulfilled' && Array.isArray(contactsResult.value?.contacts)
+      ? contactsResult.value.contacts
+      : embeddedContacts;
+    const aircraftRecords = aircraftResult.status === 'fulfilled' && Array.isArray(aircraftResult.value?.aircraft)
+      ? aircraftResult.value.aircraft
+      : [];
+    const tailNumberByAircraftId = new Map(
+      aircraftRecords
+        .map((aircraft) => [String(aircraft.aircraftid), String(aircraft.regnbr || '').trim()])
+        .filter(([, tailNumber]) => tailNumber)
+    );
     body.innerHTML = `
       <div class="detail-header">
         <div class="detail-title-group">
@@ -3943,36 +4014,38 @@ async function showCompanyDetail(id) {
           </div>
         </div>
 
-        ${comp.contacts && comp.contacts.length > 0 ? `
         <div class="detail-section full-width">
           <div class="detail-section-title">Contacts</div>
-          <table>
+          ${contacts.length > 0 ? `<table>
             <thead><tr><th>Name</th><th>Title</th><th>Email</th></tr></thead>
             <tbody>
-              ${comp.contacts.map(c => `
+              ${contacts.map(c => `
                 <tr>
-                  <td class="td-accent">${escapeMarkup([c.firstname, c.lastname].filter(Boolean).join(' '))}</td>
+                  <td class="td-accent">${escapeMarkup([c.sirname, c.firstname, c.lastname, c.suffix].filter(Boolean).join(' ') || 'Not available')}</td>
                   <td>${escapeMarkup(c.title || '-')}</td>
                   <td class="td-dim">${escapeMarkup(c.email || '-')}</td>
                 </tr>
               `).join('')}
             </tbody>
-          </table>
-        </div>` : ''}
+          </table>` : '<div class="empty-state">No contacts returned for this company.</div>'}
+        </div>
 
-        ${comp.aircraftrelationships && comp.aircraftrelationships.length > 0 ? `
+        ${aircraftRelationships.length > 0 ? `
         <div class="detail-section full-width">
-          <div class="detail-section-title">Aircraft Relationships (${comp.aircraftrelationships.length})</div>
+          <div class="detail-section-title">Aircraft Relationships (${aircraftRelationships.length})</div>
           <table>
-            <thead><tr><th>Aircraft ID</th><th>Relationship</th><th>Operator</th></tr></thead>
+            <thead><tr><th>Tail Number</th><th>Relationship</th><th>Operator</th></tr></thead>
             <tbody>
-              ${comp.aircraftrelationships.slice(0, 20).map(a => `
+              ${aircraftRelationships.slice(0, 20).map(a => {
+                const aircraftId = safeRecordId(a.aircraftid);
+                const tailNumber = aircraftId === null ? '' : tailNumberByAircraftId.get(String(aircraftId));
+                return `
                 <tr>
-                  <td class="td-mono td-accent related-aircraft" style="cursor:pointer" data-aircraft-id="${safeRecordId(a.aircraftid) ?? ''}">${escapeMarkup(a.aircraftid)}</td>
+                  <td class="td-mono ${aircraftId === null ? '' : 'td-accent related-aircraft'}" ${aircraftId === null ? '' : 'style="cursor:pointer"'} data-aircraft-id="${aircraftId ?? ''}" title="${aircraftId === null ? '' : `JetNet aircraft ID ${aircraftId}`}">${escapeMarkup(tailNumber || 'Not available')}</td>
                   <td>${escapeMarkup(a.relationtype)}</td>
-                  <td>${a.isoperator === 'Y' ? 'âœ“ Yes' : 'No'}</td>
+                  <td>${a.isoperator === 'Y' ? 'Yes' : 'No'}</td>
                 </tr>
-              `).join('')}
+              `}).join('')}
             </tbody>
           </table>
         </div>` : ''}
@@ -4271,13 +4344,18 @@ function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
   globeRenderedGridSize = gridSize;
   const displayClusters = aggregateGlobeClusters(clusters, globeZoomAltitude);
   globeInstance
+    .pointsData(displayClusters)
     .htmlElementsData(displayClusters)
     .ringsData(attentionClusters(displayClusters));
 }
 
 function handleGlobeZoom(view) {
   globeZoomAltitude = Number(view?.altitude) || globeZoomAltitude;
-  if (globeGridSize(globeZoomAltitude) === globeRenderedGridSize) return;
+  if (globeGridSize(globeZoomAltitude) === globeRenderedGridSize) {
+    if (globeZoomFrame) cancelAnimationFrame(globeZoomFrame);
+    globeZoomFrame = null;
+    return;
+  }
   if (globeZoomFrame) cancelAnimationFrame(globeZoomFrame);
   globeZoomFrame = requestAnimationFrame(() => {
     globeZoomFrame = null;
@@ -4328,40 +4406,66 @@ function applyGlobeFilters() {
   renderGlobeClusters(filtered);
 }
 
+let globeTextureQualityTimer = null;
+
+function tuneGlobeTextureQuality(attempt = 0) {
+  clearTimeout(globeTextureQualityTimer);
+  const texture = globeInstance?.globeMaterial?.()?.map;
+  if (!texture) {
+    if (attempt < 30) globeTextureQualityTimer = setTimeout(() => tuneGlobeTextureQuality(attempt + 1), 80);
+    return;
+  }
+  const renderer = globeInstance.renderer?.();
+  const maximum = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+  texture.anisotropy = Math.min(16, maximum);
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+}
+
 function setupGlobeSheet() {
   const sheet = document.getElementById('globeSheet');
   const handle = document.getElementById('globeSheetHandle');
   if (!sheet || !handle) return;
   const states = ['', 'half', 'full'];
   let currentState = 0;
-  handle.addEventListener('click', () => {
-    currentState = (currentState + 1) % states.length;
+  const filterHamburger = document.getElementById('globeFilterHamburger');
+  const sidebarWrapper = document.getElementById('globeSidebarWrapper');
+  const hamburgerIcon = document.getElementById('globeHamburgerIcon');
+  const setSheetState = (nextState) => {
+    currentState = Math.min(Math.max(nextState, 0), states.length - 1);
     sheet.className = 'globe-sheet' + (states[currentState] ? ' ' + states[currentState] : '');
+    sheet.setAttribute('aria-expanded', currentState > 0 ? 'true' : 'false');
+    if (currentState > 0 && sidebarWrapper) {
+      sidebarWrapper.classList.add('collapsed');
+      if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(180deg)';
+    }
+  };
+  sheet._setState = setSheetState;
+  setSheetState(0);
+  handle.addEventListener('click', () => {
+    setSheetState((currentState + 1) % states.length);
   });
   const closeBtn = document.getElementById('globeSheetToggle');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       if (currentState > 0) {
-        currentState = 0;
-        sheet.className = 'globe-sheet';
+        setSheetState(0);
       } else {
-        currentState = 1;
-        sheet.className = 'globe-sheet half';
+        setSheetState(1);
       }
     });
   }
   // Hamburger filter toggle
-  const filterHamburger = document.getElementById('globeFilterHamburger');
-  const sidebarWrapper = document.getElementById('globeSidebarWrapper');
-  const hamburgerIcon = document.getElementById('globeHamburgerIcon');
   if (filterHamburger && sidebarWrapper) {
     filterHamburger.addEventListener('click', (e) => {
       e.stopPropagation();
+      const willExpand = sidebarWrapper.classList.contains('collapsed');
+      if (willExpand) setSheetState(0);
       sidebarWrapper.classList.toggle('collapsed');
       if (sidebarWrapper.classList.contains('collapsed')) {
-        hamburgerIcon.style.transform = 'rotate(180deg)';
+        if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(180deg)';
       } else {
-        hamburgerIcon.style.transform = 'rotate(0deg)';
+        if (hamburgerIcon) hamburgerIcon.style.transform = 'rotate(0deg)';
       }
     });
   }
@@ -4389,6 +4493,7 @@ function setupGlobeSheet() {
         } else {
           globeInstance.globeTileEngineUrl(null);
           globeInstance.globeImageUrl(texture);
+          tuneGlobeTextureQuality();
         }
       }
     });
@@ -4399,8 +4504,7 @@ function setupGlobeSheet() {
   if (gc) {
     gc.addEventListener('click', (e) => {
       if (!sheet.contains(e.target)) {
-        currentState = 0;
-        sheet.className = 'globe-sheet';
+        setSheetState(0);
       }
     });
   }
@@ -4410,7 +4514,8 @@ function handleGlobeClick(point) {
   if (!point || !point.aircraft) return;
   const sheet = document.getElementById('globeSheet');
   const results = document.getElementById('globeSheetResults');
-  sheet.className = 'globe-sheet full';
+  if (typeof sheet._setState === 'function') sheet._setState(2);
+  else sheet.className = 'globe-sheet full';
   results.innerHTML = `<div class="drill-header"><span class="drill-icao">${escapeMarkup(point.icao)}</span>${point.city ? '<span>' + escapeMarkup(point.city) + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span></div>` +
     point.aircraft.map(ac => {
       const mro = buildMROSignals(ac);
@@ -4451,6 +4556,355 @@ function handleGlobeResize() {
   if (c) globeInstance.width(c.clientWidth).height(c.clientHeight);
 }
 
+const MAX_NATIVE_AR_PINS = 750;
+let nativeARListenersBound = false;
+let nativeARRealtimeOwnsSession = false;
+let nativeARSpatialAudioContext = null;
+let nativeARSpatialAudioPanner = null;
+let nativeARSpatialAudioElement = null;
+let latestNativeARSpatialAudio = null;
+
+function nativeARGlobePlugin() {
+  return globalThis.Capacitor?.Plugins?.JetNetNative || null;
+}
+
+function isNativeIOSGlobeHost() {
+  return globalThis.Capacitor?.isNativePlatform?.() === true
+    && globalThis.Capacitor?.getPlatform?.() === 'ios';
+}
+
+async function configureViewerARCapability() {
+  const plugin = nativeARGlobePlugin();
+  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) {
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
+    return;
+  }
+  try {
+    const capability = await plugin.isARSupported();
+    MX3DViewer.post({
+      type: 'mxgenius.viewer.ar-capability',
+      supported: Boolean(capability?.supported),
+      anchors: 3,
+      pointCloud: true
+    });
+  } catch (error) {
+    console.warn('Native viewer AR capability check failed', error);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
+  }
+}
+
+async function openViewerInAR(scene = {}) {
+  const plugin = nativeARGlobePlugin();
+  if (!plugin?.showSpatialScene && !plugin?.showGlobe) return;
+
+  const activeCase = MXCaseState.active?.case || {};
+  const modelName = String(scene.modelName || MX3DViewer.currentModel?.name || 'Selected 3D model');
+  const modelType = String(scene.modelType || 'aircraft component');
+  const rows = [
+    { label: 'MODEL', value: modelName },
+    { label: 'TYPE', value: modelType },
+    { label: 'REVISION', value: String(scene.revision || MX3DViewer.currentModel?.revision || 'Current') },
+    { label: 'STATUS', value: String(scene.operationalStatus || MX3DViewer.currentModel?.operationalStatus || 'Reference model') },
+    { label: 'CASE', value: String(activeCase.id || activeCase.case_id || MX3DViewer.context.caseId || 'No active case') },
+    { label: 'AI PRESENCE', value: 'Spatial point cloud ready' }
+  ];
+  const payload = {
+    pins: allClusters.length ? buildNativeARGlobePins() : [],
+    distance: 0.82,
+    radius: 0.16,
+    scene: {
+      ...scene,
+      title: scene.title || 'MXGENIUS 3D + JETNET',
+      subtitle: scene.subtitle || 'Anchored model inspection workspace',
+      modelName,
+      modelType,
+      source: 'MXGenius 3D Viewer + JETNET',
+      rows
+    }
+  };
+
+  MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'opening' });
+  try {
+    if (plugin.showSpatialScene) await plugin.showSpatialScene(payload);
+    else await plugin.showGlobe(payload);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'opened' });
+  } catch (error) {
+    console.error('Unable to open the native 3D viewer AR scene', error);
+    MX3DViewer.post({ type: 'mxgenius.viewer.ar-state', state: 'failed', message: error?.message || 'Native AR failed' });
+  }
+}
+
+function nativeARPinColor(cluster) {
+  if (cluster.hasActiveCase) return '#00d4ff';
+  if (cluster.hasAog || cluster.hasVeryHighTime) return '#ff4444';
+  if (cluster.hasHighTime) return '#f59e0b';
+  return '#10b981';
+}
+
+function buildNativeARGlobePins() {
+  return [...allClusters]
+    .sort((first, second) => {
+      const priority = (cluster) => (cluster.hasActiveCase ? 8 : 0) + (cluster.hasAog ? 4 : 0) + (cluster.hasVeryHighTime ? 2 : 0) + (cluster.hasHighTime ? 1 : 0);
+      return priority(second) - priority(first) || second.aircraft.length - first.aircraft.length;
+    })
+    .slice(0, MAX_NATIVE_AR_PINS)
+    .map((cluster) => ({
+      id: cluster.icao,
+      lat: Number(cluster.lat),
+      lng: Number(cluster.lng),
+      title: cluster.icao,
+      subtitle: `${cluster.aircraft.length.toLocaleString()} aircraft${cluster.city ? ` · ${cluster.city}` : ''}`,
+      color: nativeARPinColor(cluster),
+      data: {
+        icao: cluster.icao,
+        count: cluster.aircraft.length,
+        city: cluster.city || '',
+        country: cluster.country || '',
+        hasActiveCase: Boolean(cluster.hasActiveCase),
+        hasAog: Boolean(cluster.hasAog),
+        hasVeryHighTime: Boolean(cluster.hasVeryHighTime),
+        hasHighTime: Boolean(cluster.hasHighTime)
+      }
+    }));
+}
+
+function nativeARAircraftSummary(aircraft) {
+  const aircraftid = safeRecordId(aircraft?.aircraftid);
+  if (aircraftid === null) return null;
+  const signals = buildMROSignals(aircraft);
+  return {
+    aircraftid,
+    regnbr: aircraft.regnbr || '',
+    make: aircraft.make || '',
+    model: aircraft.model || '',
+    owner: aircraft.owner || aircraft.operator || '',
+    urgency: signals.isAOG ? 'AOG' : signals.isVeryHighTime ? '12K+ AFTT' : signals.isHighTime ? '8K+ AFTT' : 'Other'
+  };
+}
+
+async function populateNativeARLocation(plugin, cluster) {
+  if (!plugin?.updateJetnetPanel || !cluster) return;
+  await plugin.updateJetnetPanel({
+    panel: {
+      mode: 'location',
+      icao: cluster.icao || 'UNKNOWN',
+      location: [cluster.city, cluster.country].filter(Boolean).join(', ') || 'Fleet location',
+      aircraft: (cluster.aircraft || []).map(nativeARAircraftSummary).filter(Boolean).slice(0, 5)
+    }
+  });
+}
+
+async function nativeARImageDataURL(sourceURL) {
+  const objectURL = await MXApplicationClient.aircraftImageBlobUrl(sourceURL, { bearer: BEARER });
+  if (!objectURL) return '';
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const candidate = new Image();
+      candidate.onload = () => resolve(candidate);
+      candidate.onerror = () => reject(new Error('Aircraft image could not be decoded'));
+      candidate.src = objectURL;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 360;
+    canvas.height = 230;
+    const context = canvas.getContext('2d');
+    const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } finally {
+    URL.revokeObjectURL(objectURL);
+  }
+}
+
+async function populateNativeARAircraft(plugin, selection) {
+  if (!plugin?.updateJetnetPanel || !selection?.aircraftid) return;
+  try {
+    const bundle = await MXApplicationClient.aircraftBundle({ id: selection.aircraftid, token: TOKEN });
+    const aircraft = bundle?.aircraft?.aircraft || {};
+    const identification = aircraft.identification || {};
+    const airframe = aircraft.airframe || {};
+    const engines = bundle?.engines?.engines || [];
+    const pictureURLs = (bundle?.pictures?.pictures || []).map((picture) => picture.pictureurl).filter((url) => /^https:\/\//i.test(String(url))).slice(0, 3);
+    const settledPictures = await Promise.allSettled(pictureURLs.map(nativeARImageDataURL));
+    const pictures = settledPictures.filter((result) => result.status === 'fulfilled' && result.value).map((result) => result.value);
+    await plugin.updateJetnetPanel({
+      panel: {
+        mode: 'aircraft',
+        aircraftid: selection.aircraftid,
+        registration: identification.regnbr || selection.registration || '',
+        makeModel: [identification.make || selection.make, identification.model || selection.model].filter(Boolean).join(' '),
+        owner: selection.owner || aircraft.companyrelationships?.[0]?.name || '',
+        serial: identification.sernbr || '',
+        year: identification.yearmfg || identification.yeardlv || '',
+        airframeTime: airframe.aftt || airframe.estaftt || '',
+        engines: engines.map((engine) => [engine.engine_make, engine.engine_model].filter(Boolean).join(' ')).filter(Boolean).join(' · '),
+        base: [identification.baseicao, identification.basecity, identification.basecountry].filter(Boolean).join(' · '),
+        pictures
+      }
+    });
+  } catch (error) {
+    console.warn('Unable to populate native AR Jetnet aircraft panel', error);
+    await plugin.updateJetnetPanel({
+      panel: {
+        mode: 'aircraft',
+        aircraftid: selection.aircraftid,
+        registration: selection.registration || '',
+        makeModel: [selection.make, selection.model].filter(Boolean).join(' '),
+        owner: selection.owner || '',
+        pictures: []
+      }
+    });
+  }
+}
+
+async function setNativeARRealtimeState(state, message = '') {
+  try {
+    await nativeARGlobePlugin()?.setAIRealtimeState?.({ state, message });
+  } catch (_) {}
+}
+
+async function toggleNativeARRealtime() {
+  const voice = globalThis.MXRealtimeVoiceBridge;
+  if (!voice?.isAvailable?.()) {
+    await setNativeARRealtimeState('failed', 'Realtime voice is unavailable in this wrapper');
+    return;
+  }
+  if (voice.isConnected()) {
+    nativeARRealtimeOwnsSession = false;
+    voice.disconnect();
+    await setNativeARRealtimeState('disconnected', 'MIC idle · Realtime socket closed');
+    resetNativeARSpatialAudio();
+    return;
+  }
+  nativeARRealtimeOwnsSession = true;
+  await setNativeARRealtimeState('connecting', 'Opening the same MXGenius Realtime channel used by VR…');
+  try {
+    await voice.connect();
+  } catch (error) {
+    nativeARRealtimeOwnsSession = false;
+    await setNativeARRealtimeState('failed', error?.message || 'Realtime voice unavailable');
+  }
+}
+
+function resetNativeARSpatialAudio() {
+  if (nativeARSpatialAudioElement) nativeARSpatialAudioElement.volume = 1;
+  if (nativeARSpatialAudioContext) void nativeARSpatialAudioContext.close();
+  nativeARSpatialAudioContext = null;
+  nativeARSpatialAudioPanner = null;
+  nativeARSpatialAudioElement = null;
+}
+
+async function updateNativeARSpatialAudio(spatial) {
+  latestNativeARSpatialAudio = spatial;
+  const audioElement = globalThis.MXRealtimeVoiceBridge?.audioElement?.();
+  if (!audioElement || !spatial?.relative) return;
+  try {
+    if (!nativeARSpatialAudioContext || nativeARSpatialAudioElement !== audioElement) {
+      resetNativeARSpatialAudio();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Web Audio unavailable');
+      nativeARSpatialAudioContext = new AudioContextClass();
+      const source = nativeARSpatialAudioContext.createMediaElementSource(audioElement);
+      nativeARSpatialAudioPanner = nativeARSpatialAudioContext.createPanner();
+      nativeARSpatialAudioPanner.panningModel = 'HRTF';
+      nativeARSpatialAudioPanner.distanceModel = 'inverse';
+      nativeARSpatialAudioPanner.refDistance = 0.32;
+      nativeARSpatialAudioPanner.maxDistance = 6;
+      nativeARSpatialAudioPanner.rolloffFactor = 1.45;
+      source.connect(nativeARSpatialAudioPanner).connect(nativeARSpatialAudioContext.destination);
+      nativeARSpatialAudioElement = audioElement;
+    }
+    if (nativeARSpatialAudioContext.state === 'suspended') await nativeARSpatialAudioContext.resume();
+    const { x = 0, y = 0, z = -1 } = spatial.relative;
+    if (nativeARSpatialAudioPanner.positionX) {
+      const time = nativeARSpatialAudioContext.currentTime;
+      nativeARSpatialAudioPanner.positionX.setTargetAtTime(Number(x), time, 0.04);
+      nativeARSpatialAudioPanner.positionY.setTargetAtTime(Number(y), time, 0.04);
+      nativeARSpatialAudioPanner.positionZ.setTargetAtTime(Number(z), time, 0.04);
+    } else {
+      nativeARSpatialAudioPanner.setPosition(Number(x), Number(y), Number(z));
+    }
+  } catch (error) {
+    audioElement.volume = Math.max(0.04, Math.min(1, Number(spatial.gain) || 1));
+  }
+}
+
+async function openGlobeInAR() {
+  const plugin = nativeARGlobePlugin();
+  const button = document.getElementById('globeArButton');
+  if (!isNativeIOSGlobeHost() || !plugin?.showGlobe || !allClusters.length) return;
+  button.disabled = true;
+  try {
+    await plugin.showGlobe({
+      pins: buildNativeARGlobePins(),
+      distance: 0.85,
+      radius: 0.18
+    });
+  } catch (error) {
+    console.error('Unable to open native AR globe', error);
+    button.title = `AR unavailable: ${error?.message || 'native session failed'}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function configureNativeARGlobe() {
+  const button = document.getElementById('globeArButton');
+  const guide = document.getElementById('globeArGuide');
+  const plugin = nativeARGlobePlugin();
+  if (!button) return;
+  button.hidden = true;
+  if (guide) guide.hidden = true;
+  button.disabled = true;
+  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) return;
+
+  try {
+    const capability = await plugin.isARSupported();
+    if (!capability?.supported) return;
+    button.hidden = false;
+    if (guide) guide.hidden = false;
+    button.disabled = !allClusters.length;
+    if (!button.dataset.bound) {
+      button.dataset.bound = 'true';
+      button.addEventListener('click', openGlobeInAR);
+    }
+    if (!nativeARListenersBound && plugin.addListener) {
+      nativeARListenersBound = true;
+      await plugin.addListener('cameraPose', (pose) => {
+        globalThis.MXARCameraPose = pose;
+        window.dispatchEvent(new CustomEvent('mxgenius:ar-camera-pose', { detail: pose }));
+      });
+      await plugin.addListener('pinSelected', async ({ id }) => {
+        const cluster = allClusters.find((item) => item.icao === id);
+        if (cluster) {
+          handleGlobeClick(cluster);
+          await populateNativeARLocation(plugin, cluster);
+        }
+      });
+      await plugin.addListener('aircraftSelected', async (selection) => {
+        await populateNativeARAircraft(plugin, selection);
+      });
+      await plugin.addListener('aiSpatialAudio', (spatial) => {
+        void updateNativeARSpatialAudio(spatial);
+      });
+      await plugin.addListener('arSessionState', async (state) => {
+        button.dataset.arState = state?.state || '';
+        if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
+        if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
+          nativeARRealtimeOwnsSession = false;
+          globalThis.MXRealtimeVoiceBridge?.disconnect?.();
+          resetNativeARSpatialAudio();
+        }
+        window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
+      });
+    }
+  } catch (error) {
+    console.warn('Native AR globe capability check failed', error);
+  }
+}
+
 function openGlobeInVR() {
   if (!allClusters.length) return;
   const payload = {
@@ -4487,7 +4941,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=6');
+  window.location.assign('globe-vr.html?v=8');
 }
 
 async function loadGlobe() {
@@ -4524,21 +4978,31 @@ async function loadGlobe() {
       vrButton.addEventListener('click', openGlobeInVR);
     }
   }
+  configureNativeARGlobe();
 
   if (!globeInstance) {
     container.innerHTML = '';
     globeRenderedGridSize = globeGridSize(globeZoomAltitude);
+    const initialDisplayClusters = aggregateGlobeClusters(allClusters, globeZoomAltitude);
     globeInstance = Globe()
+      .globeCurvatureResolution(1)
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
-      .pointsData([])
-      .htmlElementsData(aggregateGlobeClusters(allClusters, globeZoomAltitude))
+      .pointsData(initialDisplayClusters)
+      .pointLat(d => d.lat)
+      .pointLng(d => d.lng)
+      .pointAltitude(clusterAltitude)
+      .pointColor(clusterColor)
+      .pointRadius(clusterRadius)
+      .pointResolution(12)
+      .pointsTransitionDuration(0)
+      .htmlElementsData(initialDisplayClusters)
       .htmlLat(d => d.lat)
       .htmlLng(d => d.lng)
       .htmlAltitude(0.0015)
       .htmlElement(createGlobeClusterMarker)
-      .htmlTransitionDuration(220)
-      .ringsData(attentionClusters(aggregateGlobeClusters(allClusters, globeZoomAltitude)))
+      .htmlTransitionDuration(0)
+      .ringsData(attentionClusters(initialDisplayClusters))
       .ringLat(d => d.lat)
       .ringLng(d => d.lng)
       .ringAltitude(clusterAltitude)

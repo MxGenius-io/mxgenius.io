@@ -13,6 +13,7 @@ final class BridgeActivation {
     static final String EXTRA_PILOT = "io.mxgenius.sensorbridge.PILOT";
     private static final Pattern SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{1,128}$");
     private static final Pattern LOCAL_TOKEN = Pattern.compile("^[A-Za-z0-9_-]{32,128}$");
+    private static final String SENSOR_SCENE_URL = "https://mxgenius.io/globe-vr.html?scene=sensor&bridgeManaged=1";
 
     final String sessionId;
     final String bridgeUrl;
@@ -65,6 +66,19 @@ final class BridgeActivation {
         } catch (RuntimeException ignored) {
             return "invalid relay";
         }
+    }
+
+    boolean canHandoffToBrowser() {
+        return localToken != null;
+    }
+
+    String browserHandoffUrl() {
+        if (!canHandoffToBrowser()) {
+            throw new IllegalStateException("Quest-local activation is required for browser handoff.");
+        }
+        return SENSOR_SCENE_URL + "#sensorHandoff=1"
+                + "&sessionId=" + sessionId
+                + "&localToken=" + localToken;
     }
 
     static BridgeActivation validated(

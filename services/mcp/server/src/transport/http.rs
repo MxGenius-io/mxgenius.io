@@ -2,6 +2,11 @@
 //! The runtime returns JSON responses and deliberately does not open an SSE
 //! channel; `GET /mcp` therefore returns 405 as allowed by the protocol.
 
+// Transport helpers intentionally propagate fully formed Axum responses as
+// typed errors; boxing them would complicate handler composition without
+// changing the HTTP wire contract.
+#![allow(clippy::result_large_err)]
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -2768,51 +2773,166 @@ async fn get_parts_asset_content(
     (StatusCode::OK, response_headers, bytes).into_response()
 }
 
-fn aviation_extraction_proposals(content: &str) -> Vec<ExtractionProposal> {
-    let definitions = [
-        (
-            "partNumber",
-            r"(?i)\b(?:part\s*(?:number|no\.?)|p/?n)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
-        ),
-        (
-            "serialNumber",
-            r"(?i)\b(?:serial\s*(?:number|no\.?)|s/?n)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
-        ),
-        (
-            "certificateNumber",
-            r"(?i)\b(?:certificate|cert)\s*(?:number|no\.?)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})",
-        ),
-        (
-            "manufacturer",
-            r"(?i)\b(?:manufacturer|mfr)\s*[:#-]?\s*([A-Z][A-Z0-9 &'().-]{2,48})",
-        ),
-        (
-            "description",
-            r"(?i)\b(?:description|nomenclature)\s*[:#-]?\s*([A-Z0-9][A-Z0-9 &'().,/-]{2,80})",
-        ),
+const PARTS_EXTRACTION_PROVIDER: &str = "openai_responses";
+const PARTS_EXTRACTION_SCHEMA_VERSION: &str = "mxgenius_parts_document_v1";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelPartsExtraction {
+    document_type: Option<String>,
+    fields: Vec<ModelPartsExtractionField>,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelPartsExtractionField {
+    field_name: String,
+    value: String,
+    source_excerpt: String,
+    page_number: Option<u32>,
+}
+
+fn parts_extraction_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["documentType", "fields", "warnings"],
+        "properties": {
+            "documentType": {
+                "type": ["string", "null"],
+                "enum": [
+                    "faa_8130_3", "easa_form_1", "certificate_of_conformance",
+                    "packing_slip", "invoice", "placard", "part_photo", "other", null
+                ]
+            },
+            "fields": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["fieldName", "value", "sourceExcerpt", "pageNumber"],
+                    "properties": {
+                        "fieldName": {
+                            "type": "string",
+                            "enum": [
+                                "partNumber", "serialNumber", "certificateNumber",
+                                "manufacturer", "description"
+                            ]
+                        },
+                        "value": {"type": "string", "minLength": 1, "maxLength": 256},
+                        "sourceExcerpt": {"type": "string", "minLength": 1, "maxLength": 320},
+                        "pageNumber": {
+                            "anyOf": [
+                                {"type": "integer", "minimum": 1, "maximum": 1000},
+                                {"type": "null"}
+                            ]
+                        }
+                    }
+                }
+            },
+            "warnings": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {"type": "string", "minLength": 1, "maxLength": 240}
+            }
+        }
+    })
+}
+
+fn parts_extraction_attachment(
+    media_type: &str,
+    original_filename: &str,
+    bytes: &[u8],
+) -> Result<Value, &'static str> {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    match media_type {
+        "image/jpeg" | "image/png" | "image/webp" => Ok(json!({
+            "type": "input_image",
+            "image_url": format!("data:{media_type};base64,{encoded}"),
+            "detail": "high"
+        })),
+        "application/pdf" => Ok(json!({
+            "type": "input_file",
+            "filename": original_filename,
+            "file_data": format!("data:application/pdf;base64,{encoded}")
+        })),
+        _ => Err("parts evidence must be JPEG, PNG, WebP, or PDF"),
+    }
+}
+
+fn model_parts_extraction(
+    output: &str,
+) -> Result<(Vec<ExtractionProposal>, Vec<String>), &'static str> {
+    let extraction: ModelPartsExtraction =
+        serde_json::from_str(output).map_err(|_| "model output is not valid extraction JSON")?;
+    let allowed_fields = [
+        "partNumber",
+        "serialNumber",
+        "certificateNumber",
+        "manufacturer",
+        "description",
     ];
-    definitions
+    let document_type = extraction
+        .document_type
+        .as_deref()
+        .map(|value| truncate_chars(value, 64));
+    let mut seen = std::collections::HashSet::new();
+    let mut proposals = Vec::new();
+    for field in extraction.fields.into_iter().take(5) {
+        if !allowed_fields.contains(&field.field_name.as_str())
+            || !seen.insert(field.field_name.clone())
+        {
+            continue;
+        }
+        let value = field.value.trim();
+        let source_excerpt = field.source_excerpt.trim();
+        if value.is_empty()
+            || value.chars().count() > 256
+            || source_excerpt.is_empty()
+            || source_excerpt.chars().count() > 320
+            || field
+                .page_number
+                .is_some_and(|page| page == 0 || page > 1000)
+        {
+            continue;
+        }
+        let normalized = matches!(
+            field.field_name.as_str(),
+            "partNumber" | "serialNumber" | "certificateNumber"
+        )
+        .then(|| value.to_ascii_uppercase());
+        proposals.push(ExtractionProposal {
+            field_name: field.field_name,
+            proposed_value: value.to_owned(),
+            normalized_value: normalized,
+            // Model self-confidence is not calibrated evidence. A null score
+            // keeps every model-derived value inside the existing review gate.
+            confidence: None,
+            source_region: Some(json!({
+                "schemaVersion": PARTS_EXTRACTION_SCHEMA_VERSION,
+                "documentType": document_type,
+                "pageNumber": field.page_number,
+                "sourceExcerpt": source_excerpt
+            })),
+        });
+    }
+    let warnings = extraction
+        .warnings
         .into_iter()
-        .filter_map(|(field_name, pattern)| {
-            let capture = regex::Regex::new(pattern).ok()?.captures(content)?;
-            let value = capture.get(1)?.as_str().trim().to_owned();
-            let normalized = if matches!(
-                field_name,
-                "partNumber" | "serialNumber" | "certificateNumber"
-            ) {
-                Some(value.to_ascii_uppercase())
-            } else {
-                None
-            };
-            Some(ExtractionProposal {
-                field_name: field_name.into(),
-                proposed_value: value,
-                normalized_value: normalized,
-                confidence: Some(0.75),
-                source_region: None,
-            })
+        .filter_map(|warning| {
+            let warning = warning.trim();
+            (!warning.is_empty()).then(|| truncate_chars(warning, 240))
         })
-        .collect()
+        .take(8)
+        .collect();
+    Ok((proposals, warnings))
+}
+
+fn configured_parts_extraction_model() -> Result<String, &'static str> {
+    let configured = std::env::var("MXGENIUS_PARTS_EXTRACTION_MODEL").ok();
+    text_model(configured.as_deref())
 }
 
 async fn request_parts_extraction(
@@ -2831,38 +2951,41 @@ async fn request_parts_extraction(
             "role cannot process parts evidence",
         );
     }
-    let endpoint = match std::env::var("MXGENIUS_DOCUMENT_INTELLIGENCE_ENDPOINT") {
+    let api_key = match std::env::var("OPENAI_API_KEY") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
             return realtime_error(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "PARTS_OCR_NOT_CONFIGURED",
-                "Azure Document Intelligence is not configured",
+                "MXGenius document extraction is not configured",
             )
         }
     };
-    let key = std::env::var("MXGENIUS_DOCUMENT_INTELLIGENCE_KEY")
-        .ok()
-        .filter(|value| !value.trim().is_empty());
-    let cognitive_token = if key.is_none() {
-        match managed_identity_token(
-            &state.realtime_client,
-            "https://cognitiveservices.azure.com/",
-        )
-        .await
-        {
-            Ok(value) => Some(value),
-            Err(error) => {
-                tracing::warn!(target: "mxgenius.parts.ocr", %error, "Document Intelligence token acquisition failed");
+    let requested_model = match configured_parts_extraction_model() {
+        Ok(value) => value,
+        Err(message) => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "PARTS_OCR_NOT_CONFIGURED",
+                message,
+            )
+        }
+    };
+    let model = match available_text_models(&state.realtime_client, &api_key).await {
+        Ok(available) => match accessible_text_model(&requested_model, &available) {
+            Some(value) => value,
+            None => {
                 return realtime_error(
                     StatusCode::SERVICE_UNAVAILABLE,
                     "PARTS_OCR_NOT_CONFIGURED",
-                    "Azure Document Intelligence identity is not configured",
-                );
+                    "No configured MXGenius extraction model is available",
+                )
             }
+        },
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts.extraction", %error, requested_model, "could not verify model availability; attempting configured model");
+            requested_model
         }
-    } else {
-        None
     };
     let Some(pool) = postgres_pool(&state) else {
         return persistence_not_configured();
@@ -2872,7 +2995,10 @@ async fn request_parts_extraction(
         Ok(value) => value,
         Err(error) => return parts_error(error, "parts.extraction.asset"),
     };
-    let run = match repository.start_extraction(&context, asset_id).await {
+    let run = match repository
+        .start_extraction(&context, asset_id, PARTS_EXTRACTION_PROVIDER, &model)
+        .await
+    {
         Ok(value) => value,
         Err(error) => return parts_error(error, "parts.extraction.start"),
     };
@@ -2923,24 +3049,61 @@ async fn request_parts_extraction(
             );
         }
     };
-    let analyze_url = format!(
-        "{}/documentintelligence/documentModels/prebuilt-layout:analyze?_overload=analyzeDocument&api-version=2024-11-30",
-        endpoint.trim_end_matches('/')
-    );
-    let mut analyze_request = state
+    let attachment =
+        match parts_extraction_attachment(&asset.media_type, &asset.original_filename, &bytes) {
+            Ok(value) => value,
+            Err(message) => {
+                let _ = repository
+                    .fail_extraction(&context, run.id, "ASSET_TYPE_UNSUPPORTED")
+                    .await;
+                return realtime_error(
+                    StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                    "PARTS_OCR_REJECTED",
+                    message,
+                );
+            }
+        };
+    let request_body = json!({
+        "model": model,
+        "instructions": "You are the MXGenius aviation parts document extractor. Inspect only the attached source. Return the required structured extraction and nothing else. Extract only values visibly supported by the source; omit ambiguous or absent fields. Preserve identifier characters exactly, including hyphens, slashes, periods, and leading zeros. Never infer identity, condition, trace, airworthiness, applicability, or approval. The sourceExcerpt must be a short faithful transcription that supports the candidate. Use a one-based pageNumber for PDFs when visible, otherwise null. Warnings should identify obscured, conflicting, or unreadable source content without guessing a value.",
+        "input": [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "Extract proposed receiving metadata from this aviation parts document or photo."
+                },
+                attachment
+            ]
+        }],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": PARTS_EXTRACTION_SCHEMA_VERSION,
+                "strict": true,
+                "schema": parts_extraction_schema()
+            }
+        },
+        "reasoning": {"effort": "low"},
+        "max_output_tokens": 1200,
+        "store": false
+    });
+    let upstream = match state
         .realtime_client
-        .post(analyze_url)
-        .header(header::CONTENT_TYPE, &asset.media_type)
-        .body(bytes);
-    if let Some(key) = key.as_deref() {
-        analyze_request = analyze_request.header("Ocp-Apim-Subscription-Key", key);
-    } else if let Some(token) = cognitive_token.as_deref() {
-        analyze_request = analyze_request.bearer_auth(token);
-    }
-    let analyze = match analyze_request.send().await {
+        .post(OPENAI_RESPONSES_URL)
+        .bearer_auth(&api_key)
+        .header(
+            "OpenAI-Safety-Identifier",
+            realtime_safety_identifier(&context),
+        )
+        .header("x-client-request-id", context.correlation_id.to_string())
+        .json(&request_body)
+        .send()
+        .await
+    {
         Ok(value) => value,
         Err(error) => {
-            tracing::warn!(target: "mxgenius.parts.ocr", %error, %asset_id, "Document Intelligence request failed");
+            tracing::warn!(target: "mxgenius.parts.extraction", %error, %asset_id, "MXGenius extraction request failed");
             let _ = repository
                 .fail_extraction(&context, run.id, "OCR_REQUEST_FAILED")
                 .await;
@@ -2951,8 +3114,14 @@ async fn request_parts_extraction(
             );
         }
     };
-    if analyze.status() != reqwest::StatusCode::ACCEPTED {
-        tracing::warn!(target: "mxgenius.parts.ocr", status=%analyze.status(), %asset_id, "Document Intelligence rejected request");
+    let upstream_status = upstream.status();
+    if !upstream_status.is_success() {
+        let upstream_error = upstream.json::<Value>().await.unwrap_or_else(|_| json!({}));
+        let upstream_code = upstream_error
+            .pointer("/error/code")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        tracing::warn!(target: "mxgenius.parts.extraction", %upstream_status, upstream_code, %asset_id, model, "MXGenius extraction request was rejected");
         let _ = repository
             .fail_extraction(&context, run.id, "OCR_REQUEST_REJECTED")
             .await;
@@ -2962,64 +3131,51 @@ async fn request_parts_extraction(
             "document extraction service rejected the asset",
         );
     }
-    let Some(operation_url) = analyze
-        .headers()
-        .get("operation-location")
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned)
-    else {
+    let payload = match upstream.json::<Value>().await {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = repository
+                .fail_extraction(&context, run.id, "OCR_RESPONSE_INVALID")
+                .await;
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_OCR_INVALID_RESPONSE",
+                "document extraction returned an invalid response",
+            );
+        }
+    };
+    let answer = extract_openai_output_text(&payload);
+    if answer.is_empty() {
         let _ = repository
-            .fail_extraction(&context, run.id, "OCR_OPERATION_MISSING")
+            .fail_extraction(&context, run.id, "OCR_RESPONSE_EMPTY")
             .await;
         return realtime_error(
             StatusCode::BAD_GATEWAY,
             "PARTS_OCR_INVALID_RESPONSE",
-            "document extraction returned no operation reference",
+            "document extraction returned no structured result",
         );
-    };
-    let mut result = None;
-    for _ in 0..20 {
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        let mut poll_request = state.realtime_client.get(&operation_url);
-        if let Some(key) = key.as_deref() {
-            poll_request = poll_request.header("Ocp-Apim-Subscription-Key", key);
-        } else if let Some(token) = cognitive_token.as_deref() {
-            poll_request = poll_request.bearer_auth(token);
-        }
-        let poll = match poll_request.send().await {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-        let payload = match poll.json::<Value>().await {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-        match payload.get("status").and_then(Value::as_str) {
-            Some("succeeded") => {
-                result = Some(payload);
-                break;
-            }
-            Some("failed") => break,
-            _ => {}
-        }
     }
-    let Some(result) = result else {
-        let _ = repository
-            .fail_extraction(&context, run.id, "OCR_INCOMPLETE")
-            .await;
-        return realtime_error(
-            StatusCode::GATEWAY_TIMEOUT,
-            "PARTS_OCR_INCOMPLETE",
-            "document extraction did not complete",
-        );
+    let (proposals, warnings) = match model_parts_extraction(&answer) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.parts.extraction", error, %asset_id, model, "MXGenius extraction output failed validation");
+            let _ = repository
+                .fail_extraction(&context, run.id, "OCR_RESPONSE_INVALID")
+                .await;
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "PARTS_OCR_INVALID_RESPONSE",
+                "document extraction returned invalid structured metadata",
+            );
+        }
     };
-    let content = result
-        .pointer("/analyzeResult/content")
+    let raw_result_reference = payload
+        .get("id")
         .and_then(Value::as_str)
-        .unwrap_or_default();
-    let proposals = aviation_extraction_proposals(content);
+        .map(|id| format!("openai-response:{id}"))
+        .unwrap_or_else(|| format!("openai-correlation:{}", context.correlation_id));
     match repository
-        .complete_extraction(&context, run.id, &operation_url, &proposals)
+        .complete_extraction(&context, run.id, &raw_result_reference, &proposals)
         .await
     {
         Ok(candidates) => (
@@ -3027,7 +3183,8 @@ async fn request_parts_extraction(
             Json(json!({
                 "run": {"id": run.id, "assetId": asset_id, "state": "review_ready"},
                 "candidates": candidates,
-                "notice": "OCR suggestions require human review and do not establish identity, condition, trace, or airworthiness."
+                "warnings": warnings,
+                "notice": "MXGenius document suggestions require human review and do not establish identity, condition, trace, or airworthiness."
             })),
         )
             .into_response(),
@@ -8249,21 +8406,97 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn aviation_ocr_remains_bounded_proposed_metadata() {
-        let proposals = aviation_extraction_proposals(
-            "PART NUMBER: 23091234\nSERIAL NO: SN-9001\nMANUFACTURER: Collins Aerospace\n",
-        );
-        assert_eq!(proposals.len(), 3);
+    fn mxgenius_document_extraction_remains_bounded_proposed_metadata() {
+        let answer = json!({
+            "documentType": "faa_8130_3",
+            "fields": [
+                {
+                    "fieldName": "partNumber",
+                    "value": "ab-2309",
+                    "sourceExcerpt": "Part Number: ab-2309",
+                    "pageNumber": 1
+                },
+                {
+                    "fieldName": "serialNumber",
+                    "value": "sn-9001",
+                    "sourceExcerpt": "Serial No: sn-9001",
+                    "pageNumber": 1
+                },
+                {
+                    "fieldName": "serialNumber",
+                    "value": "duplicate",
+                    "sourceExcerpt": "Serial No: duplicate",
+                    "pageNumber": 1
+                },
+                {
+                    "fieldName": "notAllowed",
+                    "value": "must be ignored",
+                    "sourceExcerpt": "not supported",
+                    "pageNumber": null
+                }
+            ],
+            "warnings": ["Lower portion is obscured."]
+        })
+        .to_string();
+        let (proposals, warnings) =
+            model_parts_extraction(&answer).expect("strict extraction should parse");
+        assert_eq!(proposals.len(), 2);
         assert!(proposals
             .iter()
             .any(|value| value.field_name == "partNumber"
-                && value.normalized_value.as_deref() == Some("23091234")));
+                && value.normalized_value.as_deref() == Some("AB-2309")));
         assert!(proposals
             .iter()
-            .any(|value| value.field_name == "serialNumber" && value.proposed_value == "SN-9001"));
-        assert!(proposals
-            .iter()
-            .all(|value| value.confidence.is_some_and(|score| score <= 1.0)));
+            .any(|value| value.field_name == "serialNumber" && value.proposed_value == "sn-9001"));
+        assert!(proposals.iter().all(|value| value.confidence.is_none()));
+        assert_eq!(warnings, vec!["Lower portion is obscured."]);
+        assert_eq!(
+            proposals[0]
+                .source_region
+                .as_ref()
+                .and_then(|value| value.get("schemaVersion"))
+                .and_then(Value::as_str),
+            Some(PARTS_EXTRACTION_SCHEMA_VERSION)
+        );
+    }
+
+    #[test]
+    fn parts_extraction_schema_and_attachments_are_private_and_bounded() {
+        let schema = parts_extraction_schema();
+        assert_eq!(
+            schema.get("additionalProperties"),
+            Some(&Value::Bool(false))
+        );
+        assert_eq!(
+            schema.pointer("/properties/fields/maxItems"),
+            Some(&json!(5))
+        );
+
+        let image = parts_extraction_attachment("image/png", "placard.png", b"image")
+            .expect("PNG should be accepted");
+        assert_eq!(
+            image.get("type").and_then(Value::as_str),
+            Some("input_image")
+        );
+        let image_url = image
+            .get("image_url")
+            .and_then(Value::as_str)
+            .expect("image should be embedded");
+        assert!(image_url.starts_with("data:image/png;base64,"));
+        assert!(!image_url.contains("blob.core.windows.net"));
+
+        let pdf = parts_extraction_attachment("application/pdf", "8130.pdf", b"pdf")
+            .expect("PDF should be accepted");
+        assert_eq!(pdf.get("type").and_then(Value::as_str), Some("input_file"));
+        assert_eq!(
+            pdf.get("filename").and_then(Value::as_str),
+            Some("8130.pdf")
+        );
+        assert!(pdf
+            .get("file_data")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.starts_with("data:application/pdf;base64,")));
+        assert!(parts_extraction_attachment("text/plain", "notes.txt", b"text").is_err());
     }
 
     #[test]

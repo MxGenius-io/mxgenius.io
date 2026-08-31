@@ -203,7 +203,7 @@
 .onboarding-tooltip {
   position: fixed;
   z-index: 92000;
-  width: min(340px, 88vw);
+  width: min(420px, 88vw);
   background: linear-gradient(145deg, rgba(22, 28, 52, 0.97), rgba(12, 16, 32, 0.98));
   border: 1px solid rgba(34, 211, 238, 0.3);
   border-radius: 14px;

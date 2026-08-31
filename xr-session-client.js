@@ -34,6 +34,17 @@ export function createSensorLocalToken(cryptoImpl = globalThis.crypto) {
   return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
+export function parseSensorHandoffFragment(fragment = '') {
+  const value = String(fragment || '').replace(/^#/, '');
+  if (!value) return null;
+  const query = new URLSearchParams(value);
+  if (query.get('sensorHandoff') !== '1') return null;
+  return {
+    sessionId: validSessionId(query.get('sessionId')),
+    localToken: validLocalToken(query.get('localToken'))
+  };
+}
+
 export function buildSensorLocalBridgeUrl({ sessionId, localToken, port = LOCAL_THERMAL_PORT }) {
   const numericPort = Number(port);
   if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {

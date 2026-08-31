@@ -1,0 +1,27 @@
+id,name,trigger,visual_behavior,duration_target_ms,reduced_motion_behavior,priority,status
+FX-001,Control focus settle,Focus enters a control,Scale 1.00 to 1.025 with border energy gathering toward the pointer,120,Border opacity change only,P2,needed
+FX-002,Primary press,Primary action is selected,Control depresses 2 mm then releases without overshoot,110,Color change only,P1,needed
+FX-003,Panel originate,Panel opens,Morph outward from the invoking control or world referent rather than appearing independently,360,160 ms crossfade,P1,needed
+FX-004,Panel dismiss,Panel closes,Collapse toward its source while preserving the source in view,280,140 ms crossfade,P1,needed
+FX-005,Acquire brackets,Target acquisition begins,Four corner brackets travel inward and resolve without blinking or perpetual pulsing,650,Single 220 ms fade to final brackets,P0,needed
+FX-006,Candidate resolve,Identification candidate arrives,Existing acquisition lines morph to amber dashed contour and leader card,520,240 ms line-style dissolve,P0,needed
+FX-007,Confirm referent,Candidate is confirmed,Dashed amber contour becomes solid green through a traveling line fill,600,220 ms color and line-style change,P0,needed
+FX-008,Invalidate referent,Candidate is rejected,Contour loosens and retracts into the observation node while identity remains in timeline,340,160 ms fade to timeline,P0,needed
+FX-009,Confidence update,Confidence changes,Dash spacing opacity and label qualifier interpolate on the same anchored object,500,200 ms text/color dissolve,P0,needed
+FX-010,Guide path build,Guidance begins,Chevrons grow sequentially from current focus toward target with restrained cadence,700,Static path fades in over 220 ms,P1,needed
+FX-011,Guide occlusion,Real geometry crosses guidance,Path is continuously depth-occluded with a faint edge hint only near reappearance,continuous,Same occlusion without edge motion,P1,needed
+FX-012,Target arrival,User reaches target,Final chevron compresses into a stable target ring,300,Target ring opacity change,P2,needed
+FX-013,Evidence capture seal,Capture succeeds,A thin frame closes around the evidence region then docks a thumbnail into the timeline,420,180 ms frame and thumbnail fade,P1,needed
+FX-014,Provenance reveal,WHY is selected,Observation interpretation and action nodes unfold along the existing leader line,380,180 ms node fade,P1,needed
+FX-015,Cancel retract,CANCEL or CLEAR is issued,All visuals sharing the action ID retract together toward referent or source control,300,150 ms coordinated fade,P0,needed
+FX-016,Tracking hold,Tracking confidence drops below threshold,Anchor freezes at last trustworthy pose while its border softens,350,Immediate border softness,P0,needed
+FX-017,Relocalizing tether,Tracking remains unavailable,Anchor desaturates to 55 percent and gains a restrained tether to recovery tray,1200,350 ms fade to recovery state,P0,needed
+FX-018,Anchor rebind,Tracking returns,Content interpolates from held pose to corrected world pose with speed-limited easing,900,300 ms crossfade between poses,P0,needed
+FX-019,Recovery tray dock,Tracking times out,World card glides to a screen-relative tray retaining identity reason and cancel control,500,220 ms crossfade to tray,P0,needed
+FX-020,Capability degrade,A source or service becomes unavailable,Affected controls soften and group under one persistent degraded-mode pill,420,180 ms state change,P1,needed
+FX-021,Capability restore,A source or service returns,Degraded pill resolves and affected controls regain state without rearranging layout,420,180 ms state change,P2,needed
+FX-022,Workflow advance,Stage is completed,Active rail line flows to next stage and the previous stage becomes a stable completed node,360,160 ms color change,P1,needed
+FX-023,Timeline replay scrub,Replay time changes,World actions interpolate or reconstruct deterministically from event timestamps,continuous,Discrete event steps with short fades,P1,needed
+FX-024,Assistant evidence update,New evidence changes guidance,Existing assistant card rearranges and morphs its source chips without replacement,380,180 ms content dissolve,P1,needed
+FX-025,Safety attention,Critical safety event arrives,One expansion into stable red state followed by slow breathing luminance no blinking,400,Stable red state with no breathing,P0,needed
+FX-026,Reduced motion transition,System reduced-motion setting changes,All active loops settle gracefully at their stable final states,250,Immediate stable states,P1,needed

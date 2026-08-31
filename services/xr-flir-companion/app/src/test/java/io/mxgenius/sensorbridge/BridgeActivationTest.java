@@ -1,8 +1,10 @@
 package io.mxgenius.sensorbridge;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -14,6 +16,11 @@ public final class BridgeActivationTest {
         assertEquals("case-42", activation.sessionId);
         assertEquals(LOCAL_TOKEN, activation.localToken);
         assertNull(activation.bridgeUrl);
+        assertTrue(activation.canHandoffToBrowser());
+        assertEquals(
+                "https://mxgenius.io/globe-vr.html?scene=sensor&bridgeManaged=1"
+                        + "#sensorHandoff=1&sessionId=case-42&localToken=" + LOCAL_TOKEN,
+                activation.browserHandoffUrl());
     }
 
     @Test public void remoteRelayRemainsAnOptionalSecureAdapter() {
@@ -25,6 +32,8 @@ public final class BridgeActivationTest {
                 false);
         assertEquals("wss://relay.example/ws/ingest", activation.bridgeUrl);
         assertNull(activation.localToken);
+        assertFalse(activation.canHandoffToBrowser());
+        assertThrows(IllegalStateException.class, activation::browserHandoffUrl);
     }
 
     @Test public void activationRejectsMissingOrProductionCleartextTransport() {

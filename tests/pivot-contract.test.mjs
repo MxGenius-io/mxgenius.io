@@ -23,7 +23,11 @@ const companionGradle = await read('services/xr-flir-companion/app/build.gradle.
 const companionBuild = await read('services/xr-flir-companion/build-local.ps1');
 const companionVerifier = await read('services/xr-flir-companion/verify-release.ps1');
 const companionActivity = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/MainActivity.java');
+const companionImmersiveActivity = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/ThermalImmersiveActivity.kt');
+const companionFollowSystem = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/ThermalPanelFollowSystem.kt');
 const companionService = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/SensorBridgeService.java');
+const companionCamera = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/FlirCameraController.java');
+const headsetSnapshotCamera = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/HeadsetSnapshotController.java');
 const companionLayout = await read('services/xr-flir-companion/app/src/main/res/layout/activity_main.xml');
 const localThermalBroker = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/LocalThermalBroker.java');
 const localThermalTransport = await read('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/LocalThermalTransport.java');
@@ -72,21 +76,28 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config uses the published Alpha fallback and next build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.4'/);
+test('Quest companion config uses the current Alpha candidate build identity', () => {
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.18'/);
+  assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
+  assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.publishedBuild.versionCode, 4);
-  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.4');
+  assert.equal(metaRelease.publishedBuild.versionCode, 6);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
+  assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.build.versionCode, 5);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.5');
+  assert.equal(metaRelease.uploadedBuild.versionCode, 18);
+  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.18');
+  assert.equal(metaRelease.uploadedBuild.status, 'UploadedPendingMetaVerification');
+  assert.equal(metaRelease.build.versionCode, 18);
+  assert.equal(metaRelease.build.versionName, '0.1.0-poc.18');
+  assert.equal(metaRelease.build.metaTestStatus, 'UploadedPendingMetaVerification');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 5/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.5"/);
+  assert.match(companionGradle, /versionCode = 18/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.18"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);
@@ -94,6 +105,7 @@ test('Quest companion config uses the published Alpha fallback and next build id
   assert.match(companionBuild, /verify-release\.ps1/);
   for (const gate of [
     'com.oculus.intent.category.2D',
+    'com.oculus.intent.category.VR',
     'arm64-v8a',
     'apksigner.bat',
     'mipmap-anydpi-v26',
@@ -103,11 +115,38 @@ test('Quest companion config uses the published Alpha fallback and next build id
 
 test('Quest FLIR companion is standalone and has no Pi runtime dependency', () => {
   assert.doesNotMatch(companionManifest, /BLUETOOTH_CONNECT|hardware\.bluetooth/);
-  assert.match(companionActivity, /Standalone · local thermal preview/);
+  assert.match(companionActivity, /Spatial · native panel/);
   assert.match(companionActivity, /startForegroundService\(serviceIntent\)/);
-  assert.match(companionService, /void connectCamera\(Activity activity\) \{\s*camera\.discoverAndConnect\(activity\)/);
+  assert.match(companionActivity, /service\.connectCamera\(this\)/);
+  assert.match(companionActivity, /new Intent\(this, ThermalImmersiveActivity\.class\)/);
+  assert.match(companionImmersiveActivity, /AppSystemActivity/);
+  assert.match(companionImmersiveActivity, /LayoutXMLPanelRegistration/);
+  assert.match(companionImmersiveActivity, /"N16"/);
+  assert.match(companionService, /"N18"/);
+  assert.match(companionService, /startCommissioning/);
+  assert.match(companionService, /ThermalCommissioningRun/);
+  assert.match(companionImmersiveActivity, /RUN FULL DIAGNOSTIC/);
+  assert.match(companionFollowSystem, /followHead/);
+  assert.match(companionFollowSystem, /panelPoseFor/);
+  assert.match(companionCamera, /ErrorCodeException \| NullPointerException \| IllegalArgumentException/);
+  assert.match(companionCamera, /sdkBitmap\.copy\(Bitmap\.Config\.ARGB_8888, false\)/);
+  assert.match(companionCamera, /"iron"\.equalsIgnoreCase/);
+  assert.match(companionService, /PREVIEW_INTERVAL_MS = 150L/);
+  assert.match(companionService, /void connectCamera\(Activity activity\)[\s\S]*cameraRuntimeReady[\s\S]*discoverAndConnect\(activity\)/);
+  assert.ok(
+    companionService.indexOf('startForeground(NOTIFICATION_ID') < companionService.indexOf('lifecycleWorker.execute(this::initializeRuntime)'),
+    'foreground mode must be entered before asynchronous native initialization'
+  );
+  assert.match(companionService, /setBridgeState\("ready", true, "camera-runtime-ready"\)/);
   assert.doesNotMatch(companionService, /PiDiagnosticsClient|activation-required/);
   assert.match(companionLayout, /android:id="@\+id\/thermal_preview"/);
+  assert.match(companionLayout, /android:id="@\+id\/enter_immersive"/);
+  assert.match(companionLayout, /android:id="@\+id\/power_guidance"/);
+  assert.match(companionActivity, /R\.id\.enter_immersive/);
+  assert.match(companionActivity, /requestImmersiveEntry/);
+  assert.match(companionActivity, /operator requested native immersive mode after the first decoded frame/);
+  assert.doesNotMatch(companionActivity, /postDelayed\(this::openImmersiveScene/);
+  assert.doesNotMatch(companionActivity, /startActivity\(immersive\);\s*finish\(\)/);
   assert.doesNotMatch(companionLayout, /connect_pi|pi_status|Connect MxGenius Pi/);
   assert.match(companionActivity, /if \(data != null\)[\s\S]*BridgeActivation\.fromIntent/);
   assert.match(companionActivity, /Intent serviceIntent = new Intent\(this, SensorBridgeService\.class\)[\s\S]*startForegroundService\(serviceIntent\)/);
@@ -115,11 +154,52 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.doesNotMatch(relayClient, /sendDiagnostics|pi-diagnostics-rfcomm|edge-diagnostics-1/);
   assert.match(localThermalBroker, /127\.0\.0\.1|allowedOrigins/);
   assert.match(localThermalBroker, /invalid thermal session/);
+  assert.match(localThermalBroker, /bridge\.trace/);
+  assert.match(localThermalBroker, /headset\.snapshot\.request/);
+  assert.match(localThermalBroker, /headset\.snapshot\.result/);
+  assert.match(localThermalBroker, /consumers\.contains\(connection\)/);
+  assert.match(localThermalBroker, /HISTORY_LIMIT = 64/);
+  assert.match(localThermalBroker, /commissioning\.browser_ack/);
+  assert.match(sensorOrb, /commissioning\.browser_ack/);
   assert.match(localThermalTransport, /MxgsFrameEncoder\.jpeg/);
-  assert.match(companionService, /localTransport\.sendFrame\(bitmap\)/);
+  assert.match(companionService, /transport\.sendFrame\(bitmap\)/);
   assert.match(sensorOrb, /this\.diagnosticsSocket = socket/);
   assert.match(sensorOrb, /this\.socket = socket/);
   assert.match(sensorOrb, /piDiagnosticsBridge/);
+  assert.match(headsetSnapshotCamera, /CAMERA_SOURCE_KEY/);
+  assert.match(headsetSnapshotCamera, /ImageFormat\.JPEG/);
+  assert.match(headsetSnapshotCamera, /CAPTURE_TIMEOUT_MS = 8_000L/);
+  assert.match(headsetSnapshotCamera, /finishSuccess[\s\S]*closeCapture/);
+  assert.match(companionManifest, /horizonos\.permission\.HEADSET_CAMERA/);
+  assert.match(companionManifest, /android\.permission\.FOREGROUND_SERVICE_CAMERA/);
+  assert.match(companionManifest, /android\.hardware\.usb\.host/);
+  assert.doesNotMatch(companionManifest, /android\.hardware\.usb\.action\.USB_DEVICE_ATTACHED/);
+  assert.doesNotMatch(companionManifest, /@xml\/flir_usb_devices/);
+  assert.doesNotMatch(companionActivity, /isUsbAttachment|recordUsbAttachment/);
+  assert.match(companionCamera, /UsbPermissionHandler/);
+  assert.match(companionCamera, /hasFlirOnePermission/);
+  assert.match(companionCamera, /requestFlirOnePermisson/);
+  assert.match(companionCamera, /permissionGranted/);
+  assert.match(companionCamera, /DEVICE_UNAVAILABLE_WHEN_ASKED_PERMISSION/);
+  assert.match(companionCamera, /MAX_PERMISSION_ATTEMPTS = 2/);
+  assert.match(companionCamera, /new Handler\(Looper\.getMainLooper\(\)\)/);
+  assert.match(companionCamera, /mainHandler\.post/);
+  assert.match(companionCamera, /attempt >= MAX_PERMISSION_ATTEMPTS/);
+  assert.match(companionCamera, /usb-permission-device_unavailable_when_asked_permission/);
+  assert.doesNotMatch(companionCamera, /runOnUiThread/);
+  assert.doesNotMatch(companionCamera, /AndroidUsbPermissionGate|UsbHandshakePolicy/);
+  assert.doesNotMatch(companionCamera, /UsbManager|PendingIntent|EXTRA_PERMISSION_GRANTED/);
+  assert.doesNotMatch(companionCamera, /ENUMERATION_POLL_MS|GRANT_STABILITY_DELAY_MS|permission-gate-restart/);
+  assert.match(companionCamera, /discoveryGeneration/);
+  assert.match(companionCamera, /scanInFlight/);
+  assert.match(companionCamera, /if \(!next\.isConnected\(\)\) \{[\s\S]*throw new IOException/);
+  assert.match(companionService, /blocking Camera\.connect started", "info"/);
+  assert.match(companionService, /Camera\.connect returned and thermal stream was configured", "info"/);
+  assert.match(companionService, /waiting for first decoded thermal frame", "info"/);
+  assert.match(companionLayout, /@\+id\/arm_snapshot/);
+  assert.doesNotMatch(companionActivity, /^\s{8}requestHeadsetCameraPermissionsIfNeeded\(\);$/m);
+  assert.match(companionService, /"stable-session"/);
+  assert.match(companionService, /\.put\("usbState", usbState\)/);
 });
 
 test('legacy JetNet probes require runtime credentials and do not print token fragments', () => {

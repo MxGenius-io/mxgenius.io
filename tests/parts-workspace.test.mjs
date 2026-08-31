@@ -6,6 +6,7 @@ const html = readFileSync('dashboard.html', 'utf8');
 const js = readFileSync('parts-workspace.js', 'utf8');
 const client = readFileSync('application-client.js', 'utf8');
 const css = readFileSync('parts-workspace.css', 'utf8');
+const partsHttp = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
 
 test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html contains parts navigation', () => {
@@ -34,6 +35,16 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.doesNotMatch(client, /mockUnits|unit-\s*\+\s*Date\.now/);
   });
 
+  await t.test('document extraction uses the MXGenius model pipeline behind human review', () => {
+    assert.match(partsHttp, /PARTS_EXTRACTION_PROVIDER: &str = "openai_responses"/);
+    assert.match(partsHttp, /\.post\(OPENAI_RESPONSES_URL\)/);
+    assert.match(partsHttp, /"type": "json_schema"/);
+    assert.match(partsHttp, /"strict": true/);
+    assert.match(partsHttp, /"store": false/);
+    assert.match(partsHttp, /confidence: None/);
+    assert.doesNotMatch(partsHttp, /azure_document_intelligence|prebuilt-layout/);
+  });
+
   await t.test('parts-workspace.js avoids direct fetch calls', () => {
     assert.doesNotMatch(js, /fetch\(/, 'parts-workspace.js must not call fetch directly');
   });
@@ -56,6 +67,23 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(js, /client\.confirmReceiving\(/);
     assert.match(js, /crypto\.subtle\.digest\('SHA-256'/);
     assert.match(js, /crypto\.randomUUID\(\)/);
+  });
+
+  await t.test('model warnings and source evidence stay attached to the existing asset review', () => {
+    assert.match(js, /state\.extractionWarnings = Array\.isArray\(extraction\.warnings\)/);
+    assert.match(js, /candidate\.sourceRegion\?\.sourceExcerpt/);
+    assert.match(js, /candidate\.sourceRegion\?\.pageNumber/);
+    assert.match(js, /escapeHtml\(warning\.trim\(\)\)/);
+    assert.match(js, /escapeHtml\(sourceExcerpt\)/);
+    assert.match(js, /id="btnWizardViewSource"/);
+    assert.match(js, /client\.downloadAsset\(\{ assetId: state\.asset\.id/);
+    assert.match(js, /URL\.createObjectURL\(blob\)/);
+    assert.match(js, /URL\.revokeObjectURL\(state\.sourcePreviewUrl\)/);
+    assert.match(js, /viewer\.setAttribute\('sandbox', ''\)/);
+    assert.match(js, /function closeWizard\(\) \{\s*clearWizardSourcePreview\(\)/);
+    assert.match(css, /\.extraction-warning-panel/);
+    assert.match(css, /\.candidate-source-evidence/);
+    assert.match(css, /\.wizard-source-preview/);
   });
 
   await t.test('receiving can proceed to details without uploading evidence', () => {

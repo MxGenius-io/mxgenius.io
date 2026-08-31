@@ -73,5 +73,5 @@ This checklist covers software architecture, automated verification, packaging, 
 - [x] Update release notes and artifact metadata for `poc.5` code 5.
 - [x] Run the complete web, Android, schema, and APK verification suites.
 - [x] Produce the signed release APK and record its size and SHA-256 digest.
-- [ ] Upload code 5 to the Alpha channel.
+- [x] Upload code 5 to the Alpha channel and confirm it is the current Alpha build.
 - [ ] Update the published-build record after Meta accepts it.

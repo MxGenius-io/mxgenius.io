@@ -6,22 +6,35 @@
     "package": "io.mxgenius.sensorbridge"
   },
   "publishedBuild": {
-    "versionCode": 4,
-    "versionName": "0.1.0-poc.4",
+    "versionCode": 6,
+    "versionName": "0.1.0-poc.6",
+    "buildId": "1296553506880260",
     "channel": "Alpha",
     "status": "Published",
-    "publishedAt": "2026-08-16T23:55:35-04:00"
+    "publishedAt": "2026-08-23T23:18:00-04:00"
   },
-  "build": {
-    "versionCode": 5,
-    "versionName": "0.1.0-poc.5",
+  "uploadedBuild": {
+    "versionCode": 18,
+    "versionName": "0.1.0-poc.18",
     "channel": "Alpha",
-    "metaTestStatus": "ReadyForUpload",
+    "status": "UploadedPendingMetaVerification",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
-      "sizeBytes": 103228792,
-      "sha256": "07dfe442482098ebb4429188d7a344c53cce0e0246e95198c502bc2aeb1c1263",
-      "builtAt": "2026-08-17T02:49:24-04:00"
+      "sizeBytes": 163809644,
+      "sha256": "f8769e4161a41a7c9fca6d57e63395d2bd6534376c8e593c63884d482967094d",
+      "builtAt": "2026-08-24T11:44:03-04:00"
+    }
+  },
+  "build": {
+    "versionCode": 18,
+    "versionName": "0.1.0-poc.18",
+    "channel": "Alpha",
+    "metaTestStatus": "UploadedPendingMetaVerification",
+    "artifact": {
+      "path": "app/build/outputs/apk/release/app-release.apk",
+      "sizeBytes": 163809644,
+      "sha256": "f8769e4161a41a7c9fca6d57e63395d2bd6534376c8e593c63884d482967094d",
+      "builtAt": "2026-08-24T11:44:03-04:00"
     }
   },
   "releaseChannel": {

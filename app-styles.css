@@ -135,6 +135,7 @@
 html {
   font-size: 14px;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -143,6 +144,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   height: 100%;
+  min-height: 100dvh;
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -1745,12 +1747,56 @@ body.live-mode .api-status.connected .status-dot {
 .globe-container {
   position: relative;
   width: 100%;
-  height: calc(100vh - 56px);
+  height: 500px;
   background: #000810;
   overflow: hidden;
+  margin-bottom: 24px;
+  border-radius: 12px;
+}
+
+.globe-sidebar-wrapper {
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  width: 60px;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  border-right: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 0 12px 12px 0;
+  background: rgba(10, 15, 28, 0.96);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+.globe-texture-buttons {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+#globeArButton[hidden],
+#globeArGuide[hidden] {
+  display: none !important;
+}
+
+.globe-texture-buttons::-webkit-scrollbar {
+  display: none;
 }
 
 #globeViz {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   width: 100%;
   height: 100%;
   touch-action: none; /* prevent browser gestures from competing with globe.gl */
@@ -1762,7 +1808,8 @@ body.live-mode .api-status.connected .status-dot {
   margin: 0;
   width: 100%;
   max-width: 420px;
-  z-index: 10;
+  z-index: 30;
+  isolation: isolate;
   background: rgba(10, 15, 28, 0.96); /* Slightly more opaque since no blur */
   border-left: 1px solid rgba(99, 102, 241, 0.2);
   padding: 0 16px;
@@ -1772,6 +1819,14 @@ body.live-mode .api-status.connected .status-dot {
   overflow: visible;
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
   pointer-events: none; /* collapsed: let touches pass through to globe */
+}
+
+.globe-sheet-content {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 4px;
 }
 .globe-sheet .globe-sheet-handle,
 .globe-sheet .globe-sheet-stats,
@@ -2066,6 +2121,23 @@ body.live-mode .api-status.connected .status-dot {
 .globe-tooltip .tt-count { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
 .globe-tooltip .tt-urgency { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
 .globe-tooltip .tt-badges { display: flex; gap: 4px; margin-top: 6px; }
+
+.globe-rotate-overlay {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-panel, var(--bg-card));
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease;
+}
 
 /* ─── API Console Panel ─── */
 .console-panel {
@@ -2394,7 +2466,18 @@ body.live-mode .api-status.connected .status-dot {
     grid-template-columns: 1fr;
   }
 
-  /* Globe sheet auto-adjusts via transform, no special mobile rules needed */
+  .globe-sheet {
+    width: calc(100% - 52px);
+    max-width: none;
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    padding-left: 12px;
+  }
+
+  .globe-sheet-toggle {
+    left: -40px;
+    width: 40px;
+    height: 52px;
+  }
 
   .console-panel.expanded {
     height: 260px;
@@ -3475,8 +3558,98 @@ body.live-mode .api-status.connected .status-dot {
 
 /* ── Globe Filter Hamburger Panel ── */
 .globe-filter-hamburger {
+  position: absolute;
+  right: -28px;
+  top: 50%;
+  display: flex;
+  width: 28px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  transform: translateY(-50%);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--text-primary);
   font-size: 1rem !important;
-  padding: 6px !important;
+  transition: background 0.2s, transform 0.3s;
+}
+
+@media (max-width: 720px) {
+  .tab-content {
+    padding: 12px;
+  }
+
+  #globeContainer {
+    height: clamp(380px, calc(100dvh - 132px), 560px);
+    min-height: 380px;
+    margin-bottom: 16px;
+    border-radius: 10px;
+  }
+
+  .globe-sidebar-wrapper {
+    top: 8px;
+    bottom: 8px;
+    width: 54px;
+    padding-block: 8px;
+  }
+
+  .globe-texture-buttons {
+    gap: 6px;
+  }
+
+  .texture-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .globe-rotate-overlay {
+    right: 10px;
+    bottom: 10px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .globe-sheet-stats {
+    justify-content: flex-start;
+    padding-right: 2px;
+  }
+
+  .globe-search-row {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .globe-search-input,
+  .globe-search-row .search-select {
+    min-width: 0;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  #globeContainer {
+    height: max(300px, calc(100dvh - 88px));
+    min-height: 300px;
+  }
+
+  .globe-sidebar-wrapper {
+    right: 76px;
+    bottom: auto;
+    width: auto;
+    height: 52px;
+    flex-direction: row;
+    padding: 8px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-left: 0;
+  }
+
+  .globe-texture-buttons {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 }
 .globe-filters-panel {
   position: absolute;
@@ -3570,4 +3743,13 @@ body.live-mode .api-status.connected .status-dot {
 }
 #globeSidebarWrapper.collapsed {
   transform: translateX(-100%);
+}
+
+@media (max-width: 900px) {
+  .chat-panel,
+  .work-order-panel {
+    width: calc(100vw - 44px);
+    max-width: 420px;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }

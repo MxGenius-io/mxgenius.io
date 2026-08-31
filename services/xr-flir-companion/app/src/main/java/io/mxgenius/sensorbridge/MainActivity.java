@@ -1,5 +1,6 @@
 package io.mxgenius.sensorbridge;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -9,34 +10,45 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 public final class MainActivity extends Activity implements SensorBridgeService.StatusListener {
+    private static final int HEADSET_CAMERA_PERMISSION_REQUEST = 4210;
     private TextView sessionStatus;
+    private TextView bridgeStatus;
     private TextView relayStatus;
     private TextView cameraStatus;
     private ImageView thermalPreview;
     private Button connectCamera;
+    private Button armSnapshot;
+    private Button openImmersive;
     private SensorBridgeService service;
     private boolean bound;
     private BridgeActivation activation;
+    private boolean cameraConnectRequested;
+    private boolean immersiveLaunchInFlight;
+    private boolean firstFrameReceived;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
             service = ((SensorBridgeService.LocalBinder) binder).service();
             bound = true;
             service.setStatusListener(MainActivity.this);
+            if (hasHeadsetCameraPermissions()) service.prepareHeadsetCamera();
             renderActivation();
         }
 
         @Override public void onServiceDisconnected(ComponentName name) {
             bound = false;
             service = null;
-            relayStatus.setText("WebXR · service stopped");
+            bridgeStatus.setText("Bridge · service stopped");
+            relayStatus.setText("Spatial · service stopped");
             cameraStatus.setText("FLIR ONE · service stopped");
+            connectCamera.setEnabled(false);
         }
     };
 
@@ -44,26 +56,53 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         sessionStatus = findViewById(R.id.session_status);
+        bridgeStatus = findViewById(R.id.bridge_status);
         relayStatus = findViewById(R.id.relay_status);
         cameraStatus = findViewById(R.id.camera_status);
         thermalPreview = findViewById(R.id.thermal_preview);
         connectCamera = findViewById(R.id.connect_camera);
         connectCamera.setOnClickListener(view -> {
+            cameraConnectRequested = true;
             if (service != null) service.connectCamera(this);
         });
-        findViewById(R.id.return_to_browser).setOnClickListener(view -> finish());
+        armSnapshot = findViewById(R.id.arm_snapshot);
+        armSnapshot.setOnClickListener(view -> requestHeadsetCameraPermissionsIfNeeded());
+        openImmersive = findViewById(R.id.enter_immersive);
+        openImmersive.setOnClickListener(view -> requestImmersiveEntry());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
         activate(getIntent());
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != HEADSET_CAMERA_PERMISSION_REQUEST) return;
+        boolean granted = hasHeadsetCameraPermissions();
+        if (service != null) {
+            if (granted) service.prepareHeadsetCamera();
+            service.recordTrace(
+                    "N21",
+                    "SNAPSHOT",
+                    granted ? "permission-granted" : "permission-denied",
+                    granted ? "Quest RGB snapshot permissions granted" : "Quest RGB snapshot permissions denied; thermal remains available",
+                    granted ? "success" : "warn");
+        }
+        armSnapshot.setText(granted ? "RGB SNAPSHOT ARMED" : "ARM RGB SNAPSHOT");
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        activate(intent);
+        if (intent != null && intent.getData() != null) {
+            activate(intent);
+            return;
+        }
+        immersiveLaunchInFlight = false;
+        if (service != null) renderActivation();
     }
 
     @Override protected void onStart() {
         super.onStart();
+        immersiveLaunchInFlight = false;
         bindService(new Intent(this, SensorBridgeService.class), connection, Context.BIND_AUTO_CREATE);
     }
 
@@ -81,21 +120,61 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         super.onDestroy();
     }
 
-    @Override public void onStatus(String relay, String camera) {
+    @Override public void onStatus(String bridge, String relay, String camera) {
         runOnUiThread(() -> {
-            relayStatus.setText("WebXR · " + relay);
+            bridgeStatus.setText("Bridge · " + bridge);
+            relayStatus.setText("Spatial · native panel · optional transport " + relay);
             cameraStatus.setText("FLIR ONE · " + camera);
-            connectCamera.setEnabled(!"streaming".equals(camera) && !"connecting".equals(camera));
+            boolean cameraIdle = !"streaming".equals(camera)
+                    && !"connecting".equals(camera)
+                    && !"discovering".equals(camera)
+                    && !"waiting-usb".equals(camera)
+                    && !"permission-required".equals(camera)
+                    && !"reconnecting".equals(camera);
+            connectCamera.setEnabled(service != null && service.canConnectCamera() && cameraIdle);
             connectCamera.setText("streaming".equals(camera) ? "FLIR ONE streaming" : "Connect FLIR ONE");
+            armSnapshot.setText(service != null && service.headsetCameraArmed()
+                    ? "RGB SNAPSHOT ARMED"
+                    : "ARM RGB SNAPSHOT");
+            armSnapshot.setEnabled(service == null || !service.headsetCameraArmed());
+            boolean managedLaunch = activation != null;
+            openImmersive.setEnabled(firstFrameReceived && !immersiveLaunchInFlight);
+            openImmersive.setText(immersiveLaunchInFlight
+                    ? "OPENING NATIVE VR…"
+                    : firstFrameReceived
+                            ? "ENTER VR · LIVE THERMAL READY"
+                            : "streaming".equals(camera)
+                                    ? "ENTER VR · WAITING FOR FIRST FRAME"
+                                    : "ENTER VR · WAITING FOR FLIR STREAM");
+            if (managedLaunch
+                    && !cameraConnectRequested
+                    && bridge.startsWith("ready")
+                    && !"streaming".equals(camera)
+                    && !"connecting".equals(camera)
+                    && !"discovering".equals(camera)
+                    && !"waiting-usb".equals(camera)
+                    && !"permission-required".equals(camera)) {
+                cameraConnectRequested = true;
+                service.connectCamera(this);
+            }
         });
     }
 
     @Override public void onFrame(Bitmap bitmap) {
-        runOnUiThread(() -> thermalPreview.setImageBitmap(bitmap));
+        runOnUiThread(() -> {
+            thermalPreview.setImageBitmap(bitmap);
+            firstFrameReceived = true;
+            immersiveLaunchInFlight = false;
+            openImmersive.setEnabled(true);
+            openImmersive.setText("ENTER VR · LIVE THERMAL READY");
+        });
     }
 
     private void activate(Intent source) {
         activation = null;
+        cameraConnectRequested = false;
+        immersiveLaunchInFlight = false;
+        firstFrameReceived = false;
         String activationMessage = null;
         Uri data = source == null ? null : source.getData();
         if (data != null) {
@@ -112,15 +191,20 @@ public final class MainActivity extends Activity implements SensorBridgeService.
 
         if (activation != null) {
             sessionStatus.setText("Session · " + shortSession(activation.sessionId));
-            relayStatus.setText("WebXR · " + activation.relayLabel());
+            relayStatus.setText("Spatial · native panel · optional transport " + activation.relayLabel());
+            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
+            openImmersive.setEnabled(false);
         } else {
             sessionStatus.setText(activationMessage == null
                     ? "Standalone · local thermal preview"
                     : "Standalone · " + activationMessage);
-            relayStatus.setText("WebXR · not connected (optional)");
+            relayStatus.setText("Spatial · native panel ready");
+            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
+            openImmersive.setEnabled(false);
         }
-        cameraStatus.setText("FLIR ONE · ready to connect");
-        connectCamera.setEnabled(true);
+        bridgeStatus.setText("Bridge · starting · foreground-active");
+        cameraStatus.setText("FLIR ONE · waiting for bridge readiness");
+        connectCamera.setEnabled(false);
     }
 
     private void renderActivation() {
@@ -129,7 +213,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         sessionStatus.setText(sessionId == null
                 ? "Standalone · local thermal preview"
                 : "Session · " + shortSession(sessionId));
-        relayStatus.setText("WebXR · " + service.relayLabel());
+        relayStatus.setText("Spatial · native panel · optional transport " + service.relayLabel());
     }
 
     private void stopBridge(View ignored) {
@@ -137,6 +221,55 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         stop.setAction(SensorBridgeService.ACTION_STOP);
         startService(stop);
         finish();
+    }
+
+    private boolean hasHeadsetCameraPermissions() {
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestHeadsetCameraPermissionsIfNeeded() {
+        if (hasHeadsetCameraPermissions()) {
+            if (service != null) service.prepareHeadsetCamera();
+            return;
+        }
+        requestPermissions(
+                new String[] {
+                        Manifest.permission.CAMERA,
+                        HeadsetSnapshotController.HEADSET_CAMERA_PERMISSION
+                },
+                HEADSET_CAMERA_PERMISSION_REQUEST);
+    }
+
+    private void requestImmersiveEntry() {
+        if (!firstFrameReceived || immersiveLaunchInFlight) return;
+        immersiveLaunchInFlight = true;
+        openImmersive.setEnabled(false);
+        openImmersive.setText("OPENING NATIVE VR…");
+        if (service != null) service.recordTrace(
+                "N14",
+                "SPATIAL",
+                "operator-entry",
+                "operator requested native immersive mode after the first decoded frame",
+                "success");
+        openImmersiveScene();
+    }
+
+    private void openImmersiveScene() {
+        try {
+            if (service != null) service.recordTrace(
+                    "N15", "SPATIAL", "launching", "opening the native MxGenius immersive thermal panel", "info");
+            Intent immersive = new Intent(this, ThermalImmersiveActivity.class);
+            if (activation != null) activation.putInto(immersive);
+            immersive.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(immersive);
+        } catch (RuntimeException error) {
+            if (service != null) service.recordTrace(
+                    "N15", "SPATIAL", "failed", "native immersive activity could not be opened", "error");
+            immersiveLaunchInFlight = false;
+            bridgeStatus.setText("Bridge · streaming · native spatial launch failed");
+            openImmersive.setEnabled(true);
+        }
     }
 
     private static String shortSession(String value) {

@@ -39,12 +39,35 @@ test('the simple board has questions, current sprint, completion, and post updat
   assert.match(js, /Mark complete/);
 });
 
+test('board lanes lead the composer and cards support private picture attachments', () => {
+  assert.ok(html.indexOf('class="lanes"') < html.indexOf('class="composer"'));
+  assert.match(html, /aria-label="Refresh team board"/);
+  assert.doesNotMatch(html, /id="boardError"/);
+  assert.match(html, /id="postImage"[^>]+accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.match(js, /MAX_CARD_IMAGE_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(js, /projectWorkspaces\.uploadAsset/);
+  assert.match(js, /projectWorkspaces\.getAsset/);
+  assert.match(js, /URL\.revokeObjectURL/);
+  assert.match(css, /\.card-image/);
+});
+
 test('the starter build list reflects the known apparatus work without live-test plumbing blockers', () => {
   assert.match(js, /Refine the apparatus mount and cable routing/);
   assert.match(js, /Run the integrated headset apparatus test/);
   assert.match(js, /Smoke-check the recovered manual image path/);
+  assert.match(js, /Accept Quest Sensor Bridge poc\.12 on hardware/);
+  assert.match(js, /Complete TestFlight Build 33 device acceptance/);
+  assert.match(js, /Run Rocky acceptance on Feedback and Parts/);
+  assert.match(js, /What third-party connections does Operations need\?/);
+  assert.match(js, /Which POC devices and programs should run with the Pi\?/);
+  assert.match(js, /Can we provide a model structured-output example to mimic\?/);
+  assert.doesNotMatch(js, /What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?/);
+  assert.match(js, /Disposition the FLIR libssh2 advisory/);
   assert.match(js, /Separate thermal and Pi transport paths/);
   assert.match(js, /Publish the shared provisional-patent workspace/);
+  assert.match(js, /Publish the investor-deck landing page/);
+  assert.match(js, /Promote Feedback and Parts expansion to Azure/);
+  assert.match(js, /Upload native spatial AR Build 33 to TestFlight/);
 });
 
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {

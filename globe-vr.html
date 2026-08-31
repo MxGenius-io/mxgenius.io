@@ -4,16 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXGenius XR Scene</title>
+  <link rel="stylesheet" href="guided-tooltip.css?v=3">
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050914; color: #eaf7ff; font-family: system-ui, sans-serif; }
     canvas { display: block; width: 100%; height: 100%; }
-    .hud { position: fixed; top: 14px; left: 14px; z-index: 4; padding: 11px 13px; border: 1px solid rgba(34,211,238,.38); border-radius: 9px; background: rgba(5,9,20,.86); }
+    .hud { position: fixed; top: 14px; left: 14px; z-index: 4; min-width: 230px; padding: 11px 50px 11px 13px; border: 1px solid rgba(34,211,238,.38); border-radius: 9px; background: rgba(5,9,20,.86); }
     .hud strong { display: block; color: #67e8f9; font-size: 14px; }
     .hud span { display: block; margin-top: 3px; color: #9db1c6; font: 12px/1.4 ui-monospace, monospace; }
+    .scene-sound { margin-top: 8px; padding: 5px 9px; border: 1px solid rgba(103,232,249,.4); border-radius: 6px; background: rgba(8,35,50,.72); color: #b9f6ff; font: 600 11px system-ui, sans-serif; cursor: pointer; }
+    .scene-sound[aria-pressed="false"] { border-color: rgba(142,166,183,.3); background: rgba(255,255,255,.03); color: #8ea6b7; }
+    .hud .guided-help-trigger { position: absolute; top: 9px; right: 9px; }
     .back { position: fixed; top: 14px; right: 14px; z-index: 4; padding: 9px 13px; border: 1px solid #31465d; border-radius: 7px; background: #0b1524; color: #d9edff; text-decoration: none; font-size: 13px; }
     .sensor-setup { position: fixed; left: 14px; bottom: 14px; z-index: 4; width: min(390px, calc(100vw - 28px)); padding: 12px; border: 1px solid rgba(34,211,238,.35); border-radius: 10px; background: rgba(5,9,20,.92); }
     .sensor-setup strong { display: block; color: #67e8f9; font: 700 12px/1.3 ui-monospace, monospace; }
     .sensor-setup span { display: block; margin: 5px 0 10px; color: #9db1c6; font-size: 12px; }
+    .sensor-setup .sensor-install-help { display: block; margin: 8px 0 0; color: #7f9daf; font: 10px/1.4 ui-monospace, monospace; }
     .sensor-chain { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; padding: 0; list-style: none; }
     .sensor-chain li { padding: 7px 8px; border: 1px solid #273d51; border-radius: 7px; color: #718da3; background: rgba(10,25,39,.72); font: 700 10px/1.25 ui-monospace, monospace; }
     .sensor-chain li::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #64748b; }
@@ -29,6 +34,9 @@
     .sensor-actions a, .sensor-actions button { padding: 7px 10px; border: 1px solid #31566c; border-radius: 7px; background: #0a2333; color: #dffaff; font: 600 12px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
     .sensor-actions a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
     .sensor-actions [hidden] { display: none; }
+    .sensor-trace-shell { margin: 10px 0 0; border-top: 1px solid rgba(49,86,108,.7); padding-top: 8px; }
+    .sensor-trace-shell summary { color: #7dd3fc; cursor: pointer; font: 700 10px/1.3 ui-monospace, monospace; letter-spacing: .06em; }
+    .sensor-trace { max-height: 128px; margin: 7px 0 0; overflow: auto; white-space: pre-wrap; color: #a9c5d5; font: 10px/1.45 ui-monospace, monospace; }
     #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
     body.sensor-scene { background: radial-gradient(circle at 55% 42%, #0b2740 0, #050914 56%, #02050d 100%); }
     body.sensor-scene .hud { border-color: rgba(251,146,60,.44); }
@@ -43,7 +51,7 @@
   }
   </script>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
-  <script src="runtime-config.js?v=3"></script>
+  <script src="runtime-config.js?v=5"></script>
   <script src="auth.js?v=10"></script>
   <script src="cache.js"></script>
   <script src="application-client.js?v=11"></script>
@@ -53,54 +61,84 @@
   <div class="hud">
     <strong id="sceneTitle">MXGenius Fleet Globe</strong>
     <span id="fleetStatus">Preparing mapped fleet…</span>
+    <button class="scene-sound" id="sceneSoundButton" type="button" aria-pressed="true">Sound On</button>
+    <button class="guided-help-trigger guided-help-trigger--labeled" id="sceneHelpButton" type="button" data-guide-id="fleet-globe-controls" aria-label="Explain this XR scene" aria-expanded="false">?</button>
   </div>
   <a class="back" href="dashboard.html">Back to dashboard</a>
   <section class="sensor-setup" id="sensorSetup" aria-live="polite">
-    <strong>FLIR THERMAL · QUEST LOCAL</strong>
-    <span id="sensorSetupStatus">Checking the independent Quest thermal link…</span>
+    <strong>FLIR THERMAL · NATIVE QUEST</strong>
+    <span id="sensorSetupStatus">Launch the native thermal workspace to connect and pin the FLIR panel…</span>
     <ol class="sensor-chain" aria-label="Sensor connection stages">
-      <li id="sensorRelayStep" data-state="required">1 · THERMAL LINK</li>
-      <li id="sensorCompanionStep" data-state="blocked">2 · QUEST APP</li>
+      <li id="sensorRelayStep" data-state="required">1 · APP HANDOFF</li>
+      <li id="sensorCompanionStep" data-state="blocked">2 · NATIVE PANEL</li>
       <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
     </ol>
     <div class="sensor-actions">
-      <a id="openSensorCompanion" href="#">Open FLIR companion</a>
-      <a id="downloadSensorCompanion" href="#" download hidden>Install FLIR companion</a>
+      <a id="openSensorCompanion" href="#">Open native thermal workspace</a>
+      <a id="sensorCompanionEntitlement" href="#" hidden>Check Meta Alpha access</a>
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
+    <small class="sensor-install-help">Alpha access grants entitlement; install from Quest Library → Not installed while signed into the invited account.</small>
+    <details class="sensor-trace-shell" open>
+      <summary>BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR</summary>
+      <pre class="sensor-trace" id="sensorTrace">Waiting for sensor preflight…</pre>
+    </details>
   </section>
 
+  <script src="guided-tooltip.js?v=2"></script>
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=2';
-    import { XRSensorOrb } from './xr-sensor-orb.js?v=2';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=5';
+    import { XRUIAudio } from './xr-ui-audio.js?v=1';
+    import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
       buildSensorLocalBridgeUrl,
       createSensorLocalToken,
       deriveSensorActivationState,
-      deriveSensorSourceState
-    } from './xr-session-client.js?v=3';
+      deriveSensorSourceState,
+      parseSensorHandoffFragment
+    } from './xr-session-client.js?v=4';
 
     const status = document.getElementById('fleetStatus');
     const sceneTitle = document.getElementById('sceneTitle');
     const sensorSetup = document.getElementById('sensorSetup');
     const sensorSetupStatus = document.getElementById('sensorSetupStatus');
     const openSensorCompanion = document.getElementById('openSensorCompanion');
-    const downloadSensorCompanion = document.getElementById('downloadSensorCompanion');
+    const sensorCompanionEntitlement = document.getElementById('sensorCompanionEntitlement');
     const sensorRelayStep = document.getElementById('sensorRelayStep');
     const sensorCompanionStep = document.getElementById('sensorCompanionStep');
     const sensorCameraStep = document.getElementById('sensorCameraStep');
-    const xrSessionId = sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
-    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
+    const sensorTrace = document.getElementById('sensorTrace');
+    const sceneSoundButton = document.getElementById('sceneSoundButton');
+    const sceneHelpButton = document.getElementById('sceneHelpButton');
     const pageQuery = new URLSearchParams(location.search);
+    let sensorHandoff = null;
+    try {
+      sensorHandoff = parseSensorHandoffFragment(location.hash);
+    } catch (error) {
+      console.warn('Rejected invalid sensor bridge handoff', error);
+    }
+    if (sensorHandoff) {
+      sessionStorage.setItem('mxg_xr_session_id', sensorHandoff.sessionId);
+      sessionStorage.setItem('mxg_thermal_local_token', sensorHandoff.localToken);
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    }
+    const xrSessionId = sensorHandoff?.sessionId || sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
+    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
+    const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
+    sensorSetup.hidden = !sensorOnlyScene;
+    let SensorOrbClass = null;
+    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=8'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
+    sceneHelpButton.dataset.guideId = sensorOnlyScene ? 'sensor-bridge-flow' : 'fleet-globe-controls';
+    sceneHelpButton.setAttribute('aria-label', sensorOnlyScene ? 'Explain the sensor bridge flow' : 'Explain the fleet globe controls');
     let sensorLocalToken = sessionStorage.getItem('mxg_thermal_local_token') || '';
     if (!/^[A-Za-z0-9_-]{32,128}$/.test(sensorLocalToken)) {
       sensorLocalToken = createSensorLocalToken();
@@ -127,10 +165,10 @@
     const sensorCompanionBridgeUrl = pageQuery.get('thermalIngest') || pageQuery.get('sensorIngest') || '';
     const companionLaunchBase = globalThis.MXGENIUS_CONFIG?.sensorCompanionLaunchUrl || 'mxgenius://sensor-bridge';
     const companionPackage = globalThis.MXGENIUS_CONFIG?.sensorCompanionPackage || 'io.mxgenius.sensorbridge';
-    const companionDownloadUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionDownloadUrl || '';
+    const companionEntitlementUrl = globalThis.MXGENIUS_CONFIG?.sensorCompanionEntitlementUrl || '';
     let companionActivationPending = false;
     let sensorSources = deriveSensorSourceState({ thermalBridgeUrl, piDiagnosticsBridgeUrl, remoteWitnessUrl });
-    let activationTimeout = null;
+    let companionLaunchAt = 0;
 
     try {
       const customLaunchUrl = buildSensorCompanionLaunchUrl({
@@ -145,7 +183,7 @@
         sessionId: xrSessionId,
         bridgeUrl: sensorCompanionBridgeUrl,
         localToken: thermalLocalEnabled ? sensorLocalToken : '',
-        fallbackUrl: companionDownloadUrl,
+        fallbackUrl: companionEntitlementUrl,
         allowInsecurePilot
       });
       openSensorCompanion.href = /Android|OculusBrowser/i.test(navigator.userAgent) ? intentLaunchUrl : customLaunchUrl;
@@ -154,9 +192,9 @@
       openSensorCompanion.href = '#';
       openSensorCompanion.dataset.activationError = error.message;
     }
-    if (companionDownloadUrl) {
-      downloadSensorCompanion.href = companionDownloadUrl;
-      downloadSensorCompanion.hidden = false;
+    if (companionEntitlementUrl) {
+      sensorCompanionEntitlement.href = companionEntitlementUrl;
+      sensorCompanionEntitlement.hidden = false;
     }
     function renderSensorSetup() {
       const activation = deriveSensorActivationState({
@@ -178,26 +216,35 @@
         ? 'Thermal connected'
         : activation.state === 'relay-required'
           ? 'Thermal link required'
-          : companionActivationPending ? 'Opening companion…' : 'Open FLIR companion';
+          : companionActivationPending ? 'Opening native workspace…' : 'Open native thermal workspace';
     }
     openSensorCompanion.addEventListener('click', (event) => {
+      void xrAudio?.unlock();
       if (openSensorCompanion.getAttribute('aria-disabled') === 'true') {
         event.preventDefault();
         return;
       }
+      xrSensors?.trace('LAUNCH', `opening native thermal workspace ${companionPackage}`, 'info');
       companionActivationPending = true;
+      companionLaunchAt = Date.now();
       renderSensorSetup();
-      clearTimeout(activationTimeout);
-      activationTimeout = setTimeout(() => {
-        if (sensorSources.companion !== 'ready') {
-          companionActivationPending = false;
-          sensorSources.companion = 'missing';
-          renderSensorSetup();
-        }
-      }, 12000);
+      emitSceneAction('sensor-companion-launch', 'pointer', { packageName: companionPackage });
     });
-    document.getElementById('dismissSensorSetup').addEventListener('click', () => { sensorSetup.hidden = true; });
-    renderSensorSetup();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) xrAudio?.stopAll({ fadeMs: 70 });
+      if (!document.hidden && companionActivationPending && Date.now() - companionLaunchAt > 1000) {
+        companionActivationPending = false;
+        renderSensorSetup();
+      }
+    });
+    sensorCompanionEntitlement.addEventListener('click', () => {
+      xrSensors?.trace('INSTALL', 'opening Alpha entitlement page · install from Quest Library after joining', 'warn');
+    });
+    document.getElementById('dismissSensorSetup').addEventListener('click', () => {
+      sensorSetup.hidden = true;
+      void xrAudio?.play('ui_back_close');
+    });
+    if (sensorOnlyScene) renderSensorSetup();
     function readSceneFleet() {
       const emptyFleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
       if (sensorOnlyScene) return emptyFleet;
@@ -216,6 +263,37 @@
     const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.05, 50);
     camera.position.set(0, 1.6, 0);
 
+    let xrAudio = null;
+    let fleetHud = null;
+    let xrSensors = null;
+    let selectedCluster = null;
+    function updateSceneSoundState(detail = {}) {
+      const muted = Boolean(detail.muted);
+      sceneSoundButton.setAttribute('aria-pressed', String(!muted));
+      sceneSoundButton.textContent = muted ? 'Sound Off' : 'Sound On';
+      sceneSoundButton.title = muted
+        ? 'Enable spatial interface sound'
+        : `Spatial interface sound ${detail.state === 'ready' ? 'ready' : 'starts with your first interaction'}`;
+    }
+    try {
+      xrAudio = new XRUIAudio({ camera, onStateChange: updateSceneSoundState });
+    } catch (error) {
+      console.warn('Spatial interface sound is unavailable:', error);
+      updateSceneSoundState({ state: 'unavailable', muted: false });
+    }
+    sceneSoundButton.addEventListener('click', async () => {
+      const enable = sceneSoundButton.getAttribute('aria-pressed') !== 'true';
+      xrAudio?.setMuted(!enable);
+      if (enable && await xrAudio?.unlock()) void xrAudio.play('ui_press_secondary');
+    });
+
+    function emitSceneAction(action, input, target = {}, object = null) {
+      void xrAudio?.playAction(action, target, { object });
+      window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
+        detail: { action, input, target, context: { surface: sceneSurface } }
+      }));
+    }
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -224,22 +302,36 @@
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
-    const xrVoice = new XRRealtimePresence({
-      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action, input, target, context: { surface: sceneSurface } }
-      }))
-    });
-    scene.add(xrVoice.group);
-    const xrSensors = new XRSensorOrb({
+    function sensorCalibration(name, fallback, minimum, maximum) {
+      const raw = pageQuery.get(name);
+      const value = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
+      return THREE.MathUtils.clamp(Number.isFinite(value) ? value : fallback, minimum, maximum);
+    }
+    let lastSensorAudioStatus = null;
+    if (sensorOnlyScene) xrSensors = new SensorOrbClass({
       sessionId: xrSessionId,
       bridgeUrl: thermalBridgeUrl,
       diagnosticsBridgeUrl: piDiagnosticsBridgeUrl,
       remoteWitnessUrl,
       surface: sceneSurface,
-      onAction: (action, input, target) => window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action, input, target, context: { surface: sceneSurface } }
-      })),
+      presentation: 'head-screen',
+      bridgeHandoff: Boolean(sensorHandoff),
+      screenScale: sensorCalibration('thermalScale', 1, 0.65, 1.6),
+      headOffset: {
+        x: sensorCalibration('thermalX', 0, -0.8, 0.8),
+        y: sensorCalibration('thermalY', 0.16, -0.6, 0.6),
+        z: -sensorCalibration('thermalDistance', 1.12, 0.65, 2.2)
+      },
+      onAction: (action, input, target) => emitSceneAction(action, input, target, xrSensors.group),
       onStatus: ({ thermalTransport, thermalSource, piDiagnostics, remoteWitness, companionStatus }) => {
+        if (lastSensorAudioStatus !== null && thermalTransport !== lastSensorAudioStatus) {
+          emitSceneAction('sensor-status', 'runtime', {
+            previous: lastSensorAudioStatus,
+            current: thermalTransport,
+            source: thermalSource
+          }, xrSensors.group);
+        }
+        lastSensorAudioStatus = thermalTransport;
         sensorSources = {
           ...sensorSources,
           thermalTransport,
@@ -250,16 +342,41 @@
         };
         if (companionStatus === 'ready') {
           companionActivationPending = false;
-          clearTimeout(activationTimeout);
         }
         renderSensorSetup();
         if (renderer.xr.isPresenting && thermalTransport !== 'connected') {
           status.textContent = `Thermal ${thermalTransport}/${thermalSource} · Pi ${piDiagnostics}`;
         }
+      },
+      onTrace: ({ entries }) => {
+        sensorTrace.textContent = entries.map((entry) => {
+          const seconds = (entry.elapsedMs / 1000).toFixed(1).padStart(5, ' ');
+          return `${seconds}s ${entry.stage.padEnd(12).slice(0, 12)} ${entry.message}`;
+        }).join('\n');
+        sensorTrace.scrollTop = sensorTrace.scrollHeight;
       }
     });
-    scene.add(xrSensors.group);
-    xrSensors.startPreflight();
+    if (xrSensors) scene.add(xrSensors.group);
+    const xrVoice = new XRRealtimePresence({
+      pointCount: sensorOnlyScene ? 1800 : 720,
+      pointSize: sensorOnlyScene ? 0.0007 : 0.0012,
+      contextProvider: () => sensorOnlyScene
+        ? { surface: 'sensor-diagnostics' }
+        : {
+            surface: 'fleet-globe',
+            fleetLocation: selectedCluster ? {
+              icao: selectedCluster.icao,
+              city: selectedCluster.city || '',
+              country: selectedCluster.country || '',
+              count: Number(selectedCluster.count) || 0
+            } : null
+          },
+      onSnapshotRequest: sensorOnlyScene ? () => xrSensors.requestHeadsetSnapshot() : null,
+      onAction: (action, input, target) => emitSceneAction(action, input, target, xrVoice.group)
+    });
+    if (xrSensors) xrVoice.setDockTarget(xrSensors.voiceDock);
+    scene.add(xrVoice.group);
+    xrSensors?.startPreflight();
     const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();
@@ -285,8 +402,17 @@
       scene.add(sensorBackdrop);
     }
 
-    const texture = new THREE.TextureLoader().load('earth-blue-marble.jpg');
+    const globeTextureLoader = new THREE.TextureLoader();
+    const texture = globeTextureLoader.load('earth-blue-marble.jpg');
     texture.colorSpace = THREE.SRGBColorSpace;
+    const globeTextureFiles = Object.freeze({
+      night: 'earth-night.jpg',
+      blue: 'earth-blue-marble.jpg',
+      dark: 'earth-dark-hd.png',
+      water: 'earth-water-hd.png',
+      map: 'earth-topology.png'
+    });
+    let globeTextureGeneration = 0;
     const globe = new THREE.Mesh(
       new THREE.SphereGeometry(0.68, 64, 40),
       new THREE.MeshStandardMaterial({ map: texture, roughness: 0.82, metalness: 0.02 })
@@ -311,6 +437,7 @@
     const marker = new THREE.Object3D();
     const color = new THREE.Color();
     const markerPositions = [];
+    const markerScales = [];
 
     function pointOnGlobe(lat, lng, radius = 0.697) {
       const phi = THREE.MathUtils.degToRad(90 - lat);
@@ -335,6 +462,7 @@
       marker.position.copy(position);
       marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), position.clone().normalize());
       const scale = Math.min(1.75, 0.72 + Math.log2(Math.max(1, Number(cluster.count)) + 1) * 0.13 + (cluster.hasActiveCase || cluster.hasAog ? 0.12 : 0));
+      markerScales.push(scale);
       marker.scale.setScalar(scale);
       marker.updateMatrix();
       markers.setMatrixAt(index, marker.matrix);
@@ -343,6 +471,76 @@
     markers.instanceMatrix.needsUpdate = true;
     if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
     globeGroup.add(markers);
+
+    function applyGlobeTexture(textureId, input = 'unknown') {
+      const file = globeTextureFiles[textureId];
+      if (!file) return;
+      const generation = ++globeTextureGeneration;
+      globeTextureLoader.load(file, (nextTexture) => {
+        if (generation !== globeTextureGeneration) {
+          nextTexture.dispose();
+          return;
+        }
+        nextTexture.colorSpace = THREE.SRGBColorSpace;
+        const previous = globe.material.map;
+        globe.material.map = nextTexture;
+        globe.material.needsUpdate = true;
+        if (previous && previous !== texture) previous.dispose();
+        status.textContent = `${textureId.toUpperCase()} globe texture · ${input}`;
+      }, undefined, (error) => {
+        console.warn(`Unable to load ${textureId} globe texture`, error);
+        status.textContent = `${textureId.toUpperCase()} globe texture unavailable`;
+      });
+      emitSceneAction('globe-texture', input, { texture: textureId }, globe);
+    }
+
+    function applyFleetHudFilter(input = 'unknown') {
+      if (!fleetHud) return;
+      const visible = new Set(fleetHud.filteredLocations.map((item) => item.index));
+      fleet.clusters.forEach((cluster, index) => {
+        marker.position.copy(markerPositions[index]);
+        marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), markerPositions[index].clone().normalize());
+        marker.scale.setScalar(visible.has(index) ? markerScales[index] : 0.0001);
+        marker.updateMatrix();
+        markers.setMatrixAt(index, marker.matrix);
+      });
+      markers.instanceMatrix.needsUpdate = true;
+      status.textContent = `${visible.size} fleet locations visible · ${input}`;
+    }
+
+    function recenterGlobe(input = 'unknown') {
+      globeGroup.position.set(0, 1.55, -1.75);
+      globeGroup.scale.setScalar(1);
+      globeGroup.rotation.set(0, 0, 0);
+      status.textContent = `Globe recentered · ${input}`;
+      emitSceneAction('globe-recenter', input, {}, globeGroup);
+    }
+
+    function handleFleetHudAction(action, input) {
+      if (!action || sensorOnlyScene) return;
+      if (action.type === 'texture') return applyGlobeTexture(action.texture, input);
+      if (action.type === 'filter') {
+        applyFleetHudFilter(input);
+        emitSceneAction('globe-filter', input, { filter: action.filter }, fleetHud.group);
+        return;
+      }
+      if (action.type === 'page') {
+        emitSceneAction('globe-page', input, { page: fleetHud.page }, fleetHud.group);
+        return;
+      }
+      if (action.type === 'rotation') return toggleGlobeRotation(input);
+      if (action.type === 'recenter') return recenterGlobe(input);
+      if (action.type === 'select-location') return activateCluster(action.index, input);
+      if (action.type === 'open-selected' && fleetHud.selectedIndex >= 0) {
+        return activateCluster(fleetHud.selectedIndex, input);
+      }
+    }
+
+    fleetHud = new XRGlobeHUD({ fleet, onAction: handleFleetHudAction });
+    fleetHud.group.position.set(-0.78, 1.56, -1.28);
+    fleetHud.group.rotation.y = 0.2;
+    fleetHud.group.visible = !sensorOnlyScene;
+    scene.add(fleetHud.group);
 
     const detailsCanvas = document.createElement('canvas');
     detailsCanvas.width = 1024;
@@ -369,7 +567,6 @@
 
     let detailsTarget = 0;
     let selectedClusterIndex = -1;
-    let selectedCluster = null;
     let panelMode = 'wrist';
     let panelView = 'location';
     let listPage = 0;
@@ -713,6 +910,7 @@
       }
       selectedClusterIndex = index;
       selectedCluster = cluster;
+      fleetHud?.setSelected(index);
       listPage = 0;
       detailModel = null;
       clearDetailImageGrid();
@@ -742,43 +940,15 @@
       if (detailsTarget === 0 && nextScale < 0.012) detailsPanel.visible = false;
     }
 
-    const rotateCanvas = document.createElement('canvas');
-    rotateCanvas.width = 384;
-    rotateCanvas.height = 160;
-    const rotateContext = rotateCanvas.getContext('2d');
-    const rotateTexture = new THREE.CanvasTexture(rotateCanvas);
-    rotateTexture.colorSpace = THREE.SRGBColorSpace;
-    const rotateButton = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.27, 0.1125),
-      new THREE.MeshBasicMaterial({ map: rotateTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
-    );
-    rotateButton.name = 'FleetRotationToggle';
-    rotateButton.visible = !sensorOnlyScene;
-    scene.add(rotateButton);
     let rotationEnabled = true;
-
-    function drawRotationButton() {
-      rotateContext.clearRect(0, 0, rotateCanvas.width, rotateCanvas.height);
-      rotateContext.fillStyle = 'rgba(8, 24, 38, 0.96)';
-      rotateContext.fillRect(4, 4, 376, 152);
-      rotateContext.strokeStyle = rotationEnabled ? '#22d3ee' : '#526a7c';
-      rotateContext.lineWidth = 6;
-      rotateContext.strokeRect(4, 4, 376, 152);
-      rotateContext.fillStyle = '#eaf7ff';
-      rotateContext.font = '600 38px system-ui, sans-serif';
-      rotateContext.textAlign = 'center';
-      rotateContext.fillText(rotationEnabled ? 'PAUSE ROTATION' : 'START ROTATION', 192, 96);
-      rotateTexture.needsUpdate = true;
-    }
 
     function toggleGlobeRotation(input) {
       if (sensorOnlyScene) return;
       rotationEnabled = !rotationEnabled;
-      drawRotationButton();
+      fleetHud?.setRotationActive(rotationEnabled);
       status.textContent = `${rotationEnabled ? 'Globe rotation started' : 'Globe rotation paused'} · ${input}`;
+      emitSceneAction('toggle-globe-rotation', input, { active: rotationEnabled }, fleetHud?.group || globeGroup);
     }
-
-    drawRotationButton();
 
     const backCanvas = document.createElement('canvas');
     backCanvas.width = 512;
@@ -814,9 +984,7 @@
       if (dashboardNavigationPending) return;
       dashboardNavigationPending = true;
       status.textContent = `Closing VR session \u00b7 ${input}`;
-      window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
-        detail: { action: 'back-to-dashboard', input, context: { surface: sceneSurface } }
-      }));
+      emitSceneAction('back-to-dashboard', input, {}, backButton);
       const session = renderer.xr.getSession();
       if (session) {
         try {
@@ -840,15 +1008,13 @@
     const fingerPoint = new THREE.Vector3();
     const markerWorldPoint = new THREE.Vector3();
     const panelLocalPoint = new THREE.Vector3();
-    const rotateLocalPoint = new THREE.Vector3();
     const backLocalPoint = new THREE.Vector3();
     const gesturePointA = new THREE.Vector3();
     const gesturePointB = new THREE.Vector3();
     const gestureMidpoint = new THREE.Vector3();
-    const rotateButtonOffset = new THREE.Vector3();
     let lastFingerCheck = 0;
     const panelFingerTargets = new Map();
-    const rotateFingerTargets = new Map();
+    const hudFingerTargets = new Map();
     const backFingerTargets = new Map();
 
     function activateCluster(index, input) {
@@ -871,7 +1037,8 @@
         }
       };
       openLocationDetails(cluster, index);
-      window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail }));
+      void xrVoice.refreshContext();
+      emitSceneAction(detail.action, input, detail.target, globeGroup);
       localStorage.setItem('mxg_globe_xr_selection', JSON.stringify(detail.target));
       status.textContent = `${detail.target.icao} · ${detail.target.count.toLocaleString()} aircraft · ${input}`;
     }
@@ -890,23 +1057,24 @@
         if (controller.userData.handedness === 'left') leftController = grip;
         if (controller.userData.handedness === 'right') {
           rightController = grip;
-          xrSensors.setAnchors({ rightController });
+          xrSensors?.setAnchors({ rightController });
         }
       });
       controller.addEventListener('select', () => {
+        void xrAudio?.unlock();
         xrRaycaster.setFromXRController(controller);
         const uiTargets = [
           ...xrVoice.interactiveObjects(),
-          ...xrSensors.interactiveObjects(),
+          ...(xrSensors?.interactiveObjects() || []),
           backButton
         ];
-        if (!sensorOnlyScene) uiTargets.push(detailsSurface, rotateButton);
+        if (!sensorOnlyScene) uiTargets.push(detailsSurface, ...fleetHud.interactiveObjects());
         const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
-        if (uiHit && xrSensors.handleObject(uiHit.object, `controller-${index}`)) return;
+        if (uiHit && xrSensors?.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === backButton) return returnToDashboard(`controller-${index}`);
+        if (uiHit && fleetHud.handleObject(uiHit.object, uiHit.uv, `controller-${index}`)) return;
         if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
-        if (uiHit?.object === rotateButton) return toggleGlobeRotation(`controller-${index}`);
         if (!sensorOnlyScene) {
           const hit = xrRaycaster.intersectObject(markers, false)[0];
           if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
@@ -932,7 +1100,7 @@
         if (hand.userData.handedness === 'left') leftHand = hand;
         if (hand.userData.handedness === 'right') {
           rightHand = hand;
-          xrSensors.setAnchors({ rightHand });
+          xrSensors?.setAnchors({ rightHand });
         }
       });
       xrHands.push(hand);
@@ -988,16 +1156,6 @@
       globeGroup.scale.setScalar(targetScale);
     }
 
-    function updateRotationButtonPosition() {
-      if (sensorOnlyScene) return;
-      const scale = globeGroup.scale.x;
-      rotateButtonOffset.set(0.82 * scale, -0.48 * scale, 0.08);
-      rotateButton.position.copy(globeGroup.position).add(rotateButtonOffset);
-      camera.getWorldPosition(panelCameraPosition);
-      rotateButton.lookAt(panelCameraPosition);
-      rotateButton.scale.setScalar(THREE.MathUtils.clamp(0.8 + scale * 0.2, 0.8, 1.3));
-    }
-
     function updateFingerCollisions(time) {
       if (!renderer.xr.isPresenting || time - lastFingerCheck < 100) return;
       lastFingerCheck = time;
@@ -1007,10 +1165,10 @@
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
 
-        const sensorTarget = xrSensors.fingerTargetAt(fingerPoint);
+        const sensorTarget = xrSensors?.fingerTargetAt(fingerPoint) || null;
         if (sensorTarget) {
           const previousSensorTarget = hand.userData.sensorFingerTarget || null;
-          if (sensorTarget !== previousSensorTarget) xrSensors.handleObject(sensorTarget, `finger-${handIndex}`);
+          if (sensorTarget !== previousSensorTarget) xrSensors?.handleObject(sensorTarget, `finger-${handIndex}`);
           hand.userData.sensorFingerTarget = sensorTarget;
           return;
         }
@@ -1033,6 +1191,14 @@
         if (overBack) return;
         if (sensorOnlyScene) return;
 
+        const hudRegion = fleetHud.actionAtWorldPoint(fingerPoint);
+        const previousHudRegion = hudFingerTargets.get(handIndex) || null;
+        if (hudRegion && hudRegion.key !== previousHudRegion) {
+          fleetHud.activate(hudRegion.action, `finger-${handIndex}`);
+        }
+        hudFingerTargets.set(handIndex, hudRegion?.key || null);
+        if (hudRegion) return;
+
         let panelRegion = -1;
         if (detailsPanel.visible) {
           detailsSurface.updateMatrixWorld(true);
@@ -1047,14 +1213,7 @@
         if (panelRegion >= 0 && panelRegion !== previousPanelRegion) handlePanelAction(panelHitRegions[panelRegion].action);
         panelFingerTargets.set(handIndex, panelRegion);
 
-        rotateButton.updateMatrixWorld(true);
-        rotateButton.worldToLocal(rotateLocalPoint.copy(fingerPoint));
-        const overRotate = Math.abs(rotateLocalPoint.z) < 0.035 && Math.abs(rotateLocalPoint.x) <= 0.135 && Math.abs(rotateLocalPoint.y) <= 0.05625;
-        const wasOverRotate = rotateFingerTargets.get(handIndex) || false;
-        if (overRotate && !wasOverRotate) toggleGlobeRotation(`finger-${handIndex}`);
-        rotateFingerTargets.set(handIndex, overRotate);
-
-        if (panelRegion >= 0 || overRotate) return;
+        if (panelRegion >= 0) return;
         let nearest = -1;
         let nearestDistance = 0.035;
         markerPositions.forEach((position, markerIndex) => {
@@ -1088,13 +1247,15 @@
         : 'No cached fleet data. Return to the dashboard and load Fleet Context first.';
 
     renderer.xr.addEventListener('sessionstart', () => {
+      void xrAudio?.unlock();
       detailsTarget = 0;
       dashboardNavigationPending = false;
       backButton.visible = true;
+      if (!sensorOnlyScene) fleetHud.beginReveal();
       camera.getWorldPosition(panelCameraPosition);
       backButton.lookAt(panelCameraPosition);
       xrVoice.setPresenting(true);
-      xrSensors.setPresenting(true);
+      xrSensors?.setPresenting(true);
       status.textContent = sensorOnlyScene
         ? 'Sensor diagnostics active in VR · awaiting FLIR and Pi streams'
         : `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
@@ -1103,14 +1264,23 @@
       detailsTarget = 0;
       backButton.visible = false;
       xrVoice.setPresenting(false);
-      xrSensors.setPresenting(false);
+      xrSensors?.setPresenting(false);
       xrActiveGrips.clear();
       xrGlobeGesture = null;
+      xrAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
+      xrAudio?.stopCue('system_relocalizing_loop', { fadeMs: 70 });
       scene.attach(detailsPanel);
       detailsPanel.position.copy(panelWorldPosition);
       detailsPanel.quaternion.copy(panelWorldQuaternion);
+      if (!sensorOnlyScene) fleetHud.group.scale.setScalar(1);
       status.textContent = sensorOnlyScene ? 'Sensor diagnostics scene ready' : 'VR session ended';
     });
+
+    if (sensorPreviewMode) {
+      xrVoice.setPresenting(true);
+      xrSensors?.setPresenting(true);
+      status.textContent = 'Desktop sensor layout preview · Quest pose emulation';
+    }
 
     let lastFrameTime = performance.now();
     renderer.setAnimationLoop((time) => {
@@ -1119,15 +1289,30 @@
       if (!sensorOnlyScene && rotationEnabled) globeGroup.rotation.y += delta * 0.035;
       if (!sensorOnlyScene) {
         updateGlobeGesture();
-        updateRotationButtonPosition();
+        fleetHud.update(delta);
         updateDetailsPresentation(delta);
       }
       updateFingerCollisions(time);
-      xrVoice.update(delta, time, {
-        camera
-      });
-      xrSensors.update(delta, time, { camera });
+      xrSensors?.update(delta, time, { camera });
+      xrVoice.update(delta, time, { camera });
       renderer.render(scene, camera);
+    });
+
+    let sceneDisposed = false;
+    function disposeScene() {
+      if (sceneDisposed) return;
+      sceneDisposed = true;
+      renderer.setAnimationLoop(null);
+      xrSensors?.dispose();
+      xrVoice.dispose?.();
+      xrAudio?.dispose();
+      fleetHud?.dispose();
+      clearDetailImageGrid();
+      renderer.dispose();
+    }
+
+    window.addEventListener('pagehide', (event) => {
+      if (!event.persisted) disposeScene();
     });
 
     window.addEventListener('resize', () => {
