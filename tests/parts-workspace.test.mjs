@@ -697,3 +697,107 @@ test('Part interchangeability', async (t) => {
     assert.match(handler, /Skipping is the safe direction/);
   });
 });
+
+test('Receiving inspection and non-conforming material', async (t) => {
+  const migration = readFileSync(
+    'services/mcp/migrations/0026_receiving_inspection.sql', 'utf8');
+  const domain = readFileSync(
+    'services/mcp/shared/src/domain/receiving_inspection.rs', 'utf8');
+  const repo = readFileSync(
+    'services/mcp/server/src/application/receiving_inspection.rs', 'utf8');
+
+  await t.test('releasing from quarantine now records what was inspected', () => {
+    // The slice ships quarantine_then_inspect, but the release was a bare
+    // status flip carrying no reference and no required evidence.
+    assert.match(migration, /CREATE TABLE IF NOT EXISTS receiving_inspections/);
+    for (const gate of [
+      'part_number_matches_order', 'serial_matches_tag', 'tag_present_and_legible',
+      'shelf_life_acceptable', 'dangerous_goods_paperwork'
+    ]) {
+      assert.match(migration, new RegExp(`${gate}\\s+text NOT NULL`), gate);
+      assert.match(migration, new RegExp(`${gate} IN \\('pass', 'fail', 'na'\\)`), gate);
+    }
+  });
+
+  await t.test('the outcome is stored, never recomputed at read time', () => {
+    // Re-deriving a historical acceptance under a later gate set would
+    // restate what an inspector concluded rather than report it.
+    assert.match(migration, /CHECK \(outcome IN \('accepted', 'quarantined'\)\)/);
+    assert.match(migration, /Stored, not derived/);
+    assert.match(domain, /never re-derived at read/);
+  });
+
+  await t.test('an acceptance cannot stand on a failed gate', () => {
+    assert.match(migration, /receiving_inspections_acceptance_has_no_failed_gate/);
+    // Refused in the API first, so the caller gets a usable message rather
+    // than a constraint name.
+    assert.match(repo, /a part cannot be accepted with/);
+    assert.match(domain, /pub fn is_supported_by/);
+  });
+
+  await t.test('a quarantine call stands even when every gate passed', () => {
+    // The proposal is advisory in one direction only.
+    assert.match(domain, /Self::Quarantined => true/);
+  });
+
+  await t.test('not-applicable is a third value, not a silent pass or fail', () => {
+    assert.match(domain, /NotApplicable/);
+    assert.match(repo, /fn default_gate/);
+    assert.match(repo, /not a silent pass/);
+  });
+
+  await t.test('suspected unapproved is a flag beside the condition, not inside it', () => {
+    assert.match(migration, /suspected_unapproved boolean NOT NULL DEFAULT false/);
+    // Never set without a stated reason.
+    assert.match(migration, /stock_units_sup_reason_required/);
+    assert.match(domain, /pub fn marks_suspected_unapproved/);
+  });
+
+  await t.test('released material is never left flagged suspected unapproved', () => {
+    // A part on the serviceable shelf still marked SUP is a contradiction
+    // someone could fit an aircraft from.
+    assert.match(repo, /suspected_unapproved=false/);
+    assert.match(repo, /contradiction someone could fit/);
+  });
+
+  await t.test('a resolution names a disposition and an approver or is not one', () => {
+    assert.match(migration, /discrepancy_reports_resolution_is_complete/);
+    assert.match(migration, /status <> 'resolved' OR/);
+    assert.match(migration, /disposition IS NOT NULL/);
+    assert.match(migration, /approved_by IS NOT NULL/);
+  });
+
+  await t.test('held material is only released when nothing else is open on it', () => {
+    assert.match(repo, /still_open/);
+    assert.match(repo, /AND status='open' AND id <> \$3/);
+  });
+
+  await t.test('the evidence and the movement are written together', () => {
+    // A stored acceptance whose unit never moved, or a released unit with no
+    // inspection behind it, are the states this record exists to prevent.
+    assert.match(repo, /self\.pool\.begin\(\)/);
+    assert.match(repo, /tx\.commit\(\)/);
+    // The ledger row points back at the record that justified it.
+    assert.match(repo, /"receiving_inspection"/);
+    assert.match(repo, /"discrepancy_report"/);
+  });
+
+  await t.test('the migration does not rebuild constraints from stale definitions', () => {
+    // 0020 widened trace_type; recreating it from the 0015 list would drop
+    // values already on file.
+    assert.match(migration, /deliberately does NOT redefine/);
+    assert.match(migration, /live definition rather than from 0015/);
+    // The ledger vocabulary keeps everything it had plus the new events.
+    for (const kept of ['receive', 'inspect_pass', 'metadata_corrected', 'split']) {
+      assert.match(migration, new RegExp(`'${kept}'`), `${kept} must survive`);
+    }
+  });
+
+  await t.test('the workflow is confirmation-gated like every stock mutation', () => {
+    assert.match(partsHttp, /"mxg\.parts\.discrepancy"/);
+    assert.match(partsHttp, /PARTS_CONFIRMABLE_OPERATIONS: \[&str; 6\]/);
+    // Accepting material onto the serviceable shelf is an inspection buy-off.
+    assert.match(partsHttp, /can accept stock into serviceable inventory/);
+    assert.match(partsHttp, /can accept non-conforming material as is/);
+  });
+});

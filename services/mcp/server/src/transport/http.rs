@@ -53,6 +53,10 @@ use crate::application::rotables::{
     CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
+use crate::application::receiving_inspection::{
+    DiscrepancyQuery, OpenDiscrepancyInput, ReceivingInspectionRepository, RecordInspectionInput,
+    ResolveDiscrepancyInput,
+};
 use mxgenius_shared::application::paging::PageRequest;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
@@ -321,6 +325,19 @@ pub fn router_with_health_and_manual(
         .route(
             "/api/parts/units/:unit_id/transitions",
             post(transition_parts_unit),
+        )
+        .route(
+            "/api/parts/units/:unit_id/inspections",
+            get(list_parts_inspections).post(record_parts_inspection),
+        )
+        .route(
+            "/api/parts/units/:unit_id/discrepancies",
+            post(open_parts_discrepancy),
+        )
+        .route("/api/parts/discrepancies", get(list_parts_discrepancies))
+        .route(
+            "/api/parts/discrepancies/:report_id/resolution",
+            post(resolve_parts_discrepancy),
         )
         .route(
             "/api/parts/units/:unit_id/quantity",
@@ -2364,12 +2381,15 @@ struct ShortagesQuery {
 
 /// Parts ledger mutations that accept a signed single-use confirmation grant
 /// without appearing in the locked capability registry.
-const PARTS_CONFIRMABLE_OPERATIONS: [&str; 5] = [
+const PARTS_CONFIRMABLE_OPERATIONS: [&str; 6] = [
     "mxg.parts.receive",
     "mxg.parts.inspect",
     "mxg.parts.correct",
     "mxg.parts.adjust",
     "mxg.parts.split",
+    // Raising or resolving a discrepancy holds or releases the material, so
+    // it writes the ledger and needs a grant like every other stock mutation.
+    "mxg.parts.discrepancy",
 ];
 
 /// Releasing stock from quarantine onto the serviceable shelf is an inspection
@@ -4186,6 +4206,219 @@ async fn report_part_activity(
         }
         Ok(rows) => (StatusCode::OK, Json(json!({"rows": rows}))).into_response(),
         Err(error) => parts_error(error, "parts.reports.activity"),
+    }
+}
+
+async fn record_parts_inspection(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+    Json(input): Json<RecordInspectionInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot disposition parts",
+        );
+    }
+    // An acceptance is a quarantine release, so it is held to the qualified
+    // inspection roles. Recording a quarantine moves in the conservative
+    // direction and stays open to anyone who may receive a part.
+    let accepts = match input.outcome.as_deref() {
+        Some(value) => value == "accepted",
+        // An omitted outcome follows the gates, so the same reasoning applies
+        // to what the gates would produce.
+        None => !input.shipping_damage
+            && [
+                &input.part_number_matches_order,
+                &input.serial_matches_tag,
+                &input.tag_present_and_legible,
+                &input.shelf_life_acceptable,
+                &input.dangerous_goods_paperwork,
+            ]
+            .iter()
+            .all(|gate| gate.as_str() != "fail"),
+    };
+    if accepts && !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_INSPECTION_DENIED",
+            "only a quality, manager, or administrator role can accept stock into serviceable inventory",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.inspect"
+            && grant.object_id == unit_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this unit and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match ReceivingInspectionRepository::new(pool)
+        .record(&context, unit_id, version, &input)
+        .await
+    {
+        Ok(inspection) => {
+            (StatusCode::CREATED, Json(json!({"inspection": inspection}))).into_response()
+        }
+        Err(error) => parts_error(error, "parts.inspection.record"),
+    }
+}
+
+async fn list_parts_inspections(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match ReceivingInspectionRepository::new(pool)
+        .list_for_unit(&context, unit_id)
+        .await
+    {
+        Ok(rows) => (StatusCode::OK, Json(json!({"inspections": rows}))).into_response(),
+        Err(error) => parts_error(error, "parts.inspection.list"),
+    }
+}
+
+async fn open_parts_discrepancy(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(unit_id): Path<Uuid>,
+    Json(input): Json<OpenDiscrepancyInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot disposition parts",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.discrepancy"
+            && grant.object_id == unit_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this unit and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match ReceivingInspectionRepository::new(pool)
+        .open_discrepancy(&context, unit_id, version, &input)
+        .await
+    {
+        Ok(report) => (StatusCode::CREATED, Json(json!({"discrepancy": report}))).into_response(),
+        Err(error) => parts_error(error, "parts.discrepancy.open"),
+    }
+}
+
+async fn resolve_parts_discrepancy(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(report_id): Path<Uuid>,
+    Json(input): Json<ResolveDiscrepancyInput>,
+) -> Response {
+    let version = match expected_version(&headers) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let context = match parts_application_context_with_confirmation(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    // Accepting non-conforming material as-is puts it back on the serviceable
+    // shelf, which is the same buy-off as releasing from quarantine.
+    if input.disposition == "accept_as_is" && !parts_inspection_release_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_INSPECTION_DENIED",
+            "only a quality, manager, or administrator role can accept non-conforming material as is",
+        );
+    }
+    if !parts_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PARTS_WRITE_DENIED",
+            "role cannot disposition parts",
+        );
+    }
+    let confirmation_valid = context.confirmation.as_ref().is_some_and(|grant| {
+        grant.tool_name == "mxg.parts.discrepancy"
+            && grant.object_id == report_id.to_string()
+            && grant.object_version == Some(version)
+    });
+    if !confirmation_valid {
+        return realtime_error(
+            StatusCode::PRECONDITION_REQUIRED,
+            "PARTS_CONFIRMATION_REQUIRED",
+            "a signed single-use confirmation bound to this report and version is required",
+        );
+    }
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match ReceivingInspectionRepository::new(pool)
+        .resolve_discrepancy(&context, report_id, version, &input)
+        .await
+    {
+        Ok(report) => (StatusCode::OK, Json(json!({"discrepancy": report}))).into_response(),
+        Err(error) => parts_error(error, "parts.discrepancy.resolve"),
+    }
+}
+
+async fn list_parts_discrepancies(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<DiscrepancyQuery>,
+) -> Response {
+    let context = match parts_application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match ReceivingInspectionRepository::new(pool)
+        .list_discrepancies(&context, &query)
+        .await
+    {
+        Ok(page) => paged_json("discrepancies", page),
+        Err(error) => parts_error(error, "parts.discrepancy.list"),
     }
 }
 

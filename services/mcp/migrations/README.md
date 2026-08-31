@@ -36,3 +36,4 @@ release gates.
 | `0023_part_imports.sql`                  | reversible bulk-import batches with an append-only change journal, plus a soft delete on parts |
 | `0024_part_reporting_indexes.sql`        | date-ranged timeline indexes over the parts journals, orders, and shipments so historical reports keyset-scan instead of sequential-scan |
 | `0025_part_alternates.sql`               | catalog interchangeability: alternates and supersessions with the authority each claim rests on |
+| `0026_receiving_inspection.sql`          | receiving inspection evidence, non-conforming holds, suspected-unapproved flag, and discrepancy reports |

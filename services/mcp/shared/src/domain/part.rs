@@ -14,6 +14,10 @@ pub enum StockUnitStatus {
     Reserved,
     Issued,
     Rejected,
+    /// Non-conforming material held pending a disposition decision. Distinct
+    /// from `Quarantine` (awaiting inspection) and `Rejected` (inspection
+    /// failed): a hold is failed material waiting on what to do with it.
+    HoldNcm,
     InRepair,
     Shipped,
     Scrapped,
@@ -29,6 +33,7 @@ impl StockUnitStatus {
             Reserved => "reserved",
             Issued => "issued",
             Rejected => "rejected",
+            HoldNcm => "hold_ncm",
             InRepair => "in_repair",
             Shipped => "shipped",
             Scrapped => "scrapped",
@@ -44,6 +49,7 @@ impl StockUnitStatus {
             "reserved" => Some(Reserved),
             "issued" => Some(Issued),
             "rejected" => Some(Rejected),
+            "hold_ncm" => Some(HoldNcm),
             "in_repair" => Some(InRepair),
             "shipped" => Some(Shipped),
             "scrapped" => Some(Scrapped),
@@ -66,6 +72,19 @@ impl StockUnitStatus {
             (self, target),
             (Quarantine, Available)
                 | (Quarantine, Rejected)
+                // Failed inspection may hold the material while its
+                // disposition is decided, rather than rejecting it outright.
+                | (Quarantine, HoldNcm)
+                | (Rejected, HoldNcm)
+                // A hold leaves only by a decided disposition: accept-as-is
+                // releases it, rework sends it out, scrap ends it, and a
+                // return to the vendor ships it.
+                | (HoldNcm, Available)
+                | (HoldNcm, InRepair)
+                | (HoldNcm, Scrapped)
+                | (HoldNcm, Shipped)
+                | (HoldNcm, Rejected)
+                | (HoldNcm, Archived)
                 | (Available, Reserved)
                 | (Available, Issued)
                 | (Available, InRepair)

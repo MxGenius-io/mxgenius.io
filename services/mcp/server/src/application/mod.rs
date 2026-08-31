@@ -12,4 +12,5 @@ pub mod part_traceability;
 pub mod parts_inventory;
 pub mod policy_enforce;
 pub mod postgres_case_service;
+pub mod receiving_inspection;
 pub mod rotables;

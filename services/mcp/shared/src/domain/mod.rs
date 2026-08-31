@@ -23,6 +23,7 @@ pub mod part_request;
 pub mod part_request_test;
 pub mod part_trace;
 pub mod part_trace_test;
+pub mod receiving_inspection;
 pub mod rotable;
 pub mod rotable_test;
 pub mod scheduling;
@@ -37,6 +38,9 @@ pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
 pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
 pub use part_alternate::AlternateRelation;
+pub use receiving_inspection::{
+    Disposition, DiscrepancyType, GateResult, InspectionGates, Outcome,
+};
 pub use part_import::{ImportFormat, ImportMode};
 pub use part_request::{
     PartOrderKind, PartOrderStatus, PartRequestPriority, PartRequestStatus, TypeOfBuy,
