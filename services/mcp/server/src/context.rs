@@ -79,6 +79,7 @@ pub type ContextProvider = Arc<dyn ExecutionContextProvider>;
 
 pub struct InsecureLocalProvider {
     inner: TrustedContextInputs,
+    confirmations: Option<Arc<dyn ConfirmationGrantVerifier>>,
 }
 
 impl InsecureLocalProvider {
@@ -100,7 +101,24 @@ impl InsecureLocalProvider {
                 approval_granted,
                 confirmation: None,
             },
+            confirmations: None,
         }
+    }
+
+    /// Verify real confirmation grants in local mode.
+    ///
+    /// Without this the provider leaves `confirmation` as `None`, so every
+    /// handler gated behind a signed grant rejects with 428 and the five
+    /// stock-mutating parts operations cannot be exercised on a developer
+    /// machine at all. Attaching the same verifier production uses means local
+    /// dev walks the real issue-then-present path rather than a trusted
+    /// shortcut, so a grant binding bug cannot hide here and appear in Azure.
+    pub fn with_confirmation_verifier(
+        mut self,
+        verifier: Arc<dyn ConfirmationGrantVerifier>,
+    ) -> Self {
+        self.confirmations = Some(verifier);
+        self
     }
 
     pub fn with_trusted_confirmation(role: Role, confirmation: TrustedConfirmation) -> Self {
@@ -115,7 +133,24 @@ impl InsecureLocalProvider {
 #[async_trait]
 impl ExecutionContextProvider for InsecureLocalProvider {
     async fn provide(&self, request: &AuthRequest) -> Result<ExecutionContext, AuthError> {
-        Ok(self.inner.to_execution_context(request))
+        let mut inputs = self.inner.clone();
+        // A grant presented in local mode is verified and consumed exactly as
+        // in production. A statically trusted confirmation set by
+        // `with_trusted_confirmation` is left alone.
+        if inputs.confirmation.is_none() {
+            if let Some(token) = request.confirmation_grant.as_deref() {
+                let verifier = self.confirmations.as_ref().ok_or_else(|| {
+                    AuthError::InvalidToken("confirmation grants are not configured".into())
+                })?;
+                let membership = ResolvedMembership {
+                    organization_id: inputs.organization_id,
+                    user_id: inputs.user_id,
+                    role: inputs.role,
+                };
+                inputs.confirmation = Some(verifier.verify_and_consume(token, &membership).await?);
+            }
+        }
+        Ok(inputs.to_execution_context(request))
     }
 }
 
@@ -634,6 +669,89 @@ impl ExecutionContextProvider for OidcProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct StubGrantVerifier {
+        confirmation: TrustedConfirmation,
+    }
+
+    #[async_trait]
+    impl ConfirmationGrantVerifier for StubGrantVerifier {
+        async fn verify_and_consume(
+            &self,
+            _token: &str,
+            _membership: &ResolvedMembership,
+        ) -> Result<TrustedConfirmation, AuthError> {
+            Ok(self.confirmation.clone())
+        }
+    }
+
+    fn grant(tool_name: &str) -> TrustedConfirmation {
+        TrustedConfirmation {
+            grant_id: Uuid::nil(),
+            tool_name: tool_name.into(),
+            object_id: "unit-1".into(),
+            object_version: Some(1),
+            expires_at: time::OffsetDateTime::now_utc() + time::Duration::minutes(2),
+            qualified_approval: false,
+        }
+    }
+
+    fn auth_with_grant(token: Option<&str>) -> AuthRequest {
+        AuthRequest {
+            authorization: None,
+            selected_organization_id: None,
+            confirmation_grant: token.map(str::to_owned),
+            correlation_id: None,
+        }
+    }
+
+    /// Local mode used to drop the presented grant on the floor, leaving
+    /// `confirmation` as `None`, so every grant-gated parts handler answered
+    /// 428 and no stock mutation could be exercised on a developer machine.
+    #[tokio::test]
+    async fn insecure_local_verifies_a_presented_confirmation_grant() {
+        let provider = InsecureLocalProvider::new(Role::Administrator)
+            .with_confirmation_verifier(Arc::new(StubGrantVerifier {
+                confirmation: grant("mxg.parts.inspect"),
+            }));
+        let context = provider
+            .provide(&auth_with_grant(Some("signed-token")))
+            .await
+            .expect("local provider accepts a verified grant");
+        let confirmation = context
+            .confirmation
+            .expect("a presented grant reaches the execution context");
+        assert_eq!(confirmation.tool_name, "mxg.parts.inspect");
+        assert_eq!(confirmation.object_id, "unit-1");
+        assert_eq!(confirmation.object_version, Some(1));
+    }
+
+    /// A request that presents no grant must not acquire one: the gated
+    /// handlers still have to reject, exactly as in production.
+    #[tokio::test]
+    async fn insecure_local_leaves_confirmation_unset_without_a_presented_grant() {
+        let provider = InsecureLocalProvider::new(Role::Administrator)
+            .with_confirmation_verifier(Arc::new(StubGrantVerifier {
+                confirmation: grant("mxg.parts.inspect"),
+            }));
+        let context = provider
+            .provide(&auth_with_grant(None))
+            .await
+            .expect("local provider serves an unconfirmed context");
+        assert!(context.confirmation.is_none());
+    }
+
+    /// Presenting a grant to a server with no verifier is a misconfiguration,
+    /// not a request to proceed unconfirmed.
+    #[tokio::test]
+    async fn insecure_local_rejects_a_grant_when_no_verifier_is_configured() {
+        let provider = InsecureLocalProvider::new(Role::Administrator);
+        let error = provider
+            .provide(&auth_with_grant(Some("signed-token")))
+            .await
+            .expect_err("a grant with no verifier configured is rejected");
+        assert!(matches!(error, AuthError::InvalidToken(_)), "{error:?}");
+    }
 
     #[test]
     fn whitelist_identity_email_is_case_normalized_and_domain_bounded() {

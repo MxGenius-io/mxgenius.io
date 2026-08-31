@@ -107,6 +107,13 @@ export MXGENIUS_MCP_ADDR="127.0.0.1:$API_PORT"
 export MXGENIUS_MCP_ALLOWED_ORIGINS="http://localhost:$WEB_PORT,http://127.0.0.1:$WEB_PORT"
 # The parts workspace is behind a flag; without it every parts route 404s.
 export MXGENIUS_PARTS_ENABLED=1
+# Stock-mutating parts operations (receiving confirm, unit transitions,
+# metadata correction, quantity adjust, split) require a signed single-use
+# confirmation grant. Without a secret the issuer is never built and all five
+# reject with 428, which reads as a broken feature rather than a missing
+# setting. The issuer requires at least 32 bytes. This is a fixed development
+# value on a local-only database; production supplies its own.
+export MXGENIUS_CONFIRMATION_SECRET="${MXGENIUS_CONFIRMATION_SECRET:-mxgenius-local-development-confirmation-secret}"
 
 echo "starting the api on $API_PORT (migrations run at startup)"
 (cd "$REPO_ROOT/services/mcp" && exec ./target/debug/mxgenius-mcp --insecure-local \

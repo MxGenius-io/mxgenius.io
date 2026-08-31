@@ -117,21 +117,40 @@ pub fn router_with_health_and_manual(
         .timeout(Duration::from_secs(90))
         .build()
         .expect("valid Realtime HTTP client configuration");
+    // A rejected secret used to be swallowed by `.ok()`: the server booted
+    // clean, logged nothing, and returned 503 CONFIRMATIONS_NOT_CONFIGURED on
+    // every gated call, which reads as a missing feature rather than a
+    // misconfiguration. Both the unset and the invalid case now say so.
     let confirmation_issuer = match &health {
-        HealthState::Postgres(pool) => std::env::var("MXGENIUS_CONFIRMATION_SECRET")
-            .ok()
-            .and_then(|secret| {
-                PostgresConfirmationGrantIssuer::new(
-                    pool.clone(),
-                    secret.as_bytes(),
-                    std::env::var("MXGENIUS_CONFIRMATION_ISSUER")
-                        .unwrap_or_else(|_| "mxgenius-application".into()),
-                    std::env::var("MXGENIUS_CONFIRMATION_AUDIENCE")
-                        .unwrap_or_else(|_| "mxgenius-mcp".into()),
-                )
-                .ok()
-            })
-            .map(Arc::new),
+        HealthState::Postgres(pool) => match std::env::var("MXGENIUS_CONFIRMATION_SECRET") {
+            Ok(secret) => match PostgresConfirmationGrantIssuer::new(
+                pool.clone(),
+                secret.as_bytes(),
+                std::env::var("MXGENIUS_CONFIRMATION_ISSUER")
+                    .unwrap_or_else(|_| "mxgenius-application".into()),
+                std::env::var("MXGENIUS_CONFIRMATION_AUDIENCE")
+                    .unwrap_or_else(|_| "mxgenius-mcp".into()),
+            ) {
+                Ok(issuer) => Some(Arc::new(issuer)),
+                Err(error) => {
+                    tracing::error!(
+                        target: "mxgenius.confirmation",
+                        %error,
+                        "MXGENIUS_CONFIRMATION_SECRET was rejected; confirmation grants are \
+                         disabled and every gated operation will fail"
+                    );
+                    None
+                }
+            },
+            Err(_) => {
+                tracing::warn!(
+                    target: "mxgenius.confirmation",
+                    "MXGENIUS_CONFIRMATION_SECRET is unset; confirmation grants are disabled \
+                     and every gated operation will fail"
+                );
+                None
+            }
+        },
         HealthState::Local => None,
     };
     let state = AppState {
@@ -4608,7 +4627,7 @@ async fn seed_beta_access_rules(
     for (rule, rule_type, member_role) in [
         ("@advancedaog.com", "domain", "viewer"),
         ("@mxgenius.io", "domain", "viewer"),
-        ("hagy2392@gmail.com", "email", "procurement"),
+        ("hagy2392@gmail.com", "email", "manager"),
         ("rocky@mxgenius.io", "email", "procurement"),
         ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
     ] {
@@ -4627,10 +4646,15 @@ async fn seed_beta_access_rules(
         .bind(context.user_id.0)
         .execute(pool)
         .await?;
-        if member_role == "procurement" {
+        // A domain rule enrolls the whole company as `viewer`. A rule naming one
+        // person a stronger role has to move the membership that domain rule
+        // already created, or that person stays a viewer whatever the rule says.
+        // Only `viewer` is overwritten, so a role assigned deliberately
+        // elsewhere is never stomped by a redeploy.
+        if rule_type == "email" && member_role != "viewer" {
             sqlx::query(
                 r#"UPDATE organization_memberships AS membership
-                   SET role='procurement'
+                   SET role=$3
                    FROM users AS app_user
                    WHERE membership.user_id=app_user.id
                      AND membership.organization_id=$1
@@ -4639,6 +4663,7 @@ async fn seed_beta_access_rules(
             )
             .bind(context.organization_id.0)
             .bind(rule)
+            .bind(member_role)
             .execute(pool)
             .await?;
         }

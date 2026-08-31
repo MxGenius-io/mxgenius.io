@@ -147,7 +147,38 @@ async fn main() -> anyhow::Result<()> {
             tracing::warn!(target: "mxgenius.mcp", "authentication mode: pilot; persistent services enabled");
         }
         tracing::warn!(target: "mxgenius.mcp", "authentication mode: insecure-local");
-        Arc::new(InsecureLocalProvider::new(Role::Administrator))
+        let mut provider = InsecureLocalProvider::new(Role::Administrator);
+        // Without a verifier the provider leaves `confirmation` as `None` and
+        // every grant-gated parts operation rejects with 428, so receiving
+        // confirm, unit transitions, metadata correction, quantity adjust, and
+        // split are all unreachable locally. Attach the production verifier
+        // whenever the pool and a signing secret are both present.
+        match (&production_pool, std::env::var("MXGENIUS_CONFIRMATION_SECRET")) {
+            (Some(pool), Ok(secret)) => {
+                let verifier = PostgresConfirmationGrantVerifier::new(
+                    pool.clone(),
+                    secret.as_bytes(),
+                    std::env::var("MXGENIUS_CONFIRMATION_ISSUER")
+                        .unwrap_or_else(|_| "mxgenius-application".into()),
+                    std::env::var("MXGENIUS_CONFIRMATION_AUDIENCE")
+                        .unwrap_or_else(|_| "mxgenius-mcp".into()),
+                )?;
+                provider = provider.with_confirmation_verifier(Arc::new(verifier));
+                tracing::info!(
+                    target: "mxgenius.mcp",
+                    "confirmation grants: enabled (local verifier)"
+                );
+            }
+            (Some(_), Err(_)) => {
+                tracing::warn!(
+                    target: "mxgenius.mcp",
+                    "confirmation grants: disabled; MXGENIUS_CONFIRMATION_SECRET is unset, so \
+                     stock-mutating parts operations will reject with 428"
+                );
+            }
+            (None, _) => {}
+        }
+        Arc::new(provider)
     } else {
         production_context_provider(production_pool.clone().expect("production pool")).await?
     };
