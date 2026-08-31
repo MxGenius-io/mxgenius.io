@@ -262,13 +262,18 @@ impl Tool for PartsInventoryTool {
             })
             .unwrap_or_default();
         let repository = PartsInventoryRepository::new(self.pool.as_ref());
+        // Unwindowed: the part and condition filters below are applied in
+        // Rust, so a page here would drop matching units before they are
+        // considered.
         let mut units = repository
-            .search(
+            .search_all(
                 ctx,
                 &SearchPartsQuery {
                     query: None,
                     status: Some("available".into()),
                     location: None,
+                    page: None,
+                    page_size: None,
                 },
             )
             .await
@@ -396,13 +401,17 @@ impl Tool for PartsRankOptionsTool {
             return Ok(env);
         };
         let repository = PartsInventoryRepository::new(self.pool.as_ref());
+        // Unwindowed: ranking below filters in Rust, so a page would drop
+        // candidates before they are ranked.
         let mut units = repository
-            .search(
+            .search_all(
                 ctx,
                 &SearchPartsQuery {
                     query: None,
                     status: Some("available".into()),
                     location: None,
+                    page: None,
+                    page_size: None,
                 },
             )
             .await

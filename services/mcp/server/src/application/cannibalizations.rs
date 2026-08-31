@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::cannibalization::{
     completion_problem, life_transfer_missing, proposal_problem, violates_separation_of_duties,
     CannibalizationStatus, CompletionFacts,
@@ -52,6 +53,16 @@ pub struct CannibalizationDto {
 pub struct CannibalizationQuery {
     pub status: Option<String>,
     pub aircraft_id: Option<String>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page: Option<i64>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page_size: Option<i64>,
+}
+
+impl CannibalizationQuery {
+    fn page_request(&self) -> PageRequest {
+        PageRequest::clamped(self.page, self.page_size)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,7 +120,7 @@ impl<'a> CannibalizationRepository<'a> {
         &self,
         context: &ExecutionContext,
         query: &CannibalizationQuery,
-    ) -> Result<Vec<CannibalizationDto>, PartsInventoryError> {
+    ) -> Result<Page<CannibalizationDto>, PartsInventoryError> {
         if let Some(status) = query.status.as_deref() {
             if CannibalizationStatus::parse(status).is_none() {
                 return Err(PartsInventoryError::Invalid(format!(
@@ -117,7 +128,23 @@ impl<'a> CannibalizationRepository<'a> {
                 )));
             }
         }
-        sqlx::query_as::<_, CannibalizationDto>(
+        let paging = query.page_request();
+        const FILTER: &str = "FROM cannibalizations
+               WHERE organization_id=$1
+                 AND ($2::text IS NULL OR status=$2)
+                 AND ($3::text IS NULL OR donor_aircraft_id=$3 OR receiver_aircraft_id=$3)";
+
+        let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) {FILTER}"))
+            .bind(context.organization_id.0)
+            .bind(query.status.as_deref())
+            .bind(query.aircraft_id.as_deref())
+            .fetch_one(self.pool)
+            .await?;
+
+        // `created_at` alone is not unique, so without the `id` tiebreaker two
+        // rows sharing a timestamp could straddle a page boundary and be
+        // returned twice or skipped entirely.
+        let rows = sqlx::query_as::<_, CannibalizationDto>(&format!(
             r#"SELECT id, rotable_unit_id, donor_removal_event_id, receiver_install_event_id,
                       donor_aircraft_id, receiver_aircraft_id, part_number, serial_number,
                       is_life_limited,
@@ -125,24 +152,24 @@ impl<'a> CannibalizationRepository<'a> {
                       transferred_cycles, backfill_order_id, cannibalized_at,
                       expected_rts_without, expected_rts_with, rts_impact_rationale,
                       status, proposed_by, approved_by, decided_at, notes, version, created_at
-               FROM cannibalizations
-               WHERE organization_id=$1
-                 AND ($2::text IS NULL OR status=$2)
-                 AND ($3::text IS NULL OR donor_aircraft_id=$3 OR receiver_aircraft_id=$3)
+               {FILTER}
                ORDER BY CASE status
                             WHEN 'proposed' THEN 0
                             WHEN 'approved' THEN 1
                             ELSE 2
                         END,
-                        created_at DESC
-               LIMIT 250"#,
-        )
+                        created_at DESC,
+                        id
+               LIMIT $4 OFFSET $5"#
+        ))
         .bind(context.organization_id.0)
         .bind(query.status.as_deref())
         .bind(query.aircraft_id.as_deref())
+        .bind(paging.limit())
+        .bind(paging.offset())
         .fetch_all(self.pool)
-        .await
-        .map_err(Into::into)
+        .await?;
+        Ok(Page::new(rows, paging, total))
     }
 
     pub async fn get(

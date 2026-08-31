@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::part_trace::{
     PartEventKind, RemovalReason, ShipmentPurpose, ShipmentStatus, TraceType,
 };
@@ -115,6 +116,16 @@ pub struct EventQuery {
     pub part_number: Option<String>,
     pub part_serial: Option<String>,
     pub stock_unit_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page: Option<i64>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page_size: Option<i64>,
+}
+
+impl EventQuery {
+    fn page_request(&self) -> PageRequest {
+        PageRequest::clamped(self.page, self.page_size)
+    }
 }
 
 pub struct PartTraceabilityRepository<'a> {
@@ -368,29 +379,43 @@ impl<'a> PartTraceabilityRepository<'a> {
         &self,
         context: &ExecutionContext,
         query: &EventQuery,
-    ) -> Result<Vec<PartEventDto>, PartsInventoryError> {
-        sqlx::query_as::<_, PartEventDto>(
-            r#"SELECT id, part_requirement_id, stock_unit_id, event_kind, aircraft_id,
-                      case_id, part_number, part_serial, position_reference, event_at,
-                      performed_by, removal_reason, notes, version, created_at
-               FROM part_events
+    ) -> Result<Page<PartEventDto>, PartsInventoryError> {
+        let paging = query.page_request();
+        const FILTER: &str = "FROM part_events
                WHERE organization_id=$1
                  AND archived_at IS NULL
                  AND ($2::text IS NULL OR aircraft_id = $2)
                  AND ($3::text IS NULL OR part_number = $3)
                  AND ($4::text IS NULL OR part_serial = $4)
-                 AND ($5::uuid IS NULL OR stock_unit_id = $5)
+                 AND ($5::uuid IS NULL OR stock_unit_id = $5)";
+
+        let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) {FILTER}"))
+            .bind(context.organization_id.0)
+            .bind(query.aircraft_id.as_deref())
+            .bind(query.part_number.as_deref())
+            .bind(query.part_serial.as_deref())
+            .bind(query.stock_unit_id)
+            .fetch_one(self.pool)
+            .await?;
+
+        let rows = sqlx::query_as::<_, PartEventDto>(&format!(
+            r#"SELECT id, part_requirement_id, stock_unit_id, event_kind, aircraft_id,
+                      case_id, part_number, part_serial, position_reference, event_at,
+                      performed_by, removal_reason, notes, version, created_at
+               {FILTER}
                ORDER BY event_at DESC, id
-               LIMIT 250"#,
-        )
+               LIMIT $6 OFFSET $7"#
+        ))
         .bind(context.organization_id.0)
         .bind(query.aircraft_id.as_deref())
         .bind(query.part_number.as_deref())
         .bind(query.part_serial.as_deref())
         .bind(query.stock_unit_id)
+        .bind(paging.limit())
+        .bind(paging.offset())
         .fetch_all(self.pool)
-        .await
-        .map_err(Into::into)
+        .await?;
+        Ok(Page::new(rows, paging, total))
     }
 }
 

@@ -494,13 +494,17 @@ impl Tool for SchedulingPartsReadinessTool {
         let mut blocking: Vec<String> = Vec::new();
         let mut certificate_gaps: Vec<String> = Vec::new();
         for part_id in &part_ids {
+            // Unwindowed: `retain` below filters by part in Rust, so a page
+            // could report "no available stock" for a part that has some.
             let mut units = repository
-                .search(
+                .search_all(
                     ctx,
                     &SearchPartsQuery {
                         query: None,
                         status: Some("available".into()),
                         location: None,
+                        page: None,
+                        page_size: None,
                     },
                 )
                 .await

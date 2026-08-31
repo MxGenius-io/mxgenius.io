@@ -45,7 +45,7 @@ use crate::application::part_traceability::{
 };
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
-    ExtractionProposal, PartShortageDto, PartsInventoryError, PartsInventoryRepository,
+    ExtractionProposal, PartsInventoryError, PartsInventoryRepository,
     RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction,
     TransitionUnitInput, UpsertLocationInput,
 };
@@ -53,6 +53,7 @@ use crate::application::rotables::{
     CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
 };
 use crate::confirmation::PostgresConfirmationGrantIssuer;
+use mxgenius_shared::application::paging::PageRequest;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
 use mxgenius_shared::adapters::manual::{
@@ -2224,6 +2225,26 @@ async fn application_context_with_confirmation(
     }
 }
 
+/// One wire shape for every paged list.
+///
+/// The rows stay under their existing key so callers that only read the array
+/// keep working, and the window metadata sits beside them. Serializing the
+/// `Page` itself under that key instead would silently turn the array into an
+/// object and break every existing reader.
+fn paged_json<T: Serialize>(key: &'static str, page: mxgenius_shared::application::paging::Page<T>) -> Response {
+    (
+        StatusCode::OK,
+        Json(json!({
+            key: page.items,
+            "page": page.page,
+            "pageSize": page.page_size,
+            "totalCount": page.total_count,
+            "hasMore": page.has_more
+        })),
+    )
+        .into_response()
+}
+
 #[allow(clippy::result_large_err)]
 fn ensure_parts_enabled(state: &AppState) -> Result<(), Response> {
     if state.parts_enabled {
@@ -2335,6 +2356,10 @@ struct ListLocationsQuery {
 struct ShortagesQuery {
     /// Default hides requirements stock already covers.
     include_covered: Option<bool>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    page: Option<i64>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    page_size: Option<i64>,
 }
 
 /// Parts ledger mutations that accept a signed single-use confirmation grant
@@ -2441,9 +2466,18 @@ async fn search_parts(
         .search(&context, &query)
         .await
     {
+        // `nextCursor` is retained for callers that still read it; it was
+        // always null and paging is expressed by page/hasMore.
         Ok(units) => (
             StatusCode::OK,
-            Json(json!({"units": units, "nextCursor": null})),
+            Json(json!({
+                "units": units.items,
+                "page": units.page,
+                "pageSize": units.page_size,
+                "totalCount": units.total_count,
+                "hasMore": units.has_more,
+                "nextCursor": null
+            })),
         )
             .into_response(),
         Err(error) => parts_error(error, "parts.search"),
@@ -3302,19 +3336,23 @@ async fn list_part_requests(
         .list_requests(&context, &query)
         .await
     {
-        Ok(requests) => {
-            let overdue = requests.iter().filter(|row| row.is_overdue).count();
-            let missing_need_by = requests.iter().filter(|row| row.missing_need_by).count();
-            (
-                StatusCode::OK,
-                Json(json!({
-                    "requests": requests,
-                    "overdue": overdue,
-                    "missingNeedBy": missing_need_by
-                })),
-            )
-                .into_response()
-        }
+        // `overdue` and `missingNeedBy` arrive counted over the whole filtered
+        // set. They were previously derived from the returned rows, which the
+        // old unpaged `LIMIT 250` already truncated and a page would cap at the
+        // page size.
+        Ok(page) => (
+            StatusCode::OK,
+            Json(json!({
+                "requests": page.page.items,
+                "page": page.page.page,
+                "pageSize": page.page.page_size,
+                "totalCount": page.page.total_count,
+                "hasMore": page.page.has_more,
+                "overdue": page.overdue,
+                "missingNeedBy": page.missing_need_by
+            })),
+        )
+            .into_response(),
         Err(error) => parts_error(error, "parts.requests.list"),
     }
 }
@@ -3525,7 +3563,7 @@ async fn list_part_events(
         .list_events(&context, &query)
         .await
     {
-        Ok(events) => (StatusCode::OK, Json(json!({"events": events}))).into_response(),
+        Ok(events) => paged_json("events", events),
         Err(error) => parts_error(error, "parts.events.list"),
     }
 }
@@ -3571,7 +3609,7 @@ async fn list_rotables(
         return persistence_not_configured();
     };
     match RotableRepository::new(pool).list(&context, &query).await {
-        Ok(units) => (StatusCode::OK, Json(json!({"rotables": units}))).into_response(),
+        Ok(units) => paged_json("rotables", units),
         Err(error) => parts_error(error, "parts.rotables.list"),
     }
 }
@@ -3703,7 +3741,7 @@ async fn list_cannibalizations(
         .list(&context, &query)
         .await
     {
-        Ok(rows) => (StatusCode::OK, Json(json!({"cannibalizations": rows}))).into_response(),
+        Ok(rows) => paged_json("cannibalizations", rows),
         Err(error) => parts_error(error, "parts.cannibalizations.list"),
     }
 }
@@ -4164,21 +4202,25 @@ async fn list_parts_shortages(
         return persistence_not_configured();
     };
     let only_short = !query.include_covered.unwrap_or(false);
+    let paging = PageRequest::clamped(query.page, query.page_size);
     match PartsInventoryRepository::new(pool)
-        .list_shortages(&context, only_short)
+        .list_shortages(&context, only_short, paging)
         .await
     {
-        Ok(shortages) => {
-            let outstanding = shortages
-                .iter()
-                .filter(|row: &&PartShortageDto| row.shortfall > 0.0)
-                .count();
-            (
-                StatusCode::OK,
-                Json(json!({"shortages": shortages, "outstanding": outstanding})),
-            )
-                .into_response()
-        }
+        // `outstanding` arrives counted over the whole filtered set rather
+        // than over the returned rows, which a page would cap.
+        Ok(shortages) => (
+            StatusCode::OK,
+            Json(json!({
+                "shortages": shortages.page.items,
+                "page": shortages.page.page,
+                "pageSize": shortages.page.page_size,
+                "totalCount": shortages.page.total_count,
+                "hasMore": shortages.page.has_more,
+                "outstanding": shortages.outstanding
+            })),
+        )
+            .into_response(),
         Err(error) => parts_error(error, "parts.shortages.list"),
     }
 }

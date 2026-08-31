@@ -71,6 +71,20 @@
   color: #f87171;
 }
 
+.parts-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 0 4px;
+  color: var(--text-muted);
+}
+
+.parts-pager button[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .parts-content {
   flex: 1;
   overflow-y: auto;

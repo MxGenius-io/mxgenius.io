@@ -497,6 +497,33 @@ const MXPartsWorkspace = (() => {
       </article>`;
   }
 
+  // The page the request queue is currently showing. Filter changes reset it,
+  // because page 7 of a different filter is not a meaningful place to land.
+  let requestPage = 1;
+
+  function renderRequestPager(payload) {
+    const pager = byId('requestPager');
+    if (!pager) return;
+    const total = Number(payload.totalCount || 0);
+    const size = Number(payload.pageSize || 0);
+    const page = Number(payload.page || 1);
+    // A single page needs no pager, but the count still matters when a filter
+    // matches more than it shows.
+    if (!total || total <= size) {
+      pager.hidden = true;
+      return;
+    }
+    pager.hidden = false;
+    const first = (page - 1) * size + 1;
+    const last = Math.min(page * size, total);
+    const label = byId('requestPagerLabel');
+    if (label) label.textContent = `${first}–${last} of ${total}`;
+    const prev = byId('requestPagerPrev');
+    const next = byId('requestPagerNext');
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = !payload.hasMore;
+  }
+
   async function loadRequests() {
     const list = byId('partsRequestList');
     if (!list || !client.listRequests) return;
@@ -507,11 +534,14 @@ const MXPartsWorkspace = (() => {
         priority: byId('requestPriorityFilter')?.value || undefined,
         overdueOnly: byId('requestOverdueOnly')?.checked || false,
         missingNeedByOnly: byId('requestMissingNeedBy')?.checked || false,
+        page: requestPage,
         session: await session()
       });
       const rows = payload.requests || [];
+      renderRequestPager(payload);
       const badge = byId('overdueCount');
       if (badge) {
+        // Server-derived and counted over every page, not just this one.
         badge.hidden = !payload.overdue;
         badge.textContent = payload.overdue || '';
       }
@@ -533,6 +563,8 @@ const MXPartsWorkspace = (() => {
         button.addEventListener('click', () => showTrace(button.dataset.openTrace));
       });
     } catch (error) {
+      const pager = byId('requestPager');
+      if (pager) pager.hidden = true;
       list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
     }
   }
@@ -1377,6 +1409,11 @@ const MXPartsWorkspace = (() => {
               </div>
               <div id="requestStatus" class="parts-inline-status" aria-live="polite"></div>
               <div id="partsRequestList"></div>
+              <div id="requestPager" class="parts-pager" hidden>
+                <button type="button" id="requestPagerPrev" class="secondary">Previous</button>
+                <span id="requestPagerLabel" aria-live="polite"></span>
+                <button type="button" id="requestPagerNext" class="secondary">Next</button>
+              </div>
             </div>
             <div id="partsRotablesView" hidden>
               <div class="request-filters">
@@ -1621,8 +1658,23 @@ const MXPartsWorkspace = (() => {
       tab.addEventListener('click', () => switchView(tab.dataset.view));
     });
     byId('shortageIncludeCovered')?.addEventListener('change', loadShortages);
+    // Changing a filter returns to page 1: the page a different filter was on
+    // says nothing about where the new result set starts.
     ['requestStatusFilter', 'requestPriorityFilter', 'requestOverdueOnly', 'requestMissingNeedBy']
-      .forEach((id) => byId(id)?.addEventListener('change', loadRequests));
+      .forEach((id) => byId(id)?.addEventListener('change', () => {
+        requestPage = 1;
+        loadRequests();
+      }));
+    byId('requestPagerPrev')?.addEventListener('click', () => {
+      if (requestPage > 1) {
+        requestPage -= 1;
+        loadRequests();
+      }
+    });
+    byId('requestPagerNext')?.addEventListener('click', () => {
+      requestPage += 1;
+      loadRequests();
+    });
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnRunReport')?.addEventListener('click', () => runReport(false));
     byId('btnReportMore')?.addEventListener('click', () => runReport(true));

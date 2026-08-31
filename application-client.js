@@ -935,12 +935,18 @@ const MXApplicationClient = (() => {
     getLabel: async ({ unitId, session = {} }) => {
       return applicationJson(`/api/parts/units/${encodeURIComponent(unitId)}/label`, { session });
     },
-    listRequests: async ({ status, priority, overdueOnly = false, missingNeedByOnly = false, session = {} } = {}) => {
+    listRequests: async ({
+      status, priority, overdueOnly = false, missingNeedByOnly = false,
+      page, pageSize, session = {}
+    } = {}) => {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
       if (priority) params.set('priority', priority);
       if (overdueOnly) params.set('overdueOnly', 'true');
       if (missingNeedByOnly) params.set('missingNeedByOnly', 'true');
+      // The server clamps both, so an out-of-range value here is safe.
+      if (page) params.set('page', String(page));
+      if (pageSize) params.set('pageSize', String(pageSize));
       return applicationJson(`/api/parts/requests?${params}`, { session });
     },
     listOrders: async ({ requirementId, session = {} }) => {

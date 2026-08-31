@@ -3,8 +3,11 @@
 //! `envelope` is the universal tool result shape. `errors` defines the stable
 //! error code set. `context` is the trusted execution context injected by the
 //! server. `policy` is the role/action matrix and the state-transition guard.
+//! `paging` is the single clamped window and response envelope every list
+//! endpoint pages with.
 
 pub mod context;
 pub mod envelope;
 pub mod errors;
+pub mod paging;
 pub mod policy;

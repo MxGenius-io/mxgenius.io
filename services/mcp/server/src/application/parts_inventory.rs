@@ -10,6 +10,7 @@ use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::part::StockUnitStatus;
 
 #[derive(Debug, Deserialize, Default)]
@@ -17,6 +18,18 @@ pub struct SearchPartsQuery {
     pub query: Option<String>,
     pub status: Option<String>,
     pub location: Option<String>,
+    /// One-based page number. Clamped, never rejected.
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page: Option<i64>,
+    /// Rows per page. Clamped to the paging module's ceiling.
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page_size: Option<i64>,
+}
+
+impl SearchPartsQuery {
+    fn page_request(&self) -> PageRequest {
+        PageRequest::clamped(self.page, self.page_size)
+    }
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -290,6 +303,22 @@ pub struct StockAction {
     pub location_type: &'static str,
 }
 
+/// Aggregates over the whole filtered shortage set, counted before paging.
+#[derive(Debug, FromRow)]
+struct ShortageTotals {
+    total: i64,
+    outstanding: i64,
+}
+
+/// One page of shortages plus the outstanding count over all of them.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortagePage {
+    #[serde(flatten)]
+    pub page: Page<PartShortageDto>,
+    pub outstanding: i64,
+}
+
 impl StockAction {
     pub fn parse(action: &str) -> Option<Self> {
         use StockUnitStatus::*;
@@ -484,21 +513,25 @@ impl<'a> PartsInventoryRepository<'a> {
         &self,
         context: &ExecutionContext,
         query: &SearchPartsQuery,
-    ) -> Result<Vec<StockUnitDto>, PartsInventoryError> {
+    ) -> Result<Page<StockUnitDto>, PartsInventoryError> {
+        self.search_page(context, query, query.page_request()).await
+    }
+
+    async fn search_page(
+        &self,
+        context: &ExecutionContext,
+        query: &SearchPartsQuery,
+        paging: PageRequest,
+    ) -> Result<Page<StockUnitDto>, PartsInventoryError> {
         let search = query
             .query
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(|value| format!("%{}%", value.to_lowercase()));
-        let rows = sqlx::query_as::<_, StockUnitDto>(
-            r#"SELECT su.id, su.part_id, p.part_number, p.description, p.manufacturer,
-                      su.serial_number, su.lot_number,
-                      su.quantity::double precision AS quantity,
-                      su.condition_code, su.status, su.trace_type,
-                      su.certificate_number, su.location_id, l.code AS location,
-                      su.owner_type, su.metadata, su.version, su.received_at, su.updated_at
-               FROM stock_units su
+
+        // Written once so the total and the window describe the same set.
+        const FILTER: &str = "FROM stock_units su
                JOIN parts p ON p.id=su.part_id
                JOIN inventory_locations l
                  ON l.organization_id=su.organization_id AND l.id=su.location_id
@@ -508,17 +541,60 @@ impl<'a> PartsInventoryRepository<'a> {
                       lower(p.description) LIKE $2 OR
                       lower(COALESCE(su.serial_number,'')) LIKE $2)
                  AND ($3::text IS NULL OR su.status=$3)
-                 AND ($4::text IS NULL OR l.code=$4)
+                 AND ($4::text IS NULL OR l.code=$4)";
+
+        let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) {FILTER}"))
+            .bind(context.organization_id.0)
+            .bind(search.clone())
+            .bind(query.status.as_deref())
+            .bind(query.location.as_deref())
+            .fetch_one(self.pool)
+            .await?;
+
+        let rows = sqlx::query_as::<_, StockUnitDto>(&format!(
+            r#"SELECT su.id, su.part_id, p.part_number, p.description, p.manufacturer,
+                      su.serial_number, su.lot_number,
+                      su.quantity::double precision AS quantity,
+                      su.condition_code, su.status, su.trace_type,
+                      su.certificate_number, su.location_id, l.code AS location,
+                      su.owner_type, su.metadata, su.version, su.received_at, su.updated_at
+               {FILTER}
                ORDER BY su.updated_at DESC, su.id
-               LIMIT 250"#,
-        )
+               LIMIT $5 OFFSET $6"#
+        ))
         .bind(context.organization_id.0)
         .bind(search)
         .bind(query.status.as_deref())
         .bind(query.location.as_deref())
+        .bind(paging.limit())
+        .bind(paging.offset())
         .fetch_all(self.pool)
         .await?;
-        Ok(rows)
+        Ok(Page::new(rows, paging, total))
+    }
+
+    /// Every unit matching the filter, with no window.
+    ///
+    /// For server-side aggregation only, where a page would silently change
+    /// the answer: a risk score computed over the first page of stock is not
+    /// a risk score over the fleet's stock. HTTP list endpoints use the paged
+    /// [`search`](Self::search) instead.
+    pub async fn search_all(
+        &self,
+        context: &ExecutionContext,
+        query: &SearchPartsQuery,
+    ) -> Result<Vec<StockUnitDto>, PartsInventoryError> {
+        let mut paging = PageRequest::clamped(Some(1), Some(PageRequest::MAX_PAGE_SIZE));
+        let mut all = Vec::new();
+        loop {
+            let page = self.search_page(context, query, paging).await?;
+            let has_more = page.has_more;
+            all.extend(page.items);
+            if !has_more {
+                return Ok(all);
+            }
+            paging = PageRequest::clamped(Some(paging.page() + 1), Some(paging.page_size()));
+        }
     }
 
     pub async fn get_unit(
@@ -1204,15 +1280,59 @@ impl<'a> PartsInventoryRepository<'a> {
         &self,
         context: &ExecutionContext,
         only_short: bool,
-    ) -> Result<Vec<PartShortageDto>, PartsInventoryError> {
-        let rows = sqlx::query_as::<_, PartShortageDto>(
-            r#"WITH free_stock AS (
+        paging: PageRequest,
+    ) -> Result<ShortagePage, PartsInventoryError> {
+        // The free-stock CTE and the filter are shared by the count and the
+        // page so the total cannot describe a different set than the rows.
+        const BODY: &str = r#"WITH free_stock AS (
                    SELECT su.part_id, su.condition_code,
                           sum(su.quantity)::double precision AS quantity
                    FROM stock_units su
                    WHERE su.organization_id=$1 AND su.status='available'
                    GROUP BY su.part_id, su.condition_code
-               )
+               )"#;
+        const FROM_AND_FILTER: &str = r#"FROM part_requirements pr
+               JOIN maintenance_cases mc ON mc.case_id = pr.case_id
+               JOIN parts p ON p.id = pr.part_id
+               WHERE mc.organization_id = $1
+                 AND mc.status NOT IN ('closed', 'cancelled')
+                 AND (NOT $2 OR pr.quantity::double precision > COALESCE((
+                         SELECT sum(fs.quantity)
+                         FROM free_stock fs
+                         WHERE fs.part_id = pr.part_id
+                           AND (
+                               jsonb_array_length(pr.acceptable_conditions) = 0
+                               OR pr.acceptable_conditions ? fs.condition_code
+                           )
+                     ), 0)::double precision)"#;
+
+        // Totals over the whole filtered set. `outstanding` rides the same
+        // query as the count so the summary and the pager cannot disagree;
+        // deriving it from the returned rows would cap it at the page size.
+        let totals: ShortageTotals = sqlx::query_as(&format!(
+            r#"{BODY}
+               SELECT count(*) AS total,
+                      count(*) FILTER (
+                          WHERE pr.quantity::double precision > COALESCE((
+                              SELECT sum(fs.quantity)
+                              FROM free_stock fs
+                              WHERE fs.part_id = pr.part_id
+                                AND (
+                                    jsonb_array_length(pr.acceptable_conditions) = 0
+                                    OR pr.acceptable_conditions ? fs.condition_code
+                                )
+                          ), 0)::double precision
+                      ) AS outstanding
+               {FROM_AND_FILTER}"#
+        ))
+        .bind(context.organization_id.0)
+        .bind(only_short)
+        .fetch_one(self.pool)
+        .await?;
+        let total = totals.total;
+
+        let rows = sqlx::query_as::<_, PartShortageDto>(&format!(
+            r#"{BODY}
                SELECT pr.id AS requirement_id,
                       mc.case_id,
                       mc.status AS case_status,
@@ -1245,20 +1365,7 @@ impl<'a> PartsInventoryRepository<'a> {
                           ), 0)::double precision,
                           0
                       ) AS shortfall
-               FROM part_requirements pr
-               JOIN maintenance_cases mc ON mc.case_id = pr.case_id
-               JOIN parts p ON p.id = pr.part_id
-               WHERE mc.organization_id = $1
-                 AND mc.status NOT IN ('closed', 'cancelled')
-                 AND (NOT $2 OR pr.quantity::double precision > COALESCE((
-                         SELECT sum(fs.quantity)
-                         FROM free_stock fs
-                         WHERE fs.part_id = pr.part_id
-                           AND (
-                               jsonb_array_length(pr.acceptable_conditions) = 0
-                               OR pr.acceptable_conditions ? fs.condition_code
-                           )
-                     ), 0)::double precision)
+               {FROM_AND_FILTER}
                ORDER BY
                    CASE mc.priority
                        WHEN 'aog' THEN 0
@@ -1267,14 +1374,20 @@ impl<'a> PartsInventoryRepository<'a> {
                        ELSE 3
                    END,
                    pr.required_by NULLS LAST,
-                   p.part_number
-               LIMIT 250"#,
-        )
+                   p.part_number,
+                   pr.id
+               LIMIT $3 OFFSET $4"#
+        ))
         .bind(context.organization_id.0)
         .bind(only_short)
+        .bind(paging.limit())
+        .bind(paging.offset())
         .fetch_all(self.pool)
         .await?;
-        Ok(rows)
+        Ok(ShortagePage {
+            page: Page::new(rows, paging, total),
+            outstanding: totals.outstanding,
+        })
     }
 
     pub async fn list_locations(

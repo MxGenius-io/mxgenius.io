@@ -552,3 +552,89 @@ test('Bulk import', async (t) => {
     assert.match(http, /parts_inspection_release_allowed/);
   });
 });
+
+test('Server-side paging', async (t) => {
+  const paging = readFileSync('services/mcp/shared/src/application/paging.rs', 'utf8');
+  const procurement = readFileSync(
+    'services/mcp/server/src/application/part_procurement.rs', 'utf8');
+  const inventory = readFileSync(
+    'services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+  const listSources = [
+    procurement,
+    inventory,
+    readFileSync('services/mcp/server/src/application/rotables.rs', 'utf8'),
+    readFileSync('services/mcp/server/src/application/cannibalizations.rs', 'utf8'),
+    readFileSync('services/mcp/server/src/application/part_traceability.rs', 'utf8')
+  ];
+
+  await t.test('no parts list silently truncates at a hard cap', () => {
+    // A bare LIMIT with no offset, total, or signal tells the caller "there
+    // are this many" when the truth is "there are more".
+    for (const source of listSources) {
+      assert.doesNotMatch(source, /LIMIT 250/,
+        'a hard row cap must be replaced by a window with a total');
+    }
+  });
+
+  await t.test('every paged query takes its window from the clamped request', () => {
+    for (const source of listSources) {
+      assert.match(source, /LIMIT \$\d+ OFFSET \$\d+/);
+      assert.match(source, /paging\.limit\(\)/);
+      assert.match(source, /paging\.offset\(\)/);
+    }
+  });
+
+  await t.test('the window is clamped and unparseable input falls back', () => {
+    assert.match(paging, /MAX_PAGE_SIZE: i64 = 200/);
+    assert.match(paging, /DEFAULT_PAGE_SIZE: i64 = 50/);
+    assert.match(paging, /\.clamp\(1, Self::MAX_PAGE_SIZE\)/);
+    assert.match(paging, /pub fn lenient_page_number/);
+    // A stale bookmark must not overflow the offset arithmetic.
+    assert.match(paging, /saturating_sub\(1\)\.saturating_mul/);
+  });
+
+  await t.test('totals are counted over the filtered set, not the page', () => {
+    // The queue summary was previously derived by filtering the returned
+    // rows, which caps every count at the page size and puts the summary and
+    // the list back into the disagreement the overdue rule exists to prevent.
+    assert.match(procurement, /count\(\*\) FILTER \(WHERE/);
+    assert.match(procurement, /struct RequestQueueTotals/);
+    assert.match(inventory, /struct ShortageTotals/);
+    assert.doesNotMatch(partsHttp, /requests\s*\n?\s*\.iter\(\)\s*\n?\s*\.filter\(\|row\| row\.is_overdue\)/);
+    assert.doesNotMatch(partsHttp, /\.filter\(\|row: &&PartShortageDto\| row\.shortfall > 0\.0\)/);
+  });
+
+  await t.test('paged sorts carry a unique tiebreaker', () => {
+    // Without one, rows sharing a sort key can straddle a page boundary and
+    // be returned twice or skipped entirely.
+    assert.match(procurement, /pr\.required_by NULLS LAST,\s*\n\s*pr\.id/);
+    assert.match(listSources[3], /created_at DESC,\s*\n\s*id/);
+  });
+
+  await t.test('paged responses keep rows under their existing key', () => {
+    // Serializing the Page itself under that key would turn the array into an
+    // object and silently break every existing reader.
+    assert.match(partsHttp, /fn paged_json<T: Serialize>/);
+    assert.match(partsHttp, /"totalCount": page\.total_count/);
+    assert.match(partsHttp, /"units": units\.items/);
+    assert.match(partsHttp, /"requests": page\.page\.items/);
+  });
+
+  await t.test('the request queue exposes a pager the user can reach page 2 with', () => {
+    assert.match(js, /id="requestPager"/);
+    assert.match(js, /requestPagerPrev/);
+    assert.match(js, /requestPagerNext/);
+    assert.match(js, /function renderRequestPager/);
+    // A filter change must not leave the user stranded on a page the new
+    // result set may not have.
+    assert.match(js, /requestPage = 1;/);
+    assert.match(css, /\.parts-pager/);
+  });
+
+  await t.test('the client forwards the window and never recomputes the counts', () => {
+    assert.match(client, /params\.set\('page', String\(page\)\)/);
+    assert.match(client, /params\.set\('pageSize', String\(pageSize\)\)/);
+    // overdue/missingNeedBy come from the server; the workspace only renders.
+    assert.doesNotMatch(js, /rows\.filter\(\(r\) => r\.isOverdue\)\.length/);
+  });
+});

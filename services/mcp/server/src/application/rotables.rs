@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::rotable::{
     edit_touches_pairing, retirement_note, status_aircraft_contradiction, RetirementBlocker,
     RotableStatus, MAX_RETIREMENT_REASON, OPEN_CANNIBALIZATION_STATUSES, OPEN_CORE_STATUSES,
@@ -42,6 +43,16 @@ pub struct RotableQuery {
     pub aircraft_id: Option<String>,
     pub part_number: Option<String>,
     pub include_retired: Option<bool>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page: Option<i64>,
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page_size: Option<i64>,
+}
+
+impl RotableQuery {
+    fn page_request(&self) -> PageRequest {
+        PageRequest::clamped(self.page, self.page_size)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +100,7 @@ impl<'a> RotableRepository<'a> {
         &self,
         context: &ExecutionContext,
         query: &RotableQuery,
-    ) -> Result<Vec<RotableUnitDto>, PartsInventoryError> {
+    ) -> Result<Page<RotableUnitDto>, PartsInventoryError> {
         if let Some(status) = query.status.as_deref() {
             if RotableStatus::parse(status).is_none() {
                 return Err(PartsInventoryError::Invalid(format!(
@@ -97,28 +108,43 @@ impl<'a> RotableRepository<'a> {
                 )));
             }
         }
-        sqlx::query_as::<_, RotableUnitDto>(
-            r#"SELECT id, part_id, part_number, serial_number, nomenclature,
-                      current_status, current_aircraft_id, stock_unit_id,
-                      last_part_event_id, times_repaired, notes, version,
-                      created_at, updated_at
-               FROM rotable_units
+        let paging = query.page_request();
+        // One filter, shared by the count and the window.
+        const FILTER: &str = "FROM rotable_units
                WHERE organization_id=$1
                  AND ($2 OR retired_at IS NULL)
                  AND ($3::text IS NULL OR current_status=$3)
                  AND ($4::text IS NULL OR current_aircraft_id=$4)
-                 AND ($5::text IS NULL OR part_number=$5)
-               ORDER BY part_number, serial_number
-               LIMIT 250"#,
-        )
+                 AND ($5::text IS NULL OR part_number=$5)";
+
+        let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) {FILTER}"))
+            .bind(context.organization_id.0)
+            .bind(query.include_retired.unwrap_or(false))
+            .bind(query.status.as_deref())
+            .bind(query.aircraft_id.as_deref())
+            .bind(query.part_number.as_deref())
+            .fetch_one(self.pool)
+            .await?;
+
+        let rows = sqlx::query_as::<_, RotableUnitDto>(&format!(
+            r#"SELECT id, part_id, part_number, serial_number, nomenclature,
+                      current_status, current_aircraft_id, stock_unit_id,
+                      last_part_event_id, times_repaired, notes, version,
+                      created_at, updated_at
+               {FILTER}
+               ORDER BY part_number, serial_number, id
+               LIMIT $6 OFFSET $7"#
+        ))
         .bind(context.organization_id.0)
         .bind(query.include_retired.unwrap_or(false))
         .bind(query.status.as_deref())
         .bind(query.aircraft_id.as_deref())
         .bind(query.part_number.as_deref())
+        .bind(paging.limit())
+        .bind(paging.offset())
         .fetch_all(self.pool)
-        .await
-        .map_err(Into::into)
+        .await?;
+        Ok(Page::new(rows, paging, total))
     }
 
     pub async fn get(

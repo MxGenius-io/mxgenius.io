@@ -11,6 +11,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::part_request::{
     days_overdue, is_missing_need_by, is_overdue, PartOrderKind, PartOrderStatus,
     PartRequestPriority, PartRequestStatus, TypeOfBuy, OVERDUE_SQL_PREDICATE,
@@ -27,6 +28,41 @@ pub struct RequestQueueQuery {
     /// dashboard tile lands on exactly the rows the tile counted.
     pub overdue_only: Option<bool>,
     pub missing_need_by_only: Option<bool>,
+    /// One-based page number. Clamped, never rejected.
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page: Option<i64>,
+    /// Rows per page. Clamped to the paging module's ceiling.
+    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    pub page_size: Option<i64>,
+}
+
+impl RequestQueueQuery {
+    fn page_request(&self) -> PageRequest {
+        PageRequest::clamped(self.page, self.page_size)
+    }
+}
+
+/// One page of requests plus the counts a caller needs to render the queue.
+///
+/// `overdue` and `missing_need_by` are aggregates over the whole filtered set,
+/// not over `page.items`. Counting the returned rows instead would cap both at
+/// the page size and put the summary and the list back into the disagreement
+/// the published overdue rule exists to prevent.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestQueuePage {
+    #[serde(flatten)]
+    pub page: Page<PartRequestDto>,
+    pub overdue: i64,
+    pub missing_need_by: i64,
+}
+
+/// Aggregates over the whole filtered request set, counted before paging.
+#[derive(Debug, FromRow)]
+struct RequestQueueTotals {
+    total: i64,
+    overdue: i64,
+    missing_need_by: i64,
 }
 
 #[derive(Debug, FromRow)]
@@ -196,7 +232,7 @@ impl<'a> PartProcurementRepository<'a> {
         &self,
         context: &ExecutionContext,
         query: &RequestQueueQuery,
-    ) -> Result<Vec<PartRequestDto>, PartsInventoryError> {
+    ) -> Result<RequestQueuePage, PartsInventoryError> {
         if let Some(status) = query.status.as_deref() {
             if PartRequestStatus::parse(status).is_none() {
                 return Err(PartsInventoryError::Invalid(format!(
@@ -211,6 +247,45 @@ impl<'a> PartProcurementRepository<'a> {
                 )));
             }
         }
+
+        let paging = query.page_request();
+
+        // The filter is written once and interpolated into both the count and
+        // the page, so the total can never describe a different set than the
+        // rows.
+        let filter = format!(
+            "WHERE pr.organization_id = $1
+                 AND ($2::text IS NULL OR pr.status = $2)
+                 AND ($3::text IS NULL OR pr.priority = $3)
+                 AND (NOT $4 OR {overdue})
+                 AND (NOT $5 OR {missing})",
+            overdue = OVERDUE_SQL_PREDICATE,
+            missing = mxgenius_shared::domain::part_request::MISSING_NEED_BY_SQL_PREDICATE,
+        );
+
+        // Totals over the whole filtered set, counted before the window. The
+        // two flag counts ride the same query so they cannot drift from the
+        // total or from each other.
+        let totals_sql = format!(
+            r#"SELECT count(*) AS total,
+                      count(*) FILTER (WHERE {overdue}) AS overdue,
+                      count(*) FILTER (WHERE {missing}) AS missing_need_by
+               FROM part_requirements pr
+               JOIN maintenance_cases mc ON mc.case_id = pr.case_id
+               JOIN parts p ON p.id = pr.part_id
+               {filter}"#,
+            overdue = OVERDUE_SQL_PREDICATE,
+            missing = mxgenius_shared::domain::part_request::MISSING_NEED_BY_SQL_PREDICATE,
+            filter = filter,
+        );
+        let totals: RequestQueueTotals = sqlx::query_as(&totals_sql)
+            .bind(context.organization_id.0)
+            .bind(query.status.as_deref())
+            .bind(query.priority.as_deref())
+            .bind(query.overdue_only.unwrap_or(false))
+            .bind(query.missing_need_by_only.unwrap_or(false))
+            .fetch_one(self.pool)
+            .await?;
 
         let sql = format!(
             r#"SELECT pr.id, pr.case_id, mc.aircraft_id, pr.part_id,
@@ -229,11 +304,7 @@ impl<'a> PartProcurementRepository<'a> {
                FROM part_requirements pr
                JOIN maintenance_cases mc ON mc.case_id = pr.case_id
                JOIN parts p ON p.id = pr.part_id
-               WHERE pr.organization_id = $1
-                 AND ($2::text IS NULL OR pr.status = $2)
-                 AND ($3::text IS NULL OR pr.priority = $3)
-                 AND (NOT $4 OR {overdue})
-                 AND (NOT $5 OR {missing})
+               {filter}
                ORDER BY CASE pr.priority
                             WHEN 'aog' THEN 0
                             WHEN 'scheduled_mx' THEN 1
@@ -241,9 +312,8 @@ impl<'a> PartProcurementRepository<'a> {
                         END,
                         pr.required_by NULLS LAST,
                         pr.id
-               LIMIT 250"#,
-            overdue = OVERDUE_SQL_PREDICATE,
-            missing = mxgenius_shared::domain::part_request::MISSING_NEED_BY_SQL_PREDICATE,
+               LIMIT $6 OFFSET $7"#,
+            filter = filter,
         );
 
         let rows = sqlx::query_as::<_, PartRequestRow>(&sql)
@@ -252,12 +322,19 @@ impl<'a> PartProcurementRepository<'a> {
             .bind(query.priority.as_deref())
             .bind(query.overdue_only.unwrap_or(false))
             .bind(query.missing_need_by_only.unwrap_or(false))
+            .bind(paging.limit())
+            .bind(paging.offset())
             .fetch_all(self.pool)
             .await?;
 
         // One clock reading for the whole response.
         let as_of = OffsetDateTime::now_utc();
-        Ok(rows.into_iter().map(|row| row.stamp(as_of)).collect())
+        let items: Vec<PartRequestDto> = rows.into_iter().map(|row| row.stamp(as_of)).collect();
+        Ok(RequestQueuePage {
+            page: Page::new(items, paging, totals.total),
+            overdue: totals.overdue,
+            missing_need_by: totals.missing_need_by,
+        })
     }
 
     pub async fn list_orders(

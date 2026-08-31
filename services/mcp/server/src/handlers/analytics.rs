@@ -367,13 +367,17 @@ impl Tool for AnalyticsPartsRiskTool {
             return Ok(env);
         };
         let repository = PartsInventoryRepository::new(pool);
+        // Unwindowed: this scores risk across all available stock, and a page
+        // of it would be a different, quietly wrong answer.
         let units = repository
-            .search(
+            .search_all(
                 ctx,
                 &SearchPartsQuery {
                     query: None,
                     status: Some("available".into()),
                     location: None,
+                    page: None,
+                    page_size: None,
                 },
             )
             .await
