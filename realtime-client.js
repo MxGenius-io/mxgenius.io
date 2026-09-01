@@ -4,7 +4,7 @@
  */
 const MXRealtime = (() => {
   class RealtimeSession {
-    constructor({ exchangeSdp, onEvent = () => {}, peerFactory, mediaDevices, connectionTimeoutMs = 30_000 } = {}) {
+    constructor({ exchangeSdp, onEvent = () => {}, peerFactory, mediaDevices, connectionTimeoutMs = 30_000, iceGatheringTimeoutMs = 5_000 } = {}) {
       if (typeof exchangeSdp !== 'function') throw new TypeError('exchangeSdp is required');
       this.exchangeSdp = exchangeSdp;
       this.onEvent = onEvent;
@@ -33,6 +33,8 @@ const MXRealtime = (() => {
       this.connectionEpoch = 0;
       this.connectionTimer = null;
       this.connectionTimeoutMs = Math.max(1_000, Number(connectionTimeoutMs) || 30_000);
+      this.iceGatheringTimeoutMs = Math.max(500, Number(iceGatheringTimeoutMs) || 5_000);
+      this.localCandidateCount = 0;
     }
 
     emit(type, detail = {}) {
@@ -73,6 +75,11 @@ const MXRealtime = (() => {
         if (this.audioElement.style) this.audioElement.style.display = 'none';
         const peer = this.peerFactory();
         this.peer = peer;
+        this.localCandidateCount = 0;
+        peer.onicecandidate = (event) => {
+          if (epoch !== this.connectionEpoch || this.peer !== peer || !event?.candidate) return;
+          this.localCandidateCount += 1;
+        };
         peer.ontrack = (event) => {
           this.audioElement.srcObject = event.streams[0];
         };
@@ -150,9 +157,11 @@ const MXRealtime = (() => {
         channel.addEventListener('message', (event) => this.handleMessage(event.data));
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+        await this.waitForIceGathering(peer, epoch);
         this.emit('handshake', { phase: 'local-offer-ready' });
         if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
-        const answer = await this.exchangeSdp({ sdp: offer.sdp, session });
+        const localSdp = peer.localDescription?.sdp || offer.sdp;
+        const answer = await this.exchangeSdp({ sdp: localSdp, session });
         this.emit('handshake', { phase: 'server-answer-received' });
         if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
@@ -172,13 +181,51 @@ const MXRealtime = (() => {
       return {
         peer: peer?.connectionState || 'unavailable',
         ice: peer?.iceConnectionState || 'unavailable',
+        iceGathering: peer?.iceGatheringState || 'unavailable',
+        localCandidates: this.localCandidateCount,
         signaling: peer?.signalingState || 'unavailable',
         channel: channel?.readyState || 'unavailable'
       };
     }
 
     transportLabel(snapshot = this.transportSnapshot()) {
-      return `peer ${snapshot.peer} · ICE ${snapshot.ice} · signaling ${snapshot.signaling} · channel ${snapshot.channel}`;
+      return `peer ${snapshot.peer} · ICE ${snapshot.ice} · gathering ${snapshot.iceGathering} · candidates ${snapshot.localCandidates} · signaling ${snapshot.signaling} · channel ${snapshot.channel}`;
+    }
+
+    async waitForIceGathering(peer, epoch) {
+      if (!peer?.localDescription || peer.iceGatheringState === 'complete' || typeof peer.addEventListener !== 'function') {
+        this.emit('handshake', {
+          phase: 'ice-gathering-complete',
+          iceGatheringState: peer?.iceGatheringState || 'unavailable',
+          localCandidates: this.localCandidateCount
+        });
+        return;
+      }
+      this.emit('handshake', { phase: 'ice-gathering', iceGatheringState: peer.iceGatheringState });
+      const timedOut = await new Promise((resolve) => {
+        let settled = false;
+        let timer;
+        const finish = (didTimeOut) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          peer.removeEventListener?.('icegatheringstatechange', onStateChange);
+          resolve(didTimeOut);
+        };
+        const onStateChange = () => {
+          if (peer.iceGatheringState === 'complete' || this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) {
+            finish(false);
+          }
+        };
+        timer = setTimeout(() => finish(true), this.iceGatheringTimeoutMs);
+        peer.addEventListener('icegatheringstatechange', onStateChange);
+        onStateChange();
+      });
+      this.emit('handshake', {
+        phase: timedOut ? 'ice-gathering-timeout' : 'ice-gathering-complete',
+        iceGatheringState: peer.iceGatheringState,
+        localCandidates: this.localCandidateCount
+      });
     }
 
     armConnectionTimer(epoch, peer, channel) {
@@ -413,6 +460,7 @@ const MXRealtime = (() => {
         this.channel = null;
         this.peer = null;
         this.media = null;
+        this.localCandidateCount = 0;
         this.responseActive = false;
         this.responseId = null;
       } finally {

@@ -241,6 +241,52 @@ test('an open Realtime data channel is authoritative when Safari peer state lags
   assert.ok(events.some((event) => event.type === 'channel-open'));
 });
 
+test('iOS Realtime waits for ICE gathering and exchanges the completed local SDP', async () => {
+  const MXRealtime = loadClient();
+  const peerListeners = {};
+  const channel = { readyState: 'connecting', addEventListener() {}, close() {}, send() {} };
+  const peer = {
+    connectionState: 'new',
+    iceConnectionState: 'new',
+    iceGatheringState: 'new',
+    signalingState: 'stable',
+    localDescription: null,
+    addEventListener(type, handler) { peerListeners[type] = handler; },
+    removeEventListener(type) { delete peerListeners[type]; },
+    close() {},
+    createDataChannel: () => channel,
+    addTrack() {},
+    createOffer: async () => ({ type: 'offer', sdp: 'v=0\r\no=initial' }),
+    setLocalDescription: async function (offer) {
+      this.localDescription = offer;
+      this.iceGatheringState = 'gathering';
+      setTimeout(() => {
+        this.localDescription = { ...offer, sdp: `${offer.sdp}\r\na=candidate:ios-complete` };
+        this.iceGatheringState = 'complete';
+        peerListeners.icegatheringstatechange?.();
+      }, 5);
+    },
+    setRemoteDescription: async () => {}
+  };
+  const media = { getAudioTracks: () => [], getTracks: () => [] };
+  let exchangedSdp = '';
+  const events = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async ({ sdp }) => { exchangedSdp = sdp; return { sdp: 'v=0\r\no=answer' }; },
+    peerFactory: () => peer,
+    mediaDevices: { getUserMedia: async () => media },
+    iceGatheringTimeoutMs: 100,
+    onEvent: (event) => events.push(event)
+  });
+
+  await session.connect({ session: { accessToken: 'token' }, audioElement: {} });
+
+  assert.match(exchangedSdp, /candidate:ios-complete/);
+  assert.ok(events.some((event) => event.type === 'handshake' && event.phase === 'ice-gathering'));
+  assert.ok(events.some((event) => event.type === 'handshake' && event.phase === 'ice-gathering-complete'));
+  session.disconnect();
+});
+
 test('Realtime channel timeout reports the final peer and ICE state', async () => {
   const MXRealtime = loadClient();
   const channel = {
@@ -275,7 +321,7 @@ test('Realtime channel timeout reports the final peer and ICE state', async () =
 
   assert.equal(session.state, 'failed');
   const failure = events.find((event) => event.type === 'state' && event.code === 'REALTIME_CHANNEL_TIMEOUT');
-  assert.match(failure.reason, /peer connecting · ICE checking · signaling stable · channel connecting/);
+  assert.match(failure.reason, /peer connecting · ICE checking · gathering unavailable · candidates 0 · signaling stable · channel connecting/);
 });
 
 test('disconnect during microphone permission closes the pending connection without a failed or hanging session', async () => {
@@ -354,6 +400,6 @@ test('Realtime capture starts live and mute state is controlled without closing 
   assert.ok(events.some((event) => event.type === 'microphone' && event.enabled === false));
   assert.deepEqual(
     events.filter((event) => event.type === 'handshake').map((event) => event.phase),
-    ['microphone-ready', 'local-offer-ready', 'server-answer-received', 'peer-connecting']
+    ['microphone-ready', 'ice-gathering-complete', 'local-offer-ready', 'server-answer-received', 'peer-connecting']
   );
 });

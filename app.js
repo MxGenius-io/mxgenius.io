@@ -2195,8 +2195,13 @@ Rules:
         pendingRealtimeImages = [];
         suppressNextRealtimeAssistantBubble = false;
       }
-      setRealtimeUiState(event.state, event.reason);
-      await setNativeARRealtimeState(event.state, event.reason || '');
+      const transport = event.transport || null;
+      const diagnostic = transport
+        ? `peer ${transport.peer || '?'} · ICE ${transport.ice || '?'} · gathering ${transport.iceGathering || '?'} · candidates ${transport.localCandidates ?? '?'} · channel ${transport.channel || '?'}`
+        : '';
+      const reason = [event.reason, event.code ? `[${event.code}]` : '', diagnostic].filter(Boolean).join(' · ');
+      setRealtimeUiState(event.state, reason);
+      await setNativeARRealtimeState(event.state, reason);
       if (['listening', 'user-speaking', 'thinking', 'speaking'].includes(event.state) && latestNativeARSpatialAudio) {
         void updateNativeARSpatialAudio(latestNativeARSpatialAudio);
       }
@@ -2277,6 +2282,9 @@ Rules:
     if (event.type === 'handshake') {
       const labels = {
         'microphone-ready': 'Microphone ready · creating secure Realtime offer…',
+        'ice-gathering': 'Collecting the iPhone network path for Realtime…',
+        'ice-gathering-complete': 'iPhone network path collected · sending secure offer…',
+        'ice-gathering-timeout': 'Network gathering paused · sending the candidates already available…',
         'local-offer-ready': 'Local SDP ready · exchanging with MXGenius…',
         'server-answer-received': 'MXGenius answered · applying secure session…',
         'peer-connecting': 'SDP accepted · opening Realtime socket…',
@@ -2293,7 +2301,7 @@ Rules:
     }
     if (event.type === 'transport-error') {
       const transport = event.transport || {};
-      const detail = `peer ${transport.peer || '?'} · ICE ${transport.ice || '?'} · channel ${transport.channel || '?'}`;
+      const detail = `peer ${transport.peer || '?'} · ICE ${transport.ice || '?'} · gathering ${transport.iceGathering || '?'} · candidates ${transport.localCandidates ?? '?'} · channel ${transport.channel || '?'}`;
       await setNativeARRealtimeState('connecting', `${event.reason || 'Realtime transport warning'} · ${detail}`);
       return;
     }
@@ -4873,7 +4881,8 @@ async function toggleNativeARRealtime(nativeConnected = false) {
     await voice.connect();
   } catch (error) {
     nativeARRealtimeOwnsSession = false;
-    await setNativeARRealtimeState('failed', error?.message || 'Realtime voice unavailable');
+    const detail = [error?.message || 'Realtime voice unavailable', error?.code ? `[${error.code}]` : ''].filter(Boolean).join(' · ');
+    await setNativeARRealtimeState('failed', detail);
   }
 }
 
