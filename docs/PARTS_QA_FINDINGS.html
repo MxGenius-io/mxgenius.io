@@ -365,17 +365,17 @@
   <header class="masthead">
     <span class="stamp">MXGenius · Parts · QA pass</span>
     <h1>Parts Defect Report</h1>
-    <p class="dek">Twelve test batteries run against a live server on a throwaway database. Nine shortcomings found, four of them fixed and verified — including one that let a part flagged Suspected Unapproved reach an aircraft.</p>
+    <p class="dek">Twelve test batteries run against a live server on a throwaway database. Nine shortcomings found. Seven are now fixed and verified — including one that let a part flagged Suspected Unapproved reach an aircraft, and one where fixing it uncovered three more ingress points than the finding named.</p>
   </header>
 
   <div class="verdict">
     <div class="tile"><span class="tile-n n-high">2</span><span class="tile-l">High</span></div>
     <div class="tile"><span class="tile-n n-med">5</span><span class="tile-l">Medium</span></div>
     <div class="tile"><span class="tile-n n-plain">2</span><span class="tile-l">Low</span></div>
-    <div class="tile"><span class="tile-n n-fixed">4</span><span class="tile-l">Fixed</span></div>
-    <div class="tile"><span class="tile-n n-plain">5</span><span class="tile-l">Still open</span></div>
+    <div class="tile"><span class="tile-n n-fixed">7</span><span class="tile-l">Fixed</span></div>
+    <div class="tile"><span class="tile-n n-plain">2</span><span class="tile-l">Still open</span></div>
   </div>
-  <p class="scope">Batteries: lifecycle · validation and boundaries · concurrency · confirmation grants · ledger integrity · inspection and discrepancy · paging and counts · reports · imports · tenant isolation. Three of the four fixed defects were introduced by this session’s own work.</p>
+  <p class="scope">Batteries: lifecycle · validation and boundaries · concurrency · confirmation grants · ledger integrity · inspection and discrepancy · paging and counts · reports · imports · tenant isolation. Three of the seven fixed defects were introduced by this session’s own work. Only the two low-severity items remain.</p>
 
   <section>
     <h2>Fixed</h2>
@@ -453,21 +453,26 @@ return   → HTTP 400  <b>the destination is the location the unit already occup
   </section>
 
   <section>
-    <h2>Still open</h2>
-    <p class="sub">Found, reproduced, not yet addressed</p>
+    <h2>Fixed in the second round</h2>
+    <p class="sub">Each reproduced against a live server, corrected, and re-run clean</p>
 
     <article class="finding">
       <div class="finding-head">
         <span class="fid">F5</span>
         <span class="ftitle">A validation error is reported as a service outage</span>
         <span class="chip c-med">Medium</span>
-        <span class="chip c-open">Open</span>
+        <span class="chip c-fixed">Fixed</span>
       </div>
       <div class="finding-body">
         <p>Any counted quantity at or above <code>1e9</code> overflows <code>numeric(12,3)</code> and surfaces as <code>503 server-side persistence is temporarily unavailable</code>. The operator is told to retry something that can never succeed, and the log reads as an infrastructure fault rather than a typo.</p>
         <div class="evidence">counted=1e+09  → HTTP <b>503</b>  server-side persistence is temporarily unavailable
 counted=1e+15  → HTTP <b>503</b>  server-side persistence is temporarily unavailable</div>
-        <p class="fix fix-open"><strong>Fix:</strong> bound the quantity in the application layer and return <code>400</code> naming the limit.</p>
+        <p>Fixing it turned up three more ingress points than the finding named. The receive path checked <code>quantity &lt;= 0.0</code> and nothing else, bounding neither end. A split bounded what was <em>taken</em> and not what was <em>left</em> — taking 5.9996 off 6 leaves 0.0004, which rounds to <code>0.000</code> and fails <code>CHECK (quantity &gt; 0)</code>, the same 503 from the other end. And bulk import was an unbounded fifth write path where one bad cell rolled the entire batch back as a 503, with no per-row diagnostic.</p>
+        <div class="evidence">receive  999999999999  → <b>400</b>  quantity cannot exceed 999999999.999
+adjust   1000000000    → <b>400</b>  quantity cannot exceed 999999999.999
+split    5.9996 of 6   → <b>400</b>  would leave 0.000, less than the 0.001 a lot can hold
+import   1000000000    → row problem, not a batch failure</div>
+        <p class="fix"><strong>Fixed.</strong> One published bound in <code>shared/src/domain/quantity.rs</code>, matching the <code>numeric(12,3)</code> columns, with a test that reads the migrations so the constant cannot outlive the schema.</p>
       </div>
     </article>
 
@@ -476,11 +481,15 @@ counted=1e+15  → HTTP <b>503</b>  server-side persistence is temporarily unava
         <span class="fid">F6</span>
         <span class="ftitle">Role boundaries cannot be exercised on a developer machine</span>
         <span class="chip c-med">Medium</span>
-        <span class="chip c-open">Open</span>
+        <span class="chip c-fixed">Fixed</span>
       </div>
       <div class="finding-body">
         <p>Local mode is hardcoded to <code>Role::Administrator</code> with no override. The inspection buy-off — restricting who may release stock onto the serviceable shelf — is an airworthiness control, and it has never been exercised end to end. Only the predicate functions are unit-tested, which does not prove the handlers wire them correctly.</p>
-        <p class="fix fix-open"><strong>Fix:</strong> an environment variable selecting the local role, so every gated path can be walked as each role.</p>
+        <p>Two things had to change before a local role test could mean anything. The provider forced <code>approval_granted</code> true regardless of role, so an overridden role kept authority the production path would never grant it. And <code>parse_role</code> was a fourth copy of the role list sitting on the <em>production</em> membership path, where a role added to the enum but missed there means a 503 for every user holding it.</p>
+        <div class="evidence">MXGENIUS_INSECURE_LOCAL_ROLE=technician  → <b>403</b>  PARTS_INSPECTION_DENIED
+MXGENIUS_INSECURE_LOCAL_ROLE=quality     → <b>201</b>  accepted
+MXGENIUS_INSECURE_LOCAL_ROLE=qualtiy     → <b>refuses to boot</b>, naming the valid set</div>
+        <p class="fix"><strong>Fixed.</strong> The airworthiness control walked end to end for the first time. The override is gated on <code>--insecure-local</code> without <code>--pilot</code>, since pilot mode runs against a real database, and an unknown role refuses to boot rather than defaulting to administrator — a typo that silently grants full authority makes a gated action succeed and reads as “this role is permitted” when nothing was tested.</p>
       </div>
     </article>
 
@@ -489,16 +498,27 @@ counted=1e+15  → HTTP <b>503</b>  server-side persistence is temporarily unava
         <span class="fid">F7</span>
         <span class="ftitle">The exported template fails its own import validation</span>
         <span class="chip c-med">Medium</span>
-        <span class="chip c-open">Open</span>
+        <span class="chip c-fixed">Fixed</span>
       </div>
       <div class="finding-body">
         <p>The export doubles as the import template, so an exported file should re-import cleanly. It does not: the template carries the legacy <code>coc</code> trace value, which is readable on historical records but deliberately not writable.</p>
         <div class="evidence">POST /imports/preview  (the system’s own template)
 
 row 2  <b>trace_type 'coc' is not a document this system records</b></div>
-        <p class="fix fix-open"><strong>Fix:</strong> either map <code>coc</code> to a writable value on export, or accept it on import as a legacy passthrough.</p>
+        <div class="evidence">POST /imports/preview  (the system’s own template, 26 rows)
+
+applicable  <b>true</b>     errorRows  <b>0</b>     noted rows  2
+row 2   MXG-DEMO-21-2200   legacy value preserved as imported
+row 27  MXG-DEMO-MS-O-RING legacy value preserved as imported</div>
+        <p class="fix"><strong>Fixed.</strong> A non-blocking row note: the value is preserved, the operator is told, the file applies, and a new record still cannot claim an anonymous certificate. Every other unknown trace value remains a hard error.</p>
       </div>
     </article>
+
+  </section>
+
+  <section>
+    <h2>Still open</h2>
+    <p class="sub">Both low severity, both recorded</p>
 
     <article class="finding">
       <div class="finding-head">
