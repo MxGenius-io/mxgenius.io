@@ -93,6 +93,7 @@ const MXRealtime = (() => {
           return;
         }
         this.media = media;
+        this.emit('handshake', { phase: 'microphone-ready' });
         for (const track of media.getAudioTracks()) {
           track.enabled = this.microphoneEnabled;
           peer.addTrack(track, media);
@@ -110,10 +111,13 @@ const MXRealtime = (() => {
         channel.addEventListener('message', (event) => this.handleMessage(event.data));
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+        this.emit('handshake', { phase: 'local-offer-ready' });
         if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         const answer = await this.exchangeSdp({ sdp: offer.sdp, session });
+        this.emit('handshake', { phase: 'server-answer-received' });
         if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+        this.emit('handshake', { phase: 'peer-connecting' });
         if (this.manualDisconnect || epoch !== this.connectionEpoch || this.peer !== peer) return;
         this.emit('connected', { callId: answer.callId, correlationId: answer.correlationId });
       } catch (error) {

@@ -385,6 +385,9 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /state\?\.state === 'ai-mic-toggle-request'/);
   assert.match(application, /globalThis\.MXRealtimeVoiceBridge/);
   assert.match(application, /await voice\.connect\(\)/);
+  assert.match(application, /toggleNativeARRealtime\(state\?\.connected === true\)/);
+  assert.match(application, /if \(nativeConnected\)/);
+  assert.match(application, /'server-answer-received': 'MXGenius answered/);
   assert.match(application, /await startRealtimeVoice\(\)/);
   assert.match(application, /realtimeSession\.disconnect\(\)/);
   assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);
@@ -527,7 +530,7 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(application, /plugin\.addListener\('cameraPose'/);
   assert.match(application, /async function bindNativeARListeners\(plugin = nativeARGlobePlugin\(\)\)/);
   assert.match(application, /if \(capability\?\.supported\) await bindNativeARListeners\(plugin\)/);
-  assert.match(application, /if \(state\?\.state === 'ai-mic-toggle-request'\) await toggleNativeARRealtime\(\)/);
+  assert.match(application, /if \(state\?\.state === 'ai-mic-toggle-request'\) await toggleNativeARRealtime\(state\?\.connected === true\)/);
   assert.match(application, /mxgenius:ar-camera-pose/);
   assert.match(application, /plugin\.addListener\('pinSelected'/);
   assert.match(viewer, /id="enter-ar-button"/);

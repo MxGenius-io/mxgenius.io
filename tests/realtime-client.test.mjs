@@ -277,4 +277,8 @@ test('Realtime capture starts live and mute state is controlled without closing 
   assert.equal(track.enabled, true);
   assert.ok(events.some((event) => event.type === 'microphone' && event.enabled === true));
   assert.ok(events.some((event) => event.type === 'microphone' && event.enabled === false));
+  assert.deepEqual(
+    events.filter((event) => event.type === 'handshake').map((event) => event.phase),
+    ['microphone-ready', 'local-offer-ready', 'server-answer-received', 'peer-connecting']
+  );
 });

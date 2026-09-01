@@ -2264,11 +2264,22 @@ Rules:
       return;
     }
     if (event.type === 'channel-open') {
+      await setNativeARRealtimeState('connecting', 'Realtime data channel open · configuring MXGenius…');
       try {
         await configureRealtimeCompanion();
       } catch (error) {
         setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
       }
+      return;
+    }
+    if (event.type === 'handshake') {
+      const labels = {
+        'microphone-ready': 'Microphone ready · creating secure Realtime offer…',
+        'local-offer-ready': 'Local SDP ready · exchanging with MXGenius…',
+        'server-answer-received': 'MXGenius answered · applying secure session…',
+        'peer-connecting': 'SDP accepted · opening Realtime socket…'
+      };
+      await setNativeARRealtimeState('connecting', labels[event.phase] || 'Realtime handshake in progress…');
       return;
     }
     if (event.type === 'tool-request') {
@@ -2529,7 +2540,10 @@ Rules:
   setupVoiceInput();
   globalThis.MXRealtimeVoiceBridge = {
     isAvailable: () => Boolean(realtimeSession),
-    isConnected: () => Boolean(realtimeSession?.connecting || !['disconnected', 'failed'].includes(realtimeSession?.state)),
+    state: () => realtimeSession?.state || 'disconnected',
+    isConnected: () => Boolean(realtimeSession?.connecting || [
+      'connecting', 'reconnecting', 'listening', 'user-speaking', 'thinking', 'speaking', 'degraded'
+    ].includes(realtimeSession?.state)),
     audioElement: () => realtimeSession?.audioElement || null,
     connect: async () => {
       if (!realtimeSession) throw new Error('Realtime voice is unavailable in this wrapper');
@@ -4600,7 +4614,7 @@ async function bindNativeARListeners(plugin = nativeARGlobePlugin()) {
     await plugin.addListener('arSessionState', async (state) => {
       const button = document.getElementById('globeArButton');
       if (button) button.dataset.arState = state?.state || '';
-      if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
+      if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime(state?.connected === true);
       if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
         nativeARRealtimeOwnsSession = false;
         globalThis.MXRealtimeVoiceBridge?.disconnect?.();
@@ -4816,17 +4830,26 @@ async function setNativeARRealtimeState(state, message = '') {
   } catch (_) {}
 }
 
-async function toggleNativeARRealtime() {
+async function toggleNativeARRealtime(nativeConnected = false) {
   const voice = globalThis.MXRealtimeVoiceBridge;
   if (!voice?.isAvailable?.()) {
     await setNativeARRealtimeState('failed', 'Realtime voice is unavailable in this wrapper');
     return;
   }
-  if (voice.isConnected()) {
+  if (nativeConnected) {
     nativeARRealtimeOwnsSession = false;
     voice.disconnect();
     await setNativeARRealtimeState('disconnected', 'MIC idle · Realtime socket closed');
     resetNativeARSpatialAudio();
+    return;
+  }
+  const currentState = voice.state?.() || 'disconnected';
+  if (voice.isConnected()) {
+    nativeARRealtimeOwnsSession = false;
+    const label = ['connecting', 'reconnecting'].includes(currentState)
+      ? 'Realtime handshake already in progress…'
+      : 'MIC ON · using the open MXGenius Realtime socket';
+    await setNativeARRealtimeState(currentState, label);
     return;
   }
   nativeARRealtimeOwnsSession = true;
