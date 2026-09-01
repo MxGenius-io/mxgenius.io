@@ -4568,14 +4568,17 @@ function nativeARGlobePlugin() {
   return globalThis.Capacitor?.Plugins?.JetNetNative || null;
 }
 
-function isNativeIOSGlobeHost() {
-  return globalThis.Capacitor?.isNativePlatform?.() === true
-    && globalThis.Capacitor?.getPlatform?.() === 'ios';
+function nativeARBridgeIsReady(plugin = nativeARGlobePlugin()) {
+  // The registered plugin is the authority. Capacitor's platform helpers can
+  // report "web" while a remote server URL is hosted inside the iOS wrapper.
+  // A normal browser has no JetNetNative implementation, so it still fails
+  // closed and the AR controls remain hidden there.
+  return Boolean(plugin?.isARSupported && (plugin?.showGlobe || plugin?.showSpatialScene));
 }
 
 async function configureViewerARCapability() {
   const plugin = nativeARGlobePlugin();
-  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) {
+  if (!nativeARBridgeIsReady(plugin)) {
     MX3DViewer.post({ type: 'mxgenius.viewer.ar-capability', supported: false });
     return;
   }
@@ -4600,13 +4603,17 @@ async function openViewerInAR(scene = {}) {
   const activeCase = MXCaseState.active?.case || {};
   const modelName = String(scene.modelName || MX3DViewer.currentModel?.name || 'Selected 3D model');
   const modelType = String(scene.modelType || 'aircraft component');
+  const modelId = scene.modelId || MX3DViewer.currentModel?.id || null;
+  const modelFile = scene.modelFile || MX3DViewer.currentModel?.file || null;
+  const modelProvider = scene.modelProvider || MX3DViewer.currentModel?.provider || (modelFile ? 'static' : null);
+  const modelAssetURL = scene.modelAssetURL || MX3DViewer.currentModel?.assetURL || null;
   const rows = [
     { label: 'MODEL', value: modelName },
     { label: 'TYPE', value: modelType },
+    { label: 'ASSET', value: String(modelFile || modelId || 'Metadata context only') },
     { label: 'REVISION', value: String(scene.revision || MX3DViewer.currentModel?.revision || 'Current') },
     { label: 'STATUS', value: String(scene.operationalStatus || MX3DViewer.currentModel?.operationalStatus || 'Reference model') },
-    { label: 'CASE', value: String(activeCase.id || activeCase.case_id || MX3DViewer.context.caseId || 'No active case') },
-    { label: 'AI PRESENCE', value: 'Spatial point cloud ready' }
+    { label: 'CASE', value: String(activeCase.id || activeCase.case_id || MX3DViewer.context.caseId || 'No active case') }
   ];
   const payload = {
     pins: allClusters.length ? buildNativeARGlobePins() : [],
@@ -4618,6 +4625,11 @@ async function openViewerInAR(scene = {}) {
       subtitle: scene.subtitle || 'Anchored model inspection workspace',
       modelName,
       modelType,
+      modelId,
+      modelFile,
+      modelProvider,
+      modelAssetURL,
+      modelConnected: Boolean(modelId || modelFile || modelAssetURL),
       source: 'MXGenius 3D Viewer + JETNET',
       rows
     }
@@ -4834,13 +4846,25 @@ async function updateNativeARSpatialAudio(spatial) {
 async function openGlobeInAR() {
   const plugin = nativeARGlobePlugin();
   const button = document.getElementById('globeArButton');
-  if (!isNativeIOSGlobeHost() || !plugin?.showGlobe || !allClusters.length) return;
+  if (!nativeARBridgeIsReady(plugin) || !plugin?.showGlobe || !allClusters.length) return;
   button.disabled = true;
   try {
     await plugin.showGlobe({
       pins: buildNativeARGlobePins(),
       distance: 0.85,
-      radius: 0.18
+      radius: 0.18,
+      scene: {
+        title: 'JETNET FLEET LIVE',
+        subtitle: 'Spatial fleet operations',
+        source: 'JETNET dataset',
+        totalAircraft: globeData?.totalAircraft || 0,
+        mappedAircraft: globeData?.mappedAircraft || 0,
+        countries: Object.keys(globeData?.byCountry || {}).length,
+        filterCounts: {
+          ...(globeData?.counts || {}),
+          activeCase: allClusters.filter((cluster) => cluster.hasActiveCase).length
+        }
+      }
     });
   } catch (error) {
     console.error('Unable to open native AR globe', error);
@@ -4858,7 +4882,7 @@ async function configureNativeARGlobe() {
   button.hidden = true;
   if (guide) guide.hidden = true;
   button.disabled = true;
-  if (!isNativeIOSGlobeHost() || !plugin?.isARSupported) return;
+  if (!nativeARBridgeIsReady(plugin)) return;
 
   try {
     const capability = await plugin.isARSupported();

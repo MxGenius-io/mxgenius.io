@@ -518,10 +518,9 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(dashboard, /id="globeArButton"/);
   assert.match(dashboard, /Open fleet globe in augmented reality/);
   assert.match(application, /Capacitor\?\.Plugins\?\.JetNetNative/);
-  assert.match(application, /function isNativeIOSGlobeHost\(\)/);
-  assert.match(application, /Capacitor\?\.isNativePlatform\?\.\(\) === true/);
-  assert.match(application, /Capacitor\?\.getPlatform\?\.\(\) === 'ios'/);
-  assert.match(application, /if \(!isNativeIOSGlobeHost\(\) \|\| !plugin\?\.isARSupported\)/);
+  assert.match(application, /function nativeARBridgeIsReady\(plugin = nativeARGlobePlugin\(\)\)/);
+  assert.match(application, /Boolean\(plugin\?\.isARSupported && \(plugin\?\.showGlobe \|\| plugin\?\.showSpatialScene\)\)/);
+  assert.doesNotMatch(application, /function isNativeIOSGlobeHost\(\)/);
   assert.match(application, /plugin\.isARSupported\(\)/);
   assert.match(application, /plugin\.showGlobe\(\{/);
   assert.match(application, /MAX_NATIVE_AR_PINS = 750/);
@@ -531,14 +530,16 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(viewer, /id="enter-ar-button"/);
   assert.match(viewer, /mxgenius\.viewer\.ar-request/);
   assert.match(viewer, /mxgenius\.viewer\.ar-capability/);
-  assert.match(viewer, /function isNativeIOSViewerHost\(\)/);
-  assert.match(viewer, /Boolean\(message\.supported\) && isNativeIOSViewerHost\(\)/);
+  assert.doesNotMatch(viewer, /function isNativeIOSViewerHost\(\)/);
+  assert.match(viewer, /const supported = Boolean\(message\.supported\)/);
   assert.match(viewer, /#ar-button-container\[hidden\] \{ display: none !important; \}/);
   assert.match(applicationStyles, /#globeArButton\[hidden\],[\s\S]*#globeArGuide\[hidden\][\s\S]*display: none !important/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.ar-request'/);
   assert.match(application, /plugin\.showSpatialScene/);
   assert.match(application, /anchors: 3/);
   assert.match(application, /pointCloud: true/);
+  assert.match(viewer, /modelAssetURL: entry\.file \? new URL\(entry\.file, window\.location\.href\)\.href : null/);
+  assert.match(application, /modelConnected: Boolean\(modelId \|\| modelFile \|\| modelAssetURL\)/);
 });
 
 test('mobile globe panels keep controls reachable and avoid overlapping drawers', () => {

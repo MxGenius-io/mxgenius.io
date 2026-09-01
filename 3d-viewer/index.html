@@ -1793,6 +1793,10 @@
                         subtitle: 'Anchored model inspection workspace',
                         modelName: entry.name || entry.file || 'Selected 3D model',
                         modelType: entry.type || 'aircraft component',
+                        modelId: entry.modelId || entry.id || null,
+                        modelFile: entry.file || null,
+                        modelProvider: entry.provider || (entry.file ? 'static' : null),
+                        modelAssetURL: entry.file ? new URL(entry.file, window.location.href).href : null,
                         source: 'MXGenius 3D Viewer',
                         revision: entry.revision || null,
                         operationalStatus: entry.operationalStatus || 'unclassified',
@@ -2500,15 +2504,6 @@
                 if (distance <= 5) handlePartPick(event);
             });
 
-            function isNativeIOSViewerHost() {
-                try {
-                    const capacitor = window.parent?.Capacitor || globalThis.Capacitor;
-                    return capacitor?.isNativePlatform?.() === true && capacitor?.getPlatform?.() === 'ios';
-                } catch {
-                    return false;
-                }
-            }
-
             window.addEventListener('message', (event) => {
                 if (event.source !== window.parent || event.origin !== window.location.origin) return;
                 const message = event.data || {};
@@ -2537,7 +2532,10 @@
                 } else if (message.type === 'mxgenius.viewer.ar-capability') {
                     const arContainer = document.getElementById('ar-button-container');
                     const arButton = document.getElementById('enter-ar-button');
-                    const supported = Boolean(message.supported) && isNativeIOSViewerHost();
+                    // The same-origin parent has already called the registered
+                    // native plugin. Trust that capability result instead of
+                    // independently guessing the iframe's platform.
+                    const supported = Boolean(message.supported);
                     if (arContainer) arContainer.hidden = !supported;
                     if (arButton) {
                         arButton.disabled = !supported;
