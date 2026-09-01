@@ -574,7 +574,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=21/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=22/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -635,6 +635,30 @@ test('owned and uploaded GLB models remain available without a Sketchfab catalog
   );
   assert.equal(modelCatalog.some((model) => model.provider === 'sketchfab'), false);
   assert.doesNotMatch(JSON.stringify(modelCatalog), /sketchfab/i);
+});
+
+test('viewer quick access is limited to the curated local model folder set', async () => {
+  const quickAccessModels = modelCatalog.filter((model) => model.quickAccess === true);
+  assert.deepEqual(
+    quickAccessModels.map((model) => model.name).sort(),
+    [
+      'Airplane Logo',
+      'Black Picatinny Rail',
+      'Electrical Tester',
+      'FLIR Thermal Camera',
+      'Power Tool Battery',
+      'Single-Board Computer Prototype',
+      'VR Headset',
+      'Virtual Reality Headset'
+    ].sort()
+  );
+  await Promise.all(
+    quickAccessModels.map((model) => access(new URL(`../3d-viewer/${model.file}`, import.meta.url)))
+  );
+  assert.ok(modelCatalog.some((model) => model.quickAccess === false), 'older demos should remain in the Models drawer');
+  assert.match(viewer, /filter\(\(\{ entry \}\) => entry\.quickAccess === true\)/);
+  assert.match(viewer, /referenceCatalogEntries = catalog\.filter\(\(entry\) => entry\.quickAccess !== true\)/);
+  assert.match(viewer, /<option value="workspace">Workspace models<\/option>/);
 });
 
 test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
@@ -725,7 +749,7 @@ test('maintenance case creation binds the explicit submit action to a short-live
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=2"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=3"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=5"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
@@ -766,6 +790,8 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
   assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
+  assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
+  assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {

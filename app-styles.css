@@ -2513,6 +2513,18 @@ body.live-mode .api-status.connected .status-dot {
     transform: translateX(0);
   }
 
+  .header-nav .nav-spacer {
+    display: none;
+  }
+
+  .header-nav #chatToggleNav {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+    margin-left: 0;
+    padding: 12px 16px;
+  }
+
   .nav-tab {
     width: 100%;
     justify-content: flex-start;

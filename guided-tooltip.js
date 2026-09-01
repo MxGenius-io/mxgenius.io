@@ -75,7 +75,7 @@ const MXGuidedTooltip = (() => {
     const button = document.createElement('button');
     button.className = 'guided-tooltip-guide__play';
     button.type = 'button';
-    button.textContent = 'Play guide';
+    button.textContent = 'Play';
     button.addEventListener('click', async () => {
       if (await play()) button.remove();
     });
@@ -107,7 +107,7 @@ const MXGuidedTooltip = (() => {
     shell.setAttribute('aria-label', `${item.title || 'Section'} video guide`);
     const eyebrow = document.createElement('span');
     eyebrow.className = 'guided-tooltip-guide__eyebrow';
-    eyebrow.textContent = 'QUICK GUIDE';
+    eyebrow.textContent = 'OVERVIEW';
     shell.appendChild(eyebrow);
 
     let video = null;
@@ -236,14 +236,14 @@ const MXGuidedTooltip = (() => {
     popover.innerHTML = `
       <header class="guided-tooltip-popover__header">
         <div>
-          <span>CONTEXT GUIDE</span>
+          <span>SECTION HELP</span>
           <h2 id="guidedTooltipTitle"></h2>
         </div>
         <button type="button" class="guided-tooltip-popover__close" aria-label="Close guide">&times;</button>
       </header>
       <div class="guided-tooltip-host"></div>
     `;
-    popover.querySelector('h2').textContent = item.title || 'Quick guide';
+    popover.querySelector('h2').textContent = item.title || 'Quick help';
     popover.querySelector('.guided-tooltip-popover__close').addEventListener('click', () => close({ restoreFocus: true }));
     document.body.appendChild(popover);
     activePopover = popover;
