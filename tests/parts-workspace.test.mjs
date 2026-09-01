@@ -93,10 +93,13 @@ test('Parts Frontend Shell requirements', async (t) => {
   });
 
   await t.test('quarantined stock can be dispositioned out of the drawer', () => {
-    assert.match(js, /id="btnInspectPass"/);
-    assert.match(js, /id="btnInspectReject"/);
-    assert.match(js, /client\.dispositionUnit\(/);
+    // The single pass/reject pair was replaced by the five-gate inspection
+    // form, so the release now carries the evidence behind it.
+    assert.match(js, /id="btnRecordInspection"/);
+    assert.match(js, /client\.recordInspection\(/);
     assert.match(js, /unit\.status === 'quarantine'/);
+    // Movements still go through the disposition adapter.
+    assert.match(js, /client\.dispositionUnit\(/);
   });
 
   await t.test('confirmed records can be corrected without touching the ledger fields', () => {
@@ -120,9 +123,9 @@ test('Parts Frontend Shell requirements', async (t) => {
   await t.test('movements are offered only from a status that permits them', () => {
     // Quarantined stock is inspected, never issued straight to a job.
     assert.match(js, /unit\.status === 'quarantine'/);
-    assert.match(js, /id="btnInspectPass"/);
+    assert.match(js, /id="btnRecordInspection"/);
     assert.doesNotMatch(js, /^\s*quarantine: \[/m, 'quarantine must not be in the movement table');
-    for (const status of ['available', 'reserved', 'rejected', 'in_repair']) {
+    for (const status of ['available', 'reserved', 'rejected', 'in_repair', 'hold_ncm']) {
       assert.match(js, new RegExp(`^\\s*${status}: \\[`, 'm'), `${status} should have movements`);
     }
   });
@@ -799,5 +802,78 @@ test('Receiving inspection and non-conforming material', async (t) => {
     // Accepting material onto the serviceable shelf is an inspection buy-off.
     assert.match(partsHttp, /can accept stock into serviceable inventory/);
     assert.match(partsHttp, /can accept non-conforming material as is/);
+  });
+});
+
+test('The inspection and discrepancy workflow is reachable from the UI', async (t) => {
+  await t.test('every backend stock action is offered somewhere in the drawer', () => {
+    const repo = readFileSync(
+      'services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+    const backend = [...repo.matchAll(/^\s+"([a-z_]+)" => Self \{/gm)].map((m) => m[1]);
+    assert.ok(backend.length >= 9, `expected the full action set, saw ${backend.length}`);
+    for (const action of backend) {
+      // Either in the MOVEMENTS map or wired as its own control.
+      assert.ok(
+        js.includes(`action: '${action}'`) || js.includes(`data-movement="${action}"`)
+          || action.startsWith('inspect_'),
+        `${action} has no way to reach it from the UI`
+      );
+    }
+  });
+
+  await t.test('non-conforming material is not a dead end', () => {
+    // hold_ncm had no MOVEMENTS entry and is not terminal, so the drawer
+    // offered correction fields and no way to move the part at all.
+    assert.match(js, /hold_ncm: \[/);
+    assert.match(js, /Return to vendor/);
+    // And the release path is stated, since it is a resolution not a movement.
+    assert.match(js, /resolving its discrepancy as/);
+  });
+
+  await t.test('the five gates are a form, not a single pass button', () => {
+    assert.match(js, /const INSPECTION_GATES = \[/);
+    for (const gate of [
+      'partNumberMatchesOrder', 'serialMatchesTag', 'tagPresentAndLegible',
+      'shelfLifeAcceptable', 'dangerousGoodsPaperwork'
+    ]) {
+      assert.match(js, new RegExp(gate), gate);
+    }
+    // n/a is offered as a real answer.
+    assert.match(js, /\['na', 'n\/a'\]/);
+  });
+
+  await t.test('a raised discrepancy can be resolved without leaving the app', () => {
+    // Raising one with no way to resolve it would trap the material.
+    assert.match(js, /data-view="discrepancies"/);
+    assert.match(js, /function loadDiscrepancies/);
+    assert.match(js, /function resolveDiscrepancy/);
+    assert.match(js, /data-resolve-discrepancy=/);
+  });
+
+  await t.test('the client adapter covers every inspection endpoint', () => {
+    for (const method of [
+      'listInspections', 'recordInspection', 'listDiscrepancies',
+      'openDiscrepancy', 'resolveDiscrepancy'
+    ]) {
+      assert.match(client, new RegExp(`${method}: async`), `${method} missing`);
+    }
+    // The workspace calls the adapter only.
+    assert.match(js, /client\.recordInspection/);
+    assert.match(js, /client\.openDiscrepancy/);
+    assert.match(js, /client\.resolveDiscrepancy/);
+  });
+
+  await t.test('a resolution grant binds to the report, not the unit', () => {
+    assert.match(client, /arguments: \{ report_id: reportId/);
+    // The server has to accept that key or the grant would misdescribe itself.
+    assert.match(partsHttp, /arguments\.get\("report_id"\)/);
+  });
+
+  await t.test('assets changed together get a fresh cache-bust version', () => {
+    // dashboard.html is the only page loading the parts workspace; a stale
+    // pin serves the build without these controls.
+    assert.match(html, /parts-workspace\.js\?v=24/);
+    assert.match(html, /parts-workspace\.css\?v=19/);
+    assert.match(html, /application-client\.js\?v=36/);
   });
 });

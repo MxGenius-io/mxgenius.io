@@ -1080,3 +1080,27 @@
     padding: 6px 8px;
   }
 }
+
+/* Receiving inspection gates: label on the left, verdict on the right, so an
+   inspector reads down one column instead of hunting across a form grid. */
+.inspection-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.inspection-gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inspection-gate select {
+  flex: 0 0 8rem;
+}
+
+.discrepancy-card {
+  margin-bottom: 12px;
+}

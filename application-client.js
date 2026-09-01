@@ -1212,6 +1212,94 @@ const MXApplicationClient = (() => {
       });
       return payload.unit;
     },
+    listInspections: async ({ unitId, session = {} }) => {
+      const payload = await applicationJson(
+        `/api/parts/units/${encodeURIComponent(unitId)}/inspections`, { session });
+      return payload.inspections || [];
+    },
+    // The five gates, the tag read, and the inspector's conclusion. Omitting
+    // `outcome` lets the server take the one the gates point to.
+    recordInspection: async ({
+      unitId, version, gates = {}, tagType = 'none', tagReference = null,
+      conditionCode = null, quantityReceived = null, shippingDamage = false,
+      outcome = null, notes = null, shipmentId = null, session = {}
+    }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.inspect',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(
+        `/api/parts/units/${encodeURIComponent(unitId)}/inspections`, {
+          session,
+          method: 'POST',
+          body: {
+            shipmentId,
+            partNumberMatchesOrder: gates.partNumberMatchesOrder || 'na',
+            serialMatchesTag: gates.serialMatchesTag || 'na',
+            tagPresentAndLegible: gates.tagPresentAndLegible || 'na',
+            shelfLifeAcceptable: gates.shelfLifeAcceptable || 'na',
+            dangerousGoodsPaperwork: gates.dangerousGoodsPaperwork || 'na',
+            tagType, tagReference, conditionCode, quantityReceived,
+            shippingDamage, outcome, notes
+          },
+          headers: {
+            'If-Match': `"${version}"`,
+            'X-MXG-Confirmation-Grant': confirmation.token
+          }
+        });
+      return payload.inspection;
+    },
+    listDiscrepancies: async ({ status, stockUnitId, page, pageSize, session = {} } = {}) => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (stockUnitId) params.set('stockUnitId', stockUnitId);
+      if (page) params.set('page', String(page));
+      if (pageSize) params.set('pageSize', String(pageSize));
+      return applicationJson(`/api/parts/discrepancies?${params}`, { session });
+    },
+    openDiscrepancy: async ({
+      unitId, version, discrepancyType, summary,
+      receivingInspectionId = null, session = {}
+    }) => {
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.discrepancy',
+        arguments: { unit_id: unitId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(
+        `/api/parts/units/${encodeURIComponent(unitId)}/discrepancies`, {
+          session,
+          method: 'POST',
+          body: { discrepancyType, summary, receivingInspectionId },
+          headers: {
+            'If-Match': `"${version}"`,
+            'X-MXG-Confirmation-Grant': confirmation.token
+          }
+        });
+      return payload.discrepancy;
+    },
+    resolveDiscrepancy: async ({
+      reportId, version, disposition, resolutionNotes = null, session = {}
+    }) => {
+      // The grant binds to the report, not the unit.
+      const confirmation = await issueConfirmation({
+        toolName: 'mxg.parts.discrepancy',
+        arguments: { report_id: reportId, expected_version: version },
+        session
+      });
+      const payload = await applicationJson(
+        `/api/parts/discrepancies/${encodeURIComponent(reportId)}/resolution`, {
+          session,
+          method: 'POST',
+          body: { disposition, resolutionNotes },
+          headers: {
+            'If-Match': `"${version}"`,
+            'X-MXG-Confirmation-Grant': confirmation.token
+          }
+        });
+      return payload.discrepancy;
+    },
     adjustQuantity: async ({ unitId, version, countedQuantity, reason, notes = null, session = {} }) => {
       const confirmation = await issueConfirmation({
         toolName: 'mxg.parts.adjust',

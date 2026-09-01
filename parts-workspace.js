@@ -33,6 +33,7 @@ const MXPartsWorkspace = (() => {
     });
     const inventory = byId('partsInventoryGrid');
     const shortages = byId('partsShortageView');
+    const discrepancies = byId('partsDiscrepanciesView');
     const locations = byId('partsLocationsView');
     const requests = byId('partsRequestsView');
     const rotables = byId('partsRotablesView');
@@ -42,6 +43,7 @@ const MXPartsWorkspace = (() => {
     const searchBar = document.querySelector('.parts-search-bar');
     if (inventory) inventory.hidden = view !== 'inventory';
     if (shortages) shortages.hidden = view !== 'shortages';
+    if (discrepancies) discrepancies.hidden = view !== 'discrepancies';
     if (locations) locations.hidden = view !== 'locations';
     if (requests) requests.hidden = view !== 'requests';
     if (rotables) rotables.hidden = view !== 'rotables';
@@ -50,6 +52,7 @@ const MXPartsWorkspace = (() => {
     if (reports) reports.hidden = view !== 'reports';
     if (searchBar) searchBar.hidden = view !== 'inventory';
     if (view === 'shortages') loadShortages();
+    if (view === 'discrepancies') loadDiscrepancies();
     if (view === 'locations') renderLocations();
     if (view === 'requests') loadRequests();
     if (view === 'rotables') loadRotables();
@@ -1357,6 +1360,7 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab" data-view="shortages" role="tab" aria-selected="false">Shortages<span id="shortageCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="rotables" role="tab" aria-selected="false">Rotables</button>
                 <button class="parts-view-tab" data-view="cannibalizations" role="tab" aria-selected="false">Robs<span id="robCount" class="shortage-count" hidden></span></button>
+                <button class="parts-view-tab" data-view="discrepancies" role="tab" aria-selected="false">Discrepancies<span id="discrepancyCount" class="shortage-count" hidden></span></button>
                 <button class="parts-view-tab" data-view="locations" role="tab" aria-selected="false">Locations</button>
                 <button class="parts-view-tab" data-view="imports" role="tab" aria-selected="false">Import</button>
                 <button class="parts-view-tab" data-view="reports" role="tab" aria-selected="false">Reports</button>
@@ -1495,6 +1499,18 @@ const MXPartsWorkspace = (() => {
               <div id="importPreviewPanel"></div>
               <h3 class="trace-heading">Import history</h3>
               <div id="importBatchList"></div>
+            </div>
+            <div id="partsDiscrepanciesView" hidden>
+              <p class="unit-action-hint">Material held because something is wrong with it. A discrepancy stays open until somebody decides what happens to the part, and that decision is recorded with who made it. Accepting as is puts the part back on the serviceable shelf; every other disposition leaves it held for the movement you record separately.</p>
+              <div class="request-filters">
+                <select id="discrepancyStatusFilter" aria-label="Filter discrepancies by status">
+                  <option value="open">Open</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div id="discrepancyStatusMessage" class="parts-inline-status" aria-live="polite"></div>
+              <div id="partsDiscrepancyList"></div>
             </div>
             <div id="partsLocationsView" hidden>
               <div id="locationStatus" class="parts-inline-status" aria-live="polite"></div>
@@ -1675,6 +1691,7 @@ const MXPartsWorkspace = (() => {
       requestPage += 1;
       loadRequests();
     });
+    byId('discrepancyStatusFilter')?.addEventListener('change', loadDiscrepancies);
     byId('locationsIncludeInactive')?.addEventListener('change', renderLocations);
     byId('btnRunReport')?.addEventListener('click', () => runReport(false));
     byId('btnReportMore')?.addEventListener('click', () => runReport(true));
@@ -1953,6 +1970,14 @@ const MXPartsWorkspace = (() => {
     ],
     in_repair: [
       { action: 'transfer', label: 'Transfer', location: true }
+    ],
+    // Non-conforming material leaves a hold only by a decided disposition.
+    // Without these the drawer showed correction fields and no way to move
+    // the part, which is a dead end for anything under a discrepancy.
+    hold_ncm: [
+      { action: 'transfer', label: 'Transfer', primary: true, location: true },
+      { action: 'ship', label: 'Return to vendor', reference: 'Shipment', location: true },
+      { action: 'scrap', label: 'Scrap', location: false }
     ]
   };
 
@@ -2048,6 +2073,92 @@ const MXPartsWorkspace = (() => {
     }
   }
 
+  // The five gates an inspector works, in the order they work them. Each is
+  // pass, fail, or n/a -- n/a is a real answer, not an unset one: no
+  // dangerous-goods paperwork is a pass for a part that is not dangerous
+  // goods and a fail for one that is.
+  const INSPECTION_GATES = [
+    ['partNumberMatchesOrder', 'Part number matches the order'],
+    ['serialMatchesTag', 'Serial number matches the tag'],
+    ['tagPresentAndLegible', 'Tag present and legible'],
+    ['shelfLifeAcceptable', 'Shelf life acceptable'],
+    ['dangerousGoodsPaperwork', 'Dangerous goods paperwork']
+  ];
+
+  const GATE_RESULTS = [['na', 'n/a'], ['pass', 'Pass'], ['fail', 'Fail']];
+
+  const DISCREPANCY_TYPES = [
+    ['wrong_part', 'Wrong part'],
+    ['wrong_quantity', 'Wrong quantity'],
+    ['shipping_damage', 'Shipping damage'],
+    ['missing_paperwork', 'Missing paperwork'],
+    ['illegible_tag', 'Illegible tag'],
+    ['expired_shelf_life', 'Expired shelf life'],
+    ['suspected_unapproved', 'Suspected unapproved part'],
+    ['condition_mismatch', 'Condition mismatch'],
+    ['other', 'Other']
+  ];
+
+  const DISPOSITIONS = [
+    ['return_to_vendor', 'Return to vendor'],
+    ['rework', 'Rework'],
+    ['accept_as_is', 'Accept as is'],
+    ['scrap', 'Scrap']
+  ];
+
+  function renderInspectionBlock(unit) {
+    return `
+      <section class="unit-action-block">
+        <h3>Receiving inspection</h3>
+        <p class="unit-action-hint">This unit is held in quarantine. Record what you checked; the result is kept as the evidence behind releasing it. Leave the outcome on <em>Follow the gates</em> unless you are holding a part the gates passed.</p>
+        <div class="inspection-gates">
+          ${INSPECTION_GATES.map(([id, label]) => `
+            <label class="inspection-gate">
+              <span>${escapeHtml(label)}</span>
+              <select id="gate_${id}">${optionList(GATE_RESULTS, 'na')}</select>
+            </label>`).join('')}
+        </div>
+        <div class="parts-form-grid">
+          <label>Tag read
+            <select id="inspectTagType">${optionList(TRACE_TYPES, unit.traceType)}</select>
+          </label>
+          <label>Tag reference<input id="inspectTagReference" value="${escapeHtml(unit.certificateNumber || '')}" placeholder="8130 or certificate number"></label>
+          <label>Condition
+            <select id="inspectConditionCode">${optionList(CONDITION_CODES.map((code) => [code, code]), unit.conditionCode)}</select>
+          </label>
+          <label>Outcome
+            <select id="inspectOutcome">${optionList([['', 'Follow the gates'], ['quarantined', 'Hold in quarantine']], '')}</select>
+          </label>
+        </div>
+        <label class="shortage-toggle"><input type="checkbox" id="inspectShippingDamage"> Shipping damage</label>
+        <label>Notes <input id="inspectNotes" placeholder="Inspection remarks"></label>
+        <div class="unit-action-row">
+          <button class="btn-primary" id="btnRecordInspection">Record inspection</button>
+        </div>
+        <p class="unit-action-hint">A part cannot be accepted with a failed gate or shipping damage. Accepting into serviceable stock needs a quality, manager, or administrator role.</p>
+      </section>`;
+  }
+
+  function renderDiscrepancyBlock(unit) {
+    // Raising a discrepancy holds the material, so it is offered wherever the
+    // part is still in the receiving path rather than only from quarantine.
+    if (!['quarantine', 'rejected', 'available', 'hold_ncm'].includes(unit.status)) return '';
+    return `
+      <section class="unit-action-block">
+        <h3>Raise a discrepancy</h3>
+        <p class="unit-action-hint">Records what is wrong and holds the material as non-conforming so it cannot be issued while the disposition is undecided.</p>
+        <div class="parts-form-grid">
+          <label>What is wrong
+            <select id="discrepancyType">${optionList(DISCREPANCY_TYPES, 'wrong_part')}</select>
+          </label>
+          <label>Summary<input id="discrepancySummary" placeholder="What you found"></label>
+        </div>
+        <div class="unit-action-row">
+          <button class="btn-quiet" id="btnOpenDiscrepancy">Raise discrepancy</button>
+        </div>
+      </section>`;
+  }
+
   function renderUnitActions(unit) {
     if (unit.status === 'issued') {
       return `
@@ -2064,21 +2175,14 @@ const MXPartsWorkspace = (() => {
     if (TERMINAL_STATUSES.has(unit.status)) {
       return `<p class="parts-inline-status">This unit is ${escapeHtml(unit.status)} and can no longer be changed.</p>`;
     }
-    const inspection = unit.status === 'quarantine'
-      ? `
-        <section class="unit-action-block">
-          <h3>Receiving inspection</h3>
-          <p class="unit-action-hint">This unit is held in quarantine. Passing inspection releases it to serviceable stock; rejecting it holds it for disposition.</p>
-          <label>Move to location <input id="dispositionLocation" list="partsLocationOptions" placeholder="Leave blank to keep ${escapeHtml(unit.location)}"></label>
-          <label>Notes <input id="dispositionNotes" placeholder="Inspection remarks"></label>
-          <div class="unit-action-row">
-            <button class="btn-primary" id="btnInspectPass">Pass inspection</button>
-            <button class="btn-quiet" id="btnInspectReject">Reject</button>
-          </div>
-        </section>`
+    const inspection = unit.status === 'quarantine' ? renderInspectionBlock(unit) : '';
+    const holdHint = unit.status === 'hold_ncm'
+      ? `<p class="parts-inline-status">This unit is held as non-conforming material. It returns to serviceable stock by resolving its discrepancy as <strong>accept as is</strong>, not by a movement.</p>`
       : '';
     return `
       ${inspection}
+      ${holdHint}
+      ${renderDiscrepancyBlock(unit)}
       ${renderMovementBlock(unit)}
       ${renderCountBlock(unit)}
       ${renderSplitBlock(unit)}
@@ -2109,14 +2213,173 @@ const MXPartsWorkspace = (() => {
   }
 
   function bindUnitActions(unit) {
-    byId('btnInspectPass')?.addEventListener('click', () => disposition(unit, 'inspect_pass'));
-    byId('btnInspectReject')?.addEventListener('click', () => disposition(unit, 'inspect_reject'));
+    byId('btnRecordInspection')?.addEventListener('click', () => recordInspection(unit));
+    byId('btnOpenDiscrepancy')?.addEventListener('click', () => openDiscrepancy(unit));
     byId('btnCorrectUnit')?.addEventListener('click', () => correctUnit(unit));
     byId('btnAdjustQuantity')?.addEventListener('click', () => adjustQuantity(unit));
     byId('btnSplitUnit')?.addEventListener('click', () => splitUnit(unit));
     byId('drawerContent')?.querySelectorAll('[data-movement]').forEach((button) => {
       button.addEventListener('click', () => moveStock(unit, button.dataset.movement));
     });
+  }
+
+  function discrepancyCard(row) {
+    const open = row.status === 'open';
+    const typeLabel = (DISCREPANCY_TYPES.find(([value]) => value === row.discrepancyType) || [])[1]
+      || row.discrepancyType;
+    const dispositionLabel = (DISPOSITIONS.find(([value]) => value === row.disposition) || [])[1]
+      || row.disposition;
+    return `
+      <article class="unit-action-block discrepancy-card">
+        <div class="unit-action-row">
+          <strong>${escapeHtml(typeLabel)}</strong>
+          <span class="inventory-status-badge">${escapeHtml(row.status)}</span>
+        </div>
+        <p>${escapeHtml(row.summary)}</p>
+        <p class="unit-action-hint">Raised ${escapeHtml(formatCell(row.reportedAt, 'datetime'))}${
+          open ? '' : ` · ${escapeHtml(dispositionLabel || 'resolved')} ${escapeHtml(formatCell(row.resolvedAt, 'datetime'))}`
+        }</p>
+        ${row.resolutionNotes ? `<p class="unit-action-hint">${escapeHtml(row.resolutionNotes)}</p>` : ''}
+        <div class="unit-action-row">
+          <button class="btn-quiet" data-open-discrepancy-unit="${escapeHtml(row.stockUnitId)}">Open the unit</button>
+        </div>
+        ${open ? `
+          <div class="parts-form-grid">
+            <label>Disposition
+              <select id="resolve_${escapeHtml(row.id)}">${optionList(DISPOSITIONS, 'return_to_vendor')}</select>
+            </label>
+            <label>Notes<input id="resolveNotes_${escapeHtml(row.id)}" placeholder="Why this decision"></label>
+          </div>
+          <div class="unit-action-row">
+            <button class="btn-primary" data-resolve-discrepancy="${escapeHtml(row.id)}" data-version="${row.version}">Resolve</button>
+          </div>
+          <p class="unit-action-hint">Accepting as is releases the part and needs a quality, manager, or administrator role.</p>` : ''}
+      </article>`;
+  }
+
+  async function loadDiscrepancies() {
+    const list = byId('partsDiscrepancyList');
+    if (!list || !client.listDiscrepancies) return;
+    list.innerHTML = '<div class="empty-state">Loading discrepancies…</div>';
+    try {
+      const payload = await client.listDiscrepancies({
+        status: byId('discrepancyStatusFilter')?.value || undefined,
+        session: await session()
+      });
+      const rows = payload.discrepancies || [];
+      const badge = byId('discrepancyCount');
+      if (badge) {
+        // The badge counts what is open regardless of the filter being read,
+        // so switching to Resolved does not make the backlog look cleared.
+        const openCount = (byId('discrepancyStatusFilter')?.value || 'open') === 'open'
+          ? payload.totalCount
+          : null;
+        badge.hidden = !openCount;
+        badge.textContent = openCount || '';
+      }
+      list.innerHTML = rows.length
+        ? rows.map(discrepancyCard).join('')
+        : '<div class="empty-state">Nothing held. Discrepancies raised against a unit show here.</div>';
+      list.querySelectorAll('[data-resolve-discrepancy]').forEach((button) => {
+        button.addEventListener('click', () => resolveDiscrepancy(
+          button.dataset.resolveDiscrepancy, Number(button.dataset.version)));
+      });
+      list.querySelectorAll('[data-open-discrepancy-unit]').forEach((button) => {
+        button.addEventListener('click', () => {
+          switchView('inventory');
+          openUnit(button.dataset.openDiscrepancyUnit);
+        });
+      });
+    } catch (error) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
+    }
+  }
+
+  async function resolveDiscrepancy(reportId, version) {
+    const status = byId('discrepancyStatusMessage');
+    if (status) {
+      status.textContent = 'Recording the decision…';
+      status.classList.remove('error');
+    }
+    try {
+      await client.resolveDiscrepancy({
+        reportId,
+        version,
+        disposition: byId(`resolve_${reportId}`)?.value || 'return_to_vendor',
+        resolutionNotes: byId(`resolveNotes_${reportId}`)?.value.trim() || null,
+        session: await session()
+      });
+      if (status) status.textContent = 'Resolved.';
+      await loadDiscrepancies();
+    } catch (error) {
+      if (status) {
+        status.textContent = errorMessage(error);
+        status.classList.add('error');
+      }
+    }
+  }
+
+  async function recordInspection(unit) {
+    const button = byId('btnRecordInspection');
+    if (button) button.disabled = true;
+    const gates = {};
+    for (const [id] of INSPECTION_GATES) {
+      gates[id] = byId(`gate_${id}`)?.value || 'na';
+    }
+    const failed = Object.values(gates).filter((value) => value === 'fail').length;
+    const damaged = byId('inspectShippingDamage')?.checked || false;
+    unitActionStatus(failed || damaged
+      ? 'Recording the inspection and holding the part…'
+      : 'Recording the inspection…');
+    try {
+      const inspection = await client.recordInspection({
+        unitId: unit.id,
+        version: unit.version,
+        gates,
+        tagType: byId('inspectTagType')?.value || 'none',
+        tagReference: byId('inspectTagReference')?.value.trim() || null,
+        conditionCode: byId('inspectConditionCode')?.value || null,
+        shippingDamage: damaged,
+        // Empty means follow the gates; the server decides and stores it.
+        outcome: byId('inspectOutcome')?.value || null,
+        notes: byId('inspectNotes')?.value.trim() || null,
+        session: await session()
+      });
+      unitActionStatus(inspection.outcome === 'accepted'
+        ? 'Accepted and released to serviceable stock.'
+        : 'Recorded. The unit stays in quarantine.');
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function openDiscrepancy(unit) {
+    const summary = byId('discrepancySummary')?.value.trim();
+    if (!summary) {
+      unitActionStatus('Say what is wrong with the material before raising a discrepancy.', 'error');
+      return;
+    }
+    const button = byId('btnOpenDiscrepancy');
+    if (button) button.disabled = true;
+    unitActionStatus('Raising the discrepancy and holding the material…');
+    try {
+      await client.openDiscrepancy({
+        unitId: unit.id,
+        version: unit.version,
+        discrepancyType: byId('discrepancyType')?.value || 'other',
+        summary,
+        session: await session()
+      });
+      unitActionStatus('Raised. The unit is held as non-conforming material.');
+      await openUnit(unit.id, false);
+      await performSearch();
+    } catch (error) {
+      unitActionStatus(errorMessage(error), 'error');
+      if (button) button.disabled = false;
+    }
   }
 
   async function moveStock(unit, action) {
@@ -2131,27 +2394,6 @@ const MXPartsWorkspace = (() => {
         locationCode: byId('movementLocation')?.value.trim() || null,
         referenceId: byId('movementReference')?.value.trim() || null,
         notes: byId('movementNotes')?.value.trim() || null,
-        session: await session()
-      });
-      await openUnit(unit.id, false);
-      await performSearch();
-    } catch (error) {
-      unitActionStatus(errorMessage(error), 'error');
-      buttons.forEach((button) => { button.disabled = false; });
-    }
-  }
-
-  async function disposition(unit, action) {
-    const buttons = [byId('btnInspectPass'), byId('btnInspectReject')].filter(Boolean);
-    buttons.forEach((button) => { button.disabled = true; });
-    unitActionStatus(action === 'inspect_pass' ? 'Releasing to stock…' : 'Recording rejection…');
-    try {
-      await client.dispositionUnit({
-        unitId: unit.id,
-        version: unit.version,
-        action,
-        locationCode: byId('dispositionLocation')?.value.trim() || null,
-        notes: byId('dispositionNotes')?.value.trim() || null,
         session: await session()
       });
       await openUnit(unit.id, false);

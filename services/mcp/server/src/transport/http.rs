@@ -2106,6 +2106,10 @@ async fn issue_confirmation(
         .or_else(|| input.arguments.get("part_id"))
         .or_else(|| input.arguments.get("draft_id"))
         .or_else(|| input.arguments.get("unit_id"))
+        // A discrepancy resolution binds its grant to the report, not to the
+        // unit; without this the caller would have to smuggle a report id
+        // under `unit_id` and the grant would misdescribe what it authorizes.
+        .or_else(|| input.arguments.get("report_id"))
         .and_then(Value::as_str);
     let Some(object_id) = object_id else {
         return realtime_error(
