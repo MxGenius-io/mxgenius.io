@@ -1,0 +1,846 @@
+<title>Parts Workspace Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+  /* ---------------------------------------------------------------------
+     Tokens. The light palette is defined completely on bare :root so the
+     un-stamped (system-default) document always resolves. Dark redefines
+     only tokens, twice: once behind prefers-color-scheme for viewers who
+     never touched the toggle, once behind the explicit stamp so the toggle
+     wins in both directions.
+     --------------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+
+    /* Cool near-white with a slight blue bias -- instrument panel, not paper. */
+    --ground: #f4f6f8;
+    --surface: #ffffff;
+    --surface-sunk: #eceff3;
+    --rule: #d3d9e0;
+    --rule-strong: #b7c0cb;
+
+    --ink: #161b22;
+    --ink-soft: #414b58;
+    --ink-faint: #6b7686;
+
+    /* Placard teal-blue. Deliberately not in the status family, so a status
+       colour never reads as "just the accent". */
+    --accent: #16637e;
+    --accent-soft: #e2eef3;
+    --accent-ink: #0e4557;
+
+    /* Status colours are domain facts, not decoration: they encode where a
+       unit sits in its life. */
+    --st-hold: #b26a00;        /* quarantine, awaiting inspection */
+    --st-hold-bg: #fdf3e2;
+    --st-good: #2e7d52;        /* available, serviceable */
+    --st-good-bg: #e6f4ec;
+    --st-bad: #b03a2e;         /* rejected, non-conforming */
+    --st-bad-bg: #fbeae8;
+    --st-done: #5c6672;        /* terminal: issued, shipped, scrapped */
+    --st-done-bg: #eceef1;
+
+    --shadow: 0 1px 2px rgba(22, 27, 34, .06), 0 8px 24px rgba(22, 27, 34, .05);
+
+    --measure: 68ch;
+    --step--1: .82rem;
+    --step-0: 1rem;
+    --step-1: 1.16rem;
+    --step-2: 1.45rem;
+    --step-3: 1.9rem;
+    --step-4: 2.5rem;
+
+    --font-display: "Barlow Semi Condensed", "Helvetica Neue", Arial, sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #10141a;
+      --surface: #171c24;
+      --surface-sunk: #1e242e;
+      --rule: #2b333f;
+      --rule-strong: #3d4756;
+
+      --ink: #e6eaf0;
+      --ink-soft: #b3bcc9;
+      --ink-faint: #8a94a3;
+
+      --accent: #5fb3d0;
+      --accent-soft: #16313d;
+      --accent-ink: #a6d9ea;
+
+      --st-hold: #e0a33f;
+      --st-hold-bg: #2e2415;
+      --st-good: #5cbb85;
+      --st-good-bg: #16291f;
+      --st-bad: #e2796a;
+      --st-bad-bg: #2d1a18;
+      --st-done: #949eab;
+      --st-done-bg: #21262e;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #10141a;
+    --surface: #171c24;
+    --surface-sunk: #1e242e;
+    --rule: #2b333f;
+    --rule-strong: #3d4756;
+
+    --ink: #e6eaf0;
+    --ink-soft: #b3bcc9;
+    --ink-faint: #8a94a3;
+
+    --accent: #5fb3d0;
+    --accent-soft: #16313d;
+    --accent-ink: #a6d9ea;
+
+    --st-hold: #e0a33f;
+    --st-hold-bg: #2e2415;
+    --st-good: #5cbb85;
+    --st-good-bg: #16291f;
+    --st-bad: #e2796a;
+    --st-bad-bg: #2d1a18;
+    --st-done: #949eab;
+    --st-done-bg: #21262e;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 3.5rem;
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+    align-items: start;
+  }
+
+  /* ---- masthead ---- */
+  .masthead {
+    grid-column: 1 / -1;
+    border-bottom: 2px solid var(--ink);
+    padding: 3.5rem 0 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .6rem;
+  }
+  .masthead h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, var(--step-4));
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -.01em;
+    margin: 0 0 .5rem;
+    text-wrap: balance;
+  }
+  .standfirst {
+    max-width: var(--measure);
+    color: var(--ink-soft);
+    font-size: var(--step-1);
+    margin: 0;
+  }
+
+  /* ---- contents rail ---- */
+  .contents {
+    position: sticky;
+    top: 2rem;
+    font-size: var(--step--1);
+  }
+  .contents h2 {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+    margin: 0 0 .8rem;
+  }
+  .contents ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+  .contents a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-left: 2px solid var(--rule);
+    padding: .15rem 0 .15rem .7rem;
+    display: block;
+  }
+  .contents a:hover, .contents a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+
+  /* ---- main column ---- */
+  main { min-width: 0; }
+  section { margin-bottom: 3.5rem; scroll-margin-top: 2rem; }
+  section > * { max-width: var(--measure); }
+  section > .full { max-width: none; }
+
+  h2.section-title {
+    font-family: var(--font-display);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 0 0 .3rem;
+    text-wrap: balance;
+  }
+  .section-note {
+    color: var(--ink-faint);
+    font-size: var(--step--1);
+    font-family: var(--font-mono);
+    margin: 0 0 1.4rem;
+  }
+  h3 {
+    font-family: var(--font-display);
+    font-size: var(--step-2);
+    font-weight: 600;
+    margin: 2.2rem 0 .5rem;
+    text-wrap: balance;
+  }
+  h4 {
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    font-weight: 600;
+    margin: 1.6rem 0 .4rem;
+  }
+  p { margin: 0 0 1rem; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.3rem; }
+  li { margin-bottom: .4rem; }
+  strong { font-weight: 600; }
+  code {
+    font-family: var(--font-mono);
+    font-size: .89em;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: .08em .35em;
+  }
+  a { color: var(--accent); }
+
+  /* ---- status pill ---- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    padding: .12rem .5rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .pill::before {
+    content: "";
+    width: .45rem; height: .45rem;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
+  .pill-hold { color: var(--st-hold); background: var(--st-hold-bg); border-color: color-mix(in srgb, var(--st-hold) 30%, transparent); }
+  .pill-good { color: var(--st-good); background: var(--st-good-bg); border-color: color-mix(in srgb, var(--st-good) 30%, transparent); }
+  .pill-bad  { color: var(--st-bad);  background: var(--st-bad-bg);  border-color: color-mix(in srgb, var(--st-bad) 30%, transparent); }
+  .pill-done { color: var(--st-done); background: var(--st-done-bg); border-color: color-mix(in srgb, var(--st-done) 30%, transparent); }
+
+  /* ---- callout ---- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 1.2rem 1.4rem;
+    margin: 0 0 1.5rem;
+    box-shadow: var(--shadow);
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+    display: block;
+  }
+  .callout-warn { border-left-color: var(--st-hold); }
+  .callout-warn .callout-label { color: var(--st-hold); }
+
+  /* ---- lifecycle flow ---- */
+  .flow {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1.6rem;
+    margin-bottom: 1.2rem;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  .flow-line {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: max-content;
+    margin-bottom: .9rem;
+  }
+  .flow-line:last-child { margin-bottom: 0; }
+  .flow-arrow {
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    flex: none;
+  }
+  .flow-caption {
+    font-size: var(--step--1);
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    flex: none;
+    padding-left: .3rem;
+  }
+  .flow-branch {
+    border-top: 1px dashed var(--rule);
+    padding-top: .9rem;
+    margin-top: .3rem;
+  }
+
+  /* ---- tables ---- */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--surface);
+    margin-bottom: 1.2rem;
+    box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td {
+    text-align: left;
+    padding: .6rem .85rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: var(--step--1);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ink-faint);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { background: transparent; border: none; padding: 0; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ---- numbered walkthrough: a real sequence, so it is numbered ---- */
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 2.6rem;
+    margin-bottom: 1.4rem;
+  }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: .05rem;
+    width: 1.8rem; height: 1.8rem;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 50%;
+  }
+  .steps h4 { margin: 0 0 .25rem; }
+  .steps p { margin-bottom: .4rem; }
+
+  .role-list { list-style: none; padding: 0; }
+  .role-list li {
+    display: flex;
+    gap: .8rem;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .role-list li:last-child { border-bottom: none; }
+  .role-name {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    flex: 0 0 8rem;
+    color: var(--ink);
+  }
+  .role-can { font-size: var(--step--1); color: var(--ink-soft); }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    color: var(--ink-faint);
+    font-size: var(--step--1);
+    font-family: var(--font-mono);
+  }
+
+  a:focus-visible, .contents a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (max-width: 60rem) {
+    .page { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 1.25rem 4rem; }
+    .contents { position: static; margin-bottom: 2.5rem; }
+    .contents ol { flex-direction: row; flex-wrap: wrap; gap: .3rem .9rem; }
+    .contents a { border-left: none; padding-left: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">MXGenius · Parts</p>
+    <h1>Parts Workspace Handbook</h1>
+    <p class="standfirst">How to find a part, take it through receiving, and get it onto a job — and why the button you are looking for is sometimes not there.</p>
+  </header>
+
+  <nav class="contents" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#missing">Where is “Issue”?</a></li>
+      <li><a href="#tabs">The nine tabs</a></li>
+      <li><a href="#lifecycle">A unit’s life</a></li>
+      <li><a href="#permits">What each status permits</a></li>
+      <li><a href="#receive">Receiving a part</a></li>
+      <li><a href="#issue">Issuing a part</a></li>
+      <li><a href="#discrepancy">When something is wrong</a></li>
+      <li><a href="#quantities">Counts, splits, returns</a></li>
+      <li><a href="#roles">Who can do what</a></li>
+      <li><a href="#confirm">Why it asks twice</a></li>
+      <li><a href="#reference">Codes and tags</a></li>
+      <li><a href="#trouble">When it refuses</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="missing">
+      <h2 class="section-title">Where is “Issue”?</h2>
+      <p class="section-note">The most common question, answered first</p>
+
+      <div class="callout">
+        <span class="callout-label">Short answer</span>
+        <p><strong>The part is still in quarantine.</strong> Newly received stock lands in <span class="pill pill-hold">quarantine</span> and cannot be issued to anything. The <em>Move this stock</em> panel — the one holding <strong>Issue to a job</strong> — only appears once the unit is <span class="pill pill-good">available</span>.</p>
+        <p>Open the unit, complete the <strong>Receiving inspection</strong> panel, and the movement controls appear.</p>
+      </div>
+
+      <p>This is deliberate. The workspace ships a <em>quarantine-then-inspect</em> policy: nothing reaches the serviceable shelf without somebody recording what they checked. A part that has not been inspected has no business going onto an aircraft, so the system does not offer the option.</p>
+
+      <p>Two other reasons the panel can be missing:</p>
+      <ul>
+        <li>The unit is <span class="pill pill-done">issued</span>, <span class="pill pill-done">shipped</span>, <span class="pill pill-done">scrapped</span> or <span class="pill pill-done">archived</span>. These are terminal — the drawer says so and offers nothing but the record. An issued part can still be <strong>returned to stock</strong> if it came back unused.</li>
+        <li>Your role cannot write to parts at all. A <code>Viewer</code>, <code>Planner</code>, or <code>Controller</code> sees the records and no controls.</li>
+      </ul>
+    </section>
+
+    <section id="tabs">
+      <h2 class="section-title">The nine tabs</h2>
+      <p class="section-note">What each one is for</p>
+
+      <div class="table-wrap full">
+        <table>
+          <thead>
+            <tr><th>Tab</th><th>What lives there</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">Inventory</td><td>Every stock unit you hold. Search by part number, description, or serial; filter by status and location. This is where you open a unit to act on it.</td></tr>
+            <tr><td class="mono">Requests</td><td>Parts somebody has asked for, newest need-by first, AOG at the top. Carries the overdue count and the “no need-by” backlog.</td></tr>
+            <tr><td class="mono">Shortages</td><td>Open demand set against free stock. Only <span class="pill pill-good">available</span> stock counts as free — quarantined and reserved units are not supply.</td></tr>
+            <tr><td class="mono">Rotables</td><td>The serialised unit register: where each rotable is, what it is on, and how many times it has been repaired.</td></tr>
+            <tr><td class="mono">Robs</td><td>Cannibalisations. Proposed by one person, decided by another — never both.</td></tr>
+            <tr><td class="mono">Discrepancies</td><td>Material held because something is wrong with it, and the decision about what happens to it.</td></tr>
+            <tr><td class="mono">Locations</td><td>Bins and areas, and what kind each is — stock, quarantine, bonded, scrap, shipping, receiving.</td></tr>
+            <tr><td class="mono">Import</td><td>Bulk stock loads, with a preview before anything is written and a rollback afterwards.</td></tr>
+            <tr><td class="mono">Reports</td><td>Movements, installs and removals, supplier performance, and per-part activity, over a date range, exportable as CSV.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="lifecycle">
+      <h2 class="section-title">A unit’s life</h2>
+      <p class="section-note">Every “can I do this?” follows from where the unit is</p>
+
+      <div class="flow full">
+        <div class="flow-line">
+          <span class="pill pill-hold">quarantine</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-good">available</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-good">reserved</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-done">issued</span>
+          <span class="flow-caption">the ordinary path</span>
+        </div>
+        <div class="flow-line flow-branch">
+          <span class="pill pill-hold">quarantine</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-bad">rejected</span>
+          <span class="flow-arrow">or</span>
+          <span class="pill pill-bad">hold_ncm</span>
+          <span class="flow-caption">inspection failed</span>
+        </div>
+        <div class="flow-line">
+          <span class="pill pill-bad">hold_ncm</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-good">available</span>
+          <span class="flow-caption">discrepancy resolved “accept as is”</span>
+        </div>
+        <div class="flow-line">
+          <span class="pill pill-good">available</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-done">shipped</span>
+          <span class="flow-arrow">/</span>
+          <span class="pill pill-done">scrapped</span>
+          <span class="flow-arrow">/</span>
+          <span class="pill pill-bad">in_repair</span>
+          <span class="flow-caption">out of stock, other ways</span>
+        </div>
+        <div class="flow-line">
+          <span class="pill pill-done">issued</span>
+          <span class="flow-arrow">→</span>
+          <span class="pill pill-good">available</span>
+          <span class="flow-caption">came back unused</span>
+        </div>
+      </div>
+
+      <p>Records are archived, never deleted. Every move writes a line to the stock ledger with who did it, when, and what it referenced — that ledger is the record, not the current status.</p>
+    </section>
+
+    <section id="permits">
+      <h2 class="section-title">What each status permits</h2>
+      <p class="section-note">If a control is missing, this table says why</p>
+
+      <div class="table-wrap full">
+        <table>
+          <thead>
+            <tr><th>Status</th><th>Means</th><th>Controls you get</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pill pill-hold">quarantine</span></td>
+              <td>Received, not yet inspected</td>
+              <td>Receiving inspection · Raise a discrepancy · Correct details</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-good">available</span></td>
+              <td>Serviceable, on the shelf</td>
+              <td><strong>Issue to a job</strong> · Reserve · Transfer · Ship out · Scrap · Count · Split · Raise a discrepancy</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-good">reserved</span></td>
+              <td>Committed to a job</td>
+              <td><strong>Issue to a job</strong> · Release reservation · Transfer</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-bad">hold_ncm</span></td>
+              <td>Non-conforming, awaiting a decision</td>
+              <td>Transfer · Return to vendor · Scrap. <em>Release comes from resolving the discrepancy, not from a movement.</em></td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-bad">rejected</span></td>
+              <td>Failed inspection</td>
+              <td>Scrap · Ship out · Transfer</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-bad">in_repair</span></td>
+              <td>Away being fixed</td>
+              <td>Transfer</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-done">issued</span></td>
+              <td>Gone to a job</td>
+              <td>Return to stock — nothing else</td>
+            </tr>
+            <tr>
+              <td><span class="pill pill-done">shipped · scrapped · archived</span></td>
+              <td>Terminal</td>
+              <td>None. The record stays readable.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="receive">
+      <h2 class="section-title">Receiving a part</h2>
+      <p class="section-note">From the box to the shelf</p>
+
+      <ol class="steps">
+        <li>
+          <h4>Start a receiving draft</h4>
+          <p>From <strong>Inventory</strong>, begin a receipt. Photograph the tag and the data plate — the system reads them and proposes values.</p>
+        </li>
+        <li>
+          <h4>Review what it read</h4>
+          <p>Extraction output is a <em>suggestion</em>. Accept, edit, or reject each field. Nothing it proposes is treated as confirmed, and it never certifies identity, condition, or airworthiness.</p>
+        </li>
+        <li>
+          <h4>Confirm the receipt</h4>
+          <p>The unit and its first ledger entry are written together. It lands in <span class="pill pill-hold">quarantine</span>.</p>
+        </li>
+        <li>
+          <h4>Inspect it</h4>
+          <p>Open the unit. The <strong>Receiving inspection</strong> panel asks five questions, each <code>pass</code>, <code>fail</code>, or <code>n/a</code>:</p>
+          <ul>
+            <li>Part number matches the order</li>
+            <li>Serial number matches the tag</li>
+            <li>Tag present and legible</li>
+            <li>Shelf life acceptable</li>
+            <li>Dangerous goods paperwork</li>
+          </ul>
+          <p><code>n/a</code> is a real answer, not a blank. Missing dangerous-goods paperwork is a pass for a part that is not dangerous goods and a fail for one that is.</p>
+          <p>Record the tag you actually read and the condition you actually found. Leave <strong>Outcome</strong> on <em>Follow the gates</em> and the system decides; the only manual choice is holding a part whose gates all passed, which your judgement is allowed to override.</p>
+        </li>
+        <li>
+          <h4>It is now on the shelf</h4>
+          <p>A clean inspection releases the unit to <span class="pill pill-good">available</span> and stamps it with the tag you recorded. The inspection itself is kept as the evidence behind that release.</p>
+        </li>
+      </ol>
+
+      <div class="callout callout-warn">
+        <span class="callout-label">A part cannot be accepted over a failed gate</span>
+        <p>If any gate is <code>fail</code>, or you ticked shipping damage, the unit stays in quarantine no matter what you choose. The system will name the gate that stopped it.</p>
+      </div>
+    </section>
+
+    <section id="issue">
+      <h2 class="section-title">Issuing a part</h2>
+      <p class="section-note">Getting stock onto a job</p>
+
+      <p>Open the unit from <strong>Inventory</strong>. In <strong>Move this stock</strong>:</p>
+
+      <ol class="steps">
+        <li>
+          <h4>Enter the job reference</h4>
+          <p>The <em>Job, case, or order reference</em> field is required. Issuing without one is refused — stock that left the shelf for nothing traceable is stock nobody can account for.</p>
+        </li>
+        <li>
+          <h4>Press “Issue to a job”</h4>
+          <p>The unit becomes <span class="pill pill-done">issued</span> and the ledger records the reference, you, and the time.</p>
+        </li>
+      </ol>
+
+      <h3>Reserve first, issue later</h3>
+      <p>If the part is spoken for but not yet being fitted, <strong>Reserve</strong> it against the same reference. Reserved stock stops counting as free supply on the Shortages tab, so nobody orders against it twice. Issue it when it actually goes out, or <strong>Release reservation</strong> if the job changes.</p>
+
+      <h3>If it comes back</h3>
+      <p>An issued unit that was never fitted gets <strong>Return to stock</strong>. Name the bin it goes back into. It returns to <span class="pill pill-good">available</span> with the round trip on its ledger.</p>
+    </section>
+
+    <section id="discrepancy">
+      <h2 class="section-title">When something is wrong</h2>
+      <p class="section-note">Holding material and deciding what happens to it</p>
+
+      <p>Anything wrong with received material — wrong part, short count, damage, missing or illegible paperwork, expired shelf life, a condition that does not match what was ordered, or a suspected unapproved part — goes on a <strong>discrepancy</strong>.</p>
+
+      <p>Raising one from the unit drawer does two things: it records what is wrong, and it moves the unit to <span class="pill pill-bad">hold_ncm</span> so it cannot be issued while the question is open.</p>
+
+      <h3>Suspected unapproved parts</h3>
+      <p>Choosing <em>Suspected unapproved part</em> also flags the unit itself, with your summary as the stated reason. That flag travels with the part rather than living only in the report, and it cannot be set without saying why.</p>
+
+      <h3>Closing it out</h3>
+      <p>Go to the <strong>Discrepancies</strong> tab and pick a disposition:</p>
+
+      <div class="table-wrap full">
+        <table>
+          <thead>
+            <tr><th>Disposition</th><th>What happens to the part</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">accept as is</td><td>Released to <span class="pill pill-good">available</span>, and any suspected-unapproved flag is cleared. Needs a quality, manager, or administrator role.</td></tr>
+            <tr><td class="mono">return to vendor</td><td>Stays held. Ship it out as a separate, recorded movement.</td></tr>
+            <tr><td class="mono">rework</td><td>Stays held. Move it to repair yourself when it goes.</td></tr>
+            <tr><td class="mono">scrap</td><td>Stays held. Scrap it as its own movement, which is terminal.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Only <em>accept as is</em> releases the part, and only when nothing else is still open against it. The other three leave the material held on purpose: the decision and the movement are separate acts, and the movement is yours to record.</p>
+    </section>
+
+    <section id="quantities">
+      <h2 class="section-title">Counts, splits, returns</h2>
+      <p class="section-note">Lots, and getting the number right</p>
+
+      <h3>Counting a lot</h3>
+      <p>Enter what you actually found on the shelf. The ledger records the signed difference from what the system believed it held — not a silent overwrite. If you counted 47 against a believed 50, the ledger says <code>−3</code>.</p>
+
+      <h3>Splitting a lot</h3>
+      <p>Break a quantity off a lot into its own unit when part of it is going somewhere separately. Both the remainder and the new unit carry a <code>split</code> event naming the other, so the ledger explains where the stock came from and where it went.</p>
+
+      <h3>Correcting details</h3>
+      <p><strong>Correct details</strong> changes serial number, lot number, condition, and tag, with the previous values recorded. Quantity, status, and location are deliberately not editable here — those move through their own actions so every change to them lands on the ledger.</p>
+    </section>
+
+    <section id="roles">
+      <h2 class="section-title">Who can do what</h2>
+      <p class="section-note">Releasing stock to the shelf is a buy-off, and is held tighter</p>
+
+      <ul class="role-list">
+        <li><span class="role-name">Viewer</span><span class="role-can">Read everything. No controls.</span></li>
+        <li><span class="role-name">Planner</span><span class="role-can">Read everything. No controls.</span></li>
+        <li><span class="role-name">Controller</span><span class="role-can">Read everything. No controls.</span></li>
+        <li><span class="role-name">Technician</span><span class="role-can">Receive, move, issue, count, split, correct, raise discrepancies. <em>Cannot</em> accept stock into serviceable inventory.</span></li>
+        <li><span class="role-name">Procurement</span><span class="role-can">Same as Technician.</span></li>
+        <li><span class="role-name">Quality</span><span class="role-can">All of the above, plus accepting stock into serviceable inventory and accepting non-conforming material as is.</span></li>
+        <li><span class="role-name">Manager</span><span class="role-can">As Quality.</span></li>
+        <li><span class="role-name">Administrator</span><span class="role-can">As Quality.</span></li>
+      </ul>
+
+      <p>Rejecting or holding a part moves in the conservative direction, so it stays open to anyone who may receive one. Only releasing to the shelf is restricted.</p>
+    </section>
+
+    <section id="confirm">
+      <h2 class="section-title">Why it asks twice</h2>
+      <p class="section-note">Confirmation on anything that moves stock</p>
+
+      <p>Every action that changes the ledger — confirming a receipt, inspecting, moving, correcting, adjusting a count, splitting, raising or resolving a discrepancy — is confirmed by you at the moment you do it. That confirmation is single-use and tied to that exact unit at that exact version.</p>
+
+      <p>Two consequences worth knowing:</p>
+      <ul>
+        <li><strong>If somebody else changed the unit while you had it open</strong>, your action is refused rather than silently overwriting theirs. Reopen the unit and redo it against what is now there.</li>
+        <li><strong>A confirmation cannot be reused.</strong> Each action confirms itself; there is no way to approve once and act repeatedly.</li>
+      </ul>
+    </section>
+
+    <section id="reference">
+      <h2 class="section-title">Codes and tags</h2>
+      <p class="section-note">The two vocabularies you will be asked for</p>
+
+      <h3>Condition codes</h3>
+      <div class="table-wrap full">
+        <table>
+          <thead><tr><th>Code</th><th>Condition</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">NE</td><td>New</td></tr>
+            <tr><td class="mono">NS</td><td>New surplus</td></tr>
+            <tr><td class="mono">OH</td><td>Overhauled</td></tr>
+            <tr><td class="mono">SV</td><td>Serviceable</td></tr>
+            <tr><td class="mono">RP</td><td>Repaired</td></tr>
+            <tr><td class="mono">AR</td><td>As removed</td></tr>
+            <tr><td class="mono">US</td><td>Unserviceable</td></tr>
+            <tr><td class="mono">SC</td><td>Scrap</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Tags and trace</h3>
+      <div class="table-wrap full">
+        <table>
+          <thead><tr><th>Tag</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">FAA 8130-3</td><td>FAA airworthiness approval tag</td></tr>
+            <tr><td class="mono">EASA Form 1</td><td>The European equivalent</td></tr>
+            <tr><td class="mono">Dual release</td><td>Released under both at once</td></tr>
+            <tr><td class="mono">TSO authorization</td><td>Technical Standard Order approval</td></tr>
+            <tr><td class="mono">CoC — manufacturer</td><td>Certificate of conformance from the maker</td></tr>
+            <tr><td class="mono">CoC — vendor</td><td>Certificate of conformance from the seller</td></tr>
+            <tr><td class="mono">ATA 106</td><td>Used-parts trace form</td></tr>
+            <tr><td class="mono">Teardown report</td><td>Findings from disassembly</td></tr>
+            <tr><td class="mono">None</td><td>No paperwork came with it</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Older records may show a bare <em>CoC</em> with no source. That value is readable but never offered on a new record, because a certificate should say whose it is.</p>
+    </section>
+
+    <section id="trouble">
+      <h2 class="section-title">When it refuses</h2>
+      <p class="section-note">What the message means and what to do</p>
+
+      <div class="table-wrap full">
+        <table>
+          <thead>
+            <tr><th>What you see</th><th>What it means</th><th>What to do</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>“requires referenceId identifying the job or order it serves”</td>
+              <td>You issued, reserved, or shipped without a reference.</td>
+              <td>Fill in the job, case, or order field.</td>
+            </tr>
+            <tr>
+              <td>“a part cannot be accepted with …”</td>
+              <td>You chose to accept over a failed gate or shipping damage.</td>
+              <td>Fix the gate if you mis-clicked, or let the outcome follow the gates and raise a discrepancy.</td>
+            </tr>
+            <tr>
+              <td>“expected version N, current version is M”</td>
+              <td>Somebody changed the unit while you had it open.</td>
+              <td>Reopen the unit and redo the action against what is there now.</td>
+            </tr>
+            <tr>
+              <td>“a unit in <em>available</em> is not awaiting inspection”</td>
+              <td>You tried to inspect something already released.</td>
+              <td>Nothing to do. To pull it back, raise a discrepancy.</td>
+            </tr>
+            <tr>
+              <td>“only a quality, manager, or administrator role can …”</td>
+              <td>Releasing to the serviceable shelf is a buy-off.</td>
+              <td>Ask an inspector to complete it.</td>
+            </tr>
+            <tr>
+              <td>“a unit in <em>X</em> cannot move to <em>Y</em>”</td>
+              <td>That is not a legal transition.</td>
+              <td>Check the lifecycle above for the route.</td>
+            </tr>
+            <tr>
+              <td>“the destination is the location the unit already occupies”</td>
+              <td>You transferred a unit to its own bin.</td>
+              <td>Name a different destination.</td>
+            </tr>
+            <tr>
+              <td>A signed confirmation is required</td>
+              <td>The action reached the server without its confirmation.</td>
+              <td>Retry from the drawer. If it persists, the environment is missing its confirmation configuration — tell whoever runs it.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    MXGenius Parts · quarantine-then-inspect · every movement is on the ledger
+  </footer>
+
+</div>

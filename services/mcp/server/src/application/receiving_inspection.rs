@@ -212,6 +212,15 @@ impl<'a> ReceivingInspectionRepository<'a> {
                     ))
                 })?;
                 if !parsed.is_supported_by(&gates, input.shipping_damage) {
+                    // Nothing assessed is a different refusal from something
+                    // failed, and saying "cannot be accepted with" followed by
+                    // an empty list tells the inspector nothing.
+                    if !gates.any_assessed() {
+                        return Err(PartsInventoryError::Invalid(
+                            "a part cannot be accepted on an inspection that checked nothing;                              record at least one gate as pass or fail"
+                                .into(),
+                        ));
+                    }
                     let mut reasons = gates.failed_gate_names();
                     if input.shipping_damage {
                         reasons.push("shipping damage recorded");
@@ -464,8 +473,19 @@ impl<'a> ReceivingInspectionRepository<'a> {
             .await?;
         }
 
-        // Hold the material unless it is already somewhere it cannot be
-        // issued from. A part under an open discrepancy must not be fitted.
+        // A part under an open discrepancy must not be fitted, so the hold is
+        // the point of raising one. Refusing loudly beats the previous silent
+        // skip, which recorded the discrepancy, left the unit untouched, and
+        // let it be issued.
+        if source != StockUnitStatus::HoldNcm
+            && !source.is_terminal()
+            && !source.can_transition_to(StockUnitStatus::HoldNcm)
+        {
+            return Err(PartsInventoryError::Conflict(format!(
+                "a unit in {} cannot be held as non-conforming material",
+                source.as_str()
+            )));
+        }
         if source != StockUnitStatus::HoldNcm && source.can_transition_to(StockUnitStatus::HoldNcm)
         {
             sqlx::query(

@@ -76,6 +76,12 @@ impl StockUnitStatus {
                 // disposition is decided, rather than rejecting it outright.
                 | (Quarantine, HoldNcm)
                 | (Rejected, HoldNcm)
+                // Stock already on the shelf, or committed to a job, can turn
+                // out to be wrong. Without these a discrepancy raised against
+                // serviceable stock could not hold it, and the part stayed
+                // issuable with the discrepancy open.
+                | (Available, HoldNcm)
+                | (Reserved, HoldNcm)
                 // A hold leaves only by a decided disposition: accept-as-is
                 // releases it, rework sends it out, scrap ends it, and a
                 // return to the vendor ships it.

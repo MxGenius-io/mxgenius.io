@@ -14,6 +14,7 @@ use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::part::StockUnitStatus;
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchPartsQuery {
     pub query: Option<String>,
     pub status: Option<String>,
@@ -1613,7 +1614,14 @@ impl<'a> PartsInventoryRepository<'a> {
             Some(code) => resolve_location(&mut tx, context, code, spec.location_type).await?,
             None => current_location,
         };
-        if spec.requires_location && destination == current_location {
+        // Only a pure relocation can be a no-op. `issue` leaves the unit
+        // recorded at its bin, so returning it to that same bin -- the normal
+        // case -- used to trip this guard and made return-to-stock impossible
+        // unless the operator invented a different bin.
+        if spec.requires_location
+            && spec.target_status.is_none()
+            && destination == current_location
+        {
             return Err(PartsInventoryError::Invalid(
                 "the destination is the location the unit already occupies".into(),
             ));

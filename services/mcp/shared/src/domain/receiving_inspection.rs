@@ -62,6 +62,23 @@ pub struct InspectionGates {
 }
 
 impl InspectionGates {
+    /// Whether the inspector actually assessed anything.
+    ///
+    /// Every gate left at `na` means nothing was checked, which is not the
+    /// same as everything passing -- and must not release a part into
+    /// serviceable stock on its own.
+    pub fn any_assessed(&self) -> bool {
+        [
+            self.part_number_matches_order,
+            self.serial_matches_tag,
+            self.tag_present_and_legible,
+            self.shelf_life_acceptable,
+            self.dangerous_goods_paperwork,
+        ]
+        .iter()
+        .any(|gate| !matches!(gate, GateResult::NotApplicable))
+    }
+
     /// Whether any gate failed.
     pub fn any_failed(&self) -> bool {
         self.part_number_matches_order.is_fail()
@@ -126,7 +143,7 @@ impl Outcome {
     /// gate passing does not compel acceptance: an inspector may quarantine on
     /// judgment the gates do not capture, and that call stands.
     pub fn proposed_from(gates: &InspectionGates, shipping_damage: bool) -> Self {
-        if gates.any_failed() || shipping_damage {
+        if gates.any_failed() || shipping_damage || !gates.any_assessed() {
             Self::Quarantined
         } else {
             Self::Accepted
@@ -140,7 +157,9 @@ impl Outcome {
     /// constraint name.
     pub fn is_supported_by(self, gates: &InspectionGates, shipping_damage: bool) -> bool {
         match self {
-            Self::Accepted => !gates.any_failed() && !shipping_damage,
+            // An acceptance has to rest on something the inspector actually
+            // checked. An inspection recording nothing is not evidence.
+            Self::Accepted => gates.any_assessed() && !gates.any_failed() && !shipping_damage,
             Self::Quarantined => true,
         }
     }
@@ -304,6 +323,42 @@ mod tests {
         assert!(!gates.any_failed());
         assert_eq!(Outcome::proposed_from(&gates, true), Outcome::Quarantined);
         assert!(!Outcome::Accepted.is_supported_by(&gates, true));
+    }
+
+    /// An inspection that checked nothing must not release a part. Posting an
+    /// empty body used to accept the unit into serviceable stock.
+    #[test]
+    fn an_inspection_that_assessed_nothing_cannot_accept() {
+        let none_checked = InspectionGates {
+            part_number_matches_order: GateResult::NotApplicable,
+            serial_matches_tag: GateResult::NotApplicable,
+            tag_present_and_legible: GateResult::NotApplicable,
+            shelf_life_acceptable: GateResult::NotApplicable,
+            dangerous_goods_paperwork: GateResult::NotApplicable,
+        };
+        assert!(!none_checked.any_assessed());
+        assert!(!none_checked.any_failed(), "n/a is still not a failure");
+        assert_eq!(
+            Outcome::proposed_from(&none_checked, false),
+            Outcome::Quarantined
+        );
+        assert!(!Outcome::Accepted.is_supported_by(&none_checked, false));
+    }
+
+    /// One real check is enough; the rest may legitimately not apply.
+    #[test]
+    fn a_single_assessed_gate_is_enough_to_accept() {
+        let mut gates = InspectionGates {
+            part_number_matches_order: GateResult::NotApplicable,
+            serial_matches_tag: GateResult::NotApplicable,
+            tag_present_and_legible: GateResult::NotApplicable,
+            shelf_life_acceptable: GateResult::NotApplicable,
+            dangerous_goods_paperwork: GateResult::NotApplicable,
+        };
+        gates.part_number_matches_order = GateResult::Pass;
+        assert!(gates.any_assessed());
+        assert_eq!(Outcome::proposed_from(&gates, false), Outcome::Accepted);
+        assert!(Outcome::Accepted.is_supported_by(&gates, false));
     }
 
     /// The proposal is advisory in one direction only: an inspector may

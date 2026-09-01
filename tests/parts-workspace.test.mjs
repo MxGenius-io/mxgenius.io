@@ -877,3 +877,60 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
     assert.match(html, /application-client\.js\?v=36/);
   });
 });
+
+test('Defects found by the QA pass stay fixed', async (t) => {
+  const domain = readFileSync('services/mcp/shared/src/domain/part.rs', 'utf8');
+  const inspection = readFileSync(
+    'services/mcp/shared/src/domain/receiving_inspection.rs', 'utf8');
+  const repo = readFileSync(
+    'services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+  const disc = readFileSync(
+    'services/mcp/server/src/application/receiving_inspection.rs', 'utf8');
+
+  await t.test('serviceable stock can be held as non-conforming', () => {
+    // Without these a discrepancy raised against available stock silently did
+    // nothing: the report was written, the unit stayed available, and a part
+    // flagged suspected-unapproved could still be issued to a job.
+    assert.match(domain, /\(Available, HoldNcm\)/);
+    assert.match(domain, /\(Reserved, HoldNcm\)/);
+  });
+
+  await t.test('a hold that cannot be applied refuses instead of passing quietly', () => {
+    assert.match(disc, /cannot be held as non-conforming material/);
+  });
+
+  await t.test('an issued part returns to the bin it came from', () => {
+    // `issue` leaves the unit recorded at its bin, so the no-op guard used to
+    // reject the ordinary return and demand a different destination.
+    assert.match(repo, /spec\.target_status\.is_none\(\)/);
+    assert.match(repo, /Only a pure relocation can be a no-op/);
+  });
+
+  await t.test('every list query takes the same camelCase paging parameters', () => {
+    // /api/parts silently ignored pageSize because this one struct was the
+    // only list query without the rename.
+    const structs = [
+      ['parts_inventory.rs', 'SearchPartsQuery'],
+      ['part_procurement.rs', 'RequestQueueQuery'],
+      ['rotables.rs', 'RotableQuery'],
+      ['cannibalizations.rs', 'CannibalizationQuery'],
+      ['part_traceability.rs', 'EventQuery']
+    ];
+    for (const [file, name] of structs) {
+      const src = readFileSync(`services/mcp/server/src/application/${file}`, 'utf8');
+      const decl = src.slice(0, src.indexOf(`pub struct ${name} {`));
+      const tail = decl.slice(-160);
+      assert.match(tail, /rename_all = "camelCase"/, `${name} must accept camelCase paging`);
+    }
+  });
+
+  await t.test('an inspection that checked nothing cannot release a part', () => {
+    // Posting an empty body accepted the unit into serviceable stock with
+    // every gate left at n/a.
+    assert.match(inspection, /pub fn any_assessed/);
+    assert.match(inspection, /!gates\.any_assessed\(\)/);
+    assert.match(inspection, /Self::Accepted => gates\.any_assessed\(\)/);
+    // And the refusal says which of the two reasons it was.
+    assert.match(disc, /checked nothing/);
+  });
+});
