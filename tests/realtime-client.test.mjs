@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const source = await readFile(new URL('../realtime-client.js', import.meta.url), 'utf8');
 
 function loadClient() {
-  const context = { console, JSON, Map, Object, TypeError, Error };
+  const context = { console, JSON, Map, Object, TypeError, Error, Number, setTimeout, clearTimeout };
   context.window = context;
   vm.runInNewContext(`${source}\n;globalThis.exported = MXRealtime;`, context);
   return context.exported;
@@ -239,6 +239,43 @@ test('an open Realtime data channel is authoritative when Safari peer state lags
   assert.equal(session.state, 'listening');
   assert.ok(events.some((event) => event.type === 'state' && event.transport === 'data-channel'));
   assert.ok(events.some((event) => event.type === 'channel-open'));
+});
+
+test('Realtime channel timeout reports the final peer and ICE state', async () => {
+  const MXRealtime = loadClient();
+  const channel = {
+    readyState: 'connecting',
+    addEventListener() {},
+    close() {},
+    send() {}
+  };
+  const peer = {
+    connectionState: 'connecting',
+    iceConnectionState: 'checking',
+    signalingState: 'stable',
+    close() {},
+    createDataChannel: () => channel,
+    addTrack() {},
+    createOffer: async () => ({ type: 'offer', sdp: 'v=0\r\no=offer' }),
+    setLocalDescription: async () => {},
+    setRemoteDescription: async () => {}
+  };
+  const media = { getAudioTracks: () => [], getTracks: () => [] };
+  const events = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0\r\no=answer' }),
+    peerFactory: () => peer,
+    mediaDevices: { getUserMedia: async () => media },
+    connectionTimeoutMs: 1,
+    onEvent: (event) => events.push(event)
+  });
+
+  await session.connect({ session: { accessToken: 'token' }, audioElement: {} });
+  await new Promise((resolve) => setTimeout(resolve, 1_050));
+
+  assert.equal(session.state, 'failed');
+  const failure = events.find((event) => event.type === 'state' && event.code === 'REALTIME_CHANNEL_TIMEOUT');
+  assert.match(failure.reason, /peer connecting · ICE checking · signaling stable · channel connecting/);
 });
 
 test('disconnect during microphone permission closes the pending connection without a failed or hanging session', async () => {

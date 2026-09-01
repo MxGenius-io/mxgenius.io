@@ -2281,11 +2281,20 @@ Rules:
         'server-answer-received': 'MXGenius answered · applying secure session…',
         'peer-connecting': 'SDP accepted · opening Realtime socket…',
         'peer-connected': 'Realtime peer linked · waiting for event socket…',
+        'ice-new': 'Realtime network path initialized…',
         'ice-checking': 'Realtime socket negotiating a secure network path…',
         'ice-connected': 'Realtime network path connected…',
-        'ice-completed': 'Realtime network path ready…'
+        'ice-completed': 'Realtime network path ready…',
+        'ice-disconnected': 'Realtime network path interrupted…',
+        'ice-failed': 'Realtime network path failed…'
       };
       await setNativeARRealtimeState('connecting', labels[event.phase] || 'Realtime handshake in progress…');
+      return;
+    }
+    if (event.type === 'transport-error') {
+      const transport = event.transport || {};
+      const detail = `peer ${transport.peer || '?'} · ICE ${transport.ice || '?'} · channel ${transport.channel || '?'}`;
+      await setNativeARRealtimeState('connecting', `${event.reason || 'Realtime transport warning'} · ${detail}`);
       return;
     }
     if (event.type === 'tool-request') {

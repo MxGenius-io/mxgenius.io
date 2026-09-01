@@ -391,8 +391,9 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /await startRealtimeVoice\(\{ rethrow: true \}\)/);
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
-  assert.match(dashboard, /realtime-client\.js\?v=5/);
-  assert.match(dashboard, /app\.js\?v=42/);
+  assert.match(dashboard, /realtime-client\.js\?v=6/);
+  assert.match(dashboard, /app\.js\?v=43/);
+  assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(application, /realtimeSession\.disconnect\(\)/);
   assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);
   assert.match(application, /panningModel = 'HRTF'/);
