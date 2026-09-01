@@ -197,9 +197,34 @@ pub enum RowProblem {
     UnparsableBoolean(String),
     UnparsableQuantity(String),
     NegativeQuantity(String),
+    QuantityOutOfRange(String),
     LocationRequiredWithQuantity,
     SerialAndLot,
     SerializedQuantityNotOne(String),
+}
+
+/// Something worth telling the operator that does not stop the file applying.
+///
+/// The export doubles as the import template, so an exported file has to
+/// re-import. It could not: a row carrying the ambiguous legacy `coc` trace
+/// value was rejected outright, because a *new* record should say whose
+/// certificate of conformance it is. Both rules were right and together they
+/// broke the round trip. A note keeps them: the value survives, and it is
+/// never silently blessed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowNote {
+    LegacyTraceType(String),
+}
+
+impl RowNote {
+    pub fn message(&self) -> String {
+        match self {
+            Self::LegacyTraceType(v) => format!(
+                "trace_type '{v}' is a legacy value with no recorded source; it is preserved as \
+                 imported. Set a specific certificate source when you know it."
+            ),
+        }
+    }
 }
 
 impl RowProblem {
@@ -216,6 +241,12 @@ impl RowProblem {
                 CONDITION_CODES.join(", ")
             ),
             UnknownTraceType(v) => format!("trace_type '{v}' is not a document this system records"),
+            QuantityOutOfRange(v) => format!(
+                "quantity '{v}' does not fit a stock record: {}",
+                crate::domain::quantity::quantity_problem(v.parse::<f64>().unwrap_or(f64::NAN))
+                    .map(|problem| problem.message())
+                    .unwrap_or_else(|| "out of range".into())
+            ),
             UnknownOwnerType(v) => {
                 format!("owner_type '{v}' is not one of {}", OWNER_TYPES.join(", "))
             }
@@ -253,6 +284,8 @@ pub struct ParsedRow {
     pub trace_type: Option<String>,
     pub certificate_number: Option<String>,
     pub owner_type: Option<String>,
+    /// Non-blocking remarks about what was accepted, in the operator's terms.
+    pub notes: Vec<RowNote>,
 }
 
 fn optional(value: &str) -> Option<String> {
@@ -265,6 +298,7 @@ fn optional(value: &str) -> Option<String> {
 /// instead of rediscovering it a row at a time.
 pub fn validate_row(row: &RawRow) -> Result<ParsedRow, Vec<RowProblem>> {
     let mut problems = Vec::new();
+    let mut notes: Vec<RowNote> = Vec::new();
 
     if row.part_number.trim().is_empty() {
         problems.push(RowProblem::PartNumberMissing);
@@ -284,15 +318,22 @@ pub fn validate_row(row: &RawRow) -> Result<ParsedRow, Vec<RowProblem>> {
         }
     }
 
-    // Reuses the assignable set, so the ambiguous legacy 'coc' cannot be
-    // introduced by an import even though existing rows may still carry it.
+    // Reuses the assignable set, so a *new* record still cannot claim an
+    // anonymous certificate of conformance. The one exception is the legacy
+    // 'coc' an export may carry out of an existing row: refusing it made the
+    // system's own template fail its own validation, so it is preserved and
+    // noted rather than rejected or silently accepted.
     let trace_type = optional(&row.trace_type);
     if let Some(value) = trace_type.as_deref() {
         let assignable = TraceType::assignable()
             .iter()
             .any(|candidate| candidate.as_str() == value);
         if !assignable {
-            problems.push(RowProblem::UnknownTraceType(value.to_owned()));
+            if value == "coc" {
+                notes.push(RowNote::LegacyTraceType(value.to_owned()));
+            } else {
+                problems.push(RowProblem::UnknownTraceType(value.to_owned()));
+            }
         }
     }
 
@@ -324,6 +365,16 @@ pub fn validate_row(row: &RawRow) -> Result<ParsedRow, Vec<RowProblem>> {
             }
             Ok(value) if value < 0.0 => {
                 problems.push(RowProblem::NegativeQuantity(raw.clone()));
+                None
+            }
+            // Zero means "catalog row, no stock" and is planned for
+            // separately, so only a row that actually carries stock is
+            // measured against the column's range. Without this a single
+            // out-of-range cell failed inside the batch transaction and rolled
+            // the whole import back as a 503, with no per-row diagnostic --
+            // despite the preview existing to give exactly that.
+            Ok(value) if value > 0.0 && crate::domain::quantity::quantity_problem(value).is_some() => {
+                problems.push(RowProblem::QuantityOutOfRange(raw.clone()));
                 None
             }
             Ok(value) => Some(value),
@@ -369,6 +420,7 @@ pub fn validate_row(row: &RawRow) -> Result<ParsedRow, Vec<RowProblem>> {
         trace_type,
         certificate_number: optional(&row.certificate_number),
         owner_type,
+        notes,
     })
 }
 

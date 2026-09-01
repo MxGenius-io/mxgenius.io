@@ -98,7 +98,13 @@ impl InsecureLocalProvider {
                     version: mxgenius_shared::PACKAGE_VERSION.to_string(),
                 },
                 human_confirmed,
-                approval_granted,
+                // Derived from the role, not taken on trust. Without this an
+                // overridden role kept the unconditional `true` this provider
+                // used to pass, producing a Technician who still carries
+                // qualified approval -- something the OIDC path can never
+                // build, so a local role test would silently prove nothing.
+                // A no-op for the default: Administrator qualifies.
+                approval_granted: approval_granted && role.can_grant_qualified_approval(),
                 confirmation: None,
             },
             confirmations: None,
@@ -123,7 +129,7 @@ impl InsecureLocalProvider {
 
     pub fn with_trusted_confirmation(role: Role, confirmation: TrustedConfirmation) -> Self {
         let approval_granted = confirmation.qualified_approval
-            && matches!(role, Role::Quality | Role::Manager | Role::Administrator);
+            && role.can_grant_qualified_approval();
         let mut provider = Self::with_trusted_state(role, false, approval_granted);
         provider.inner.confirmation = Some(confirmation);
         provider
@@ -550,18 +556,11 @@ fn normalize_identity_email(value: &str) -> Option<String> {
     Some(email)
 }
 
+/// Delegates to the published list. This is the production membership path, so
+/// a role added to the enum but missed by a private copy here would make every
+/// request from a user holding it fail with 503.
 fn parse_role(value: &str) -> Result<Role, AuthError> {
-    match value {
-        "viewer" => Ok(Role::Viewer),
-        "technician" => Ok(Role::Technician),
-        "planner" => Ok(Role::Planner),
-        "controller" => Ok(Role::Controller),
-        "procurement" => Ok(Role::Procurement),
-        "quality" => Ok(Role::Quality),
-        "manager" => Ok(Role::Manager),
-        "administrator" => Ok(Role::Administrator),
-        _ => Err(AuthError::Internal("membership has an unknown role".into())),
-    }
+    Role::parse(value).ok_or_else(|| AuthError::Internal("membership has an unknown role".into()))
 }
 
 pub struct OidcProvider {
@@ -644,11 +643,7 @@ impl ExecutionContextProvider for OidcProvider {
             None => None,
         };
         let approval_granted = confirmation.as_ref().is_some_and(|grant| {
-            grant.qualified_approval
-                && matches!(
-                    membership.role,
-                    Role::Quality | Role::Manager | Role::Administrator
-                )
+            grant.qualified_approval && membership.role.can_grant_qualified_approval()
         });
         Ok(TrustedContextInputs {
             organization_id: membership.organization_id,

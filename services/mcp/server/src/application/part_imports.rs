@@ -36,6 +36,10 @@ pub struct RowReport {
     pub part_number: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub problems: Vec<String>,
+    /// Remarks that do not stop the file applying. `applicable` stays driven
+    /// by errors and conflicts only, so a note never blocks an import.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan: Option<RowPlan>,
 }
@@ -168,6 +172,7 @@ impl<'a> PartImportRepository<'a> {
                         row_number: *row_number,
                         part_number: raw.part_number.clone(),
                         problems: problems.iter().map(|p| p.message()).collect(),
+                        notes: Vec::new(),
                         plan: None,
                     });
                 }
@@ -235,6 +240,7 @@ impl<'a> PartImportRepository<'a> {
                         row_number: *row_number,
                         part_number: parsed.part_number.clone(),
                         problems: Vec::new(),
+                        notes: parsed.notes.iter().map(|note| note.message()).collect(),
                         plan: Some(plan),
                     });
                 }

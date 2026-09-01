@@ -78,20 +78,51 @@ mod tests {
     }
 
     #[test]
-    fn the_ambiguous_legacy_conformance_value_cannot_be_imported() {
-        // Historical rows may carry a bare 'coc', but nothing new should be
-        // created that cannot say whose certificate it was.
+    fn the_ambiguous_legacy_conformance_value_is_preserved_but_never_blessed() {
+        // Historical rows may carry a bare 'coc', and the export writes it
+        // back out, so refusing it outright made the system's own template
+        // fail its own validation. It is preserved with a note instead: the
+        // file applies, and nobody is told the certificate has a source.
         let mut r = good();
         r.trace_type = "coc".into();
-        let problems = validate_row(&r).unwrap_err();
-        assert!(problems.contains(&RowProblem::UnknownTraceType("coc".into())));
+        let parsed = validate_row(&r).expect("an exported legacy row must re-import");
+        assert_eq!(parsed.trace_type.as_deref(), Some("coc"));
+        assert!(
+            parsed.notes.contains(&RowNote::LegacyTraceType("coc".into())),
+            "the operator has to be told what was preserved"
+        );
 
-        // The specific ones are importable.
+        // Every other unknown value is still a hard error: only the value the
+        // export can actually emit is tolerated.
+        let mut invented = good();
+        invented.trace_type = "invented_tag".into();
+        let problems = validate_row(&invented).unwrap_err();
+        assert!(problems.contains(&RowProblem::UnknownTraceType("invented_tag".into())));
+
+        // The specific ones are importable and carry no note.
         for value in ["coc_mfr", "coc_vendor", "ata106", "tso", "form_8130"] {
             let mut ok = good();
             ok.trace_type = value.into();
-            assert!(validate_row(&ok).is_ok(), "{value} should be importable");
+            let parsed = validate_row(&ok).expect("{value} should be importable");
+            assert!(parsed.notes.is_empty(), "{value} needs no note");
         }
+    }
+
+    #[test]
+    fn a_quantity_the_column_cannot_hold_is_a_row_problem_not_a_batch_failure() {
+        // One bad cell used to fail inside the batch transaction and roll the
+        // whole import back as a 503, with no per-row diagnostic.
+        let mut r = good();
+        r.quantity = "1000000000".into();
+        let problems = validate_row(&r).unwrap_err();
+        assert!(problems
+            .iter()
+            .any(|p| matches!(p, RowProblem::QuantityOutOfRange(_))));
+
+        // Zero still means "catalog row, no stock" and must keep parsing.
+        let mut catalog = good();
+        catalog.quantity = "0".into();
+        assert!(validate_row(&catalog).is_ok(), "a catalog row carries no stock");
     }
 
     #[test]

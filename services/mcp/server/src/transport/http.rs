@@ -8547,6 +8547,31 @@ mod structured_advisory_tests {
         }
     }
 
+    /// The published quantity bound only holds while the columns still say
+    /// what it claims. Rebuilding `MAX_QUANTITY` from a remembered column type
+    /// is how the limit silently outlives the schema.
+    #[test]
+    fn the_quantity_columns_still_match_the_published_bound() {
+        use mxgenius_shared::domain::quantity::{
+            MAX_QUANTITY, MIN_QUANTITY, QUANTITY_COLUMN_TYPE,
+        };
+        let inventory = include_str!("../../../migrations/0015_parts_inventory.sql");
+        let inspection = include_str!("../../../migrations/0026_receiving_inspection.sql");
+        for (sql, column) in [
+            (inventory, "quantity            numeric(12,3)"),
+            (inventory, "quantity_delta      numeric(12,3)"),
+            (inspection, "quantity_received   numeric(12,3)"),
+        ] {
+            assert!(
+                sql.contains(column),
+                "`{column}` moved; the published quantity bound is now wrong"
+            );
+        }
+        assert_eq!(QUANTITY_COLUMN_TYPE, "numeric(12,3)");
+        assert_eq!(MAX_QUANTITY, 999_999_999.999);
+        assert_eq!(MIN_QUANTITY, 0.001);
+    }
+
     #[test]
     fn parts_confirmable_operations_cover_every_ledger_mutation_route() {
         // Each of these writes an inventory_events row, so each must be able to

@@ -23,6 +23,8 @@ pub mod part_request;
 pub mod part_request_test;
 pub mod part_trace;
 pub mod part_trace_test;
+pub mod quantity;
+pub mod quantity_test;
 pub mod receiving_inspection;
 pub mod rotable;
 pub mod rotable_test;
@@ -38,6 +40,9 @@ pub use ids::*;
 pub use organization::{Organization, OrganizationMembership, User};
 pub use part::{Part, PartRequirement, StockUnitStatus, Supplier};
 pub use part_alternate::AlternateRelation;
+pub use quantity::{
+    quantity_delta_problem, quantity_problem, QuantityProblem, MAX_QUANTITY, MIN_QUANTITY,
+};
 pub use receiving_inspection::{
     Disposition, DiscrepancyType, GateResult, InspectionGates, Outcome,
 };

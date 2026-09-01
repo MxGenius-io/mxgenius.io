@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::application::paging::{Page, PageRequest};
+use mxgenius_shared::domain::quantity::{quantity_problem, MIN_QUANTITY};
 use mxgenius_shared::domain::part::StockUnitStatus;
 
 #[derive(Debug, Deserialize, Default)]
@@ -1054,11 +1055,16 @@ impl<'a> PartsInventoryRepository<'a> {
         if input.part_number.trim().is_empty()
             || input.description.trim().is_empty()
             || input.location_code.trim().is_empty()
-            || input.quantity <= 0.0
         {
             return Err(PartsInventoryError::Invalid(
-                "part number, description, positive quantity, and location are required".into(),
+                "part number, description, and location are required".into(),
             ));
+        }
+        // Was `quantity <= 0.0`, which bounded neither end: an oversized count
+        // reached the column and came back as a 503, and a NaN would have
+        // passed the comparison entirely.
+        if let Some(problem) = quantity_problem(input.quantity) {
+            return Err(PartsInventoryError::Invalid(problem.message()));
         }
         let mut tx = self.pool.begin().await?;
         let previous: Option<(String, Option<Value>)> = sqlx::query_as(
@@ -1680,10 +1686,8 @@ impl<'a> PartsInventoryRepository<'a> {
         expected_version: i64,
         input: &SplitUnitInput,
     ) -> Result<StockUnitDto, PartsInventoryError> {
-        if !input.quantity.is_finite() || input.quantity <= 0.0 {
-            return Err(PartsInventoryError::Invalid(
-                "quantity must be greater than zero".into(),
-            ));
+        if let Some(problem) = quantity_problem(input.quantity) {
+            return Err(PartsInventoryError::Invalid(problem.message()));
         }
 
         let mut tx = self.pool.begin().await?;
@@ -1737,6 +1741,21 @@ impl<'a> PartsInventoryRepository<'a> {
         if input.quantity >= quantity {
             return Err(PartsInventoryError::Invalid(format!(
                 "quantity must be less than the {quantity} on hand; move the whole unit instead"
+            )));
+        }
+        // The remainder is written straight to the column, so it needs the
+        // same bound as the split itself. Taking 5.9996 off 6 leaves 0.0004,
+        // which rounds to 0.000 and fails `CHECK (quantity > 0)` -- the same
+        // 503 the oversized case produced, from the other end. The message
+        // names the remainder, because "quantity must be at least 0.001" is
+        // baffling when the operator typed 5.9996.
+        let remainder_left = quantity - input.quantity;
+        if quantity_problem(remainder_left).is_some() {
+            return Err(PartsInventoryError::Invalid(format!(
+                "splitting {} off the {quantity} on hand would leave {remainder_left:.3}, \
+                 which is less than the {MIN_QUANTITY} a lot can hold; \
+                 move the whole unit instead",
+                input.quantity
             )));
         }
 
@@ -1836,11 +1855,17 @@ impl<'a> PartsInventoryRepository<'a> {
                 "reason is required so the variance can be explained".into(),
             ));
         }
-        if !input.counted_quantity.is_finite() || input.counted_quantity <= 0.0 {
+        // A count of nil is a scrap decision, not a recount, so that case
+        // keeps its own wording; every other shape resolves through the
+        // published bound.
+        if input.counted_quantity == 0.0 {
             return Err(PartsInventoryError::Invalid(
                 "countedQuantity must be greater than zero; scrap the unit instead of counting it to nil"
                     .into(),
             ));
+        }
+        if let Some(problem) = quantity_problem(input.counted_quantity) {
+            return Err(PartsInventoryError::Invalid(problem.message()));
         }
 
         let mut tx = self.pool.begin().await?;

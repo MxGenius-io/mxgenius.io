@@ -1,0 +1,559 @@
+<title>Parts Defect Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=Zilla+Slab:wght@500;600;700&display=swap">
+
+<style>
+  /* ---------------------------------------------------------------------
+     In a findings report colour should mean severity and nothing else, so
+     the palette is graphite with one structural steel, and every chromatic
+     element on the page encodes how bad something is or whether it is shut.
+     --------------------------------------------------------------------- */
+  :root {
+    color-scheme: light;
+
+    --ground: #f1f4f6;
+    --surface: #ffffff;
+    --sunk: #e7ebef;
+    --rule: #d2d9df;
+    --rule-firm: #b0bbc4;
+
+    --ink: #14181d;
+    --ink-soft: #3f4a55;
+    --ink-faint: #6a7683;
+
+    --steel: #3f5a6b;
+    --steel-soft: #e4ebef;
+
+    --high: #b5372a;
+    --high-bg: #fbe9e7;
+    --med: #a56a12;
+    --med-bg: #fbf1e0;
+    --low: #55677a;
+    --low-bg: #e9edf1;
+    --fixed: #256b46;
+    --fixed-bg: #e4f2ea;
+
+    --shadow: 0 1px 2px rgba(20, 24, 29, .05), 0 10px 28px rgba(20, 24, 29, .06);
+
+    --measure: 66ch;
+    --s--1: .8rem;
+    --s-0: 1rem;
+    --s-1: 1.15rem;
+    --s-2: 1.4rem;
+    --s-3: 1.85rem;
+    --s-4: 2.6rem;
+
+    --display: "Zilla Slab", Georgia, serif;
+    --body: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0f1317;
+      --surface: #171c21;
+      --sunk: #1e242a;
+      --rule: #2a323a;
+      --rule-firm: #3c4650;
+
+      --ink: #e7ecf1;
+      --ink-soft: #b2bcc6;
+      --ink-faint: #87929e;
+
+      --steel: #7fa3b8;
+      --steel-soft: #1a2831;
+
+      --high: #e8796a;
+      --high-bg: #2c1917;
+      --med: #ddA43f;
+      --med-bg: #2b2213;
+      --low: #92a3b3;
+      --low-bg: #1e252b;
+      --fixed: #57b384;
+      --fixed-bg: #142720;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0f1317;
+    --surface: #171c21;
+    --sunk: #1e242a;
+    --rule: #2a323a;
+    --rule-firm: #3c4650;
+
+    --ink: #e7ecf1;
+    --ink-soft: #b2bcc6;
+    --ink-faint: #87929e;
+
+    --steel: #7fa3b8;
+    --steel-soft: #1a2831;
+
+    --high: #e8796a;
+    --high-bg: #2c1917;
+    --med: #ddA43f;
+    --med-bg: #2b2213;
+    --low: #92a3b3;
+    --low-bg: #1e252b;
+    --fixed: #57b384;
+    --fixed-bg: #142720;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: var(--s-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 0 1.75rem 5rem; }
+
+  /* ---- masthead ---- */
+  .masthead { padding: 3.5rem 0 0; }
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--steel);
+    border: 1px solid var(--rule-firm);
+    border-radius: 2px;
+    padding: .2rem .55rem;
+    margin-bottom: 1.1rem;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(2.3rem, 6vw, var(--s-4));
+    font-weight: 700;
+    line-height: 1.03;
+    letter-spacing: -.015em;
+    margin: 0 0 .6rem;
+    text-wrap: balance;
+  }
+  .dek { max-width: var(--measure); color: var(--ink-soft); font-size: var(--s-1); margin: 0 0 2rem; }
+
+  /* ---- verdict band: the summary before the detail ---- */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+  }
+  .tile { background: var(--surface); padding: 1rem 1.1rem; }
+  .tile-n {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    margin-bottom: .3rem;
+  }
+  .tile-l {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--ink-faint);
+  }
+  .n-high { color: var(--high); }
+  .n-med { color: var(--med); }
+  .n-fixed { color: var(--fixed); }
+  .n-plain { color: var(--ink); }
+
+  .scope {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    color: var(--ink-faint);
+    border-left: 2px solid var(--rule-firm);
+    padding-left: .8rem;
+    margin: 0 0 3rem;
+  }
+
+  /* ---- sections ---- */
+  section { margin-bottom: 3.25rem; }
+  h2 {
+    font-family: var(--display);
+    font-size: var(--s-3);
+    font-weight: 600;
+    margin: 0 0 .25rem;
+    text-wrap: balance;
+  }
+  .sub {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    color: var(--ink-faint);
+    margin: 0 0 1.5rem;
+  }
+  p { margin: 0 0 .85rem; max-width: var(--measure); }
+  code {
+    font-family: var(--mono);
+    font-size: .87em;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: .06em .32em;
+  }
+
+  /* ---- finding card ---- */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    margin-bottom: 1.1rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .finding-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .6rem;
+    padding: .9rem 1.2rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunk);
+  }
+  .fid {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    font-weight: 700;
+    color: var(--ink-faint);
+    flex: none;
+  }
+  .ftitle {
+    font-family: var(--display);
+    font-size: var(--s-1);
+    font-weight: 600;
+    flex: 1 1 16rem;
+    line-height: 1.25;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    font-weight: 500;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: .1rem .45rem;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    flex: none;
+    white-space: nowrap;
+  }
+  .c-high { color: var(--high); background: var(--high-bg); border-color: color-mix(in srgb, var(--high) 32%, transparent); }
+  .c-med { color: var(--med); background: var(--med-bg); border-color: color-mix(in srgb, var(--med) 32%, transparent); }
+  .c-low { color: var(--low); background: var(--low-bg); border-color: color-mix(in srgb, var(--low) 32%, transparent); }
+  .c-fixed { color: var(--fixed); background: var(--fixed-bg); border-color: color-mix(in srgb, var(--fixed) 32%, transparent); }
+  .c-open { color: var(--med); background: transparent; border-color: color-mix(in srgb, var(--med) 45%, transparent); }
+  .c-mine { color: var(--steel); background: var(--steel-soft); border-color: color-mix(in srgb, var(--steel) 30%, transparent); }
+
+  .finding-body { padding: 1.1rem 1.2rem; }
+  .finding-body p:last-child { margin-bottom: 0; }
+
+  .evidence {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-firm);
+    border-radius: 3px;
+    padding: .7rem .9rem;
+    margin: .85rem 0;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: none;
+  }
+  .evidence-damning { border-left-color: var(--high); }
+  .evidence b { color: var(--high); font-weight: 700; }
+
+  .fix {
+    font-size: var(--s--1);
+    color: var(--ink-soft);
+    border-top: 1px dashed var(--rule);
+    padding-top: .7rem;
+    margin-top: .9rem;
+  }
+  .fix strong { color: var(--fixed); font-weight: 600; }
+  .fix-open strong { color: var(--med); }
+
+  /* ---- passes: scannable, not verbose ---- */
+  .passes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: .5rem;
+    max-width: none;
+  }
+  .pass {
+    display: flex;
+    gap: .6rem;
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .65rem .85rem;
+    font-size: var(--s--1);
+  }
+  .pass::before {
+    content: "✓";
+    color: var(--fixed);
+    font-weight: 700;
+    flex: none;
+    line-height: 1.4;
+  }
+  .pass span { color: var(--ink-soft); }
+  .pass b { color: var(--ink); font-weight: 600; display: block; }
+
+  .note {
+    background: var(--steel-soft);
+    border: 1px solid color-mix(in srgb, var(--steel) 25%, transparent);
+    border-radius: 5px;
+    padding: 1rem 1.2rem;
+    max-width: none;
+  }
+  .note p { max-width: none; }
+  .note p:last-child { margin-bottom: 0; }
+  .note-label {
+    font-family: var(--mono);
+    font-size: var(--s--1);
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--steel);
+    display: block;
+    margin-bottom: .4rem;
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.2rem;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: var(--s--1);
+  }
+
+  a { color: var(--steel); }
+  a:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+
+  @media (max-width: 40rem) {
+    .evidence { font-size: .72rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="stamp">MXGenius · Parts · QA pass</span>
+    <h1>Parts Defect Report</h1>
+    <p class="dek">Twelve test batteries run against a live server on a throwaway database. Nine shortcomings found, four of them fixed and verified — including one that let a part flagged Suspected Unapproved reach an aircraft.</p>
+  </header>
+
+  <div class="verdict">
+    <div class="tile"><span class="tile-n n-high">2</span><span class="tile-l">High</span></div>
+    <div class="tile"><span class="tile-n n-med">5</span><span class="tile-l">Medium</span></div>
+    <div class="tile"><span class="tile-n n-plain">2</span><span class="tile-l">Low</span></div>
+    <div class="tile"><span class="tile-n n-fixed">4</span><span class="tile-l">Fixed</span></div>
+    <div class="tile"><span class="tile-n n-plain">5</span><span class="tile-l">Still open</span></div>
+  </div>
+  <p class="scope">Batteries: lifecycle · validation and boundaries · concurrency · confirmation grants · ledger integrity · inspection and discrepancy · paging and counts · reports · imports · tenant isolation. Three of the four fixed defects were introduced by this session’s own work.</p>
+
+  <section>
+    <h2>Fixed</h2>
+    <p class="sub">Each reproduced, corrected, re-run clean, and pinned by a regression test</p>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F1</span>
+        <span class="ftitle">A suspected unapproved part was issued to a job</span>
+        <span class="chip c-high">High</span>
+        <span class="chip c-fixed">Fixed</span>
+        <span class="chip c-mine">Introduced here</span>
+      </div>
+      <div class="finding-body">
+        <p><code>Available → HoldNcm</code> and <code>Reserved → HoldNcm</code> were missing from the transition graph, and the hold in <code>open_discrepancy</code> was guarded by <code>can_transition_to</code> — so when the transition was illegal it was skipped <em>silently</em>. Raising a discrepancy against shelf stock wrote the report, returned <code>201</code>, and left the unit untouched.</p>
+        <p>The entire purpose of raising a discrepancy is to stop the part being used. It stopped nothing.</p>
+        <div class="evidence evidence-damning">unit d0000000 starts          available
+raise suspected-unapproved →  HTTP 201   unit: available
+SUP flag                      t
+open discrepancies            1
+
+<b>ISSUE with an open SUP discrepancy → HTTP 200  unit: issued</b></div>
+        <p class="fix"><strong>Fixed.</strong> Both transitions are now legal, and a hold that cannot be applied refuses with <code>409</code> rather than passing quietly. Re-run: the same sequence now returns <code>409 a unit in hold_ncm cannot move to issued</code>.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F2</span>
+        <span class="ftitle">An issued part could not be returned to the bin it came from</span>
+        <span class="chip c-high">High</span>
+        <span class="chip c-fixed">Fixed</span>
+      </div>
+      <div class="finding-body">
+        <p><code>issue</code> leaves the unit recorded at its location. <code>return</code> requires a location, so the no-op guard fired on the ordinary case — putting a part back where it came from — and the operator had to invent a different bin to get it onto the shelf.</p>
+        <div class="evidence">reserve  → HTTP 200  status=reserved
+issue    → HTTP 200  status=issued
+return   → HTTP 400  <b>the destination is the location the unit already occupies</b></div>
+        <p class="fix"><strong>Fixed.</strong> The guard now applies only to a pure relocation — the one movement that can actually be a no-op. This one is pre-existing, and the user guide I wrote earlier told people to use exactly the path that did not work.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F3</span>
+        <span class="ftitle">An inspection that checked nothing accepted the part</span>
+        <span class="chip c-med">Medium</span>
+        <span class="chip c-fixed">Fixed</span>
+        <span class="chip c-mine">Introduced here</span>
+      </div>
+      <div class="finding-body">
+        <p>Every gate defaults to <code>na</code>, and nothing distinguished “not applicable” from “not assessed”. Posting an empty body released a unit from quarantine into serviceable stock with no evidence recorded at all — defeating the purpose of the record.</p>
+        <div class="evidence">POST /units/{id}/inspections  {}
+
+→ HTTP 201  outcome=<b>accepted</b>  status=<b>available</b></div>
+        <p class="fix"><strong>Fixed.</strong> Nothing assessed now proposes quarantine and cannot support an acceptance. The refusal names that reason instead of listing an empty set of failed gates.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F4</span>
+        <span class="ftitle"><code>/api/parts</code> silently ignored <code>pageSize</code></span>
+        <span class="chip c-med">Medium</span>
+        <span class="chip c-fixed">Fixed</span>
+        <span class="chip c-mine">Introduced here</span>
+      </div>
+      <div class="finding-body">
+        <p><code>SearchPartsQuery</code> was the only list query struct without <code>rename_all = "camelCase"</code>, so it accepted <code>page_size</code> while every other list accepted <code>pageSize</code>. The wrong spelling fell back to the default rather than erroring.</p>
+        <div class="evidence">?pageSize=3   → returned 26  pageSize=50   <b>ignored</b>
+?page_size=3  → returned  3  pageSize=3</div>
+        <p class="fix"><strong>Fixed.</strong> A regression test now walks all five list query structs and fails if any one drifts from camelCase.</p>
+      </div>
+    </article>
+  </section>
+
+  <section>
+    <h2>Still open</h2>
+    <p class="sub">Found, reproduced, not yet addressed</p>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F5</span>
+        <span class="ftitle">A validation error is reported as a service outage</span>
+        <span class="chip c-med">Medium</span>
+        <span class="chip c-open">Open</span>
+      </div>
+      <div class="finding-body">
+        <p>Any counted quantity at or above <code>1e9</code> overflows <code>numeric(12,3)</code> and surfaces as <code>503 server-side persistence is temporarily unavailable</code>. The operator is told to retry something that can never succeed, and the log reads as an infrastructure fault rather than a typo.</p>
+        <div class="evidence">counted=1e+09  → HTTP <b>503</b>  server-side persistence is temporarily unavailable
+counted=1e+15  → HTTP <b>503</b>  server-side persistence is temporarily unavailable</div>
+        <p class="fix fix-open"><strong>Fix:</strong> bound the quantity in the application layer and return <code>400</code> naming the limit.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F6</span>
+        <span class="ftitle">Role boundaries cannot be exercised on a developer machine</span>
+        <span class="chip c-med">Medium</span>
+        <span class="chip c-open">Open</span>
+      </div>
+      <div class="finding-body">
+        <p>Local mode is hardcoded to <code>Role::Administrator</code> with no override. The inspection buy-off — restricting who may release stock onto the serviceable shelf — is an airworthiness control, and it has never been exercised end to end. Only the predicate functions are unit-tested, which does not prove the handlers wire them correctly.</p>
+        <p class="fix fix-open"><strong>Fix:</strong> an environment variable selecting the local role, so every gated path can be walked as each role.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F7</span>
+        <span class="ftitle">The exported template fails its own import validation</span>
+        <span class="chip c-med">Medium</span>
+        <span class="chip c-open">Open</span>
+      </div>
+      <div class="finding-body">
+        <p>The export doubles as the import template, so an exported file should re-import cleanly. It does not: the template carries the legacy <code>coc</code> trace value, which is readable on historical records but deliberately not writable.</p>
+        <div class="evidence">POST /imports/preview  (the system’s own template)
+
+row 2  <b>trace_type 'coc' is not a document this system records</b></div>
+        <p class="fix fix-open"><strong>Fix:</strong> either map <code>coc</code> to a writable value on export, or accept it on import as a legacy passthrough.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F8</span>
+        <span class="ftitle">Ledger free text is unbounded</span>
+        <span class="chip c-low">Low</span>
+        <span class="chip c-open">Open</span>
+      </div>
+      <div class="finding-body">
+        <p>A movement accepted 20,000 characters of notes and stored them whole. Nothing caps the field.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="finding-head">
+        <span class="fid">F9</span>
+        <span class="ftitle">Sub-resources answer 200 for a unit that does not exist</span>
+        <span class="chip c-low">Low</span>
+        <span class="chip c-open">Open</span>
+      </div>
+      <div class="finding-body">
+        <p><code>GET /units/{id}</code> returns <code>404</code> for an unknown unit, but <code>/units/{id}/inspections</code> and <code>/units/{id}/events</code> return <code>200</code> with an empty list. Not a leak — the scoping is correct — but a caller cannot tell “no records” from “no such unit”.</p>
+      </div>
+    </article>
+  </section>
+
+  <section>
+    <h2>What held</h2>
+    <p class="sub">Attacked deliberately, and did not give</p>
+
+    <div class="passes">
+      <div class="pass"><span><b>Confirmation grants</b>All six attacks refused: replay, cross-unit, wrong-tool, version mismatch, forged token, non-confirmable capability.</span></div>
+      <div class="pass"><span><b>Append-only ledger</b>Enforced at the database, not in code. <code>UPDATE</code> and <code>DELETE</code> both raise <code>inventory_events is append-only</code>.</span></div>
+      <div class="pass"><span><b>Tenant isolation</b>Foreign reads and writes 404, lists scoped, and composite foreign keys stop cross-tenant references structurally.</span></div>
+      <div class="pass"><span><b>Injection</b>Quotes, statement terminators, and unicode stored verbatim with the schema intact. Parameterised throughout.</span></div>
+      <div class="pass"><span><b>Optimistic concurrency</b>Two writers at the same version: exactly one 200, one 409. Stale writes refused.</span></div>
+      <div class="pass"><span><b>The ledger rule</b>Quantity never moved without a matching row; a 4 → 7 recount recorded a signed <code>+3.000</code>.</span></div>
+      <div class="pass"><span><b>Page walking</b>Every row exactly once across all pages — no duplicates, no gaps — and totals matched the database on five lists.</span></div>
+      <div class="pass"><span><b>Transition graph</b>Illegal moves, terminal states, and unknown actions all refused, with the valid set named.</span></div>
+      <div class="pass"><span><b>Import validation</b>Per-row problems reported, nothing applied, and duplicate stock detected rather than doubled.</span></div>
+      <div class="pass"><span><b>Boundary values</b>Split and recount refused zero, negative, and more-than-held quantities.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>One correction</h2>
+    <p class="sub">A finding I reported and then withdrew</p>
+    <div class="note">
+      <span class="note-label">Withdrawn</span>
+      <p>I initially flagged <code>/units/{id}/inspections</code> and <code>/units/{id}/events</code> as cross-tenant leaks because both answered <code>200</code> for another organisation’s unit. Re-testing with a foreign unit that genuinely had an inspection and a ledger entry attached showed both return an empty list — the scoping is correct and nothing leaked. What remains is the far smaller status-code inconsistency recorded as F9.</p>
+    </div>
+  </section>
+
+  <footer>
+    All 17 frontend suites and the Rust workspace pass · parts tests 110 · six regression tests added · QA database dropped, ports released
+  </footer>
+
+</div>

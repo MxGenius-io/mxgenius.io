@@ -146,8 +146,27 @@ async fn main() -> anyhow::Result<()> {
         if pilot {
             tracing::warn!(target: "mxgenius.mcp", "authentication mode: pilot; persistent services enabled");
         }
-        tracing::warn!(target: "mxgenius.mcp", "authentication mode: insecure-local");
-        let mut provider = InsecureLocalProvider::new(Role::Administrator);
+        // Read only here, and only when this is genuinely a developer machine.
+        // The production arm builds `OidcProvider`, whose role comes from
+        // `organization_memberships`, and never consults this value.
+        //
+        // The override is also non-escalating by construction: this arm
+        // already runs as Administrator, which every gate in the codebase
+        // admits, so no value of the variable can grant authority the mode
+        // does not already grant unconditionally. It can only narrow.
+        let role = if insecure_local && !pilot {
+            insecure_local_role(std::env::var("MXGENIUS_INSECURE_LOCAL_ROLE").ok())?
+        } else {
+            // `--pilot` shares this arm but runs against a real database with
+            // real adapters, so it stays pinned to the role it has today.
+            Role::Administrator
+        };
+        tracing::warn!(
+            target: "mxgenius.mcp",
+            role = role.as_str(),
+            "authentication mode: insecure-local"
+        );
+        let mut provider = InsecureLocalProvider::new(role);
         // Without a verifier the provider leaves `confirmation` as `None` and
         // every grant-gated parts operation rejects with 428, so receiving
         // confirm, unit transitions, metadata correction, quantity adjust, and
@@ -221,6 +240,73 @@ async fn production_context_provider(pool: sqlx::PgPool) -> anyhow::Result<Conte
     Ok(Arc::new(
         OidcProvider::new(verifier, memberships).with_confirmation_verifier(grants),
     ))
+}
+
+/// The role the dev-only provider runs as.
+///
+/// An unknown name refuses to boot rather than defaulting. Defaulting to
+/// Administrator on a typo is the worst outcome available: the developer runs
+/// the test they intended, watches a gated action succeed, and concludes
+/// either that the gate is broken or -- far worse when checking the positive
+/// case -- that the role under test is permitted, when nothing of the sort was
+/// verified. The error always points the permissive way. One restart is
+/// cheaper than a wrong answer about an airworthiness control.
+///
+/// Empty or whitespace reads as unset, because `export VAR=` is how a shell
+/// clears a variable; the same reading `DATABASE_URL` already gets above.
+fn insecure_local_role(raw: Option<String>) -> anyhow::Result<Role> {
+    let Some(value) = raw else {
+        return Ok(Role::Administrator);
+    };
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Ok(Role::Administrator);
+    }
+    // Normalising here rather than loosening `Role::parse`, which also reads
+    // database membership rows where leniency would hide corruption.
+    Role::parse(&normalized).ok_or_else(|| {
+        anyhow::anyhow!(
+            "MXGENIUS_INSECURE_LOCAL_ROLE={value} is not a role; expected one of {}",
+            Role::ALL
+                .iter()
+                .map(|role| role.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unset_or_cleared_variable_keeps_the_default() {
+        for raw in [None, Some(String::new()), Some("   ".into())] {
+            assert_eq!(insecure_local_role(raw).unwrap(), Role::Administrator);
+        }
+    }
+
+    #[test]
+    fn a_named_role_is_taken_and_may_be_typed_loosely() {
+        assert_eq!(insecure_local_role(Some("quality".into())).unwrap(), Role::Quality);
+        assert_eq!(insecure_local_role(Some(" Quality ".into())).unwrap(), Role::Quality);
+        assert_eq!(
+            insecure_local_role(Some("technician".into())).unwrap(),
+            Role::Technician
+        );
+    }
+
+    /// A typo must not quietly become Administrator, and the message has to be
+    /// self-correcting.
+    #[test]
+    fn a_misspelled_role_refuses_to_boot_and_names_the_valid_set() {
+        let error = insecure_local_role(Some("qualtiy".into())).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("qualtiy"), "{message}");
+        assert!(message.contains("quality"), "{message}");
+        assert!(message.contains("administrator"), "{message}");
+    }
 }
 
 fn required_env(name: &str) -> anyhow::Result<String> {

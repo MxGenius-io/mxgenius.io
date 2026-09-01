@@ -19,6 +19,7 @@ use uuid::Uuid;
 use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::application::paging::{Page, PageRequest};
 use mxgenius_shared::domain::part::StockUnitStatus;
+use mxgenius_shared::domain::quantity::quantity_problem;
 use mxgenius_shared::domain::receiving_inspection::{
     DiscrepancyType, Disposition, GateResult, InspectionGates, Outcome,
 };
@@ -193,10 +194,8 @@ impl<'a> ReceivingInspectionRepository<'a> {
             }
         }
         if let Some(quantity) = input.quantity_received {
-            if !quantity.is_finite() || quantity <= 0.0 {
-                return Err(PartsInventoryError::Invalid(
-                    "quantityReceived must be greater than zero".into(),
-                ));
+            if let Some(problem) = quantity_problem(quantity) {
+                return Err(PartsInventoryError::Invalid(problem.message()));
             }
         }
 

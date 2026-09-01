@@ -1122,21 +1122,35 @@ const MXPartsWorkspace = (() => {
     if (hint) hint.textContent = reason || 'Apply stays disabled until this exact file has been previewed.';
   }
 
+  function withNote(text, note) {
+    return note ? `${text} — ${note}` : text;
+  }
+
   function planLabel(row) {
     if (row.problems && row.problems.length) {
       return { css: 'is-error', text: row.problems.join('; ') };
     }
+    // A note does not stop the file applying, so it rides alongside the plan
+    // rather than replacing it: the operator sees what was preserved as well
+    // as what would happen.
+    const note = (row.notes || []).join('; ');
     const plan = row.plan || {};
     switch (plan.outcome) {
       case 'create':
         return {
-          css: 'is-create',
-          text: plan.creates_part ? 'New part' + (plan.creates_unit ? ' and stock' : '') : 'New stock'
+          css: note ? 'is-note' : 'is-create',
+          text: withNote(
+            plan.creates_part ? 'New part' + (plan.creates_unit ? ' and stock' : '') : 'New stock',
+            note
+          )
         };
       case 'update':
-        return { css: 'is-update', text: `Would change ${(plan.changed_fields || []).join(', ')}` };
+        return {
+          css: note ? 'is-note' : 'is-update',
+          text: withNote(`Would change ${(plan.changed_fields || []).join(', ')}`, note)
+        };
       case 'skip':
-        return { css: 'is-skip', text: plan.reason || 'No change' };
+        return { css: 'is-skip', text: withNote(plan.reason || 'No change', note) };
       case 'conflict':
         return { css: 'is-conflict', text: plan.reason || 'Not permitted in this mode' };
       default:

@@ -934,3 +934,85 @@ test('Defects found by the QA pass stay fixed', async (t) => {
     assert.match(disc, /checked nothing/);
   });
 });
+
+test('The second QA round stays fixed', async (t) => {
+  const quantity = readFileSync('services/mcp/shared/src/domain/quantity.rs', 'utf8');
+  const policy = readFileSync('services/mcp/shared/src/application/policy.rs', 'utf8');
+  const mainRs = readFileSync('services/mcp/server/src/main.rs', 'utf8');
+  const ctx = readFileSync('services/mcp/server/src/context.rs', 'utf8');
+  const inventory = readFileSync(
+    'services/mcp/server/src/application/parts_inventory.rs', 'utf8');
+  const importDomain = readFileSync(
+    'services/mcp/shared/src/domain/part_import.rs', 'utf8');
+
+  await t.test('the quantity bound is published once and covers both ends', () => {
+    // Four call sites each checked some of is_finite / > 0 and none checked
+    // the column's range, so an out-of-range value reached Postgres and came
+    // back as 503 "persistence is temporarily unavailable".
+    assert.match(quantity, /MAX_QUANTITY: f64 = 999_999_999\.999/);
+    assert.match(quantity, /MIN_QUANTITY: f64 = 0\.001/);
+    assert.match(quantity, /BelowResolution/);
+    // Every quantity ingress resolves through it rather than re-checking.
+    const sites = (inventory.match(/quantity_problem\(/g) || []).length;
+    assert.ok(sites >= 4, `expected every ingress to use it, saw ${sites}`);
+    assert.doesNotMatch(inventory, /input\.quantity <= 0\.0/);
+    assert.doesNotMatch(inventory, /!input\.counted_quantity\.is_finite\(\)/);
+  });
+
+  await t.test('a split cannot leave a remainder the column cannot hold', () => {
+    // Taking 5.9996 off 6 leaves 0.0004, which rounds to 0.000 and fails
+    // CHECK (quantity > 0) -- the same 503, from the other end.
+    assert.match(inventory, /remainder_left/);
+    assert.match(inventory, /would leave \{remainder_left:\.3\}/);
+  });
+
+  await t.test('one bad import row does not roll the batch back as an outage', () => {
+    assert.match(importDomain, /QuantityOutOfRange/);
+    // A zero quantity still means "catalog row, no stock" and must not start
+    // failing.
+    assert.match(importDomain, /value > 0\.0 && crate::domain::quantity::quantity_problem/);
+  });
+
+  await t.test('the role list is published once, including the production path', () => {
+    assert.match(policy, /pub const ALL: \[Role; 8\]/);
+    assert.match(policy, /pub fn parse\(value: &str\) -> Option<Self>/);
+    // context.rs held a fourth copy on the membership path, where a missed
+    // role means 503 for every user holding it.
+    assert.match(ctx, /Role::parse\(value\)\.ok_or_else/);
+    assert.doesNotMatch(ctx, /"technician" => Ok\(Role::Technician\)/);
+  });
+
+  await t.test('the local role override cannot reach pilot mode', () => {
+    // The auth arm is `insecure_local || pilot`, but pilot runs against a real
+    // database, so the override takes the narrower condition the rest of
+    // main.rs uses for "this is a developer machine".
+    assert.match(mainRs, /if insecure_local && !pilot \{\s*\n\s*insecure_local_role/);
+    assert.match(mainRs, /MXGENIUS_INSECURE_LOCAL_ROLE/);
+  });
+
+  await t.test('a misspelled role refuses to boot rather than defaulting', () => {
+    // Defaulting to Administrator on a typo makes a gated action succeed and
+    // reads as "the role is permitted" when nothing was tested.
+    assert.match(mainRs, /is not a role; expected one of/);
+    assert.match(mainRs, /a_misspelled_role_refuses_to_boot_and_names_the_valid_set/);
+  });
+
+  await t.test('an overridden role does not keep approval it could not hold', () => {
+    // The local provider forced approval_granted true regardless of role, so
+    // a role test would have run as a Technician still carrying qualified
+    // approval -- a context production can never build.
+    assert.match(ctx, /approval_granted && role\.can_grant_qualified_approval\(\)/);
+    assert.match(policy, /pub fn can_grant_qualified_approval/);
+  });
+
+  await t.test('an exported file re-imports, without blessing the legacy value', () => {
+    assert.match(importDomain, /pub enum RowNote/);
+    assert.match(importDomain, /LegacyTraceType/);
+    assert.match(importDomain, /if value == "coc"/);
+    // Any other unknown trace value is still a hard error.
+    assert.match(importDomain, /RowProblem::UnknownTraceType/);
+    // And a note never blocks a file.
+    assert.match(js, /function withNote/);
+    assert.match(css, /\.import-row\.is-note/);
+  });
+});

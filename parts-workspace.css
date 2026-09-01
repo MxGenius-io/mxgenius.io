@@ -999,6 +999,9 @@
 .import-row.is-conflict,
 .import-row.is-error { border-left-color: #b3382c; background: rgba(179, 56, 44, 0.07); }
 .import-row.is-skip { opacity: 0.66; }
+/* A row that applies, carrying something the operator should read. Amber, not
+   the red errors use: nothing here blocks the import. */
+.import-row.is-note { border-left-color: #b26a00; }
 
 .import-row-number { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .import-row-part { font-weight: 600; overflow-wrap: anywhere; }

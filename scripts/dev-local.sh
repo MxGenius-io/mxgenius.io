@@ -114,6 +114,13 @@ export MXGENIUS_PARTS_ENABLED=1
 # setting. The issuer requires at least 32 bytes. This is a fixed development
 # value on a local-only database; production supplies its own.
 export MXGENIUS_CONFIRMATION_SECRET="${MXGENIUS_CONFIRMATION_SECRET:-mxgenius-local-development-confirmation-secret}"
+# Which role the insecure-local provider presents. Defaults to administrator.
+# Set it to walk a gated path as the role that is actually restricted -- for
+# example `technician` to confirm a quarantine release is refused, then
+# `quality` to confirm it is allowed. An unknown name refuses to boot rather
+# than falling back, so a typo cannot quietly answer "yes" to a test that was
+# never run as the role under test. Ignored outside --insecure-local.
+export MXGENIUS_INSECURE_LOCAL_ROLE="${MXGENIUS_INSECURE_LOCAL_ROLE:-administrator}"
 
 echo "starting the api on $API_PORT (migrations run at startup)"
 (cd "$REPO_ROOT/services/mcp" && exec ./target/debug/mxgenius-mcp --insecure-local \
