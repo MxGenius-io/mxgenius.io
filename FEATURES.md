@@ -25,7 +25,7 @@ This is the canonical product inventory. It records what the current repository 
 | Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
 | Sensor bridge and diagnostics | `[~]` | Quest companion, FLIR transport, optional Pi diagnostics, trace, and spatial panel are mounted; hardware acceptance remains. |
 | Native iOS AR | `[~]` | Fleet-globe parity bridge is mounted and strictly iOS-gated; native device acceptance remains. |
-| Onboarding and contextual guidance | `[x]` | First-run onboarding and reusable script/video/voiceover/caption tooltips are mounted across core surfaces. |
+| Onboarding and contextual guidance | `[~]` | First-run onboarding, a persistent Help / Tour launcher, labeled Guide controls, and the media-capable tooltip system are mounted; production recordings remain. |
 | Feedback and internal collaboration | `[x]` | Reporter, personal history, admin triage, build board, patent workspace, and release reports are mounted. |
 | Compliance, weather, and scheduling | `[~]` | Typed capabilities exist; configuration posture and user-facing availability need refinement. |
 | Analytics and KPIs | `[ ]` | Server handlers exist, but no current product surface consumes them. |
@@ -67,6 +67,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Explicit tenant-authenticated demo-data load with confirmation.
 - `[x]` Cache layer and detailed JetNet success-state rendering.
 - `[~]` Market cost and performance intelligence depends on subscribed source coverage.
+- `[!]` Decide whether the current "Operator & Facility Directory" label should be narrowed to company/contact coverage or backed by a canonical facility source.
 - `[!]` Production behavior for a missing JetNet adapter must be decided: fail closed or degrade loudly with visible health.
 
 ## 3. Maintenance cases
@@ -189,6 +190,7 @@ This is the canonical product inventory. It records what the current repository 
 ## 6. 3D inspection and digital-twin bridge
 
 - `[x]` Bundled model catalog with explicit provenance and operational-status labels.
+- `[x]` Unified model library with tenant GLB upload plus searchable NASA, OpenVSP Airshow community aircraft, Smithsonian Air & Space, and FlightGear simulation geometry; lazy loading, source and size filters, catalog provenance, and non-authoritative labeling.
 - `[x]` Tenant-owned GLB model availability independent of third-party catalogs.
 - `[x]` Authorized GLB upload.
 - `[x]` Orbit, zoom, reset camera, lighting, exposure, wireframe, bloom, and ambient-occlusion controls.
@@ -209,6 +211,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` One-grab model translation and two-grab scale/rotation.
 - `[x]` Native AR viewer entry exposed only through a supported iOS bridge.
 - `[~]` Production aircraft/component mapping files and supporting evidence.
+- `[~]` Controlled external-to-tenant import with durable source and usage provenance; raw tenant GLB upload works, provider imports are planned.
 - `[~]` Case rail joining selected zones, manuals, observations, and evidence.
 - `[ ]` Separate hover and selected visual states.
 - `[ ]` Keyboard-accessible selection through a mapped component list.
@@ -273,10 +276,10 @@ This is the canonical product inventory. It records what the current repository 
 ## 10. Onboarding, help, audio, and motion
 
 - `[x]` First-run welcome and guided onboarding flow.
-- `[x]` Restartable onboarding from Settings.
+- `[x]` Persistent Help / Tour launcher plus restartable onboarding from Settings.
 - `[x]` Role/workspace tour covering identity, navigation, status, copilot, cases, parts, fleet, XR, and sensor diagnostics.
 - `[x]` Empty-state calls to action.
-- `[x]` Reusable contextual `?` control and anchored non-modal popover.
+- `[x]` Labeled contextual Guide controls and anchored non-modal popovers across the core browser and spatial surfaces.
 - `[x]` Escape, outside-click, repeat-trigger, and close-button dismissal.
 - `[x]` Mobile bottom-sheet presentation and reduced-motion behavior.
 - `[x]` Script-only fallback before media is produced.
@@ -325,6 +328,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[~]` Aviation weather capability is mounted but shares the same adapter-visibility gap.
 - `[~]` Scheduling handlers exist and can use real parts-shortage readiness.
 - `[!]` Decide per-adapter fail-closed versus visibly degraded production behavior.
+- `[!]` Resolve the remaining scheduling `facility_id` contract: remove it or restore a canonical facility source.
 - `[ ]` Per-adapter readiness/health presentation in API health and affected UI surfaces.
 - `[ ]` Analytics UI for executive KPIs, fleet health, parts risk, and repeat defects.
 - `[-]` The former MRO facility capability and its tool family are retired.
@@ -345,7 +349,13 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Azure health/readiness live-smoke coverage.
 - `[x]` Live field probe for frontend, core, memory, MCP, and manual assets.
 - `[x]` Structure and contract tests for core browser, backend-boundary, parts, feedback, Realtime, and XR behavior.
+- `[x]` GitHub Pages deployment is gated by the frontend suite and pinned Rust formatting, test, and lint checks.
 - `[~]` Hardware-dependent and external-adapter gates remain separate from repository verification.
+- `[ ]` Separate versioned backend build/deploy workflow with non-production smoke and rollback evidence.
+- `[ ]` Deployed full-stack accessibility, responsive, degraded-state, and recovery acceptance pass.
+- `[ ]` Cross-boundary observability for browser, application, MCP, adapters, OpenAI, and Realtime, with operational dashboards and alerts.
+- `[ ]` Golden AI evaluation suite covering groundedness, citation correctness, abstention, conflicts, tenant isolation, authorization, and prompt injection.
+- `[ ]` Privacy, transcript retention/consent, operational-authority, pilot runbook, and release-freeze review.
 
 ## 14. Explicit product boundaries
 

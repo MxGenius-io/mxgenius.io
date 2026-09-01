@@ -307,6 +307,10 @@ test('fleet compatibility translation is scoped and market intelligence uses sub
   assert.match(dashboard, /<select id="mktMake"/);
   assert.match(dashboard, /<select id="mktModel"/);
   assert.match(application, /escapeMarkup\(formatted\)/);
+  assert.match(application, /market-intel-metrics--compact/);
+  assert.match(application, /market-intel-metrics--profile/);
+  assert.match(applicationStyles, /grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*150px\),\s*1fr\)\)/);
+  assert.match(applicationStyles, /\.chart-bar-bg\s*\{[^}]*min-width:\s*0;/s);
 });
 
 test('detailed JetNet success statuses remain renderable and cacheable', () => {
@@ -392,7 +396,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=44/);
+  assert.match(dashboard, /app\.js\?v=45/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -486,6 +490,7 @@ test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal 
   assert.match(xrMaintenanceHud, /side: THREE\.BackSide/);
   assert.match(xrMaintenanceHud, /prefers-reduced-motion: reduce/);
   assert.match(xrMaintenanceHud, /clearTarget\(\)/);
+  assert.doesNotMatch(xrMaintenanceHud, /buildStatusRail|statusPanel/);
   assert.doesNotMatch(xrMaintenanceHud, /setInterval|visibility\s*=\s*!/);
 });
 
@@ -569,7 +574,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=16/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=21/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -760,7 +765,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(dashboard, /id="guidedTourButton"/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
   assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
-  assert.match(guidedTooltipStyles, /\.guided-help-trigger--labeled::after/);
+  assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {

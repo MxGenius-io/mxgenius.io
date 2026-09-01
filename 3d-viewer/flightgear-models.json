@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "name": "FGx FlightGear aircraft conversions",
+    "repository": "fgx/fgx-aircraft",
+    "repositoryUrl": "https://github.com/fgx/fgx-aircraft",
+    "branch": "gh-pages",
+    "revision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+    "notice": "Legacy Three.js simulation geometry. Scale, completeness, and per-aircraft licensing vary; not approved maintenance data."
+  },
+  "manifestRevision": "bcc62d9caf8d64d3f9fa069fee2222afd8800105df2b0ddde17d481b3e59a549",
+  "modelCount": 5,
+  "models": [
+    {
+      "id": "flightgear:c172p",
+      "name": "Cessna 172P Skyhawk",
+      "collection": "FlightGear simulation aircraft",
+      "file": "https://raw.githubusercontent.com/fgx/fgx-aircraft/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/c172p/c172p.js",
+      "fileName": "c172p.js",
+      "sourcePageUrl": "https://github.com/fgx/fgx-aircraft/blob/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/c172p/c172p.js",
+      "sourceAuthority": "FGx / FlightGear community",
+      "sourceRevision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+      "format": "three-json-3.1",
+      "sizeBytes": 148249,
+      "weightClass": "light",
+      "provider": "flightgear",
+      "sourceFamilies": [
+        "flightgear"
+      ],
+      "type": "aircraft_simulation_model",
+      "revision": "c7ebe8ca5f54",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "GPL-2.0 collection; retain and review each aircraft notice before redistribution"
+    },
+    {
+      "id": "flightgear:c182s",
+      "name": "Cessna 182S Skylane",
+      "collection": "FlightGear simulation aircraft",
+      "file": "https://raw.githubusercontent.com/fgx/fgx-aircraft/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/c182/c182s.js",
+      "fileName": "c182s.js",
+      "sourcePageUrl": "https://github.com/fgx/fgx-aircraft/blob/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/c182/c182s.js",
+      "sourceAuthority": "FGx / FlightGear community",
+      "sourceRevision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+      "format": "three-json-3.1",
+      "sizeBytes": 31248,
+      "weightClass": "light",
+      "provider": "flightgear",
+      "sourceFamilies": [
+        "flightgear"
+      ],
+      "type": "aircraft_simulation_model",
+      "revision": "c7ebe8ca5f54",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "GPL-2.0 collection; retain and review each aircraft notice before redistribution"
+    },
+    {
+      "id": "flightgear:beechcraft-staggerwing",
+      "name": "Beechcraft Model 17 Staggerwing",
+      "collection": "FlightGear simulation aircraft",
+      "file": "https://raw.githubusercontent.com/fgx/fgx-aircraft/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/Beechcraft-Staggerwing/model17.js",
+      "fileName": "model17.js",
+      "sourcePageUrl": "https://github.com/fgx/fgx-aircraft/blob/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/Beechcraft-Staggerwing/model17.js",
+      "sourceAuthority": "FGx / FlightGear community",
+      "sourceRevision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+      "format": "three-json-3.1",
+      "sizeBytes": 464189,
+      "weightClass": "light",
+      "provider": "flightgear",
+      "sourceFamilies": [
+        "flightgear"
+      ],
+      "type": "aircraft_simulation_model",
+      "revision": "c7ebe8ca5f54",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "GPL-2.0 collection; retain and review each aircraft notice before redistribution"
+    },
+    {
+      "id": "flightgear:boeing-737-100",
+      "name": "Boeing 737-100",
+      "collection": "FlightGear simulation aircraft",
+      "file": "https://raw.githubusercontent.com/fgx/fgx-aircraft/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/737-100/737-100.js",
+      "fileName": "737-100.js",
+      "sourcePageUrl": "https://github.com/fgx/fgx-aircraft/blob/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/737-100/737-100.js",
+      "sourceAuthority": "FGx / FlightGear community",
+      "sourceRevision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+      "format": "three-json-3.1",
+      "sizeBytes": 737535,
+      "weightClass": "light",
+      "provider": "flightgear",
+      "sourceFamilies": [
+        "flightgear"
+      ],
+      "type": "aircraft_simulation_model",
+      "revision": "c7ebe8ca5f54",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "GPL-2.0 collection; retain and review each aircraft notice before redistribution"
+    },
+    {
+      "id": "flightgear:boeing-777-200",
+      "name": "Boeing 777-200",
+      "collection": "FlightGear simulation aircraft",
+      "file": "https://raw.githubusercontent.com/fgx/fgx-aircraft/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/777/777-200.js",
+      "fileName": "777-200.js",
+      "sourcePageUrl": "https://github.com/fgx/fgx-aircraft/blob/c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26/data/777/777-200.js",
+      "sourceAuthority": "FGx / FlightGear community",
+      "sourceRevision": "c7ebe8ca5f54a4eecc0e4e99c9a0ca4828b97c26",
+      "format": "three-json-3.1",
+      "sizeBytes": 231206,
+      "weightClass": "light",
+      "provider": "flightgear",
+      "sourceFamilies": [
+        "flightgear"
+      ],
+      "type": "aircraft_simulation_model",
+      "revision": "c7ebe8ca5f54",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "GPL-2.0 collection; retain and review each aircraft notice before redistribution"
+    }
+  ]
+}

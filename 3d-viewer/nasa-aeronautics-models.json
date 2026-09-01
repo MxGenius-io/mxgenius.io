@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "name": "NASA Research Aircraft for eVTOL Enabling Technologies",
+    "pageUrl": "https://www.nasa.gov/raven/",
+    "revision": "2ff82c37ba69df8f58286d8c2184c1cf2fd8a8abe285815519b9c97aeda31e99",
+    "notice": "NASA aeronautics reference geometry. Not approved maintenance data and not mapped to an aircraft configuration."
+  },
+  "modelCount": 3,
+  "models": [
+    {
+      "id": "nasa-aeronautics:raven-v01-003",
+      "name": "NASA RAVEN Full-Scale eVTOL",
+      "collection": "NASA Research Aircraft",
+      "file": "https://www.nasa.gov/wp-content/uploads/2026/06/raven-v01-003-release.glb",
+      "fileName": "raven-v01-003-release.glb",
+      "sourcePageUrl": "https://www.nasa.gov/raven/",
+      "sourceAuthority": "NASA Aeronautics",
+      "sourceRevision": "72929345d54292fc",
+      "format": "glb",
+      "sizeBytes": 12344804,
+      "weightClass": "heavy",
+      "provider": "nasa-aeronautics",
+      "sourceFamilies": [
+        "nasa"
+      ],
+      "type": "aircraft_reference_model",
+      "revision": "2026-06-04",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "NASA public-use reference geometry; source terms apply",
+      "description": "Full-scale Research Aircraft for eVTOL Enabling Technologies reference geometry."
+    },
+    {
+      "id": "nasa-aeronautics:raven-swft",
+      "name": "NASA RAVEN-SWFT",
+      "collection": "NASA Research Aircraft",
+      "file": "https://www.nasa.gov/wp-content/uploads/2026/03/swft.glb",
+      "fileName": "swft.glb",
+      "sourcePageUrl": "https://www.nasa.gov/raven/",
+      "sourceAuthority": "NASA Aeronautics",
+      "sourceRevision": "2d104bc98d351e73",
+      "format": "glb",
+      "sizeBytes": 22655308,
+      "weightClass": "heavy",
+      "provider": "nasa-aeronautics",
+      "sourceFamilies": [
+        "nasa"
+      ],
+      "type": "aircraft_reference_model",
+      "revision": "2026-03-13",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "NASA public-use reference geometry; source terms apply",
+      "description": "Subscale wind-tunnel and flight-test research aircraft reference geometry."
+    },
+    {
+      "id": "nasa-aeronautics:bede-bd-6-v03-004",
+      "name": "Bede BD-6 Experimental Aircraft",
+      "collection": "NASA Research Aircraft",
+      "file": "https://www.nasa.gov/wp-content/uploads/2026/03/bd-6-v03-004.glb",
+      "fileName": "bd-6-v03-004.glb",
+      "sourcePageUrl": "https://www.nasa.gov/raven/",
+      "sourceAuthority": "NASA Aeronautics",
+      "sourceRevision": "9fcb9b2b42609f16",
+      "format": "glb",
+      "sizeBytes": 13896380,
+      "weightClass": "heavy",
+      "provider": "nasa-aeronautics",
+      "sourceFamilies": [
+        "nasa"
+      ],
+      "type": "aircraft_reference_model",
+      "revision": "2026-03-06",
+      "operationalStatus": "reference_asset",
+      "mappingStatus": "unmapped",
+      "rights": "NASA public-use reference geometry; source terms apply",
+      "description": "NASA-published approximate BD-6 geometry used as the basis for RAVEN research."
+    }
+  ]
+}

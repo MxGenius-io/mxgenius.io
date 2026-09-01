@@ -167,9 +167,12 @@ window.addEventListener('message', (event) => {
     configureViewerARCapability();
   }
   if (message.type === 'mxgenius.viewer.part-selected') {
+    const target = globalThis.MXTargetContext?.fromPartSelection(message.detail);
+    if (target) globalThis.MXTargetContext.set(target, { reason: 'viewer-part-selected' });
     window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
   }
   if (message.type === 'mxgenius.viewer.xr-action') {
+    globalThis.MXTargetContext?.ingestXRAction(message.detail, { reason: `viewer:${message.detail?.action || 'xr-action'}` });
     window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
   }
   if (message.type === 'mxgenius.viewer.ar-request') {
@@ -181,6 +184,23 @@ window.addEventListener('mxg:case-selected', (event) => {
   const selected = event.detail || {};
   MXCaseState.set(selected);
   const caseState = selected.case || {};
+  if (selected.caseId) {
+    globalThis.MXTargetContext?.set({
+      kind: 'case',
+      id: selected.caseId,
+      label: caseState.aircraft_id ? `Case · ${caseState.aircraft_id}` : `Case · ${selected.caseId}`,
+      state: 'active',
+      surface: 'maintenance-case',
+      source: 'maintenance-record',
+      context: {
+        caseId: selected.caseId,
+        aircraftId: caseState.aircraft_id,
+        version: caseState.version
+      },
+      anchor: { type: 'dom', selector: '#caseWorkspaceResult' },
+      sources: ['MAINTENANCE CASE']
+    }, { reason: 'maintenance-case-selected' });
+  }
   document.documentElement.dataset.activeCaseId = selected.caseId || '';
   MX3DViewer.setContext({
     caseId: selected.caseId || null,
@@ -803,6 +823,7 @@ function setupChatPanel() {
         ? { make: boundedDisplayText(marketMake, 100), model: boundedDisplayText(marketModel, 100) }
         : null,
       market_intelligence: displayedMarketIntelContext,
+      active_target: globalThis.MXTargetContext?.get?.() || null,
       digital_twin: {
         context: MX3DViewer.context || null,
         highlighted_part: MX3DViewer.pendingSelector || null,
@@ -3224,7 +3245,7 @@ async function loadMarketIntel() {
           <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
           Cost &amp; Market
         </h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+        <div class="market-intel-metrics market-intel-metrics--compact">
           ${mktRow('Total Direct Costs', c.totaldirectcosts, '$')}
           ${mktRow('Average Asking Price', c.averageaskingprice, '$')}
           ${mktRow('Days on Market', c.daysonmarket, '', ' days')}
@@ -3244,7 +3265,7 @@ async function loadMarketIntel() {
           <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path fill-rule="evenodd" d="M12 1.586l-4 4v12.828l4-4V1.586zM3.707 3.293A1 1 0 002 4v10a1 1 0 00.293.707L6 18.414V5.586L3.707 3.293zM17.707 5.293L14 1.586v12.828l2.293 2.293A1 1 0 0018 16V6a1 1 0 00-.293-.707z" clip-rule="evenodd"/></svg>
           Performance Specs
         </h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">
+        <div class="market-intel-metrics market-intel-metrics--compact">
           ${mktRow('Range', s.range, '', ' nm')}
           ${mktRow('Max Operating Speed', s.maxspeed || s.highspeed, '', ' kt IAS')}
           ${mktRow('Cruise Speed', s.normalcruisespeed, '', ' ktas')}
@@ -3268,7 +3289,7 @@ async function loadMarketIntel() {
           <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:6px;"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/></svg>
           Model Profile
         </h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.82rem;">
+        <div class="market-intel-metrics market-intel-metrics--profile">
           ${mktRow('Make', t.model_make)}
           ${mktRow('Model', t.model_name)}
           ${mktRow('Manufacturer', t.model_manufacturer)}
@@ -3315,7 +3336,7 @@ async function loadMarketIntel() {
 function mktRow(label, value, prefix, suffix) {
   if (value === undefined || value === null || value === '') return '';
   const formatted = typeof value === 'number' ? (prefix === '$' ? '$' + value.toLocaleString() : value.toLocaleString()) + (suffix || '') : (prefix || '') + value + (suffix || '');
-  return `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--text-muted);font-size:0.72rem;">${escapeMarkup(label)}</span><br><span style="color:var(--text-primary);font-weight:600;">${escapeMarkup(formatted)}</span></div>`;
+  return `<div class="market-intel-metric"><span class="market-intel-metric__label">${escapeMarkup(label)}</span><span class="market-intel-metric__value">${escapeMarkup(formatted)}</span></div>`;
 }
 
 
@@ -3581,6 +3602,20 @@ async function showAircraftDetail(id) {
     const acFeatures = featData.features || [];
     const acEquipment = equipData.additionalequipment || equipData.equipment || [];
     const acLeases = leaseData.leases || [];
+    globalThis.MXTargetContext?.set({
+      kind: 'aircraft',
+      id: ident.aircraftid || id,
+      label: [ident.regnbr, ident.make, ident.model].filter(Boolean).join(' · '),
+      state: 'selected',
+      surface: 'aircraft-explorer',
+      source: 'fleet-record',
+      context: {
+        aircraftId: ident.aircraftid || id,
+        modelName: [ident.make, ident.model].filter(Boolean).join(' ')
+      },
+      anchor: { type: 'dom', selector: '#acDetailModal' },
+      sources: ['JETNET AIRCRAFT RECORD']
+    }, { reason: 'aircraft-record-opened' });
     
     const metarHtml = '';
 
@@ -4549,6 +4584,22 @@ function setupGlobeSheet() {
 
 function handleGlobeClick(point) {
   if (!point || !point.aircraft) return;
+  globalThis.MXTargetContext?.set({
+    kind: 'fleet-location',
+    id: point.icao,
+    label: [point.icao, point.city, point.country].filter(Boolean).join(' · '),
+    state: 'selected',
+    surface: 'fleet-globe',
+    source: 'fleet-context',
+    context: {
+      icao: point.icao,
+      city: point.city,
+      country: point.country,
+      count: point.aircraft.length
+    },
+    anchor: { type: 'dom', selector: '#globeSheet' },
+    sources: ['JETNET FLEET CONTEXT']
+  }, { reason: 'fleet-location-selected' });
   const sheet = document.getElementById('globeSheet');
   const results = document.getElementById('globeSheetResults');
   if (typeof sheet._setState === 'function') sheet._setState(2);

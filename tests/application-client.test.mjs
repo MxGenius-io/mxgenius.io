@@ -66,6 +66,7 @@ function harness(outputs, orchestration = null) {
           status: options.method === 'DELETE' ? 204 : 200,
           headers: { get: () => 'application/json' },
           json: async () => ({ ok: true, request }),
+          arrayBuffer: async () => new TextEncoder().encode('glTF-test').buffer,
           blob: async () => new Blob(['workspace-asset'], { type: 'application/pdf' }),
           text: async () => ''
         };
@@ -533,6 +534,34 @@ test('digital-twin reads omit confirmation and marker mutation carries it', asyn
   assert.equal(calls[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
   assert.equal(calls[2].options.headers['X-MXG-Confirmation-Grant'], 'grant');
   assert.equal(calls[2].request.params.arguments.severity, 'high');
+});
+
+test('digital-twin model catalog, GLB upload, and content reads use the authenticated REST boundary', async () => {
+  const { client, requests } = harness({});
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+  const file = new Blob(['glTF-test'], { type: 'model/gltf-binary' });
+
+  await client.digitalTwin.listModels(session);
+  await client.digitalTwin.uploadModel({
+    file,
+    name: 'NASA reference copy',
+    revision: 'source-revision',
+    lod: 'reference',
+    applicableAircraft: ['N123MX'],
+    session
+  });
+  const content = await client.digitalTwin.modelContent('model-1', session);
+
+  assert.equal(content.byteLength, 9);
+  assert.deepEqual(requests.map(({ options }) => options.method), ['GET', 'POST', 'GET']);
+  assert.match(requests[0].url, /\/api\/digital-twin\/models$/);
+  assert.match(requests[1].url, /name=NASA\+reference\+copy/);
+  assert.match(requests[1].url, /revision=source-revision/);
+  assert.match(requests[1].url, /applicable_aircraft=N123MX/);
+  assert.equal(requests[1].options.headers['Content-Type'], 'model/gltf-binary');
+  assert.equal(requests[1].request, file);
+  assert.match(requests[2].url, /\/api\/digital-twin\/models\/model-1\/content$/);
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
 test('FAA candidate AD flow resolves a canonical aircraft before the compliance capability', async () => {

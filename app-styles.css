@@ -751,18 +751,24 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chart-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chart-label {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  min-width: 120px;
+  flex: 0 1 120px;
+  min-width: 0;
+  max-width: 35%;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -771,6 +777,8 @@ main {
 
 .chart-bar-bg {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   height: 24px;
   background: var(--bg-input);
   border-radius: 6px;
@@ -780,6 +788,8 @@ main {
 
 .chart-bar {
   height: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
   border-radius: 6px;
   transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
@@ -839,6 +849,24 @@ main {
   border-radius: 50%;
   margin-right: 6px;
   vertical-align: middle;
+}
+
+@media (max-width: 520px) {
+  .chart-row {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chart-label {
+    flex: 1 1 100%;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .chart-bar-bg {
+    flex-basis: 100%;
+  }
 }
 
 /* ─── Engine Health Bars ─── */
@@ -956,6 +984,53 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 16px;
   margin-top: 16px;
+  min-width: 0;
+}
+
+.market-intel-results > .card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.market-intel-metrics {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.82rem;
+}
+
+.market-intel-metrics--compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+.market-intel-metrics--profile {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.market-intel-metric {
+  min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.market-intel-metric__label,
+.market-intel-metric__value {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.market-intel-metric__label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.market-intel-metric__value {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .market-intel-results > .empty-state,
