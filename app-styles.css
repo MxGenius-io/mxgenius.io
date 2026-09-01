@@ -1844,9 +1844,9 @@ body.live-mode .api-status.connected .status-dot {
   left: -28px;
   margin-left: 0;
   z-index: 20;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: var(--text-primary);
+  background: rgba(8, 15, 30, 0.94);
+  border: 1px solid rgba(103, 232, 249, 0.72);
+  color: #67e8f9;
   width: 28px;
   height: 48px;
   border-radius: 8px 0 0 8px;
@@ -1855,7 +1855,8 @@ body.live-mode .api-status.connected .status-dot {
   align-items: center;
   justify-content: center;
   pointer-events: auto;
-  transition: background 0.2s;
+  box-shadow: -4px 0 14px rgba(2, 6, 23, 0.72), 0 0 10px rgba(34, 211, 238, 0.18);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   padding: 0;
 }
 .globe-sheet-toggle svg {
@@ -1868,8 +1869,12 @@ body.live-mode .api-status.connected .status-dot {
 .globe-sheet .globe-sheet-toggle svg {
   transform: rotate(180deg);
 }
-.globe-sheet-toggle:hover {
-  background: rgba(99, 102, 241, 0.3);
+.globe-sheet-toggle:hover,
+.globe-sheet-toggle:focus-visible {
+  background: rgba(30, 41, 59, 0.98);
+  border-color: #67e8f9;
+  box-shadow: -4px 0 16px rgba(2, 6, 23, 0.82), 0 0 14px rgba(34, 211, 238, 0.38);
+  outline: none;
 }
 .globe-sheet.half, .globe-sheet.full { transform: translateX(0); }
 
@@ -3568,13 +3573,22 @@ body.live-mode .api-status.connected .status-dot {
   justify-content: center;
   padding: 0 !important;
   transform: translateY(-50%);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(103, 232, 249, 0.72);
   border-left: 0;
   border-radius: 0 8px 8px 0;
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--text-primary);
+  background: rgba(8, 15, 30, 0.94);
+  color: #67e8f9;
+  box-shadow: 4px 0 14px rgba(2, 6, 23, 0.72), 0 0 10px rgba(34, 211, 238, 0.18);
   font-size: 1rem !important;
-  transition: background 0.2s, transform 0.3s;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.3s;
+}
+
+.globe-filter-hamburger:hover,
+.globe-filter-hamburger:focus-visible {
+  background: rgba(30, 41, 59, 0.98);
+  border-color: #67e8f9;
+  box-shadow: 4px 0 16px rgba(2, 6, 23, 0.82), 0 0 14px rgba(34, 211, 238, 0.38);
+  outline: none;
 }
 
 @media (max-width: 720px) {

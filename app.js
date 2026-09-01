@@ -4576,6 +4576,44 @@ function nativeARBridgeIsReady(plugin = nativeARGlobePlugin()) {
   return Boolean(plugin?.isARSupported && (plugin?.showGlobe || plugin?.showSpatialScene));
 }
 
+async function bindNativeARListeners(plugin = nativeARGlobePlugin()) {
+  if (nativeARListenersBound || !plugin?.addListener) return;
+  nativeARListenersBound = true;
+  try {
+    await plugin.addListener('cameraPose', (pose) => {
+      globalThis.MXARCameraPose = pose;
+      window.dispatchEvent(new CustomEvent('mxgenius:ar-camera-pose', { detail: pose }));
+    });
+    await plugin.addListener('pinSelected', async ({ id }) => {
+      const cluster = allClusters.find((item) => item.icao === id);
+      if (cluster) {
+        handleGlobeClick(cluster);
+        await populateNativeARLocation(plugin, cluster);
+      }
+    });
+    await plugin.addListener('aircraftSelected', async (selection) => {
+      await populateNativeARAircraft(plugin, selection);
+    });
+    await plugin.addListener('aiSpatialAudio', (spatial) => {
+      void updateNativeARSpatialAudio(spatial);
+    });
+    await plugin.addListener('arSessionState', async (state) => {
+      const button = document.getElementById('globeArButton');
+      if (button) button.dataset.arState = state?.state || '';
+      if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
+      if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
+        nativeARRealtimeOwnsSession = false;
+        globalThis.MXRealtimeVoiceBridge?.disconnect?.();
+        resetNativeARSpatialAudio();
+      }
+      window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
+    });
+  } catch (error) {
+    nativeARListenersBound = false;
+    throw error;
+  }
+}
+
 async function configureViewerARCapability() {
   const plugin = nativeARGlobePlugin();
   if (!nativeARBridgeIsReady(plugin)) {
@@ -4584,6 +4622,7 @@ async function configureViewerARCapability() {
   }
   try {
     const capability = await plugin.isARSupported();
+    if (capability?.supported) await bindNativeARListeners(plugin);
     MX3DViewer.post({
       type: 'mxgenius.viewer.ar-capability',
       supported: Boolean(capability?.supported),
@@ -4894,36 +4933,7 @@ async function configureNativeARGlobe() {
       button.dataset.bound = 'true';
       button.addEventListener('click', openGlobeInAR);
     }
-    if (!nativeARListenersBound && plugin.addListener) {
-      nativeARListenersBound = true;
-      await plugin.addListener('cameraPose', (pose) => {
-        globalThis.MXARCameraPose = pose;
-        window.dispatchEvent(new CustomEvent('mxgenius:ar-camera-pose', { detail: pose }));
-      });
-      await plugin.addListener('pinSelected', async ({ id }) => {
-        const cluster = allClusters.find((item) => item.icao === id);
-        if (cluster) {
-          handleGlobeClick(cluster);
-          await populateNativeARLocation(plugin, cluster);
-        }
-      });
-      await plugin.addListener('aircraftSelected', async (selection) => {
-        await populateNativeARAircraft(plugin, selection);
-      });
-      await plugin.addListener('aiSpatialAudio', (spatial) => {
-        void updateNativeARSpatialAudio(spatial);
-      });
-      await plugin.addListener('arSessionState', async (state) => {
-        button.dataset.arState = state?.state || '';
-        if (state?.state === 'ai-mic-toggle-request') await toggleNativeARRealtime();
-        if (state?.state === 'closed' && nativeARRealtimeOwnsSession) {
-          nativeARRealtimeOwnsSession = false;
-          globalThis.MXRealtimeVoiceBridge?.disconnect?.();
-          resetNativeARSpatialAudio();
-        }
-        window.dispatchEvent(new CustomEvent('mxgenius:ar-session-state', { detail: state }));
-      });
-    }
+    await bindNativeARListeners(plugin);
   } catch (error) {
     console.warn('Native AR globe capability check failed', error);
   }

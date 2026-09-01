@@ -525,6 +525,9 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(application, /plugin\.showGlobe\(\{/);
   assert.match(application, /MAX_NATIVE_AR_PINS = 750/);
   assert.match(application, /plugin\.addListener\('cameraPose'/);
+  assert.match(application, /async function bindNativeARListeners\(plugin = nativeARGlobePlugin\(\)\)/);
+  assert.match(application, /if \(capability\?\.supported\) await bindNativeARListeners\(plugin\)/);
+  assert.match(application, /if \(state\?\.state === 'ai-mic-toggle-request'\) await toggleNativeARRealtime\(\)/);
   assert.match(application, /mxgenius:ar-camera-pose/);
   assert.match(application, /plugin\.addListener\('pinSelected'/);
   assert.match(viewer, /id="enter-ar-button"/);
@@ -548,6 +551,8 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
   assert.match(applicationStyles, /\.globe-texture-buttons \{[\s\S]*overflow-y: auto/);
   assert.match(applicationStyles, /\.globe-sheet \{[\s\S]*width: calc\(100% - 52px\)/);
   assert.match(applicationStyles, /\.globe-sheet-toggle \{[\s\S]*width: 40px/);
+  assert.match(applicationStyles, /\.globe-sheet-toggle \{[\s\S]*background: rgba\(8, 15, 30, 0\.94\)/);
+  assert.match(applicationStyles, /\.globe-filter-hamburger \{[\s\S]*border: 1px solid rgba\(103, 232, 249, 0\.72\)/);
   assert.match(application, /const setSheetState = \(nextState\) =>/);
   assert.match(application, /if \(currentState > 0 && sidebarWrapper\)/);
   assert.match(application, /if \(willExpand\) setSheetState\(0\)/);
