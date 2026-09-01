@@ -79,10 +79,21 @@ const MXRealtime = (() => {
           const state = peer.connectionState;
           if (state === 'connected') {
             this.reconnectAttempts = 0;
-            this.setState('listening');
+            this.emit('handshake', { phase: 'peer-connected', peerState: state });
           }
           if (state === 'failed' || state === 'disconnected') {
             this.scheduleReconnect(state === 'failed' ? 'WebRTC connection failed' : 'Realtime connection interrupted');
+          }
+        };
+        peer.oniceconnectionstatechange = () => {
+          if (epoch !== this.connectionEpoch || this.peer !== peer) return;
+          const state = peer.iceConnectionState;
+          this.emit('handshake', { phase: `ice-${state}`, iceState: state });
+          if (state === 'connected' || state === 'completed') {
+            this.reconnectAttempts = 0;
+          }
+          if (state === 'failed' || state === 'disconnected') {
+            this.scheduleReconnect(state === 'failed' ? 'Realtime ICE negotiation failed' : 'Realtime ICE connection interrupted');
           }
         };
         const media = await this.mediaDevices.getUserMedia({
@@ -101,7 +112,14 @@ const MXRealtime = (() => {
         this.emit('microphone', { enabled: this.microphoneEnabled });
         const channel = peer.createDataChannel('oai-events');
         this.channel = channel;
-        channel.addEventListener('open', () => this.emit('channel-open'));
+        channel.addEventListener('open', () => {
+          if (epoch !== this.connectionEpoch || this.channel !== channel) return;
+          this.reconnectAttempts = 0;
+          // Safari can open the SCTP data channel before it updates the peer's
+          // connectionState. The open channel is the definitive socket signal.
+          this.setState('listening', { transport: 'data-channel' });
+          this.emit('channel-open');
+        });
         channel.addEventListener('close', () => {
           this.emit('channel-close');
           if (!this.manualDisconnect && !this.closingResources && this.peer?.connectionState !== 'connected') {

@@ -388,7 +388,11 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /toggleNativeARRealtime\(state\?\.connected === true\)/);
   assert.match(application, /if \(nativeConnected\)/);
   assert.match(application, /'server-answer-received': 'MXGenius answered/);
-  assert.match(application, /await startRealtimeVoice\(\)/);
+  assert.match(application, /await startRealtimeVoice\(\{ rethrow: true \}\)/);
+  assert.match(realtimeClient, /oniceconnectionstatechange/);
+  assert.match(realtimeClient, /transport: 'data-channel'/);
+  assert.match(dashboard, /realtime-client\.js\?v=5/);
+  assert.match(dashboard, /app\.js\?v=42/);
   assert.match(application, /realtimeSession\.disconnect\(\)/);
   assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);
   assert.match(application, /panningModel = 'HRTF'/);

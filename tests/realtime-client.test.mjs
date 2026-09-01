@@ -203,6 +203,44 @@ test('concurrent connect requests share one in-flight operation', async () => {
   assert.equal(captureCount, 1);
 });
 
+test('an open Realtime data channel is authoritative when Safari peer state lags', async () => {
+  const MXRealtime = loadClient();
+  const listeners = {};
+  const channel = {
+    readyState: 'connecting',
+    addEventListener(type, handler) { listeners[type] = handler; },
+    close() {},
+    send() {}
+  };
+  const peer = {
+    connectionState: 'new',
+    iceConnectionState: 'checking',
+    close() {},
+    createDataChannel: () => channel,
+    addTrack() {},
+    createOffer: async () => ({ type: 'offer', sdp: 'v=0\r\no=offer' }),
+    setLocalDescription: async () => {},
+    setRemoteDescription: async () => {}
+  };
+  const media = { getAudioTracks: () => [], getTracks: () => [] };
+  const events = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0\r\no=answer' }),
+    peerFactory: () => peer,
+    mediaDevices: { getUserMedia: async () => media },
+    onEvent: (event) => events.push(event)
+  });
+
+  await session.connect({ session: { accessToken: 'token' }, audioElement: {} });
+  assert.equal(session.state, 'connecting');
+  channel.readyState = 'open';
+  listeners.open();
+
+  assert.equal(session.state, 'listening');
+  assert.ok(events.some((event) => event.type === 'state' && event.transport === 'data-channel'));
+  assert.ok(events.some((event) => event.type === 'channel-open'));
+});
+
 test('disconnect during microphone permission closes the pending connection without a failed or hanging session', async () => {
   const MXRealtime = loadClient();
   const events = [];

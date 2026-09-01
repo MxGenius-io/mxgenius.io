@@ -1989,11 +1989,12 @@ Rules:
     if (resetVoiceState) setRealtimeUiState('disconnected', 'Voice disconnected');
   }
 
-  async function startRealtimeVoice() {
+  async function startRealtimeVoice({ rethrow = false } = {}) {
     const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
     if (!session.accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
       realtimeModeEnabled = false;
       setRealtimeUiState('failed', 'Sign in to use Realtime voice');
+      if (rethrow) throw new Error('Sign in to use Realtime voice');
       return;
     }
     try {
@@ -2009,6 +2010,7 @@ Rules:
       realtimeModeEnabled = false;
       setRealtimeUiState('failed', error.message || 'Realtime voice unavailable');
       console.warn('[Realtime] Connection failed:', error.code || error.message);
+      if (rethrow) throw error;
     }
   }
 
@@ -2264,7 +2266,7 @@ Rules:
       return;
     }
     if (event.type === 'channel-open') {
-      await setNativeARRealtimeState('connecting', 'Realtime data channel open · configuring MXGenius…');
+      await setNativeARRealtimeState('listening', 'MIC ON · MXGenius Realtime socket open');
       try {
         await configureRealtimeCompanion();
       } catch (error) {
@@ -2277,7 +2279,11 @@ Rules:
         'microphone-ready': 'Microphone ready · creating secure Realtime offer…',
         'local-offer-ready': 'Local SDP ready · exchanging with MXGenius…',
         'server-answer-received': 'MXGenius answered · applying secure session…',
-        'peer-connecting': 'SDP accepted · opening Realtime socket…'
+        'peer-connecting': 'SDP accepted · opening Realtime socket…',
+        'peer-connected': 'Realtime peer linked · waiting for event socket…',
+        'ice-checking': 'Realtime socket negotiating a secure network path…',
+        'ice-connected': 'Realtime network path connected…',
+        'ice-completed': 'Realtime network path ready…'
       };
       await setNativeARRealtimeState('connecting', labels[event.phase] || 'Realtime handshake in progress…');
       return;
@@ -2552,7 +2558,7 @@ Rules:
       stopTranscription({ resetVoiceState: false });
       realtimeSession.setMicrophoneEnabled(true);
       renderMicState();
-      await startRealtimeVoice();
+      await startRealtimeVoice({ rethrow: true });
     },
     disconnect: () => {
       realtimeModeEnabled = false;
