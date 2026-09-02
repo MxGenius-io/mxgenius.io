@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=8">
+  <link rel="stylesheet" href="app-styles.css?v=10">
   <link rel="stylesheet" href="case-workspace.css">
   <link rel="stylesheet" href="parts-workspace.css?v=19">
   <link rel="stylesheet" href="realtime.css">
@@ -100,7 +100,7 @@
     <section id="tab-dashboard" class="tab-content active">
       <!-- Globe -->
           <div class="globe-container" id="globeContainer">
-            <button type="button" class="guided-help-trigger guided-help-trigger--labeled guided-help-trigger--overlay" data-guide-id="fleet-globe-controls" aria-label="Explain fleet globe controls" aria-expanded="false">?</button>
+            <button type="button" class="guided-help-trigger guided-help-trigger--overlay" data-guide-id="fleet-globe-controls" aria-label="Explain fleet globe controls" aria-expanded="false">?</button>
             <div id="globeSidebarWrapper" class="globe-sidebar-wrapper collapsed">
               <div class="globe-texture-buttons" id="globeTextureButtons">
                 <button class="texture-btn" data-texture="earth-night.jpg" title="Night Mode">🌙</button>
@@ -352,7 +352,7 @@
       <div class="tab-header">
         <h1>Maintenance Case</h1>
         <p class="subtitle">One operational record from discrepancy through evidence, action, approval, and closure</p>
-        <button type="button" class="guided-help-trigger guided-help-trigger--labeled" data-guide-id="maintenance-case" aria-label="Explain the maintenance case workflow" aria-expanded="false">?</button>
+        <button type="button" class="guided-help-trigger" data-guide-id="maintenance-case" aria-label="Explain the maintenance case workflow" aria-expanded="false">?</button>
       </div>
       <div class="case-tab__workspace case-workspace" id="caseWorkspaceContent">
         <div id="caseWorkspaceStatus" class="case-workspace__status" role="status" aria-live="polite"></div>
@@ -390,8 +390,8 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <button type="button" class="guided-help-trigger guided-help-trigger--labeled guided-help-trigger--overlay" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=16" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <button type="button" class="guided-help-trigger guided-help-trigger--overlay" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=22" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->
@@ -730,15 +730,16 @@
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
 <script src="application-client.js?v=36"></script>
-  <script src="realtime-client.js?v=4"></script>
+  <script src="xr-target-context.js?v=1"></script>
+  <script src="realtime-client.js?v=7"></script>
   <script src="case-workspace.js?v=4"></script>
   <script src="parts-workspace.js?v=24"></script>
     <script src="capability-workbench.js?v=5"></script>
-  <script src="guided-tooltip.js?v=2"></script>
+  <script src="guided-tooltip.js?v=3"></script>
   <script src="onboarding.js?v=5"></script>
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=1"></script>
-  <script src="app.js?v=41"></script>
+  <script src="app.js?v=45"></script>
   <div id="onboardingRoot"></div>
 </body>
 

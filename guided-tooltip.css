@@ -34,21 +34,6 @@
   z-index: 20;
 }
 
-.guided-help-trigger--labeled {
-  display: inline-flex;
-  width: auto;
-  min-width: 72px;
-  padding: 0 10px;
-  gap: 6px;
-  border-radius: 999px;
-}
-
-.guided-help-trigger--labeled::after {
-  content: 'Guide';
-  font: 700 0.67rem/1 system-ui, sans-serif;
-  letter-spacing: 0.025em;
-}
-
 .guided-tour-launch {
   display: inline-flex;
   align-items: center;

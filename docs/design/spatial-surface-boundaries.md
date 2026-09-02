@@ -19,12 +19,16 @@ The globe is the JetNet fleet-intelligence surface.
 
 The viewer is the technical model and mesh-inspection surface.
 
-- Sources: owned GLB assets and approved open technical sources such as NASA.
+- Sources: owned GLB assets and approved open technical sources such as NASA 3D Resources, the OpenVSP Airshow community catalog, Smithsonian Open Access, and clearly labeled FlightGear simulation geometry.
+- Reference-source rule: public geometry remains visibly unmapped and
+  non-authoritative until a controlled tenant import preserves provenance and
+  a reviewed mapping binds it to canonical aircraft/component records.
 - Primary object: the selected model, mesh, component, or authored animation.
 - Controls: mesh selection, maintenance HUD, procedure media, animation
   scrubbing, and one-/two-grab model manipulation.
 - Thermal-mount responsibility: the mount assembly and its exploded view live
   here, not in the globe or sensor workspace.
+- Build sequence: see [3D viewer and digital-twin build plan](../THREE_D_TWIN_BUILD_PLAN.md).
 
 ## 3. Sensor workspace
 

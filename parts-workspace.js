@@ -1367,7 +1367,7 @@ const MXPartsWorkspace = (() => {
               <p class="parts-subtitle">Traceable receiving, documents, and inventory history</p>
             </div>
             <div class="parts-toolbar">
-              <button type="button" class="guided-help-trigger guided-help-trigger--labeled" data-guide-id="parts-management" aria-label="Explain the controlled parts workflow" aria-expanded="false">?</button>
+              <button type="button" class="guided-help-trigger" data-guide-id="parts-management" aria-label="Explain the controlled parts workflow" aria-expanded="false">?</button>
               <div class="parts-view-switch" role="tablist" aria-label="Parts view">
                 <button class="parts-view-tab active" data-view="inventory" role="tab" aria-selected="true">Inventory</button>
                 <button class="parts-view-tab" data-view="requests" role="tab" aria-selected="false">Requests<span id="overdueCount" class="shortage-count" hidden></span></button>
@@ -1807,6 +1807,8 @@ const MXPartsWorkspace = (() => {
     try {
       state.currentUnit = await client.getUnit({ unitId, session: await session() });
       byId('drawerTitle').textContent = state.currentUnit.unit.partNumber;
+      const target = globalThis.MXTargetContext?.fromPartUnit(state.currentUnit);
+      if (target) globalThis.MXTargetContext.set(target, { reason: 'controlled-part-unit-opened' });
       renderDrawerContent('overview');
     } catch (error) {
       byId('drawerContent').innerHTML = `<div class="empty-state">${escapeHtml(errorMessage(error))}</div>`;
@@ -1817,7 +1819,14 @@ const MXPartsWorkspace = (() => {
     const drawer = byId('partsDrawer');
     drawer?.classList.remove('open');
     drawer?.setAttribute('aria-hidden', 'true');
+    const closingUnitId = state.currentUnit?.unit?.id;
     state.currentUnit = null;
+    if (closingUnitId) {
+      globalThis.MXTargetContext?.clear({
+        match: { kind: 'part-unit', id: closingUnitId },
+        reason: 'controlled-part-unit-closed'
+      });
+    }
     history.replaceState(null, '', '#parts');
   }
 

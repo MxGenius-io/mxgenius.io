@@ -205,7 +205,6 @@ export class XRMaintenanceHUD {
     this.annotationGroup.visible = false;
     this.annotationGroup.scale.setScalar(0.001);
 
-    this.buildStatusRail();
     this.buildWorkflowRail();
     this.buildEvidenceCard();
     this.buildActionBelt();
@@ -216,45 +215,6 @@ export class XRMaintenanceHUD {
 
   objects() {
     return [this.group, this.annotationGroup];
-  }
-
-  buildStatusRail() {
-    this.statusPanel = makeCanvasPanel({
-      width: 1600,
-      height: 120,
-      worldWidth: 1.55,
-      worldHeight: 0.115,
-      draw: (context, width, height) => {
-        drawPanelChrome(context, width, height, { radius: 30, fill: 'rgba(7, 17, 31, 0.95)' });
-        drawText(context, 'MXGENIUS', 42, 75, { size: 38, weight: 700, color: COLORS.text });
-        const caseId = this.context.caseId || this.context.case_id || 'PREVIEW';
-        const aircraft = this.context.aircraftId || this.context.aircraft_id || 'AIRCRAFT';
-        drawText(context, `CASE ${String(caseId).slice(0, 24)}`, 380, 72, { size: 29, weight: 600 });
-        drawText(context, String(aircraft).slice(0, 20), 690, 72, { size: 29, weight: 600 });
-        drawText(context, 'ATA 29 · HYDRAULIC', 930, 72, { size: 29, weight: 600 });
-        const capabilities = this.context.capabilities || {};
-        const capabilityRows = [
-          ['SESSION', 1270, capabilities.session || (caseId === 'PREVIEW' ? 'preview' : 'ready')],
-          ['LOCAL', 1400, capabilities.local || 'ready'],
-          ['CLOUD', 1510, capabilities.cloud || 'unknown']
-        ];
-        capabilityRows.forEach(([label, x, status]) => {
-          context.beginPath();
-          context.arc(x - 25, 59, 8, 0, Math.PI * 2);
-          context.fillStyle = ['ready', 'available', 'connected'].includes(status)
-            ? COLORS.green
-            : ['preview', 'degraded', 'relocalizing'].includes(status)
-              ? COLORS.amber
-              : ['failed', 'offline', 'denied'].includes(status)
-                ? COLORS.red
-                : COLORS.muted;
-          context.fill();
-          drawText(context, label, x, 69, { size: 20, weight: 600, color: COLORS.text });
-        });
-      }
-    });
-    this.statusPanel.mesh.position.set(0, 0.47, 0);
-    this.group.add(this.statusPanel.mesh);
   }
 
   buildWorkflowRail() {
@@ -295,7 +255,7 @@ export class XRMaintenanceHUD {
         });
       }
     });
-    this.workflowPanel.mesh.position.set(-0.72, 0.01, 0);
+    this.workflowPanel.mesh.position.set(-0.78, 0.01, 0);
     this.group.add(this.workflowPanel.mesh);
   }
 
@@ -350,7 +310,7 @@ export class XRMaintenanceHUD {
       },
       action: 'why'
     });
-    this.evidencePanel.mesh.position.set(0.71, 0.03, 0);
+    this.evidencePanel.mesh.position.set(0.78, 0.03, 0);
     this.group.add(this.evidencePanel.mesh);
     this.interactives.push(this.evidencePanel.mesh);
   }
@@ -506,7 +466,6 @@ export class XRMaintenanceHUD {
   }
 
   redrawAll() {
-    this.statusPanel?.redraw();
     this.workflowPanel?.redraw();
     this.evidencePanel?.redraw();
     this.detailPanel?.redraw();
@@ -514,7 +473,6 @@ export class XRMaintenanceHUD {
 
   setContext(context = {}) {
     this.context = { ...context };
-    this.statusPanel.redraw();
   }
 
   setWorkflowStage(stage) {

@@ -108,11 +108,7 @@
             gap: 20px;
             flex-shrink: 0;
             z-index: 100;
-            overflow-x: auto;
-            overflow-y: hidden;
-            scrollbar-width: none;
-            overscroll-behavior-x: contain;
-            -webkit-overflow-scrolling: touch;
+            overflow: visible;
         }
 
         .header::-webkit-scrollbar { display: none; }
@@ -612,11 +608,18 @@
             padding: 10px 16px;
             max-width: 320px;
             z-index: 60;
-            display: none;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity 220ms ease, transform 220ms ease, visibility 0s linear 220ms;
         }
 
-        #desc-panel.active {
-            display: block;
+        body[data-part-selected="true"] #desc-panel.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            transition-delay: 0s;
         }
 
         .desc-title {
@@ -673,6 +676,18 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             z-index: 60;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity 220ms ease, transform 220ms ease, visibility 0s linear 220ms;
+        }
+        body[data-part-selected="true"] #part-inspector {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+            transition-delay: 0s;
         }
         #part-inspector .guided-help-trigger { position: absolute; top: 9px; right: 9px; }
 
@@ -838,6 +853,165 @@
         }
         #procedure-media-button[data-ready="true"] { border-color: rgba(34, 211, 238, 0.5); color: #8beaff; }
         #procedure-media-button:disabled { opacity: 0.45; cursor: default; }
+        #model-library-button {
+            margin-left: 8px;
+            padding: 7px 11px;
+            border: 1px solid rgba(88, 166, 255, 0.48);
+            border-radius: 4px;
+            background: rgba(31, 111, 235, 0.12);
+            color: #9ecbff;
+            font: 600 0.7rem/1 var(--font-primary);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #model-library-button:hover,
+        #model-library-button[aria-expanded="true"] {
+            border-color: var(--accent);
+            background: rgba(31, 111, 235, 0.24);
+            color: #d8ecff;
+        }
+        .header-tools-menu {
+            position: relative;
+            margin-left: 8px;
+            z-index: 220;
+        }
+        .header-tools-menu summary {
+            list-style: none;
+            padding: 7px 11px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font: 600 0.7rem/1 var(--font-primary);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .header-tools-menu summary::-webkit-details-marker { display: none; }
+        .header-tools-menu[open] summary {
+            border-color: rgba(88, 166, 255, 0.62);
+            color: #d8ecff;
+        }
+        .header-tools-panel {
+            position: absolute;
+            top: calc(100% + 9px);
+            right: 0;
+            display: grid;
+            width: 190px;
+            padding: 8px;
+            gap: 6px;
+            border: 1px solid rgba(88, 166, 255, 0.42);
+            border-radius: 8px;
+            background: rgba(8, 16, 29, 0.98);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+        }
+        .header-tools-panel > button {
+            width: 100% !important;
+            margin: 0 !important;
+            text-align: left !important;
+        }
+        .reference-library-drawer {
+            position: fixed;
+            top: calc(var(--header-height) + 10px);
+            right: 12px;
+            z-index: 210;
+            display: flex;
+            flex-direction: column;
+            width: min(520px, calc(100vw - 24px));
+            max-height: calc(100vh - var(--header-height) - 22px);
+            border: 1px solid rgba(88, 166, 255, 0.42);
+            border-radius: 10px;
+            background: rgba(8, 16, 29, 0.98);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+            overflow: hidden;
+        }
+        .reference-library-drawer[hidden] { display: none; }
+        .reference-library-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 15px 16px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .reference-library-head strong { display: block; color: var(--text-primary); font-size: 0.92rem; }
+        .reference-library-head p { margin-top: 4px; color: var(--text-secondary); font-size: 0.7rem; line-height: 1.45; }
+        .reference-library-head button {
+            border: 0;
+            background: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font: 600 0.7rem var(--font-primary);
+        }
+        .reference-library-head-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+        .reference-library-upload {
+            padding: 7px 9px;
+            border: 1px solid rgba(88, 166, 255, 0.42);
+            border-radius: 4px;
+            color: #9ecbff;
+            font: 600 0.66rem var(--font-primary);
+            cursor: pointer;
+        }
+        .reference-library-controls {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 150px 132px;
+            gap: 8px;
+            padding: 12px 16px;
+        }
+        .reference-library-controls input,
+        .reference-library-controls select {
+            min-width: 0;
+            padding: 9px 10px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font: 0.72rem var(--font-primary);
+        }
+        .reference-library-status {
+            padding: 0 16px 10px;
+            color: var(--text-muted);
+            font: 0.65rem/1.4 var(--font-mono);
+        }
+        .reference-library-results {
+            min-height: 90px;
+            overflow-y: auto;
+            padding: 0 10px 10px;
+        }
+        .reference-model-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 11px 10px;
+            border: 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.75);
+            background: transparent;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .reference-model-row:hover,
+        .reference-model-row:focus-visible { background: rgba(88, 166, 255, 0.09); outline: none; }
+        .reference-model-name { display: block; color: var(--text-primary); font-size: 0.76rem; font-weight: 600; }
+        .reference-model-meta { display: block; margin-top: 4px; color: var(--text-muted); font: 0.61rem/1.35 var(--font-mono); }
+        .reference-model-open { color: var(--accent); font: 600 0.64rem var(--font-mono); }
+        .reference-library-foot {
+            padding: 11px 16px 13px;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            line-height: 1.45;
+        }
+        .reference-library-foot a { color: var(--accent); }
+        @media (max-width: 620px) {
+            .reference-library-controls { grid-template-columns: 1fr; }
+        }
         .procedure-media-drawer {
             position: absolute;
             top: calc(var(--header-height) + 12px);
@@ -876,23 +1050,24 @@
         <div id="ar-button-container" style="margin-left: 0;" hidden>
             <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
         </div>
-        <label for="model-upload-input" class="header-back-btn" style="margin-left:8px; margin-right:0; cursor:pointer;" title="Upload a tenant-scoped GLB model">Upload GLB</label>
-        <input id="model-upload-input" type="file" accept=".glb,model/gltf-binary" hidden>
+        <button id="model-library-button" type="button" aria-expanded="false" aria-controls="model-library-drawer" title="Browse workspace and public reference models">Models</button>
 
         <div id="xr-button-container" style="margin-left: 15px;">
             <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
         </div>
-        <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
-        <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
         <span id="hud-audio-status" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Spatial interface sound is ready to start</span>
-        <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
-        <button class="guided-help-trigger guided-help-trigger--labeled" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
-        
         <div style="flex: 1;"></div>
-        
-        <button id="toggle-advanced-controls" style="background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; margin-right:10px; transition:all 0.2s ease;">⚙ Controls</button>
-
-        <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
+        <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
+        <details class="header-tools-menu" id="viewer-tools-menu">
+            <summary>View tools</summary>
+            <div class="header-tools-panel" role="group" aria-label="Viewer display tools">
+                <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
+                <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
+                <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
+                <button id="toggle-advanced-controls" style="background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">⚙ Controls</button>
+                <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
+            </div>
+        </details>
     </div>
 
     <section class="procedure-media-drawer" id="procedure-media-drawer" hidden aria-label="Procedure media">
@@ -903,6 +1078,51 @@
         <video id="procedure-media-video" controls playsinline preload="metadata" crossorigin="anonymous"></video>
         <div id="procedure-media-pairing">No paired mesh</div>
     </section>
+
+    <aside class="reference-library-drawer" id="model-library-drawer" hidden aria-label="3D model library">
+        <div class="reference-library-head">
+            <div>
+                <strong>Model library</strong>
+                <p>Browse bundled workspace models, tenant uploads, and NASA, OpenVSP, Smithsonian, or FlightGear simulation geometry. Public models remain unmapped and non-authoritative.</p>
+            </div>
+            <div class="reference-library-head-actions">
+                <label for="model-upload-input" class="reference-library-upload" title="Upload a tenant-scoped GLB model">Upload GLB</label>
+                <input id="model-upload-input" type="file" accept=".glb,model/gltf-binary" hidden>
+                <button id="model-library-close" type="button" aria-label="Close model library">Close</button>
+            </div>
+        </div>
+        <div class="reference-library-controls">
+            <input id="model-library-search" type="search" placeholder="Search names or collections" autocomplete="off" aria-label="Search reference models">
+            <select id="model-library-provider" aria-label="Filter reference models by source">
+                <option value="">All model sources</option>
+                <option value="workspace">Workspace models</option>
+                <option value="uploaded">Tenant uploads</option>
+                <option value="nasa">NASA</option>
+                <option value="openvsp">OpenVSP</option>
+                <option value="smithsonian">Smithsonian Air &amp; Space</option>
+                <option value="flightgear">FlightGear Simulation</option>
+            </select>
+            <select id="model-library-weight" aria-label="Filter reference models by download size">
+                <option value="">All sizes</option>
+                <option value="light">Light · up to 2 MB</option>
+                <option value="medium">Medium · 2–8 MB</option>
+                <option value="heavy">Heavy · 8–25 MB</option>
+                <option value="very_heavy">Very heavy · 25+ MB</option>
+            </select>
+        </div>
+        <div class="reference-library-status" id="model-library-status" role="status" aria-live="polite">Model catalogs not loaded</div>
+        <div class="reference-library-results" id="model-library-results"></div>
+        <div class="reference-library-foot">
+            Opening a public model streams its geometry from the named source; it does not import it into the tenant catalog.
+            <a href="https://www.nasa.gov/raven/" target="_blank" rel="noopener noreferrer">NASA</a>
+            ·
+            <a href="https://github.com/nasa/NASA-3D-Resources" target="_blank" rel="noopener noreferrer">NASA source</a>
+            · <a href="https://airshow.openvsp.org/" target="_blank" rel="noopener noreferrer">OpenVSP</a>
+            · <a href="https://3d.si.edu/explore/museum/air-and-space-museum" target="_blank" rel="noopener noreferrer">Smithsonian source</a>
+            · <a href="https://www.si.edu/openaccess" target="_blank" rel="noopener noreferrer">Open Access</a>
+            · <a href="https://github.com/fgx/fgx-aircraft" target="_blank" rel="noopener noreferrer">FlightGear models</a>
+        </div>
+    </aside>
 
     <!-- Advanced Controls Accordion -->
     <div id="advanced-controls" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; z-index: 99; flex-shrink: 0;">
@@ -989,7 +1209,7 @@
 
         <div id="part-inspector" aria-live="polite">
             <div class="part-inspector-label">Part selection</div>
-            <button class="guided-help-trigger guided-help-trigger--labeled" type="button" data-guide-id="mesh-inspection" aria-label="Explain mesh inspection" aria-expanded="false">?</button>
+            <button class="guided-help-trigger" type="button" data-guide-id="mesh-inspection" aria-label="Explain mesh inspection" aria-expanded="false">?</button>
             <div id="part-selection-name">Select a visible mesh</div>
             <div id="part-selection-path">Click a component to inspect its model hierarchy and mapping state.</div>
             <div id="part-selection-status">No selection</div>
@@ -1022,7 +1242,7 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=10"></script>
     <script src="../realtime-client.js?v=2"></script>
-    <script src="../guided-tooltip.js?v=2"></script>
+    <script src="../guided-tooltip.js?v=3"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
@@ -1062,6 +1282,8 @@
         // =============================================
         let catalog = [];
         let catalogIndex = 0;
+        let referenceCatalogEntries = null;
+        let referenceCatalogSources = [];
 
         // =============================================
         //  Renderer Config
@@ -1144,6 +1366,156 @@
         const partSelectionName = document.getElementById('part-selection-name');
         const partSelectionPath = document.getElementById('part-selection-path');
         const partSelectionStatus = document.getElementById('part-selection-status');
+
+        function viewerSession() {
+            const localSession = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+            if (localSession.accessToken || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) return localSession;
+            try {
+                if (globalThis.parent !== globalThis) {
+                    return globalThis.parent.MXGENIUS_CONFIG?.getSession?.() || localSession;
+                }
+            } catch {
+                // Cross-origin parents cannot provide a session. The application client will reject protected calls.
+            }
+            return localSession;
+        }
+
+        function formatModelBytes(bytes) {
+            const size = Number(bytes) || 0;
+            if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+            return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+        }
+
+        function closeModelLibrary() {
+            document.getElementById('model-library-drawer').hidden = true;
+            document.getElementById('model-library-button').setAttribute('aria-expanded', 'false');
+        }
+
+        function matchesReferenceProvider(entry, provider) {
+            if (!provider) return true;
+            const families = Array.isArray(entry.sourceFamilies) ? entry.sourceFamilies : [];
+            if (provider === 'nasa') {
+                return entry.provider === 'nasa'
+                    || entry.provider === 'nasa-aeronautics'
+                    || families.includes('nasa');
+            }
+            return entry.provider === provider || families.includes(provider);
+        }
+
+        function renderModelLibrary() {
+            const results = document.getElementById('model-library-results');
+            const status = document.getElementById('model-library-status');
+            if (!referenceCatalogEntries) return;
+            const query = document.getElementById('model-library-search').value.trim().toLowerCase();
+            const provider = document.getElementById('model-library-provider').value;
+            const weight = document.getElementById('model-library-weight').value;
+            const matches = referenceCatalogEntries.filter((entry) => {
+                const searchable = `${entry.name || ''} ${entry.collection || ''} ${entry.sourceAuthority || ''}`.toLowerCase();
+                return (!query || searchable.includes(query))
+                    && matchesReferenceProvider(entry, provider)
+                    && (!weight || entry.weightClass === weight);
+            });
+            const sourceLabel = referenceCatalogSources.map((source) => `${source.name}: ${source.count}`).join(' · ');
+            status.textContent = `${matches.length} of ${referenceCatalogEntries.length} models · ${sourceLabel}`;
+            results.replaceChildren();
+            const fragment = document.createDocumentFragment();
+            matches.forEach((entry) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'reference-model-row';
+                button.innerHTML = `<span><span class="reference-model-name"></span><span class="reference-model-meta"></span></span><span class="reference-model-open">OPEN</span>`;
+                button.querySelector('.reference-model-name').textContent = entry.name;
+                const localModel = entry.provider === 'workspace';
+                const tenantModel = entry.provider === 'uploaded';
+                const authority = entry.sourceAuthority || (tenantModel ? 'Tenant upload' : entry.provider || 'Unknown source');
+                const collection = entry.collection || (tenantModel ? 'Tenant model catalog' : 'Reference catalog');
+                const qualifier = localModel ? 'bundled model' : tenantModel ? 'tenant model' : 'reference only';
+                button.querySelector('.reference-model-meta').textContent = `${authority} · ${collection} · ${formatModelBytes(entry.sizeBytes)} · ${qualifier}`;
+                button.addEventListener('click', () => openLibraryModel(entry));
+                fragment.appendChild(button);
+            });
+            results.appendChild(fragment);
+        }
+
+        async function openModelLibrary() {
+            const drawer = document.getElementById('model-library-drawer');
+            drawer.hidden = false;
+            document.getElementById('model-library-button').setAttribute('aria-expanded', 'true');
+            if (!referenceCatalogEntries) {
+                document.getElementById('model-library-status').textContent = 'Loading workspace and official reference catalogs…';
+                const definitions = [
+                    { provider: 'nasa-aeronautics', name: 'NASA Aeronautics', url: './nasa-aeronautics-models.json' },
+                    { provider: 'smithsonian', name: 'Smithsonian', url: './smithsonian-models.json' },
+                    { provider: 'nasa', name: 'NASA', url: './nasa-models.json' },
+                    { provider: 'flightgear', name: 'FlightGear', url: './flightgear-models.json' },
+                    { provider: 'openvsp', name: 'OpenVSP', url: './openvsp-models.json' }
+                ];
+                const settled = await Promise.allSettled(definitions.map(async (definition) => {
+                    const response = await fetch(definition.url);
+                    if (!response.ok) throw new Error(`${definition.name} catalog request failed (${response.status})`);
+                    const manifest = await response.json();
+                    if (!Array.isArray(manifest.models)) throw new Error(`${definition.name} catalog payload is invalid`);
+                    return { ...definition, manifest };
+                }));
+                referenceCatalogEntries = catalog.filter((entry) => entry.quickAccess !== true);
+                referenceCatalogSources = [];
+                settled.forEach((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        referenceCatalogEntries.push(...result.value.manifest.models);
+                        referenceCatalogSources.push({ name: result.value.name, count: result.value.manifest.models.length });
+                    } else {
+                        console.warn(`${definitions[index].name} reference catalog unavailable:`, result.reason);
+                    }
+                });
+                if (!referenceCatalogEntries.length) {
+                    document.getElementById('model-library-status').textContent = 'Reference catalogs unavailable';
+                } else {
+                    referenceCatalogSources = [
+                        { name: 'Workspace', count: referenceCatalogEntries.filter((entry) => entry.provider === 'workspace').length },
+                        { name: 'Uploads', count: referenceCatalogEntries.filter((entry) => entry.provider === 'uploaded').length },
+                        { name: 'NASA', count: referenceCatalogEntries.filter((entry) => matchesReferenceProvider(entry, 'nasa')).length },
+                        { name: 'OpenVSP', count: referenceCatalogEntries.filter((entry) => matchesReferenceProvider(entry, 'openvsp')).length },
+                        { name: 'Smithsonian', count: referenceCatalogEntries.filter((entry) => matchesReferenceProvider(entry, 'smithsonian')).length },
+                        { name: 'FlightGear', count: referenceCatalogEntries.filter((entry) => matchesReferenceProvider(entry, 'flightgear')).length }
+                    ];
+                    renderModelLibrary();
+                }
+            }
+            document.getElementById('model-library-search').focus();
+        }
+
+        function openLibraryModel(entry) {
+            if (entry.provider === 'workspace' || entry.provider === 'uploaded') {
+                const existingIndex = catalog.findIndex((item) =>
+                    String(item.modelId || item.id || item.file || '') === String(entry.modelId || entry.id || entry.file || '')
+                );
+                if (existingIndex === -1) {
+                    catalog.push(entry);
+                    catalogIndex = catalog.length - 1;
+                } else {
+                    catalogIndex = existingIndex;
+                }
+                closeModelLibrary();
+                updateNavBar();
+                loadModelByIndex(catalogIndex);
+                return;
+            }
+            const prepared = {
+                ...entry,
+                description: `${entry.sourceAuthority} · ${entry.collection} reference geometry · ${entry.rights || 'source terms apply'} · unmapped · not approved maintenance data.`
+            };
+            const existingIndex = catalog.findIndex((item) => item.id === prepared.id);
+            if (existingIndex === -1) {
+                catalog.push(prepared);
+                catalogIndex = catalog.length - 1;
+            } else {
+                catalog[existingIndex] = prepared;
+                catalogIndex = existingIndex;
+            }
+            closeModelLibrary();
+            updateNavBar();
+            loadModelByIndex(catalogIndex);
+        }
 
         // =============================================
         //  Populate Header / Metadata from Config
@@ -1327,7 +1699,7 @@
             }
             let uploadedCatalog = [];
             try {
-                const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                const session = viewerSession();
                 if (session.accessToken || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
                     const result = await globalThis.MXApplicationClient.digitalTwin.listModels(session);
                     uploadedCatalog = (result.models || []).map((model) => ({
@@ -1344,7 +1716,7 @@
             catalog = [...uploadedCatalog, ...staticCatalog];
 
             if (catalog.length > 0) {
-                let startIdx = uploadedCatalog.length ? 0 : catalog.findIndex(c => String(c.file || '').toLowerCase().includes('helmet'));
+                let startIdx = catalog.findIndex((entry) => entry.quickAccess === true);
                 if (startIdx === -1) startIdx = 0;
                 
                 catalogIndex = startIdx;
@@ -1382,7 +1754,8 @@
             }
             activateLocalProvider();
             const modelPath = entry.file;
-            const ext = modelPath.split('.').pop().toLowerCase();
+            const ext = modelPath.split(/[?#]/)[0].split('.').pop().toLowerCase();
+            const format = String(entry.format || '').toLowerCase();
 
             // Show loader
             loaderEl.classList.remove('hidden');
@@ -1392,14 +1765,18 @@
             updateNavBar();
             updateModelMeta(entry);
 
-            if (ext === 'glb' || ext === 'gltf') {
+            if (format === 'x3d') {
+                void loadX3D(modelPath, entry);
+            } else if (format === 'three-json-3.1') {
+                void loadLegacyThreeJson(modelPath, entry);
+            } else if (ext === 'glb' || ext === 'gltf') {
                 loadGLTF(modelPath);
             } else if (ext === 'fbx') {
                 loadFBX(modelPath);
             } else if (ext === 'obj') {
                 loadOBJ(modelPath);
             } else {
-                updateProgress(100, 'Unsupported format — use .glb, .fbx, or .obj');
+                updateProgress(100, 'Unsupported format — use .glb, .fbx, .obj, .x3d, or supported simulation JSON');
                 setTimeout(() => loaderEl.classList.add('hidden'), 1500);
             }
         }
@@ -1407,15 +1784,26 @@
         function updateNavBar() {
             const sel = document.getElementById('model-select');
             sel.innerHTML = '';
-            if (catalog.length === 0) {
+            const quickAccessEntries = catalog
+                .map((entry, index) => ({ entry, index }))
+                .filter(({ entry }) => entry.quickAccess === true);
+            if (quickAccessEntries.length === 0) {
                 sel.innerHTML = '<option value="">No models loaded</option>';
                 return;
             }
-            catalog.forEach((entry, i) => {
+            if (!quickAccessEntries.some(({ index }) => index === catalogIndex)) {
+                const prompt = document.createElement('option');
+                prompt.value = '';
+                prompt.textContent = 'Select local model';
+                prompt.selected = true;
+                prompt.disabled = true;
+                sel.appendChild(prompt);
+            }
+            quickAccessEntries.forEach(({ entry, index }) => {
                 const opt = document.createElement('option');
-                opt.value = i;
+                opt.value = index;
                 opt.textContent = entry.name || entry.file;
-                if (i === catalogIndex) opt.selected = true;
+                if (index === catalogIndex) opt.selected = true;
                 sel.appendChild(opt);
             });
         }
@@ -1473,6 +1861,180 @@
             );
         }
 
+        function parseX3DNumbers(value) {
+            return String(value || '')
+                .trim()
+                .split(/[\s,]+/)
+                .map(Number)
+                .filter(Number.isFinite);
+        }
+
+        function x3dColor(value, fallback) {
+            const components = parseX3DNumbers(value);
+            return components.length >= 3
+                ? new THREE.Color().setRGB(components[0], components[1], components[2])
+                : new THREE.Color(fallback);
+        }
+
+        function x3dToObject(xmlText, name = 'OpenVSP aircraft') {
+            const documentNode = new DOMParser().parseFromString(xmlText, 'application/xml');
+            if (documentNode.querySelector('parsererror')) throw new Error('OpenVSP X3D payload is invalid XML');
+            const group = new THREE.Group();
+            group.name = name;
+            const shapes = [...documentNode.getElementsByTagName('Shape')];
+
+            shapes.forEach((shape, shapeIndex) => {
+                const faceSet = shape.getElementsByTagName('IndexedFaceSet')[0];
+                const coordinate = faceSet?.getElementsByTagName('Coordinate')[0];
+                if (!faceSet || !coordinate) return;
+                const pointValues = parseX3DNumbers(coordinate.getAttribute('point'));
+                const faceValues = parseX3DNumbers(faceSet.getAttribute('coordIndex'));
+                if (pointValues.length < 9 || faceValues.length < 4) return;
+
+                const indices = [];
+                let polygon = [];
+                const flushPolygon = () => {
+                    if (polygon.length >= 3) {
+                        for (let index = 1; index < polygon.length - 1; index += 1) {
+                            const triangle = faceSet.getAttribute('ccw') === 'false'
+                                ? [polygon[0], polygon[index + 1], polygon[index]]
+                                : [polygon[0], polygon[index], polygon[index + 1]];
+                            if (triangle.every((vertex) => vertex >= 0 && vertex * 3 + 2 < pointValues.length)) {
+                                indices.push(...triangle);
+                            }
+                        }
+                    }
+                    polygon = [];
+                };
+                faceValues.forEach((value) => {
+                    if (value === -1) flushPolygon();
+                    else polygon.push(value);
+                });
+                flushPolygon();
+                if (!indices.length) return;
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(pointValues, 3));
+                geometry.setIndex(indices);
+                geometry.computeVertexNormals();
+                const materialNode = shape.getElementsByTagName('Material')[0];
+                const transparency = THREE.MathUtils.clamp(
+                    Number(materialNode?.getAttribute('transparency')) || 0,
+                    0,
+                    1
+                );
+                const material = new THREE.MeshPhongMaterial({
+                    color: x3dColor(materialNode?.getAttribute('diffuseColor'), 0xb8c1cb),
+                    emissive: x3dColor(materialNode?.getAttribute('emissiveColor'), 0x000000),
+                    specular: x3dColor(materialNode?.getAttribute('specularColor'), 0x222222),
+                    shininess: THREE.MathUtils.clamp(Number(materialNode?.getAttribute('shininess')) || 0.2, 0, 1) * 100,
+                    opacity: 1 - transparency,
+                    transparent: transparency > 0,
+                    side: faceSet.getAttribute('solid') === 'false' ? THREE.DoubleSide : THREE.FrontSide
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.name = shape.getAttribute('DEF')
+                    || faceSet.getAttribute('DEF')
+                    || `${name} part ${shapeIndex + 1}`;
+                group.add(mesh);
+            });
+
+            if (!group.children.length) throw new Error('OpenVSP X3D payload has no supported indexed faces');
+            group.rotation.x = -Math.PI / 2;
+            return group;
+        }
+
+        async function loadX3D(url, entry) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`OpenVSP model request failed (${response.status})`);
+                updateProgress(55, 'Converting OpenVSP geometry...');
+                const object = x3dToObject(await response.text(), entry?.name);
+                addModelToScene(object);
+                updateProgress(100, 'Ready · OpenVSP simulation geometry');
+                setTimeout(() => loaderEl.classList.add('hidden'), 400);
+            } catch (error) {
+                console.warn('OpenVSP model load error:', error);
+                updateProgress(100, 'OpenVSP model could not be loaded');
+                setTimeout(() => loaderEl.classList.add('hidden'), 1600);
+            }
+        }
+
+        function legacyThreeJsonToObject(payload, name = 'FlightGear aircraft') {
+            const vertices = Array.isArray(payload?.vertices) ? payload.vertices : [];
+            const faces = Array.isArray(payload?.faces) ? payload.faces : [];
+            if (vertices.length < 9 || faces.length < 4) {
+                throw new Error('Legacy Three.js model has no usable geometry');
+            }
+
+            const positions = [];
+            const uvLayers = Array.isArray(payload.uvs)
+                ? payload.uvs.filter((layer) => Array.isArray(layer) && layer.length > 0).length
+                : 0;
+            let offset = 0;
+            while (offset < faces.length) {
+                const type = faces[offset++];
+                const vertexCount = type & 1 ? 4 : 3;
+                const indices = faces.slice(offset, offset + vertexCount);
+                offset += vertexCount;
+                if (type & 2) offset += 1;
+                if (type & 4) offset += uvLayers;
+                if (type & 8) offset += uvLayers * vertexCount;
+                if (type & 16) offset += 1;
+                if (type & 32) offset += vertexCount;
+                if (type & 64) offset += 1;
+                if (type & 128) offset += vertexCount;
+
+                const triangles = vertexCount === 4 ? [[0, 1, 3], [1, 2, 3]] : [[0, 1, 2]];
+                triangles.forEach((triangle) => {
+                    triangle.forEach((corner) => {
+                        const vertexOffset = indices[corner] * 3;
+                        positions.push(
+                            vertices[vertexOffset],
+                            vertices[vertexOffset + 1],
+                            vertices[vertexOffset + 2]
+                        );
+                    });
+                });
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.computeVertexNormals();
+            const diffuse = payload.materials?.[0]?.colorDiffuse;
+            const color = Array.isArray(diffuse) && diffuse.length >= 3
+                ? new THREE.Color().setRGB(diffuse[0], diffuse[1], diffuse[2])
+                : new THREE.Color(0xb8c1cb);
+            const material = new THREE.MeshStandardMaterial({
+                color,
+                roughness: 0.72,
+                metalness: 0.12,
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = name;
+            const group = new THREE.Group();
+            group.name = name;
+            group.add(mesh);
+            return group;
+        }
+
+        async function loadLegacyThreeJson(url, entry) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Simulation model request failed (${response.status})`);
+                updateProgress(55, 'Converting simulation geometry...');
+                const payload = JSON.parse(await response.text());
+                addModelToScene(legacyThreeJsonToObject(payload, entry?.name));
+                updateProgress(100, 'Ready · simulation geometry');
+                setTimeout(() => loaderEl.classList.add('hidden'), 400);
+            } catch (error) {
+                console.warn('Simulation model load error:', error);
+                updateProgress(100, 'Simulation model could not be loaded');
+                setTimeout(() => loaderEl.classList.add('hidden'), 1600);
+            }
+        }
+
         async function loadUploadedModel(entry) {
             activateLocalProvider();
             loaderEl.classList.remove('hidden');
@@ -1480,7 +2042,7 @@
             updateNavBar();
             updateModelMeta(entry);
             try {
-                const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                const session = viewerSession();
                 const bytes = await globalThis.MXApplicationClient.digitalTwin.modelContent(entry.modelId, session);
                 const loader = new GLTFLoader();
                 const dracoLoader = new DRACOLoader();
@@ -1793,6 +2355,10 @@
                         subtitle: 'Anchored model inspection workspace',
                         modelName: entry.name || entry.file || 'Selected 3D model',
                         modelType: entry.type || 'aircraft component',
+                        modelId: entry.modelId || entry.id || null,
+                        modelFile: entry.file || null,
+                        modelProvider: entry.provider || (entry.file ? 'static' : null),
+                        modelAssetURL: entry.file ? new URL(entry.file, window.location.href).href : null,
                         source: 'MXGenius 3D Viewer',
                         revision: entry.revision || null,
                         operationalStatus: entry.operationalStatus || 'unclassified',
@@ -2179,6 +2745,7 @@
             selectedMesh = null;
             selectedOriginalMaterial = null;
             selectedHighlightMaterial = null;
+            document.body.dataset.partSelected = 'false';
             xrMaintenanceHUD?.clearTarget({ forget: updatePanel });
 
             if (updatePanel) {
@@ -2205,7 +2772,7 @@
             const mapping = findPartMapping(mesh, path);
             const entry = currentCatalogEntry() || {};
             const sourceStatus = entry.operationalStatus || 'unclassified';
-            const mappingStatus = mapping?.status || (sourceStatus === 'demo_asset' ? 'demo' : 'unmapped');
+            const mappingStatus = mapping?.status || (sourceStatus === 'demo_asset' ? 'demo' : sourceStatus === 'reference_asset' ? 'reference' : 'unmapped');
             const materialList = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
             const highlightedList = materialList.map(cloneHighlightMaterial);
 
@@ -2213,6 +2780,7 @@
             selectedOriginalMaterial = mesh.material;
             selectedHighlightMaterial = Array.isArray(mesh.material) ? highlightedList : highlightedList[0];
             mesh.material = selectedHighlightMaterial;
+            document.body.dataset.partSelected = 'true';
 
             const detail = {
                 context: viewerContext,
@@ -2236,14 +2804,18 @@
             xrMaintenanceHUD?.setTarget(mesh, {
                 label: detail.selection.componentId || detail.selection.meshName,
                 state: mappingStatus === 'validated' || mappingStatus === 'mapped' ? 'confirmed' : 'candidate',
-                confidence: mappingStatus === 'validated' ? 0.98 : mappingStatus === 'mapped' ? 0.9 : 0.72,
-                measurement: mappingStatus === 'demo' ? 'VISUAL INSPECTION' : 'COMPONENT SELECTED',
-                measurementSource: mappingStatus === 'demo' ? 'Demo geometry · unverified' : `Mapping · ${mappingStatus}`,
+                confidence: mappingStatus === 'validated' ? 0.98 : mappingStatus === 'mapped' ? 0.9 : mappingStatus === 'reference' ? 0 : 0.72,
+                measurement: mappingStatus === 'demo' ? 'VISUAL INSPECTION' : mappingStatus === 'reference' ? 'REFERENCE GEOMETRY' : 'COMPONENT SELECTED',
+                measurementSource: mappingStatus === 'demo' ? 'Demo geometry · unverified' : mappingStatus === 'reference' ? `${entry.sourceAuthority || 'Public source'} · unmapped` : `Mapping · ${mappingStatus}`,
                 summary: mappingStatus === 'demo'
                     ? 'Geometry selected for interface rehearsal. Confirm component identity and applicable maintenance evidence before acting.'
+                    : mappingStatus === 'reference'
+                    ? 'Public reference geometry selected. It is not an approved maintenance source and has no validated aircraft or component mapping.'
                     : 'Selected component is ready for evidence review and guided inspection.',
                 sources: mappingStatus === 'demo'
                     ? ['MODEL GEOMETRY', 'CASE CONTEXT', 'MANUAL LOOKUP']
+                    : mappingStatus === 'reference'
+                    ? [`${entry.sourceAuthority || 'PUBLIC'} REFERENCE`.toUpperCase(), 'UNMAPPED', 'NO APPROVAL']
                     : ['COMPONENT MAP', 'CASE HISTORY', 'MANUAL LOOKUP']
             });
 
@@ -2254,7 +2826,7 @@
                 emitPartSelection(detail);
                 const modelId = detail.model.id;
                 if (modelId) {
-                    const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                    const session = viewerSession();
                     void globalThis.MXApplicationClient.digitalTwin.saveHighlight({
                         modelId,
                         meshId: detail.selection.meshName,
@@ -2461,6 +3033,7 @@
             const procedureDrawer = document.getElementById('procedure-media-drawer');
             const hudPreviewButton = document.getElementById('hud-preview-button');
             const hudSoundButton = document.getElementById('hud-sound-button');
+            const viewerToolsMenu = document.getElementById('viewer-tools-menu');
             hudPreviewButton.addEventListener('click', () => {
                 void xrUIAudio?.unlock();
                 const preview = hudPreviewButton.getAttribute('aria-pressed') !== 'true';
@@ -2500,15 +3073,6 @@
                 if (distance <= 5) handlePartPick(event);
             });
 
-            function isNativeIOSViewerHost() {
-                try {
-                    const capacitor = window.parent?.Capacitor || globalThis.Capacitor;
-                    return capacitor?.isNativePlatform?.() === true && capacitor?.getPlatform?.() === 'ios';
-                } catch {
-                    return false;
-                }
-            }
-
             window.addEventListener('message', (event) => {
                 if (event.source !== window.parent || event.origin !== window.location.origin) return;
                 const message = event.data || {};
@@ -2537,7 +3101,10 @@
                 } else if (message.type === 'mxgenius.viewer.ar-capability') {
                     const arContainer = document.getElementById('ar-button-container');
                     const arButton = document.getElementById('enter-ar-button');
-                    const supported = Boolean(message.supported) && isNativeIOSViewerHost();
+                    // The same-origin parent has already called the registered
+                    // native plugin. Trust that capability result instead of
+                    // independently guessing the iframe's platform.
+                    const supported = Boolean(message.supported);
                     if (arContainer) arContainer.hidden = !supported;
                     if (arButton) {
                         arButton.disabled = !supported;
@@ -2652,6 +3219,22 @@
                     loadModelByIndex(idx);
                 }
             });
+            document.getElementById('model-library-button').addEventListener('click', () => {
+                const drawer = document.getElementById('model-library-drawer');
+                if (drawer.hidden) void openModelLibrary();
+                else closeModelLibrary();
+            });
+            document.getElementById('model-library-close').addEventListener('click', closeModelLibrary);
+            document.getElementById('model-library-search').addEventListener('input', renderModelLibrary);
+            document.getElementById('model-library-provider').addEventListener('change', renderModelLibrary);
+            document.getElementById('model-library-weight').addEventListener('change', renderModelLibrary);
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !document.getElementById('model-library-drawer').hidden) closeModelLibrary();
+                if (event.key === 'Escape') viewerToolsMenu.open = false;
+            });
+            document.addEventListener('pointerdown', (event) => {
+                if (viewerToolsMenu.open && !viewerToolsMenu.contains(event.target)) viewerToolsMenu.open = false;
+            });
             document.getElementById('model-upload-input').addEventListener('change', async (event) => {
                 const input = event.currentTarget;
                 const file = input.files?.[0];
@@ -2662,7 +3245,7 @@
                     if (!file.name.toLowerCase().endsWith('.glb')) {
                         throw new Error('Only self-contained GLB files are supported');
                     }
-                    const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+                    const session = viewerSession();
                     const uploaded = await globalThis.MXApplicationClient.digitalTwin.uploadModel({
                         file,
                         name: file.name.replace(/\.glb$/i, ''),
@@ -2678,6 +3261,13 @@
                     };
                     catalog = [entry, ...catalog.filter((item) => String(item.modelId || item.id || '') !== String(uploaded.id))];
                     catalogIndex = 0;
+                    if (referenceCatalogEntries) {
+                        referenceCatalogEntries = [
+                            entry,
+                            ...referenceCatalogEntries.filter((item) => String(item.modelId || item.id || '') !== String(uploaded.id))
+                        ];
+                        renderModelLibrary();
+                    }
                     updateNavBar();
                     loadModelByIndex(0);
                 } catch (error) {

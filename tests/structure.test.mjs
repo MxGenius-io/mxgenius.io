@@ -307,6 +307,10 @@ test('fleet compatibility translation is scoped and market intelligence uses sub
   assert.match(dashboard, /<select id="mktMake"/);
   assert.match(dashboard, /<select id="mktModel"/);
   assert.match(application, /escapeMarkup\(formatted\)/);
+  assert.match(application, /market-intel-metrics--compact/);
+  assert.match(application, /market-intel-metrics--profile/);
+  assert.match(applicationStyles, /grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*150px\),\s*1fr\)\)/);
+  assert.match(applicationStyles, /\.chart-bar-bg\s*\{[^}]*min-width:\s*0;/s);
 });
 
 test('detailed JetNet success statuses remain renderable and cacheable', () => {
@@ -385,7 +389,17 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /state\?\.state === 'ai-mic-toggle-request'/);
   assert.match(application, /globalThis\.MXRealtimeVoiceBridge/);
   assert.match(application, /await voice\.connect\(\)/);
-  assert.match(application, /await startRealtimeVoice\(\)/);
+  assert.match(application, /toggleNativeARRealtime\(state\?\.connected === true\)/);
+  assert.match(application, /if \(nativeConnected\)/);
+  assert.match(application, /'server-answer-received': 'MXGenius answered/);
+  assert.match(application, /await startRealtimeVoice\(\{ rethrow: true \}\)/);
+  assert.match(realtimeClient, /oniceconnectionstatechange/);
+  assert.match(realtimeClient, /transport: 'data-channel'/);
+  assert.match(dashboard, /realtime-client\.js\?v=7/);
+  assert.match(dashboard, /app\.js\?v=45/);
+  assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
+  assert.match(realtimeClient, /waitForIceGathering/);
+  assert.match(realtimeClient, /localCandidateCount/);
   assert.match(application, /realtimeSession\.disconnect\(\)/);
   assert.match(application, /plugin\.addListener\('aiSpatialAudio'/);
   assert.match(application, /panningModel = 'HRTF'/);
@@ -476,6 +490,7 @@ test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal 
   assert.match(xrMaintenanceHud, /side: THREE\.BackSide/);
   assert.match(xrMaintenanceHud, /prefers-reduced-motion: reduce/);
   assert.match(xrMaintenanceHud, /clearTarget\(\)/);
+  assert.doesNotMatch(xrMaintenanceHud, /buildStatusRail|statusPanel/);
   assert.doesNotMatch(xrMaintenanceHud, /setInterval|visibility\s*=\s*!/);
 });
 
@@ -518,27 +533,31 @@ test('web wrapper exposes fleet and 3D viewer entry points for the native AR cam
   assert.match(dashboard, /id="globeArButton"/);
   assert.match(dashboard, /Open fleet globe in augmented reality/);
   assert.match(application, /Capacitor\?\.Plugins\?\.JetNetNative/);
-  assert.match(application, /function isNativeIOSGlobeHost\(\)/);
-  assert.match(application, /Capacitor\?\.isNativePlatform\?\.\(\) === true/);
-  assert.match(application, /Capacitor\?\.getPlatform\?\.\(\) === 'ios'/);
-  assert.match(application, /if \(!isNativeIOSGlobeHost\(\) \|\| !plugin\?\.isARSupported\)/);
+  assert.match(application, /function nativeARBridgeIsReady\(plugin = nativeARGlobePlugin\(\)\)/);
+  assert.match(application, /Boolean\(plugin\?\.isARSupported && \(plugin\?\.showGlobe \|\| plugin\?\.showSpatialScene\)\)/);
+  assert.doesNotMatch(application, /function isNativeIOSGlobeHost\(\)/);
   assert.match(application, /plugin\.isARSupported\(\)/);
   assert.match(application, /plugin\.showGlobe\(\{/);
   assert.match(application, /MAX_NATIVE_AR_PINS = 750/);
   assert.match(application, /plugin\.addListener\('cameraPose'/);
+  assert.match(application, /async function bindNativeARListeners\(plugin = nativeARGlobePlugin\(\)\)/);
+  assert.match(application, /if \(capability\?\.supported\) await bindNativeARListeners\(plugin\)/);
+  assert.match(application, /if \(state\?\.state === 'ai-mic-toggle-request'\) await toggleNativeARRealtime\(state\?\.connected === true\)/);
   assert.match(application, /mxgenius:ar-camera-pose/);
   assert.match(application, /plugin\.addListener\('pinSelected'/);
   assert.match(viewer, /id="enter-ar-button"/);
   assert.match(viewer, /mxgenius\.viewer\.ar-request/);
   assert.match(viewer, /mxgenius\.viewer\.ar-capability/);
-  assert.match(viewer, /function isNativeIOSViewerHost\(\)/);
-  assert.match(viewer, /Boolean\(message\.supported\) && isNativeIOSViewerHost\(\)/);
+  assert.doesNotMatch(viewer, /function isNativeIOSViewerHost\(\)/);
+  assert.match(viewer, /const supported = Boolean\(message\.supported\)/);
   assert.match(viewer, /#ar-button-container\[hidden\] \{ display: none !important; \}/);
   assert.match(applicationStyles, /#globeArButton\[hidden\],[\s\S]*#globeArGuide\[hidden\][\s\S]*display: none !important/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.ar-request'/);
   assert.match(application, /plugin\.showSpatialScene/);
   assert.match(application, /anchors: 3/);
   assert.match(application, /pointCloud: true/);
+  assert.match(viewer, /modelAssetURL: entry\.file \? new URL\(entry\.file, window\.location\.href\)\.href : null/);
+  assert.match(application, /modelConnected: Boolean\(modelId \|\| modelFile \|\| modelAssetURL\)/);
 });
 
 test('mobile globe panels keep controls reachable and avoid overlapping drawers', () => {
@@ -547,13 +566,15 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
   assert.match(applicationStyles, /\.globe-texture-buttons \{[\s\S]*overflow-y: auto/);
   assert.match(applicationStyles, /\.globe-sheet \{[\s\S]*width: calc\(100% - 52px\)/);
   assert.match(applicationStyles, /\.globe-sheet-toggle \{[\s\S]*width: 40px/);
+  assert.match(applicationStyles, /\.globe-sheet-toggle \{[\s\S]*background: rgba\(8, 15, 30, 0\.94\)/);
+  assert.match(applicationStyles, /\.globe-filter-hamburger \{[\s\S]*border: 1px solid rgba\(103, 232, 249, 0\.72\)/);
   assert.match(application, /const setSheetState = \(nextState\) =>/);
   assert.match(application, /if \(currentState > 0 && sidebarWrapper\)/);
   assert.match(application, /if \(willExpand\) setSheetState\(0\)/);
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=16/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=22/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -614,6 +635,30 @@ test('owned and uploaded GLB models remain available without a Sketchfab catalog
   );
   assert.equal(modelCatalog.some((model) => model.provider === 'sketchfab'), false);
   assert.doesNotMatch(JSON.stringify(modelCatalog), /sketchfab/i);
+});
+
+test('viewer quick access is limited to the curated local model folder set', async () => {
+  const quickAccessModels = modelCatalog.filter((model) => model.quickAccess === true);
+  assert.deepEqual(
+    quickAccessModels.map((model) => model.name).sort(),
+    [
+      'Airplane Logo',
+      'Black Picatinny Rail',
+      'Electrical Tester',
+      'FLIR Thermal Camera',
+      'Power Tool Battery',
+      'Single-Board Computer Prototype',
+      'VR Headset',
+      'Virtual Reality Headset'
+    ].sort()
+  );
+  await Promise.all(
+    quickAccessModels.map((model) => access(new URL(`../3d-viewer/${model.file}`, import.meta.url)))
+  );
+  assert.ok(modelCatalog.some((model) => model.quickAccess === false), 'older demos should remain in the Models drawer');
+  assert.match(viewer, /filter\(\(\{ entry \}\) => entry\.quickAccess === true\)/);
+  assert.match(viewer, /referenceCatalogEntries = catalog\.filter\(\(entry\) => entry\.quickAccess !== true\)/);
+  assert.match(viewer, /<option value="workspace">Workspace models<\/option>/);
 });
 
 test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
@@ -704,7 +749,7 @@ test('maintenance case creation binds the explicit submit action to a short-live
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=2"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=3"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=5"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
@@ -744,7 +789,9 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(dashboard, /id="guidedTourButton"/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
   assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
-  assert.match(guidedTooltipStyles, /\.guided-help-trigger--labeled::after/);
+  assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
+  assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
+  assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {

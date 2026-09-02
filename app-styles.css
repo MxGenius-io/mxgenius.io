@@ -751,18 +751,24 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chart-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chart-label {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  min-width: 120px;
+  flex: 0 1 120px;
+  min-width: 0;
+  max-width: 35%;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -771,6 +777,8 @@ main {
 
 .chart-bar-bg {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   height: 24px;
   background: var(--bg-input);
   border-radius: 6px;
@@ -780,6 +788,8 @@ main {
 
 .chart-bar {
   height: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
   border-radius: 6px;
   transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
@@ -839,6 +849,24 @@ main {
   border-radius: 50%;
   margin-right: 6px;
   vertical-align: middle;
+}
+
+@media (max-width: 520px) {
+  .chart-row {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chart-label {
+    flex: 1 1 100%;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .chart-bar-bg {
+    flex-basis: 100%;
+  }
 }
 
 /* ─── Engine Health Bars ─── */
@@ -956,6 +984,53 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 16px;
   margin-top: 16px;
+  min-width: 0;
+}
+
+.market-intel-results > .card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.market-intel-metrics {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.82rem;
+}
+
+.market-intel-metrics--compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+.market-intel-metrics--profile {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.market-intel-metric {
+  min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.market-intel-metric__label,
+.market-intel-metric__value {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.market-intel-metric__label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.market-intel-metric__value {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .market-intel-results > .empty-state,
@@ -1844,9 +1919,9 @@ body.live-mode .api-status.connected .status-dot {
   left: -28px;
   margin-left: 0;
   z-index: 20;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: var(--text-primary);
+  background: rgba(8, 15, 30, 0.94);
+  border: 1px solid rgba(103, 232, 249, 0.72);
+  color: #67e8f9;
   width: 28px;
   height: 48px;
   border-radius: 8px 0 0 8px;
@@ -1855,7 +1930,8 @@ body.live-mode .api-status.connected .status-dot {
   align-items: center;
   justify-content: center;
   pointer-events: auto;
-  transition: background 0.2s;
+  box-shadow: -4px 0 14px rgba(2, 6, 23, 0.72), 0 0 10px rgba(34, 211, 238, 0.18);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   padding: 0;
 }
 .globe-sheet-toggle svg {
@@ -1868,8 +1944,12 @@ body.live-mode .api-status.connected .status-dot {
 .globe-sheet .globe-sheet-toggle svg {
   transform: rotate(180deg);
 }
-.globe-sheet-toggle:hover {
-  background: rgba(99, 102, 241, 0.3);
+.globe-sheet-toggle:hover,
+.globe-sheet-toggle:focus-visible {
+  background: rgba(30, 41, 59, 0.98);
+  border-color: #67e8f9;
+  box-shadow: -4px 0 16px rgba(2, 6, 23, 0.82), 0 0 14px rgba(34, 211, 238, 0.38);
+  outline: none;
 }
 .globe-sheet.half, .globe-sheet.full { transform: translateX(0); }
 
@@ -2431,6 +2511,18 @@ body.live-mode .api-status.connected .status-dot {
 
   .header-nav.nav-open {
     transform: translateX(0);
+  }
+
+  .header-nav .nav-spacer {
+    display: none;
+  }
+
+  .header-nav #chatToggleNav {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+    margin-left: 0;
+    padding: 12px 16px;
   }
 
   .nav-tab {
@@ -3568,13 +3660,22 @@ body.live-mode .api-status.connected .status-dot {
   justify-content: center;
   padding: 0 !important;
   transform: translateY(-50%);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(103, 232, 249, 0.72);
   border-left: 0;
   border-radius: 0 8px 8px 0;
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--text-primary);
+  background: rgba(8, 15, 30, 0.94);
+  color: #67e8f9;
+  box-shadow: 4px 0 14px rgba(2, 6, 23, 0.72), 0 0 10px rgba(34, 211, 238, 0.18);
   font-size: 1rem !important;
-  transition: background 0.2s, transform 0.3s;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.3s;
+}
+
+.globe-filter-hamburger:hover,
+.globe-filter-hamburger:focus-visible {
+  background: rgba(30, 41, 59, 0.98);
+  border-color: #67e8f9;
+  box-shadow: 4px 0 16px rgba(2, 6, 23, 0.82), 0 0 14px rgba(34, 211, 238, 0.38);
+  outline: none;
 }
 
 @media (max-width: 720px) {

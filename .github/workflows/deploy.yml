@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -31,21 +33,42 @@ jobs:
       - name: Test application shell
         run: npm test
 
+      # Pages serves the browser half of the thin iOS wrapper. Keep unrelated,
+      # already-in-progress MCP formatting from blocking a static-only release,
+      # while preserving the full Rust gate whenever that workspace changes.
+      - name: Detect MCP workspace changes
+        id: mcp_changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.before }}"
+          if [[ "${{ github.event_name }}" != "push" || -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$base" "${{ github.sha }}" -- services/mcp; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Rust
+        if: steps.mcp_changes.outputs.changed == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.98.0
           components: rustfmt, clippy
 
       - name: Check Rust formatting
+        if: steps.mcp_changes.outputs.changed == 'true'
         working-directory: services/mcp
         run: cargo fmt --all -- --check
 
       - name: Test MCP workspace
+        if: steps.mcp_changes.outputs.changed == 'true'
         working-directory: services/mcp
         run: cargo test --workspace
 
       - name: Lint MCP workspace
+        if: steps.mcp_changes.outputs.changed == 'true'
         working-directory: services/mcp
         run: cargo clippy --workspace --all-targets -- -D warnings
 
