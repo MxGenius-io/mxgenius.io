@@ -94,7 +94,7 @@ const MXGuidedTooltip = (() => {
 
     host.replaceChildren();
     const videoUrl = item.status === 'ready' ? safeAssetUrl(item.video) : null;
-    const voiceoverUrl = item.status === 'ready' ? safeAssetUrl(item.voiceover) : null;
+    const voiceoverUrl = ['recording', 'ready'].includes(item.status) ? safeAssetUrl(item.voiceover) : null;
     const captionsUrl = item.status === 'ready' ? safeAssetUrl(item.captions) : null;
     if (!videoUrl && !voiceoverUrl) {
       addScriptedState(host, item);
@@ -104,7 +104,7 @@ const MXGuidedTooltip = (() => {
 
     const shell = document.createElement('section');
     shell.className = 'guided-tooltip-guide';
-    shell.setAttribute('aria-label', `${item.title || 'Section'} video guide`);
+    shell.setAttribute('aria-label', `${item.title || 'Section'} guide`);
     const eyebrow = document.createElement('span');
     eyebrow.className = 'guided-tooltip-guide__eyebrow';
     eyebrow.textContent = 'OVERVIEW';
@@ -137,15 +137,18 @@ const MXGuidedTooltip = (() => {
       voiceover = document.createElement('audio');
       voiceover.src = voiceoverUrl;
       voiceover.preload = 'auto';
+      voiceover.autoplay = options.autoplay !== false;
       voiceover.controls = !video;
       voiceover.className = 'guided-tooltip-guide__voiceover';
       shell.appendChild(voiceover);
       activeMedia.push(voiceover);
     }
 
-    const play = async () => {
+    const play = async ({ audioOnly = false } = {}) => {
       try {
-        if (video && voiceover) {
+        if (audioOnly && voiceover) {
+          await voiceover.play();
+        } else if (video && voiceover) {
           voiceover.currentTime = video.currentTime;
           coordinatedPlay = true;
           await Promise.all([video.play(), voiceover.play()]);
@@ -177,8 +180,8 @@ const MXGuidedTooltip = (() => {
     }
     host.appendChild(shell);
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (options.autoplay !== false && !reducedMotion) {
-      if (!(await play())) addPlaybackFallback(shell, play);
+    if (options.autoplay !== false && (!reducedMotion || voiceover)) {
+      if (!(await play({ audioOnly: Boolean(reducedMotion && video && voiceover) }))) addPlaybackFallback(shell, play);
     } else {
       addPlaybackFallback(shell, play);
     }
@@ -251,7 +254,7 @@ const MXGuidedTooltip = (() => {
     anchor.setAttribute('aria-controls', popover.id);
     positionPopover();
     const mounted = await mount(popover.querySelector('.guided-tooltip-host'), id, {
-      autoplay: options.autoplay ?? false,
+      autoplay: options.autoplay ?? true,
       onReady: positionPopover
     });
     if (!mounted && activePopover === popover) close();
@@ -268,7 +271,7 @@ const MXGuidedTooltip = (() => {
       event.stopPropagation();
       const id = trigger.dataset.guideId;
       if (activeAnchor === trigger && activePopover) close({ restoreFocus: true });
-      else void open(trigger, id, { autoplay: trigger.dataset.guideAutoplay === 'true' });
+      else void open(trigger, id, { autoplay: trigger.dataset.guideAutoplay !== 'false' });
     });
   }
 

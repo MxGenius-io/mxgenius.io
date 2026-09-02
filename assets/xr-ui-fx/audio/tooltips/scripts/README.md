@@ -15,6 +15,6 @@ implemented yet.
 Statuses:
 
 - `scripted` — narration is ready, media should not be requested.
-- `recording` — production is in progress, media should not be requested.
+- `recording` — voiceover exists and may autoplay; video and captions are still in production.
 - `ready` — video/voiceover/captions exist and may autoplay.
 - `retired` — retained for history but not mounted.

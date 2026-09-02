@@ -774,7 +774,7 @@ test('maintenance case creation binds the explicit submit action to a short-live
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=4"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=5"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=5"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
@@ -808,6 +808,11 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltip, /track\.kind = 'captions'/);
   assert.match(guidedTooltip, /video\.playsInline = true/);
   assert.match(guidedTooltip, /prefers-reduced-motion: reduce/);
+  assert.match(guidedTooltip, /\['recording', 'ready'\]\.includes\(item\.status\)/);
+  assert.match(guidedTooltip, /voiceover\.autoplay = options\.autoplay !== false/);
+  assert.match(guidedTooltip, /autoplay: options\.autoplay \?\? true/);
+  assert.match(guidedTooltip, /trigger\.dataset\.guideAutoplay !== 'false'/);
+  assert.match(guidedTooltip, /audioOnly: Boolean\(reducedMotion && video && voiceover\)/);
   assert.match(guidedTooltip, /Video \+ voiceover script ready/);
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__video/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
@@ -857,6 +862,9 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
     assert.ok(item.title && item.script, `${item.id} needs a title and narration script`);
     assert.ok(['scripted', 'recording', 'ready', 'retired'].includes(item.status), `${item.id} has an unsupported status`);
     if (item.activation) assert.ok(['planned'].includes(item.activation), `${item.id} has an unsupported activation`);
+    if (item.status === 'recording') {
+      await access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url));
+    }
     if (item.status !== 'ready') continue;
     await Promise.all([
       access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.video}`, import.meta.url)),

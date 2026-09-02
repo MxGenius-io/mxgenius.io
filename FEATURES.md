@@ -25,7 +25,7 @@ This is the canonical product inventory. It records what the current repository 
 | Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
 | Sensor bridge and diagnostics | `[~]` | Quest companion, FLIR transport, optional Pi diagnostics, trace, and spatial panel are mounted; hardware acceptance remains. |
 | Native iOS AR | `[~]` | Fleet-globe parity bridge is mounted and strictly iOS-gated; native device acceptance remains. |
-| Onboarding and contextual guidance | `[~]` | First-run onboarding, a persistent Help / Tour launcher, question-mark help controls, and the media-capable tooltip system are mounted; production recordings remain. |
+| Onboarding and contextual guidance | `[~]` | First-run onboarding, a persistent Help / Tour launcher, question-mark help controls, and autoplay voice guidance are mounted; production video and captions remain. |
 | Feedback and internal collaboration | `[x]` | Reporter, personal history, admin triage, build board, patent workspace, and release reports are mounted. |
 | Compliance, weather, and scheduling | `[~]` | Typed capabilities exist; configuration posture and user-facing availability need refinement. |
 | Analytics and KPIs | `[ ]` | Server handlers exist, but no current product surface consumes them. |
@@ -284,6 +284,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Mobile bottom-sheet presentation and reduced-motion behavior.
 - `[x]` Script-only fallback before media is produced.
 - `[x]` Paired video and voiceover playback with captions.
+- `[x]` Recorded voiceover autoplay on tooltip open, with a manual Play fallback when browser policy blocks playback.
 - `[x]` Safe same-origin tooltip media loading from the XR asset library.
 - `[x]` Twenty-five named guides in the tooltip manifest, with every live guide reachable from contextual help or onboarding.
 - `[x]` Four-beat script/shot outlines for core browser and spatial workflows.
