@@ -278,6 +278,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` First-run welcome and guided onboarding flow.
 - `[x]` Persistent Tour launcher plus restartable onboarding from Settings.
 - `[x]` Role/workspace tour covering identity, navigation, status, copilot, cases, parts, fleet, XR, and sensor diagnostics.
+- `[x]` Four-second dashboard arrival splash synchronized to the welcome sound, with smooth half-second fades and a clean handoff to onboarding.
 - `[x]` Empty-state calls to action.
 - `[x]` Question-mark contextual help controls and anchored non-modal popovers across the core browser and spatial surfaces.
 - `[x]` Escape, outside-click, repeat-trigger, and close-button dismissal.

@@ -97,8 +97,48 @@ function applyCapabilityUiEffect(name, envelopeOrOutput) {
 
 const MXCaseState = {
   active: null,
+  imageObjectUrl: '',
   normalizeRegistration(value) {
     return String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  },
+  displayToken(value, fallback = '') {
+    const raw = String(value || fallback).replace(/[_-]+/g, ' ').trim();
+    if (/^aog$/i.test(raw)) return 'AOG';
+    return raw.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  },
+  displayDate(value) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    }).format(parsed);
+  },
+  async updateCardImage(detail, canonical) {
+    const image = document.getElementById('activeCaseImage');
+    if (!image) return;
+    if (this.imageObjectUrl) URL.revokeObjectURL(this.imageObjectUrl);
+    this.imageObjectUrl = '';
+    image.src = 'media/deck-mechanic.jpg';
+    image.alt = '';
+    const candidates = [
+      ...(Array.isArray(detail?.aircraft?.images) ? detail.aircraft.images : []),
+      ...(Array.isArray(canonical?.images) ? canonical.images : [])
+    ];
+    const source = candidates.find((candidate) => /^https:\/\//i.test(String(candidate || '')));
+    if (!source) return;
+    const expectedCaseId = detail.caseId;
+    try {
+      const objectUrl = await MXApplicationClient.aircraftImageBlobUrl(source);
+      if (this.active?.caseId !== expectedCaseId) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+      this.imageObjectUrl = objectUrl;
+      image.src = objectUrl;
+      image.alt = canonical.registration ? `${canonical.registration} aircraft` : 'Aircraft for this maintenance case';
+    } catch (_) {
+      // Keep the bundled maintenance image when licensed aircraft media is unavailable.
+    }
   },
   matchesAircraft(aircraft) {
     if (!this.active || !aircraft) return false;
@@ -113,13 +153,28 @@ const MXCaseState = {
     const card = document.getElementById('activeCaseCard');
     const value = document.getElementById('activeCaseValue');
     const label = document.getElementById('activeCaseLabel');
-    if (card) card.dataset.state = 'active';
-    if (value) value.textContent = canonical.registration || 'Case';
-    if (label) label.textContent = `${detail.case?.status || 'open'} - v${detail.case?.version ?? '-'}`;
+    const status = document.getElementById('activeCaseStatus');
+    const priority = document.getElementById('activeCasePriority');
+    const meta = document.getElementById('activeCaseMeta');
+    const registration = canonical.registration || 'Aircraft';
+    const discrepancy = String(detail.case?.raw_discrepancy || '').replace(/\s+/g, ' ').trim();
+    const aircraftType = [canonical.make || detail.aircraft?.make, canonical.model || detail.aircraft?.model].filter(Boolean).join(' ');
+    const updated = this.displayDate(detail.case?.updated_at || detail.case?.opened_at);
+    if (card) {
+      card.dataset.state = 'loaded';
+      card.dataset.priority = String(detail.case?.priority || 'routine').toLowerCase();
+      card.setAttribute('aria-label', `Open latest maintenance case for ${registration}${discrepancy ? `: ${discrepancy}` : ''}`);
+    }
+    if (value) value.textContent = registration;
+    if (label) label.textContent = discrepancy || 'Review the recorded discrepancy, evidence, decisions, and follow-up work.';
+    if (status) status.textContent = this.displayToken(detail.case?.status, 'Open');
+    if (priority) priority.textContent = this.displayToken(detail.case?.priority, 'Routine');
+    if (meta) meta.textContent = [aircraftType, updated ? `Updated ${updated}` : ''].filter(Boolean).join(' · ') || 'Maintenance case ready to review';
+    void this.updateCardImage(detail, canonical);
     const nav = document.getElementById('caseNav');
     if (nav) {
       nav.dataset.activeCaseId = detail.caseId || '';
-      nav.title = `Active maintenance case ${detail.caseId || ''}`;
+      nav.title = `Maintenance case ${detail.caseId || ''}`;
     }
     document.querySelectorAll('.ac-card[data-aircraft-reg]').forEach((element) => {
       const matched = element.dataset.aircraftReg === encodeURIComponent(this.registration);
@@ -128,7 +183,7 @@ const MXCaseState = {
       if (matched && !existing) {
         const badge = document.createElement('span');
         badge.className = 'badge badge-jet case-card-badge';
-        badge.textContent = 'ACTIVE CASE';
+        badge.textContent = 'OPEN CASE';
         element.querySelector('.ac-card-badges')?.appendChild(badge);
       } else if (!matched) {
         existing?.remove();
@@ -3522,7 +3577,7 @@ function renderAircraftCard(ac, forSale) {
         <span class="badge ${typeClass}">${escapeMarkup(type)}</span>
         ${forSale ? '<span class="badge badge-forsale">FOR SALE</span>' : ''}
         ${mroBadge}
-        ${hasActiveCase ? '<span class="badge badge-jet case-card-badge">ACTIVE CASE</span>' : ''}
+        ${hasActiveCase ? '<span class="badge badge-jet case-card-badge">OPEN CASE</span>' : ''}
         <span class="badge badge-lifecycle">${escapeMarkup(ac.lifecycle || '-')}</span>
       </div>
     </div>`;
@@ -3626,7 +3681,7 @@ async function showAircraftDetail(id) {
     )))).filter(Boolean);
     const detailedEngines = engData.engines || [];
     const activeCase = MXCaseState.matchesAircraft({ aircraftid: ident.aircraftid, regnbr: ident.regnbr }) ? MXCaseState.active : null;
-    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Active maintenance case - ${escapeMarkup(activeCase.case.status)} - version ${escapeMarkup(activeCase.case.version)}</div>` : '';
+    const activeCaseHtml = activeCase ? `<div class="case-context-banner">Maintenance case · ${escapeMarkup(MXCaseState.displayToken(activeCase.case.status, 'Open'))} · ${escapeMarkup(MXCaseState.displayToken(activeCase.case.priority, 'Routine'))}</div>` : '';
     const faaRegistrationSuffix = String(ident.regnbr || '').replace(/^N/i, '').replace(/[^a-z0-9]/gi, '');
 
     const galleryHtml = aircraftGalleryObjectUrls.length > 0 ? `

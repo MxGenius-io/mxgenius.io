@@ -1,0 +1,193 @@
+.dashboard-splash {
+  --splash-cyan: #36e3ff;
+  --splash-blue: #4c7dff;
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(21, 91, 126, 0.2), transparent 35%),
+    linear-gradient(145deg, #050915 0%, #070d1c 54%, #030711 100%);
+  color: #eef8ff;
+  transition: opacity 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  isolation: isolate;
+}
+
+.dashboard-splash.is-visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+.dashboard-splash.is-exiting {
+  opacity: 0;
+}
+
+.dashboard-splash__ambient,
+.dashboard-splash__ambient::before,
+.dashboard-splash__ambient::after {
+  position: absolute;
+  border: 1px solid rgba(54, 227, 255, 0.16);
+  border-radius: 50%;
+  content: '';
+}
+
+.dashboard-splash__ambient {
+  width: min(64vw, 680px);
+  aspect-ratio: 1;
+  box-shadow: inset 0 0 90px rgba(25, 108, 154, 0.06);
+  animation: dashboard-splash-orbit 12s linear infinite;
+}
+
+.dashboard-splash__ambient::before {
+  inset: 11%;
+  border-color: rgba(76, 125, 255, 0.13);
+}
+
+.dashboard-splash__ambient::after {
+  inset: 24%;
+  border-color: rgba(54, 227, 255, 0.1);
+}
+
+.dashboard-splash__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  width: min(84vw, 460px);
+  text-align: center;
+  transform: translateY(8px) scale(0.985);
+  opacity: 0;
+  transition:
+    opacity 600ms ease 120ms,
+    transform 900ms cubic-bezier(0.22, 1, 0.36, 1) 80ms;
+}
+
+.dashboard-splash.is-visible .dashboard-splash__content {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.dashboard-splash__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 22px;
+}
+
+.dashboard-splash__mark::before,
+.dashboard-splash__mark::after {
+  position: absolute;
+  inset: -12px;
+  border: 1px solid rgba(54, 227, 255, 0.3);
+  border-radius: 28px;
+  content: '';
+  transform: rotate(45deg) scale(0.76);
+  opacity: 0;
+  animation: dashboard-splash-frame 3s ease-out 500ms both;
+}
+
+.dashboard-splash__mark::after {
+  inset: -22px;
+  border-color: rgba(76, 125, 255, 0.14);
+  animation-delay: 760ms;
+}
+
+.dashboard-splash__mark img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 24px rgba(54, 227, 255, 0.24));
+}
+
+.dashboard-splash__eyebrow {
+  margin: 0 0 7px;
+  color: rgba(155, 206, 231, 0.78);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.dashboard-splash__brand {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.dashboard-splash__brand span {
+  color: var(--splash-cyan);
+}
+
+.dashboard-splash__message {
+  min-height: 1.2em;
+  margin: 13px 0 0;
+  color: rgba(218, 234, 247, 0.72);
+  font-size: 0.86rem;
+  letter-spacing: 0.025em;
+}
+
+.dashboard-splash__progress {
+  position: relative;
+  width: min(240px, 62vw);
+  height: 2px;
+  margin-top: 25px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(141, 179, 204, 0.12);
+}
+
+.dashboard-splash__progress span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--splash-blue), var(--splash-cyan));
+  box-shadow: 0 0 12px rgba(54, 227, 255, 0.5);
+  transform: translateX(-100%);
+}
+
+.dashboard-splash.is-visible .dashboard-splash__progress span {
+  animation: dashboard-splash-progress 3s linear 500ms both;
+}
+
+@keyframes dashboard-splash-frame {
+  0% { opacity: 0; transform: rotate(45deg) scale(0.76); }
+  22% { opacity: 1; }
+  78% { opacity: 0.68; }
+  100% { opacity: 0; transform: rotate(135deg) scale(1.08); }
+}
+
+@keyframes dashboard-splash-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes dashboard-splash-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-splash__ambient,
+  .dashboard-splash__mark::before,
+  .dashboard-splash__mark::after,
+  .dashboard-splash__progress span {
+    animation: none !important;
+  }
+
+  .dashboard-splash__content {
+    transform: none;
+  }
+
+  .dashboard-splash.is-visible .dashboard-splash__progress span {
+    transform: translateX(0);
+  }
+}

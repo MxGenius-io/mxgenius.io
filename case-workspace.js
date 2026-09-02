@@ -33,25 +33,44 @@ const MXCaseWorkspace = (() => {
     return node.innerHTML;
   }
 
+  function displayToken(value, fallback = 'Not available') {
+    const raw = text(value, fallback).replace(/[_-]+/g, ' ').trim();
+    if (/^aog$/i.test(raw)) return 'AOG';
+    return raw.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function displayDate(value) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Not available';
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    }).format(parsed);
+  }
+
   function render(result) {
     const target = byId('caseWorkspaceResult');
     const caseState = result.case;
     const context = result.context;
+    const matches = result.aircraft?.matches || [];
+    const canonical = matches.find((match) => match.aircraft_id === caseState.aircraft_id) || matches[0] || {};
+    const aircraftLabel = canonical.registration || [canonical.make, canonical.model].filter(Boolean).join(' ') || 'Aircraft';
     const confidence = result.trace.map((entry) => entry.confidence?.level || entry.confidence?.basis).filter(Boolean).join(', ');
     target.innerHTML = `
       <div class="case-workspace__summary">
-        <div class="case-workspace__metric"><span>Case</span>${escapeHtml(result.caseId)}</div>
-        <div class="case-workspace__metric"><span>Status / version</span>${escapeHtml(caseState.status)} · v${escapeHtml(caseState.version)}</div>
-        <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(caseState.priority)}</div>
-        <div class="case-workspace__metric"><span>Approval</span>${escapeHtml(caseState.approval_state)}</div>
+        <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
+        <div class="case-workspace__metric"><span>Status</span>${escapeHtml(displayToken(caseState.status, 'Open'))}</div>
+        <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(displayToken(caseState.priority, 'Routine'))}</div>
+        <div class="case-workspace__metric"><span>Last updated</span>${escapeHtml(displayDate(caseState.updated_at || caseState.opened_at))}</div>
       </div>
       <section><strong>Discrepancy</strong><div>${escapeHtml(caseState.raw_discrepancy)}</div></section>
       <section><strong>Timeline</strong>${list(context.timeline, (entry) => `${escapeHtml(entry.occurred_at)} — ${escapeHtml(entry.summary)}`)}</section>
       <section><strong>Technical sources</strong>${list(context.documents, (doc) => `${escapeHtml(doc.title)} · ${escapeHtml(doc.currency_state)}`)}</section>
       <section><strong>Evidence</strong>${list(context.evidence_map, (evidence) => `${escapeHtml(evidence.title)} · ${escapeHtml(evidence.source_type)}`)}</section>
       <section><strong>Warnings / conflicts</strong>${list(context.unresolved_conflicts, (conflict) => `${escapeHtml(conflict.severity)}: ${escapeHtml(conflict.description)}`)}</section>
-      <section class="case-workspace__trace"><strong>Capability trace</strong>${list(result.trace, (entry) => `${escapeHtml(entry.tool)} · ${escapeHtml(entry.status)} · ${escapeHtml(entry.traceId)}`)}</section>
-      <div class="case-workspace__empty">Confidence: ${escapeHtml(confidence, 'Not supplied')}</div>`;
+      <details class="case-workspace__trace"><summary>Technical details</summary>
+        <div class="case-workspace__empty">Case reference: ${escapeHtml(result.caseId)} · Confidence: ${escapeHtml(confidence, 'Not supplied')}</div>
+        ${list(result.trace, (entry) => `${escapeHtml(entry.tool)} · ${escapeHtml(entry.status)} · ${escapeHtml(entry.traceId)}`)}
+      </details>`;
     target.hidden = false;
   }
 
@@ -66,7 +85,7 @@ const MXCaseWorkspace = (() => {
     };
   }
 
-  async function loadExistingCases({ restore = false } = {}) {
+  async function loadExistingCases({ selectLatest = false } = {}) {
     const select = byId('caseExistingSelect');
     const openButton = byId('caseOpenButton');
     if (!select || !openButton) return;
@@ -79,7 +98,11 @@ const MXCaseWorkspace = (() => {
         try { await globalThis.MXGENIUS_AUTH.getToken(); } catch (_) {}
       }
       const result = await MXApplicationClient.cases.list(session());
-      const cases = result.cases || [];
+      const cases = [...(result.cases || [])].sort((left, right) => {
+        const rightTime = Date.parse(right.updated_at || right.opened_at || '') || 0;
+        const leftTime = Date.parse(left.updated_at || left.opened_at || '') || 0;
+        return rightTime - leftTime || String(right.case_id || '').localeCompare(String(left.case_id || ''));
+      });
       select.replaceChildren(new Option(cases.length ? 'Select an existing case' : 'No cases available', ''));
       cases.forEach((caseState) => {
         const summary = text(caseState.raw_discrepancy, '').replace(/\s+/g, ' ').slice(0, 72);
@@ -92,10 +115,10 @@ const MXCaseWorkspace = (() => {
         select.add(new Option(label, caseState.case_id));
       });
       select.disabled = cases.length === 0;
-      const storedCaseId = localStorage.getItem('mxg_active_case_id');
-      if (restore && storedCaseId && cases.some((caseState) => caseState.case_id === storedCaseId)) {
-        select.value = storedCaseId;
-        await openExistingCase(storedCaseId);
+      const latestCaseId = cases[0]?.case_id;
+      if (selectLatest && latestCaseId) {
+        select.value = latestCaseId;
+        await openExistingCase(latestCaseId);
       }
     } catch (error) {
       select.replaceChildren(new Option('Cases unavailable', ''));
@@ -135,6 +158,10 @@ const MXCaseWorkspace = (() => {
         context,
         aircraft: {
           aircraft_id: caseState.aircraft_id,
+          images: Array.isArray(profile.images) ? profile.images : [],
+          make: profile.make,
+          model: profile.model,
+          year: profile.year,
           matches: [{
             aircraft_id: caseState.aircraft_id,
             registration: profile.registration,
@@ -295,7 +322,7 @@ const MXCaseWorkspace = (() => {
       setStatus('Sign in through the application identity provider to create a case.', 'idle');
     } else {
       setStatus('Ready to create an evidence-backed maintenance case.', 'idle');
-      void loadExistingCases({ restore: true });
+      void loadExistingCases({ selectLatest: true });
     }
   }
 

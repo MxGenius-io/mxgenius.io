@@ -83,9 +83,9 @@ const MXOnboarding = (() => {
       },
       {
         target: '#activeCaseCard, .active-case-card',
-        title: 'Active Maintenance Case',
+        title: 'Latest Maintenance Case',
         guideId: 'maintenance-case',
-        body: 'The selected case stays visible across the application. Copilot responses, evidence, approvals, and 3D findings use this case as their working context.',
+        body: 'Your newest case appears here automatically with its aircraft, discrepancy, priority, and current status. Open it to review evidence, approvals, and 3D findings.',
         position: 'bottom',
         onEnter: () => switchTabSafe('dashboard')
       },
@@ -565,13 +565,16 @@ const MXOnboarding = (() => {
    * Call after login completes. Shows welcome modal if first visit.
    */
   function checkFirstRun() {
-    if (localStorage.getItem(LS_COMPLETE) === 'true') {
-      // Still refresh empty states for returning users
-      setTimeout(refreshEmptyStates, 1500);
-      return;
-    }
-    // Small delay so the dashboard has time to render
-    setTimeout(showWelcome, 600);
+    const afterSplash = globalThis.MXDashboardSplash?.ready || Promise.resolve();
+    afterSplash.then(() => {
+      if (localStorage.getItem(LS_COMPLETE) === 'true') {
+        // Still refresh empty states for returning users
+        setTimeout(refreshEmptyStates, 300);
+        return;
+      }
+      // Give focus and paint one clean beat between the arrival and onboarding.
+      setTimeout(showWelcome, 180);
+    });
   }
 
   /**

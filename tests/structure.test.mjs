@@ -25,6 +25,8 @@ const xrGlobeHud = await readFile(new URL('../xr-globe-hud.js', import.meta.url)
 const globeVr = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
 const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 'utf8');
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
+const dashboardSplash = await readFile(new URL('../dashboard-splash.js', import.meta.url), 'utf8');
+const dashboardSplashStyles = await readFile(new URL('../dashboard-splash.css', import.meta.url), 'utf8');
 const guidedTooltip = await readFile(new URL('../guided-tooltip.js', import.meta.url), 'utf8');
 const guidedTooltipStyles = await readFile(new URL('../guided-tooltip.css', import.meta.url), 'utf8');
 const partsWorkspace = await readFile(new URL('../parts-workspace.js', import.meta.url), 'utf8');
@@ -288,7 +290,12 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(application, /activeCaseId/);
   assert.match(application, /MX3DViewer\.setContext/);
   assert.match(dashboard, /id="activeCaseCard"/);
+  assert.match(dashboard, /id="activeCaseImage"[\s\S]*id="activeCaseLabel"[\s\S]*id="activeCaseMeta"/);
   assert.match(application, /const MXCaseState/);
+  assert.match(application, /activeCaseStatus/);
+  assert.match(application, /activeCasePriority/);
+  assert.match(application, /raw_discrepancy/);
+  assert.doesNotMatch(application, /Active maintenance case -[\s\S]*version/);
   assert.match(application, /data-aircraft-reg/);
   assert.match(application, /case-card-badge/);
   assert.match(application, /activeUrgencyFilter === 'active-case'/);
@@ -301,6 +308,9 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(dashboard, /id="caseExistingSelect"/);
   assert.match(dashboard, /id="caseOpenButton"/);
   assert.match(caseWorkspace, /MXApplicationClient\.cases\.list/);
+  assert.match(caseWorkspace, /sort\(\(left, right\)[\s\S]*updated_at[\s\S]*selectLatest && latestCaseId/);
+  assert.match(caseWorkspace, /loadExistingCases\(\{ selectLatest: true \}\)/);
+  assert.doesNotMatch(caseWorkspace, /Status \/ version|· v\$\{/);
   assert.match(caseWorkspace, /mxg\.maintenance_case\.build_context/);
   assert.match(caseWorkspace, /mxg_active_case_id/);
 });
@@ -405,7 +415,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=47/);
+  assert.match(dashboard, /app\.js\?v=48/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -796,14 +806,17 @@ test('maintenance case creation binds the explicit submit action to a short-live
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=8"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=6"></script>');
+  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=1"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=8"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
+  assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
   assert.match(dashboard, /guided-tooltip\.css\?v=4/);
   assert.match(dashboard, /onboarding\.css\?v=4/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
+  assert.match(onboarding, /MXDashboardSplash\?\.ready/);
   assert.match(onboarding, /restart/);
   assert.match(onboarding, /injectEmptyCta/);
   assert.match(onboarding, /mxg_onboarding_complete_v3/);
@@ -849,6 +862,21 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
   assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
   assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);
+});
+
+test('dashboard arrival splash runs a synchronized four-second welcome sequence', async () => {
+  await access(new URL('../assets/xr-ui-fx/audio/system/Welcome.wav', import.meta.url));
+  assert.match(dashboard, /id="dashboardSplash"/);
+  assert.match(dashboard, /id="dashboardWelcomeAudio"[\s\S]*Welcome\.wav/);
+  assert.match(dashboard, /dashboard-splash\.css\?v=1/);
+  assert.match(dashboardSplash, /const TOTAL_MS = 4000/);
+  assert.match(dashboardSplash, /const FADE_MS = 500/);
+  assert.match(dashboardSplash, /audio\.play\(\)\.catch/);
+  assert.match(dashboardSplash, /mxg:dashboard-splash-complete/);
+  assert.match(dashboardSplash, /auth-state-panel/);
+  assert.match(dashboardSplashStyles, /\.dashboard-splash\.is-visible/);
+  assert.match(dashboardSplashStyles, /\.dashboard-splash\.is-exiting/);
+  assert.match(dashboardSplashStyles, /prefers-reduced-motion: reduce/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {
