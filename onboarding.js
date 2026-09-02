@@ -118,7 +118,7 @@ const MXOnboarding = (() => {
       {
         target: '#aircraftExplorerCollapsible',
         title: 'Aircraft Explorer',
-        guideId: 'fleet-context',
+        guideId: 'aircraft-explorer',
         body: 'Expand Aircraft Explorer to search by registration, manufacturer, aircraft type, or reported operating context. Select an aircraft to open its source-backed details and FAA candidate check.',
         position: 'bottom',
         onEnter: () => { switchTabSafe('dashboard'); document.getElementById('aircraftExplorerCollapsible')?.setAttribute('open', ''); }
@@ -162,7 +162,7 @@ const MXOnboarding = (() => {
       {
         target: '#btnReceivePart',
         title: 'Receive a Part',
-        guideId: 'parts-management',
+        guideId: 'parts-receiving',
         body: 'Receiving follows four steps: upload a document or photo, review OCR suggestions, complete the inventory details, and confirm the new unit. OCR never approves a part for you.',
         position: 'bottom',
         onEnter: () => switchTabSafe('parts')
@@ -170,7 +170,7 @@ const MXOnboarding = (() => {
       {
         target: '#partsInventoryGrid',
         title: 'Open the Unit Record',
-        guideId: 'parts-management',
+        guideId: 'parts-inventory',
         body: 'Select a unit to review its overview, documents, inventory history, FAA references, and QR label. The QR code returns to the same controlled record.',
         position: 'top',
         onEnter: () => switchTabSafe('parts')

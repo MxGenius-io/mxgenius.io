@@ -3,7 +3,7 @@ const MXGuidedTooltip = (() => {
   const scriptBase = document.currentScript?.src
     ? new URL('.', document.currentScript.src)
     : new URL('.', document.baseURI);
-  const DEFAULT_MANIFEST = new URL('assets/xr-ui-fx/audio/tooltips/scripts/manifest.json', scriptBase).href;
+  const DEFAULT_MANIFEST = new URL('assets/xr-ui-fx/audio/tooltips/scripts/manifest.json?v=2', scriptBase).href;
   let manifestUrl = DEFAULT_MANIFEST;
   let manifestPromise = null;
   let activeMedia = [];

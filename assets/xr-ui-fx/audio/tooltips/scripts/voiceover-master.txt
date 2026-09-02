@@ -1,0 +1,49 @@
+Your signed-in identity and organization determine which protected workspaces are available. Open your account menu here whenever you need to confirm access.
+
+The main navigation keeps cases, parts, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.
+
+Connection status tells you when MXGenius services and live fleet data are available. Wait for the required service before starting a protected workflow.
+
+Ask about an aircraft, part, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.
+
+Start with the aircraft and the observed discrepancy. The case keeps the available evidence, spatial findings, approval state, and follow-up work connected as the maintenance workflow is completed.
+
+Use Parts Management to receive evidence, review model suggestions, manage serialized inventory, and return to the same controlled unit record from its QR label.
+
+Start a receiving draft with manual details or source evidence. MXGenius can extract and propose fields from a document or image, but you accept, edit, or reject those suggestions before confirmation creates the controlled stock unit and its first ledger event.
+
+Search by part number, description, serial number, status, or location, then open the physical unit record. Its documents, confirmed corrections, inventory events, installation history, FAA references, and QR label remain attached to that controlled unit.
+
+Requests capture priority, need-by date, and sourcing progress. Shortages compare open case demand with genuinely free stock, excluding units that are reserved or unavailable, so the team can see what is covered and what still needs action.
+
+The rotable register follows a serialized unit across stock, installation, repair, transit, loan, and retirement. A rob remains a separate controlled workflow: one person proposes it, another approves it, and completion waits for the donor removal and receiver installation records.
+
+Upload a CSV or Excel file and preview the exact changes before anything is written. Add-only mode refuses rows that would alter existing records. Applying requires confirmation, records an import journal, and preserves a guarded rollback path when later work has not made reversal unsafe.
+
+Fleet Context combines mapped aircraft, search, and source-backed company information. Load it before opening charts or the fleet globe.
+
+In the Quest Browser, open Fleet Context and choose View in XR. Select locations with a controller or fingertip, and use the same sound grammar as the sensor and inspection scenes.
+
+The isolated sensor scene connects the native Quest thermal bridge, FLIR source, Pi diagnostics, and realtime evidence capture without loading fleet data.
+
+Filter the JetNet-backed fleet, select a mapped location, and open an aircraft record without leaving fleet context. The globe, list, and model copilot stay synchronized around the same selection.
+
+A selected point represents a mapped JetNet location, not a live flight track. Review its aircraft, operator, model, and source context before asking the copilot to compare or summarize it.
+
+Use Fleet Triage to scan high-time, for-sale, type, and region groups. Switch to Direct Search when you already know the make, registration, serial number, or country.
+
+Choose a model, orbit or reset the camera, and select visible components for inspection. Desktop HUD Preview mirrors the spatial interface before you enter a supported headset session.
+
+The model library separates quick local models, tenant uploads, and public reference geometry. Search or filter NASA, OpenVSP Airshow, Smithsonian, and FlightGear sources, then check provenance and download size before opening a model. Public geometry remains reference or simulation content until it is imported, mapped, and approved.
+
+Select a visible component to expose its model hierarchy and current asset mapping. Use that selection as the anchor for case findings, procedure media, and future exploded-view steps.
+
+When a selected mesh has paired procedure media, open it here. The video remains associated with the component and maintenance context rather than acting as a generic media player.
+
+Use the exploded sequence to understand the thermal mount assembly, select each component, and trace its relationship to the controlled part record. This guide becomes active when the authored assembly animation is available.
+
+The browser hands the session to the native Quest thermal workspace, which connects the FLIR source and reports diagnostics back into the shared scene. Follow the three stages until the thermal source is streaming.
+
+On a supported iOS host, place the fleet globe in your space, select a location, and inspect its JetNet-backed aircraft context. The AR control remains hidden on unsupported platforms.
+
+The copilot uses the aircraft, location, part, mesh, or maintenance case you selected as its active context. Confirm that selection and its sources before asking for a comparison, explanation, or next action.

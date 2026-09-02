@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feature Catalog · MXGenius</title>
+  <meta name="description" content="Current source-backed MXGenius feature inventory">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #060a16;
+      --panel: #0d1627;
+      --panel-2: #111d31;
+      --border: #263650;
+      --text: #edf6ff;
+      --muted: #8fa6bd;
+      --cyan: #67e8f9;
+      --green: #56d89b;
+      --amber: #f5bd55;
+      --red: #ff7b86;
+      --blue: #68aefb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% -10%, rgba(32, 113, 156, 0.2), transparent 34rem), var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    .catalog-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 62px;
+      padding: 10px clamp(16px, 4vw, 44px);
+      border-bottom: 1px solid var(--border);
+      background: rgba(6, 10, 22, 0.92);
+      backdrop-filter: blur(18px);
+    }
+    .brand, .header-actions { display: flex; align-items: center; gap: 10px; }
+    .brand { color: var(--text); text-decoration: none; font-weight: 750; }
+    .brand img { width: 32px; height: 32px; object-fit: contain; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+    .button:hover { border-color: var(--cyan); color: var(--cyan); }
+    .catalog-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 72px; }
+    .catalog-intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--cyan);
+      font: 700 0.68rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -0.04em; }
+    .intro-copy { max-width: 760px; margin: 14px 0 0; color: var(--muted); }
+    .source-state { color: var(--muted); font: 0.72rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
+    .catalog-controls {
+      position: sticky;
+      top: 63px;
+      z-index: 15;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(180px, auto);
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(13, 22, 39, 0.94);
+      backdrop-filter: blur(14px);
+    }
+    .catalog-controls input, .catalog-controls select {
+      width: 100%;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    .catalog-controls input:focus, .catalog-controls select:focus { outline: 1px solid var(--cyan); border-color: var(--cyan); }
+    #featureCatalog > h1 { display: none; }
+    #featureCatalog > p:first-of-type { color: var(--muted); font: 0.75rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .catalog-section {
+      margin: 18px 0;
+      padding: clamp(18px, 3vw, 28px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(145deg, rgba(17, 29, 49, 0.94), rgba(9, 17, 31, 0.94));
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+    }
+    h2 { margin: 0 0 14px; color: var(--cyan); font-size: 1.22rem; }
+    h3 { margin: 22px 0 8px; color: var(--blue); font-size: 0.98rem; }
+    p { color: var(--muted); }
+    ul, ol { margin: 10px 0; padding-left: 1.25rem; }
+    li { margin: 7px 0; color: #cad8e7; }
+    li::marker { color: var(--cyan); }
+    code {
+      padding: 0.12em 0.35em;
+      border: 1px solid rgba(104, 174, 251, 0.22);
+      border-radius: 4px;
+      background: rgba(4, 10, 20, 0.78);
+      color: #b9dcff;
+      font: 0.86em ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .table-wrap { margin: 14px 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 9px; }
+    table { width: 100%; border-collapse: collapse; min-width: 680px; font-size: 0.82rem; }
+    th { padding: 10px 12px; background: #091321; color: var(--cyan); text-align: left; }
+    td { padding: 10px 12px; border-top: 1px solid var(--border); color: #bdccdc; vertical-align: top; }
+    tbody tr:hover td { background: rgba(103, 232, 249, 0.035); }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.2em;
+      margin-right: 0.3em;
+      padding: 0.08em 0.35em;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      font: 700 0.72em ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .status--done { color: var(--green); }
+    .status--partial { color: var(--amber); }
+    .status--planned { color: var(--muted); }
+    .status--blocked { color: var(--red); }
+    .status--retired { color: #75879a; }
+    .catalog-error { padding: 36px; border: 1px solid rgba(255, 123, 134, 0.45); border-radius: 10px; color: #ffd0d4; background: rgba(92, 21, 31, 0.22); }
+    [hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      .catalog-header { align-items: flex-start; flex-direction: column; }
+      .header-actions { width: 100%; overflow-x: auto; }
+      .catalog-shell { width: min(100% - 20px, 1180px); padding-top: 28px; }
+      .catalog-intro, .catalog-controls { grid-template-columns: 1fr; }
+      .source-state { text-align: left; }
+      .catalog-controls { top: 107px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="catalog-header">
+    <a class="brand" href="dashboard.html#settings" aria-label="Back to MXGenius Settings">
+      <img src="assets/mxgenius_logo.png" alt="">
+      <span>MXGenius</span>
+    </a>
+    <nav class="header-actions" aria-label="Shared workspaces">
+      <a class="button" href="build-board.html">Build Board</a>
+      <a class="button" href="progress.html">Reports</a>
+      <a class="button" href="dashboard.html#settings">Back to Settings</a>
+    </nav>
+  </header>
+
+  <main class="catalog-shell">
+    <section class="catalog-intro" aria-labelledby="catalogTitle">
+      <div>
+        <p class="eyebrow">Living product inventory</p>
+        <h1 id="catalogTitle">Feature Catalog</h1>
+        <p class="intro-copy">The current repository-backed view of what is implemented, what still needs validation, and what remains planned.</p>
+      </div>
+      <div class="source-state" id="catalogState" role="status" aria-live="polite">Loading FEATURES.md…</div>
+    </section>
+
+    <section class="catalog-controls" aria-label="Feature filters">
+      <input id="featureSearch" type="search" placeholder="Search sections and features" aria-label="Search feature catalog">
+      <select id="featureStatus" aria-label="Filter by implementation status">
+        <option value="">All statuses</option>
+        <option value="x">Implemented</option>
+        <option value="~">Mounted or incomplete</option>
+        <option value="!">Blocked or decision required</option>
+        <option value=" ">Planned</option>
+        <option value="-">Retired or out of scope</option>
+      </select>
+    </section>
+
+    <article id="featureCatalog" aria-busy="true"></article>
+  </main>
+
+  <script>
+    (() => {
+      const catalog = document.getElementById('featureCatalog');
+      const state = document.getElementById('catalogState');
+      const search = document.getElementById('featureSearch');
+      const status = document.getElementById('featureStatus');
+
+      const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+      const statusClass = (value) => ({
+        x: 'done', '~': 'partial', '!': 'blocked', ' ': 'planned', '-': 'retired'
+      })[value] || 'planned';
+
+      function inline(value) {
+        return escapeHtml(value)
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+          .replace(/\[([x~! \-])\]/g, (_, value) => `<span class="status status--${statusClass(value)}">[${value}]</span>`);
+      }
+
+      function rowStatus(value) {
+        return value.match(/\[([x~! \-])\]/)?.[1] || '';
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.replaceAll('\r', '').split('\n');
+        const output = [];
+        let sectionOpen = false;
+
+        for (let index = 0; index < lines.length;) {
+          const raw = lines[index];
+          const line = raw.trim();
+          if (!line) { index += 1; continue; }
+
+          if (line.startsWith('# ')) {
+            output.push(`<h1>${inline(line.slice(2))}</h1>`);
+            index += 1;
+            continue;
+          }
+          if (line.startsWith('## ')) {
+            if (sectionOpen) output.push('</section>');
+            output.push(`<section class="catalog-section"><h2>${inline(line.slice(3))}</h2>`);
+            sectionOpen = true;
+            index += 1;
+            continue;
+          }
+          if (line.startsWith('### ')) {
+            output.push(`<h3>${inline(line.slice(4))}</h3>`);
+            index += 1;
+            continue;
+          }
+          if (line.startsWith('|') && line.endsWith('|')) {
+            const rows = [];
+            while (index < lines.length && lines[index].trim().startsWith('|') && lines[index].trim().endsWith('|')) {
+              rows.push(lines[index].trim().slice(1, -1).split('|').map((cell) => cell.trim()));
+              index += 1;
+            }
+            if (rows.length >= 2) {
+              output.push('<div class="table-wrap"><table><thead><tr>');
+              rows[0].forEach((cell) => output.push(`<th>${inline(cell)}</th>`));
+              output.push('</tr></thead><tbody>');
+              rows.slice(2).forEach((cells) => {
+                const joined = cells.join(' ');
+                output.push(`<tr data-status="${rowStatus(joined)}">`);
+                cells.forEach((cell) => output.push(`<td>${inline(cell)}</td>`));
+                output.push('</tr>');
+              });
+              output.push('</tbody></table></div>');
+            }
+            continue;
+          }
+          if (line.startsWith('- ')) {
+            output.push('<ul>');
+            while (index < lines.length && lines[index].trim().startsWith('- ')) {
+              const item = lines[index].trim().slice(2);
+              output.push(`<li data-status="${rowStatus(item)}">${inline(item)}</li>`);
+              index += 1;
+            }
+            output.push('</ul>');
+            continue;
+          }
+          const numbered = line.match(/^(\d+)\.\s+(.+)$/);
+          if (numbered) {
+            output.push(`<ol start="${numbered[1]}">`);
+            while (index < lines.length) {
+              const match = lines[index].trim().match(/^(\d+)\.\s+(.+)$/);
+              if (!match) break;
+              output.push(`<li>${inline(match[2])}</li>`);
+              index += 1;
+            }
+            output.push('</ol>');
+            continue;
+          }
+          output.push(`<p>${inline(line)}</p>`);
+          index += 1;
+        }
+        if (sectionOpen) output.push('</section>');
+        return output.join('');
+      }
+
+      function applyFilters() {
+        const query = search.value.trim().toLocaleLowerCase();
+        const wantedStatus = status.value;
+        const candidates = [...catalog.querySelectorAll('li[data-status], tbody tr[data-status]')];
+        candidates.forEach((element) => {
+          const matchesQuery = !query || element.textContent.toLocaleLowerCase().includes(query);
+          const matchesStatus = !wantedStatus || element.dataset.status === wantedStatus;
+          element.hidden = !(matchesQuery && matchesStatus);
+        });
+        catalog.querySelectorAll('.catalog-section').forEach((section) => {
+          const rows = [...section.querySelectorAll('li[data-status], tbody tr[data-status]')];
+          const headingMatches = !query || section.querySelector('h2')?.textContent.toLocaleLowerCase().includes(query);
+          section.hidden = Boolean((query || wantedStatus) && rows.length && !headingMatches && !rows.some((row) => !row.hidden));
+        });
+        const visible = candidates.filter((element) => !element.hidden).length;
+        state.textContent = `${visible} visible feature and status rows · source FEATURES.md`;
+      }
+
+      Promise.resolve(fetch('FEATURES.md?v=20260902', { cache: 'no-store' }))
+        .then((response) => {
+          if (!response.ok) throw new Error(`Feature catalog returned ${response.status}`);
+          return response.text();
+        })
+        .then((markdown) => {
+          catalog.innerHTML = renderMarkdown(markdown);
+          catalog.setAttribute('aria-busy', 'false');
+          search.addEventListener('input', applyFilters);
+          status.addEventListener('change', applyFilters);
+          applyFilters();
+        })
+        .catch((error) => {
+          catalog.setAttribute('aria-busy', 'false');
+          catalog.innerHTML = `<div class="catalog-error">The feature catalog could not be loaded. ${escapeHtml(error.message)}</div>`;
+          state.textContent = 'Feature catalog unavailable';
+        });
+    })();
+  </script>
+</body>
+</html>

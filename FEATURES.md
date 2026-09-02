@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-08-31
+Last updated: 2026-09-02
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -25,7 +25,7 @@ This is the canonical product inventory. It records what the current repository 
 | Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
 | Sensor bridge and diagnostics | `[~]` | Quest companion, FLIR transport, optional Pi diagnostics, trace, and spatial panel are mounted; hardware acceptance remains. |
 | Native iOS AR | `[~]` | Fleet-globe parity bridge is mounted and strictly iOS-gated; native device acceptance remains. |
-| Onboarding and contextual guidance | `[~]` | First-run onboarding, a persistent Help / Tour launcher, labeled Guide controls, and the media-capable tooltip system are mounted; production recordings remain. |
+| Onboarding and contextual guidance | `[~]` | First-run onboarding, a persistent Help / Tour launcher, question-mark help controls, and the media-capable tooltip system are mounted; production recordings remain. |
 | Feedback and internal collaboration | `[x]` | Reporter, personal history, admin triage, build board, patent workspace, and release reports are mounted. |
 | Compliance, weather, and scheduling | `[~]` | Typed capabilities exist; configuration posture and user-facing availability need refinement. |
 | Analytics and KPIs | `[ ]` | Server handlers exist, but no current product surface consumes them. |
@@ -279,13 +279,13 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Persistent Help / Tour launcher plus restartable onboarding from Settings.
 - `[x]` Role/workspace tour covering identity, navigation, status, copilot, cases, parts, fleet, XR, and sensor diagnostics.
 - `[x]` Empty-state calls to action.
-- `[x]` Labeled contextual Guide controls and anchored non-modal popovers across the core browser and spatial surfaces.
+- `[x]` Question-mark contextual help controls and anchored non-modal popovers across the core browser and spatial surfaces.
 - `[x]` Escape, outside-click, repeat-trigger, and close-button dismissal.
 - `[x]` Mobile bottom-sheet presentation and reduced-motion behavior.
 - `[x]` Script-only fallback before media is produced.
 - `[x]` Paired video and voiceover playback with captions.
 - `[x]` Safe same-origin tooltip media loading from the XR asset library.
-- `[x]` Nineteen named guides in the tooltip manifest.
+- `[x]` Twenty-five named guides in the tooltip manifest, with every live guide reachable from contextual help or onboarding.
 - `[x]` Four-beat script/shot outlines for core browser and spatial workflows.
 - `[x]` Shared UI, system, spatial, and tooltip audio library structure.
 - `[x]` Audio coverage for viewer, sensor bridge, and globe.
@@ -309,6 +309,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Admin email handoff to the submitter.
 - `[x]` Resolved and declined items hidden from the default backlog view.
 - `[x]` Shared build board with questions, sprint, completion, and update lanes.
+- `[x]` Living feature catalog rendered directly from `FEATURES.md` and linked from Settings beside the Build Board and Reports.
 - `[x]` Private image attachments on board cards.
 - `[x]` Shared provisional-patent workspace with decision sections and private references.
 - `[x]` Generated weekly reports, progress page, and constrained report-media display.

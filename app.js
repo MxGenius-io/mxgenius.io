@@ -4604,7 +4604,7 @@ function handleGlobeClick(point) {
   const results = document.getElementById('globeSheetResults');
   if (typeof sheet._setState === 'function') sheet._setState(2);
   else sheet.className = 'globe-sheet full';
-  results.innerHTML = `<div class="drill-header"><span class="drill-icao">${escapeMarkup(point.icao)}</span>${point.city ? '<span>' + escapeMarkup(point.city) + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span></div>` +
+  results.innerHTML = `<div class="drill-header"><span class="drill-icao">${escapeMarkup(point.icao)}</span>${point.city ? '<span>' + escapeMarkup(point.city) + '</span>' : ''}<span class="drill-count">${point.aircraft.length} aircraft</span><button type="button" class="guided-help-trigger" data-guide-id="fleet-location-data" aria-label="Explain this mapped fleet location" aria-expanded="false">?</button></div>` +
     point.aircraft.map(ac => {
       const mro = buildMROSignals(ac);
       const ul = mro.isAOG ? 'AOG' : mro.isVeryHighTime ? '12K+ AFTT' : mro.isHighTime ? '8K+ AFTT' : 'Other';
@@ -5073,7 +5073,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=8');
+  window.location.assign('globe-vr.html?v=9');
 }
 
 async function loadGlobe() {

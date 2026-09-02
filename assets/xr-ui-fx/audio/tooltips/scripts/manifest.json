@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tooltips": [
     {
       "id": "account-access",
@@ -8,7 +8,15 @@
       "video": "../../../visual/tooltips/account-access.mp4",
       "voiceover": "../voiceover/account-access.wav",
       "captions": "../captions/account-access.vtt",
-      "status": "scripted"
+      "surface": "browser-shell",
+      "touchpoints": ["#signedInAs", "account settings", "organization access"],
+      "beats": [
+        "Identify the signed-in person and organization.",
+        "Open account settings from the identity control.",
+        "Confirm the role and workspaces available to this account.",
+        "Return to the workspace with the access boundary understood."
+      ],
+      "status": "recording"
     },
     {
       "id": "main-navigation",
@@ -17,7 +25,15 @@
       "video": "../../../visual/tooltips/main-navigation.mp4",
       "voiceover": "../voiceover/main-navigation.wav",
       "captions": "../captions/main-navigation.vtt",
-      "status": "scripted"
+      "surface": "browser-shell",
+      "touchpoints": ["#mainNav", "#caseNav", "#partsNav", "[data-tab=\"3d-viewer\"]"],
+      "beats": [
+        "Orient to the persistent application navigation.",
+        "Move between the dashboard and an operational workspace.",
+        "Show that role rules control which workspaces are available.",
+        "Return to the dashboard without losing active context."
+      ],
+      "status": "recording"
     },
     {
       "id": "connection-status",
@@ -26,7 +42,15 @@
       "video": "../../../visual/tooltips/connection-status.mp4",
       "voiceover": "../voiceover/connection-status.wav",
       "captions": "../captions/connection-status.vtt",
-      "status": "scripted"
+      "surface": "browser-shell",
+      "touchpoints": ["#apiStatus", "service state label", "affected workspace"],
+      "beats": [
+        "Locate the application connection indicator.",
+        "Distinguish ready, degraded, and unavailable states.",
+        "Confirm the required source before starting protected work.",
+        "Use the affected workspace only when its dependency is ready."
+      ],
+      "status": "recording"
     },
     {
       "id": "ai-copilot",
@@ -35,12 +59,20 @@
       "video": "../../../visual/tooltips/ai-copilot.mp4",
       "voiceover": "../voiceover/ai-copilot.wav",
       "captions": "../captions/ai-copilot.vtt",
-      "status": "scripted"
+      "surface": "browser-shell",
+      "touchpoints": ["#chatToggleNav", "#chatThreadSelect", "#chatInput", "source references"],
+      "beats": [
+        "Open the copilot from the application navigation.",
+        "Confirm or change the active conversation and context.",
+        "Ask one focused question about the selected operational object.",
+        "Review sources and confirm any proposed operational change."
+      ],
+      "status": "recording"
     },
     {
       "id": "maintenance-case",
       "title": "Create a maintenance case",
-      "script": "Start with the aircraft and discrepancy. The case keeps evidence, findings, approvals, and follow-up work connected throughout the event.",
+      "script": "Start with the aircraft and the observed discrepancy. The case keeps the available evidence, spatial findings, approval state, and follow-up work connected as the maintenance workflow is completed.",
       "video": "../../../visual/tooltips/maintenance-case.mp4",
       "voiceover": "../voiceover/maintenance-case.wav",
       "captions": "../captions/maintenance-case.vtt",
@@ -52,7 +84,7 @@
         "Attach evidence and spatial markers to the same case.",
         "Review approvals and closure state before work is released."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "parts-management",
@@ -69,7 +101,92 @@
         "Track serial, status, location, requests, and rotable history.",
         "Return to the same record from its QR label or linked maintenance case."
       ],
-      "status": "scripted"
+      "status": "recording"
+    },
+    {
+      "id": "parts-receiving",
+      "title": "Receive a controlled part",
+      "script": "Start a receiving draft with manual details or source evidence. MXGenius can extract and propose fields from a document or image, but you accept, edit, or reject those suggestions before confirmation creates the controlled stock unit and its first ledger event.",
+      "video": "../../../visual/tooltips/parts-receiving.mp4",
+      "voiceover": "../voiceover/parts-receiving.wav",
+      "captions": "../captions/parts-receiving.vtt",
+      "surface": "browser-parts",
+      "touchpoints": ["#btnReceivePart", "#receivingWizard", "#wizardExtractedData", "#wizardConfirmationSummary"],
+      "beats": [
+        "Open a receiving draft from Parts Management.",
+        "Add source evidence or continue with manual entry.",
+        "Review each extracted suggestion and its warning state.",
+        "Confirm the stock unit only after the controlled fields are correct."
+      ],
+      "status": "recording"
+    },
+    {
+      "id": "parts-inventory",
+      "title": "Inspect an inventory unit",
+      "script": "Search by part number, description, serial number, status, or location, then open the physical unit record. Its documents, confirmed corrections, inventory events, installation history, FAA references, and QR label remain attached to that controlled unit.",
+      "video": "../../../visual/tooltips/parts-inventory.mp4",
+      "voiceover": "../voiceover/parts-inventory.wav",
+      "captions": "../captions/parts-inventory.vtt",
+      "surface": "browser-parts",
+      "touchpoints": ["#partsSearchInput", "#partsStatusFilter", "#partsInventoryGrid", "#partsDrawer"],
+      "beats": [
+        "Narrow the inventory to the unit you need.",
+        "Open the physical stock-unit record rather than only the catalog part.",
+        "Review documents, status, location, and append-only history.",
+        "Return to the same unit through its QR label or linked case."
+      ],
+      "status": "recording"
+    },
+    {
+      "id": "parts-demand",
+      "title": "Manage requests and shortages",
+      "script": "Requests capture priority, need-by date, and sourcing progress. Shortages compare open case demand with genuinely free stock, excluding units that are reserved or unavailable, so the team can see what is covered and what still needs action.",
+      "video": "../../../visual/tooltips/parts-demand.mp4",
+      "voiceover": "../voiceover/parts-demand.wav",
+      "captions": "../captions/parts-demand.vtt",
+      "surface": "browser-parts",
+      "touchpoints": ["#partsRequestsView", "#requestStatusFilter", "#partsShortageView", "#partsShortageList"],
+      "beats": [
+        "Open Requests and filter the active demand queue.",
+        "Confirm priority, need-by state, and sourcing status.",
+        "Switch to Shortages to compare demand with free stock.",
+        "Act on the uncovered requirement without counting reserved inventory twice."
+      ],
+      "status": "recording"
+    },
+    {
+      "id": "parts-rotables-robs",
+      "title": "Track rotables and aircraft robs",
+      "script": "The rotable register follows a serialized unit across stock, installation, repair, transit, loan, and retirement. A rob remains a separate controlled workflow: one person proposes it, another approves it, and completion waits for the donor removal and receiver installation records.",
+      "video": "../../../visual/tooltips/parts-rotables-robs.mp4",
+      "voiceover": "../voiceover/parts-rotables-robs.wav",
+      "captions": "../captions/parts-rotables-robs.vtt",
+      "surface": "browser-parts",
+      "touchpoints": ["#partsRotablesView", "#partsRotableList", "#partsRobsView", "#partsRobList"],
+      "beats": [
+        "Find or register the serialized rotable.",
+        "Review its current state and aircraft history.",
+        "Propose a rob with donor, receiver, and rationale.",
+        "Complete it only after independent approval and both ledger movements."
+      ],
+      "status": "recording"
+    },
+    {
+      "id": "parts-import",
+      "title": "Import parts safely",
+      "script": "Upload a CSV or Excel file and preview the exact changes before anything is written. Add-only mode refuses rows that would alter existing records. Applying requires confirmation, records an import journal, and preserves a guarded rollback path when later work has not made reversal unsafe.",
+      "video": "../../../visual/tooltips/parts-import.mp4",
+      "voiceover": "../voiceover/parts-import.wav",
+      "captions": "../captions/parts-import.vtt",
+      "surface": "browser-parts",
+      "touchpoints": ["#importFile", "#importMode", "#importPreviewPanel", "#importBatchList"],
+      "beats": [
+        "Choose the template-aligned CSV or Excel file.",
+        "Select add-only unless an explicit overwrite review is intended.",
+        "Preview and correct every rejected or conflicting row.",
+        "Confirm the import and retain its journal for recovery."
+      ],
+      "status": "recording"
     },
     {
       "id": "fleet-context",
@@ -78,7 +195,15 @@
       "video": "../../../visual/tooltips/fleet-context.mp4",
       "voiceover": "../voiceover/fleet-context.wav",
       "captions": "../captions/fleet-context.vtt",
-      "status": "scripted"
+      "surface": "browser",
+      "touchpoints": ["fleet context section", "#globeViz", "#aircraftExplorerCollapsible", "dashboard charts"],
+      "beats": [
+        "Open Fleet Context and establish the available fleet count.",
+        "Show the mapped globe and Aircraft Explorer as two views of the same source.",
+        "Select an aircraft or location to establish active context.",
+        "Carry that selection into charts, records, or the copilot."
+      ],
+      "status": "recording"
     },
     {
       "id": "fleet-xr",
@@ -87,7 +212,15 @@
       "video": "../../../visual/tooltips/fleet-xr.mp4",
       "voiceover": "../voiceover/fleet-xr.wav",
       "captions": "../captions/fleet-xr.vtt",
-      "status": "scripted"
+      "surface": "browser-and-xr-globe",
+      "touchpoints": ["#globeVrButton", "XR summary HUD", "XR location points", "XR detail card"],
+      "beats": [
+        "Load Fleet Context before entering the spatial globe.",
+        "Open the XR scene from a supported headset browser.",
+        "Select a location with a controller or fingertip.",
+        "Confirm the same fleet context in the spatial detail card and copilot."
+      ],
+      "status": "recording"
     },
     {
       "id": "sensor-diagnostics",
@@ -96,7 +229,15 @@
       "video": "../../../visual/tooltips/sensor-diagnostics.mp4",
       "voiceover": "../voiceover/sensor-diagnostics.wav",
       "captions": "../captions/sensor-diagnostics.vtt",
-      "status": "scripted"
+      "surface": "sensor-bridge",
+      "touchpoints": ["#sensorSceneTab", "#fleetStatus", "snapshot evidence control", "realtime witness"],
+      "beats": [
+        "Open the isolated sensor diagnostics scene.",
+        "Confirm the native bridge and FLIR source state.",
+        "Capture evidence only after the transport reports a real source.",
+        "Use the trace or remote witness when the expected state does not arrive."
+      ],
+      "status": "recording"
     },
     {
       "id": "fleet-globe-controls",
@@ -113,7 +254,7 @@
         "Select a location point to reveal the aircraft represented there.",
         "Carry the selected location and aircraft into model context."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "fleet-location-data",
@@ -130,7 +271,7 @@
         "Open one aircraft to establish model context.",
         "State clearly that this is registry and fleet context, not live tracking."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "aircraft-explorer",
@@ -147,7 +288,7 @@
         "Open a result to inspect its source-backed record.",
         "Carry the chosen aircraft into fleet or maintenance context."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "3d-viewer-navigation",
@@ -164,7 +305,24 @@
         "Select a visible mesh to reveal its hierarchy and mapping state.",
         "Preview the spatial HUD, then enter VR when the device supports it."
       ],
-      "status": "scripted"
+      "status": "recording"
+    },
+    {
+      "id": "model-library",
+      "title": "Browse the model library",
+      "script": "The model library separates quick local models, tenant uploads, and public reference geometry. Search or filter NASA, OpenVSP Airshow, Smithsonian, and FlightGear sources, then check provenance and download size before opening a model. Public geometry remains reference or simulation content until it is imported, mapped, and approved.",
+      "video": "../../../visual/tooltips/model-library.mp4",
+      "voiceover": "../voiceover/model-library.wav",
+      "captions": "../captions/model-library.vtt",
+      "surface": "3d-viewer",
+      "touchpoints": ["#model-library-button", "#model-library-search", "#model-library-provider", "#model-library-results"],
+      "beats": [
+        "Open the full library from the compact model selector.",
+        "Search or filter by provider and download size.",
+        "Read the source, attribution, and operational-status labels.",
+        "Open the geometry without treating a public reference as an approved twin."
+      ],
+      "status": "recording"
     },
     {
       "id": "mesh-inspection",
@@ -181,7 +339,7 @@
         "Link the selected component to a controlled asset or part record.",
         "Use the mapped selection for case evidence and procedure content."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "procedure-media",
@@ -198,7 +356,7 @@
         "Confirm the component pairing shown beneath the video.",
         "Return to the model at the same inspection state."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "thermal-mount-exploded",
@@ -215,7 +373,8 @@
         "Pause on a component and inspect its hierarchy and part mapping.",
         "Reassemble the mount and return to the maintenance case."
       ],
-      "status": "scripted"
+      "activation": "planned",
+      "status": "recording"
     },
     {
       "id": "sensor-bridge-flow",
@@ -232,7 +391,7 @@
         "Connect the FLIR ONE source and wait for streaming state.",
         "Use the compatibility trace only when a stage does not advance."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "native-ar-globe",
@@ -249,7 +408,7 @@
         "Select a location pin, then choose an aircraft.",
         "Ask the model about the same selected fleet context."
       ],
-      "status": "scripted"
+      "status": "recording"
     },
     {
       "id": "model-context",
@@ -266,7 +425,7 @@
         "Ask a focused question grounded in the displayed sources.",
         "Review and confirm any proposed operational action."
       ],
-      "status": "scripted"
+      "status": "recording"
     }
   ]
 }

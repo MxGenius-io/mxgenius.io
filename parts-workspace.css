@@ -566,6 +566,24 @@
     display: block;
   }
 
+  .parts-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .parts-toolbar {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .parts-view-switch {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+    overflow-x: auto;
+  }
+
   .parts-drawer,
   .parts-drawer.open {
     position: absolute;
@@ -614,6 +632,12 @@
   border-radius: var(--radius-sm, 8px);
   overflow: hidden;
   margin-right: 10px;
+}
+
+.parts-view-help {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .parts-view-tab {

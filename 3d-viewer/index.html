@@ -114,6 +114,22 @@
         .header::-webkit-scrollbar { display: none; }
         .header > * { flex-shrink: 0; }
 
+        .header-spacer {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .header-xr-actions,
+        .header-end-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-xr-actions {
+            margin-left: 7px;
+        }
+
         .header-logo {
             height: 44px;
             width: auto;
@@ -740,12 +756,73 @@
            ============================================ */
         @media (max-width: 768px) {
             .header {
-                padding: 0 12px;
-                gap: 8px;
+                display: grid !important;
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "back model library"
+                    "xr xr end";
+                height: auto !important;
+                min-height: var(--header-height);
+                padding: 8px 12px !important;
+                gap: 8px !important;
+                overflow: visible;
             }
 
-            #back-to-dashboard-btn { margin-right: 0 !important; }
-            .header-model-select { min-width: 150px; max-width: 170px; }
+            #back-to-dashboard-btn {
+                grid-area: back;
+                margin: 0 !important;
+            }
+
+            .header-model-select {
+                grid-area: model;
+                width: 100%;
+                min-width: 0;
+                max-width: none;
+            }
+
+            #model-library-button {
+                grid-area: library;
+                margin: 0;
+            }
+
+            .header-xr-actions {
+                grid-area: xr;
+                min-width: 0;
+                margin: 0;
+            }
+
+            #enter-vr-button,
+            #enter-ar-button {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .header-spacer { display: none; }
+
+            .header-end-actions {
+                grid-area: end;
+                justify-self: end;
+                min-width: 0;
+            }
+
+            .header-tools-menu { margin-left: 0; }
+
+            #advanced-controls {
+                flex-wrap: wrap !important;
+                overflow-x: hidden !important;
+                white-space: normal !important;
+                gap: 8px !important;
+                padding: 8px 12px !important;
+            }
+
+            #advanced-controls .header-divider { display: none; }
+
+            .reference-library-drawer {
+                top: 96px;
+                max-height: calc(100vh - 108px);
+            }
 
             .header-logo {
                 height: 32px;
@@ -1041,38 +1118,43 @@
     <!-- ============================================
          Header
          ============================================ -->
-    <div class="header" style="display: flex; align-items: center; padding: 0 20px; height: var(--header-height); background: var(--bg-secondary); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0;">
+    <div class="header">
         <button class="header-back-btn" id="back-to-dashboard-btn" style="background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: var(--text-primary); padding: 6px 12px; border-radius: 4px; font-family: var(--font-primary); font-size: 0.8rem; cursor: pointer; margin-right: 15px; transition: background 0.2s ease;">⬅ Back</button>
         
         <select class="header-model-select" id="model-select">
             <option value="">No models loaded</option>
         </select>
-        <div id="ar-button-container" style="margin-left: 0;" hidden>
-            <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
-        </div>
         <button id="model-library-button" type="button" aria-expanded="false" aria-controls="model-library-drawer" title="Browse workspace and public reference models">Models</button>
 
-        <div id="xr-button-container" style="margin-left: 15px;">
-            <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
+        <div class="header-xr-actions">
+            <div id="ar-button-container" hidden>
+                <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
+            </div>
+            <div id="xr-button-container">
+                <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
+            </div>
         </div>
         <span id="hud-audio-status" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Spatial interface sound is ready to start</span>
-        <div style="flex: 1;"></div>
-        <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
-        <details class="header-tools-menu" id="viewer-tools-menu">
-            <summary>View tools</summary>
-            <div class="header-tools-panel" role="group" aria-label="Viewer display tools">
-                <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
-                <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
-                <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
-                <button id="toggle-advanced-controls" style="background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">⚙ Controls</button>
-                <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
-            </div>
-        </details>
+        <div class="header-spacer" aria-hidden="true"></div>
+        <div class="header-end-actions">
+            <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
+            <details class="header-tools-menu" id="viewer-tools-menu">
+                <summary>View tools</summary>
+                <div class="header-tools-panel" role="group" aria-label="Viewer display tools">
+                    <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
+                    <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
+                    <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
+                    <button id="toggle-advanced-controls" style="background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">⚙ Controls</button>
+                    <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
+                </div>
+            </details>
+        </div>
     </div>
 
     <section class="procedure-media-drawer" id="procedure-media-drawer" hidden aria-label="Procedure media">
         <div class="procedure-media-drawer__head">
             <strong id="procedure-media-title">Procedure media</strong>
+            <button class="guided-help-trigger" type="button" data-guide-id="procedure-media" aria-label="Explain component procedure media" aria-expanded="false">?</button>
             <button id="procedure-media-close" type="button" aria-label="Close procedure media">Close</button>
         </div>
         <video id="procedure-media-video" controls playsinline preload="metadata" crossorigin="anonymous"></video>
@@ -1086,6 +1168,7 @@
                 <p>Browse bundled workspace models, tenant uploads, and NASA, OpenVSP, Smithsonian, or FlightGear simulation geometry. Public models remain unmapped and non-authoritative.</p>
             </div>
             <div class="reference-library-head-actions">
+                <button class="guided-help-trigger" type="button" data-guide-id="model-library" aria-label="Explain the model library" aria-expanded="false">?</button>
                 <label for="model-upload-input" class="reference-library-upload" title="Upload a tenant-scoped GLB model">Upload GLB</label>
                 <input id="model-upload-input" type="file" accept=".glb,model/gltf-binary" hidden>
                 <button id="model-library-close" type="button" aria-label="Close model library">Close</button>
@@ -1242,7 +1325,7 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=10"></script>
     <script src="../realtime-client.js?v=2"></script>
-    <script src="../guided-tooltip.js?v=3"></script>
+    <script src="../guided-tooltip.js?v=4"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);

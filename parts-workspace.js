@@ -1379,10 +1379,12 @@ const MXPartsWorkspace = (() => {
                 <button class="parts-view-tab" data-view="imports" role="tab" aria-selected="false">Import</button>
                 <button class="parts-view-tab" data-view="reports" role="tab" aria-selected="false">Reports</button>
               </div>
+              <button type="button" class="guided-help-trigger" data-guide-id="parts-receiving" aria-label="Explain parts receiving" aria-expanded="false">?</button>
               <button class="btn-primary" id="btnReceivePart">Receive Part</button>
             </div>
           </header>
           <div class="parts-search-bar">
+            <button type="button" class="guided-help-trigger" data-guide-id="parts-inventory" aria-label="Explain inventory records" aria-expanded="false">?</button>
             <input type="search" id="partsSearchInput" class="search-input" placeholder="Part number, description, or serial number" aria-label="Search parts">
             <select id="partsStatusFilter" aria-label="Filter by status">
               <option value="">Any status</option>
@@ -1402,10 +1404,12 @@ const MXPartsWorkspace = (() => {
             <div id="partsStatus" class="parts-inline-status" aria-live="polite"></div>
             <div id="partsInventoryGrid" class="inventory-grid"></div>
             <div id="partsShortageView" hidden>
+              <div class="parts-view-help"><button type="button" class="guided-help-trigger" data-guide-id="parts-demand" aria-label="Explain parts shortages" aria-expanded="false">?</button></div>
               <label class="shortage-toggle"><input type="checkbox" id="shortageIncludeCovered"> Show requirements stock already covers</label>
               <div id="partsShortageList"></div>
             </div>
             <div id="partsRequestsView" hidden>
+              <div class="parts-view-help"><button type="button" class="guided-help-trigger" data-guide-id="parts-demand" aria-label="Explain parts requests" aria-expanded="false">?</button></div>
               <div class="request-filters">
                 <select id="requestStatusFilter" aria-label="Filter requests by status">
                   <option value="">Any status</option>
@@ -1434,6 +1438,7 @@ const MXPartsWorkspace = (() => {
               </div>
             </div>
             <div id="partsRotablesView" hidden>
+              <div class="parts-view-help"><button type="button" class="guided-help-trigger" data-guide-id="parts-rotables-robs" aria-label="Explain rotables" aria-expanded="false">?</button></div>
               <div class="request-filters">
                 <select id="rotableStatusFilter" aria-label="Filter rotables by status">
                   <option value="">Any status</option>
@@ -1471,6 +1476,7 @@ const MXPartsWorkspace = (() => {
               <div id="partsRotableList"></div>
             </div>
             <div id="partsRobsView" hidden>
+              <div class="parts-view-help"><button type="button" class="guided-help-trigger" data-guide-id="parts-rotables-robs" aria-label="Explain aircraft rob workflows" aria-expanded="false">?</button></div>
               <p class="unit-action-hint rob-preamble">Robbing a serviceable part off one aircraft to return another to service is an airworthiness claim. A rob is proposed by one person and decided by another, and it can only be completed once both the donor removal and the receiver install are on record.</p>
               <div id="robStatusMessage" class="parts-inline-status" aria-live="polite"></div>
               <section class="unit-action-block location-create">
@@ -1490,6 +1496,7 @@ const MXPartsWorkspace = (() => {
               <div id="partsRobList"></div>
             </div>
             <div id="partsImportView" hidden>
+              <div class="parts-view-help"><button type="button" class="guided-help-trigger" data-guide-id="parts-import" aria-label="Explain parts import" aria-expanded="false">?</button></div>
               <section class="unit-action-block location-create">
                 <h3>Import parts and stock</h3>
                 <p class="unit-action-hint">Upload a CSV or Excel file. Nothing is written until you have seen what it would do and confirmed it. Start from the template so the columns line up.</p>
