@@ -1,5 +1,5 @@
 /* ── MXGenius Onboarding ─────────────────────────────────────────────── */
-/* Welcome modal, guided tour, hotspot pulses, and empty-state CTAs.   */
+/* Welcome modal, guided tour, and empty-state CTAs.                    */
 
 /* ── Welcome Modal ────────────────────────────────────────────────── */
 .onboarding-backdrop {
@@ -284,32 +284,6 @@
 
 .onboarding-tooltip__next:hover {
   opacity: 0.9;
-}
-
-/* ── Hotspot Pulses ───────────────────────────────────────────────── */
-.onboarding-hotspot {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent-cyan, #22d3ee);
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
-  pointer-events: none;
-  z-index: 8000;
-  animation: onb-hotspot-pulse 2s ease-in-out infinite;
-}
-
-@keyframes onb-hotspot-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.8; }
-  50%      { transform: scale(1.6); opacity: 0.3; }
-}
-
-.onboarding-hotspot--fade {
-  animation: onb-hotspot-fade 0.5s ease forwards;
-}
-
-@keyframes onb-hotspot-fade {
-  to { opacity: 0; transform: scale(0.5); }
 }
 
 /* ── Empty State CTAs ─────────────────────────────────────────────── */

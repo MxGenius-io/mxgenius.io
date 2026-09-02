@@ -28,9 +28,10 @@ test('the feedback pages are authenticated and use only the application client b
   assert.match(client, /\/api\/feedback/);
 });
 
-test('dashboard.html wires up both header entry points and loads the reporter modal', () => {
+test('dashboard.html exposes one consolidated feedback entry point and loads the reporter modal', () => {
   assert.match(dashboard, /id="feedbackReporterBtn"/);
-  assert.match(dashboard, /id="featureReporterBtn"/);
+  assert.doesNotMatch(dashboard, /id="featureReporterBtn"/);
+  assert.match(dashboard, /id="feedbackType"/);
   assert.match(dashboard, /id="feedbackReporterModal"/);
   assert.match(dashboard, /feedback-reporter\.css/);
   assert.match(dashboard, /feedback-reporter\.js/);
@@ -43,10 +44,13 @@ test('the reporter opens on the b keyboard shortcut, suppressed while typing', (
   assert.match(reporterJs, /html2canvas\(/);
 });
 
-test('bug and feature request are two independent buttons, not a type picker', () => {
-  assert.doesNotMatch(dashboard, /id="feedbackType"/);
+test('bug reports and feature requests share one reporter with a type picker', () => {
+  assert.match(dashboard, /id="feedbackType"/);
+  assert.match(dashboard, /value="bug" selected>Bug report/);
+  assert.match(dashboard, /value="feature">Feature request/);
   assert.match(reporterJs, /open\('bug'\)/);
-  assert.match(reporterJs, /open\('feature'\)/);
+  assert.match(reporterJs, /elements\.type\?\.addEventListener\('change'/);
+  assert.doesNotMatch(reporterJs, /featureOpenBtn/);
   assert.match(reporterJs, /const mode = state\.mode/);
   assert.match(reporterJs, /reportType: mode/);
   assert.match(reporterJs, /Report a Bug/);
@@ -55,7 +59,7 @@ test('bug and feature request are two independent buttons, not a type picker', (
 
 test('severity is bug-only, with three levels and no critical tier', () => {
   assert.match(dashboard, /id="feedbackSeverityField"/);
-  assert.match(reporterJs, /elements\.severityField\.hidden = mode !== 'bug'/);
+  assert.match(reporterJs, /elements\.severityField\.hidden = state\.mode !== 'bug'/);
   const [, severitySelect] = dashboard.match(/<select id="feedbackSeverity">([\s\S]*?)<\/select>/) || [];
   assert.ok(severitySelect, 'feedbackSeverity select must be present');
   for (const level of ['low', 'medium', 'high']) {
@@ -74,7 +78,8 @@ test('the reporter has freehand, rectangle, arrow, and text annotation tools wit
   assert.match(reporterCss, /@media \(max-width: 860px\)/);
 });
 
-test('the report form collects title, severity, and description', () => {
+test('the report form collects type, title, bug severity, and description', () => {
+  assert.match(dashboard, /id="feedbackType"/);
   assert.match(dashboard, /id="feedbackTitle"/);
   assert.match(dashboard, /id="feedbackSeverity"/);
   assert.match(dashboard, /id="feedbackDescription"/);

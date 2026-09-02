@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 4,
   "tooltips": [
     {
       "id": "account-access",
@@ -24,7 +24,7 @@
       "script": "The main navigation keeps cases, parts, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.",
       "video": "../../../visual/tooltips/main-navigation.mp4",
       "voiceover": "../voiceover/main-navigation.wav",
-      "captions": "../captions/main-navigation.vtt",
+      "captions": null,
       "surface": "browser-shell",
       "touchpoints": ["#mainNav", "#caseNav", "#partsNav", "[data-tab=\"3d-viewer\"]"],
       "beats": [
@@ -33,7 +33,7 @@
         "Show that role rules control which workspaces are available.",
         "Return to the dashboard without losing active context."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "connection-status",
@@ -58,7 +58,7 @@
       "script": "Ask about an aircraft, part, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.",
       "video": "../../../visual/tooltips/ai-copilot.mp4",
       "voiceover": "../voiceover/ai-copilot.wav",
-      "captions": "../captions/ai-copilot.vtt",
+      "captions": null,
       "surface": "browser-shell",
       "touchpoints": ["#chatToggleNav", "#chatThreadSelect", "#chatInput", "source references"],
       "beats": [
@@ -67,7 +67,7 @@
         "Ask one focused question about the selected operational object.",
         "Review sources and confirm any proposed operational change."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "maintenance-case",
@@ -75,7 +75,7 @@
       "script": "Start with the aircraft and the observed discrepancy. The case keeps the available evidence, spatial findings, approval state, and follow-up work connected as the maintenance workflow is completed.",
       "video": "../../../visual/tooltips/maintenance-case.mp4",
       "voiceover": "../voiceover/maintenance-case.wav",
-      "captions": "../captions/maintenance-case.vtt",
+      "captions": null,
       "surface": "browser",
       "touchpoints": ["#caseExistingSelect", "#caseIntakeForm", "#caseMarkerControls", "#caseWorkspaceResult"],
       "beats": [
@@ -84,7 +84,7 @@
         "Attach evidence and spatial markers to the same case.",
         "Review approvals and closure state before work is released."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "parts-management",
@@ -92,7 +92,7 @@
       "script": "Use Parts Management to receive evidence, review model suggestions, manage serialized inventory, and return to the same controlled unit record from its QR label.",
       "video": "../../../visual/tooltips/parts-management.mp4",
       "voiceover": "../voiceover/parts-management.wav",
-      "captions": "../captions/parts-management.vtt",
+      "captions": null,
       "surface": "browser",
       "touchpoints": ["#btnReceivePart", "#partsSearchInput", ".parts-view-switch", "#partsDrawer"],
       "beats": [
@@ -101,7 +101,7 @@
         "Track serial, status, location, requests, and rotable history.",
         "Return to the same record from its QR label or linked maintenance case."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "parts-receiving",
@@ -109,7 +109,7 @@
       "script": "Start a receiving draft with manual details or source evidence. MXGenius can extract and propose fields from a document or image, but you accept, edit, or reject those suggestions before confirmation creates the controlled stock unit and its first ledger event.",
       "video": "../../../visual/tooltips/parts-receiving.mp4",
       "voiceover": "../voiceover/parts-receiving.wav",
-      "captions": "../captions/parts-receiving.vtt",
+      "captions": null,
       "surface": "browser-parts",
       "touchpoints": ["#btnReceivePart", "#receivingWizard", "#wizardExtractedData", "#wizardConfirmationSummary"],
       "beats": [
@@ -118,7 +118,7 @@
         "Review each extracted suggestion and its warning state.",
         "Confirm the stock unit only after the controlled fields are correct."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "parts-inventory",
@@ -245,7 +245,7 @@
       "script": "Filter the JetNet-backed fleet, select a mapped location, and open an aircraft record without leaving fleet context. The globe, list, and model copilot stay synchronized around the same selection.",
       "video": "../../../visual/tooltips/fleet-globe-controls.mp4",
       "voiceover": "../voiceover/fleet-globe-controls.wav",
-      "captions": "../captions/fleet-globe-controls.vtt",
+      "captions": null,
       "surface": "browser-and-xr-globe",
       "touchpoints": ["#globeTextureButtons", "#globeSearch", "#globeTypeFilter", "#globeSheetResults", "XR location points"],
       "beats": [
@@ -254,7 +254,7 @@
         "Select a location point to reveal the aircraft represented there.",
         "Carry the selected location and aircraft into model context."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "fleet-location-data",
@@ -262,7 +262,7 @@
       "script": "A selected point represents a mapped JetNet location, not a live flight track. Review its aircraft, operator, model, and source context before asking the copilot to compare or summarize it.",
       "video": "../../../visual/tooltips/fleet-location-data.mp4",
       "voiceover": "../voiceover/fleet-location-data.wav",
-      "captions": "../captions/fleet-location-data.vtt",
+      "captions": null,
       "surface": "browser-and-xr-globe",
       "touchpoints": ["#globeTooltip", "#globeSheetResults", "XR selected-location card"],
       "beats": [
@@ -271,7 +271,7 @@
         "Open one aircraft to establish model context.",
         "State clearly that this is registry and fleet context, not live tracking."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "aircraft-explorer",
@@ -279,7 +279,7 @@
       "script": "Use Fleet Triage to scan high-time, for-sale, type, and region groups. Switch to Direct Search when you already know the make, registration, serial number, or country.",
       "video": "../../../visual/tooltips/aircraft-explorer.mp4",
       "voiceover": "../voiceover/aircraft-explorer.wav",
-      "captions": "../captions/aircraft-explorer.vtt",
+      "captions": null,
       "surface": "browser",
       "touchpoints": ["#acModeScan", "#acScanBar", "#acModeDirect", "#acDirectBar", "#aircraftGrid"],
       "beats": [
@@ -288,7 +288,7 @@
         "Open a result to inspect its source-backed record.",
         "Carry the chosen aircraft into fleet or maintenance context."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "3d-viewer-navigation",
@@ -305,7 +305,7 @@
         "Select a visible mesh to reveal its hierarchy and mapping state.",
         "Preview the spatial HUD, then enter VR when the device supports it."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "model-library",
@@ -313,7 +313,7 @@
       "script": "The model library separates quick local models, tenant uploads, and public reference geometry. Search or filter NASA, OpenVSP Airshow, Smithsonian, and FlightGear sources, then check provenance and download size before opening a model. Public geometry remains reference or simulation content until it is imported, mapped, and approved.",
       "video": "../../../visual/tooltips/model-library.mp4",
       "voiceover": "../voiceover/model-library.wav",
-      "captions": "../captions/model-library.vtt",
+      "captions": null,
       "surface": "3d-viewer",
       "touchpoints": ["#model-library-button", "#model-library-search", "#model-library-provider", "#model-library-results"],
       "beats": [
@@ -322,7 +322,7 @@
         "Read the source, attribution, and operational-status labels.",
         "Open the geometry without treating a public reference as an approved twin."
       ],
-      "status": "recording"
+      "status": "ready"
     },
     {
       "id": "mesh-inspection",
@@ -416,7 +416,7 @@
       "script": "The copilot uses the aircraft, location, part, mesh, or maintenance case you selected as its active context. Confirm that selection and its sources before asking for a comparison, explanation, or next action.",
       "video": "../../../visual/tooltips/model-context.mp4",
       "voiceover": "../voiceover/model-context.wav",
-      "captions": "../captions/model-context.vtt",
+      "captions": null,
       "surface": "shared",
       "touchpoints": ["#chatToggleNav", "active selection chip", "source references", "XR detail card"],
       "beats": [
@@ -425,7 +425,7 @@
         "Ask a focused question grounded in the displayed sources.",
         "Review and confirm any proposed operational action."
       ],
-      "status": "recording"
+      "status": "ready"
     }
   ]
 }

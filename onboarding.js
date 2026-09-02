@@ -2,8 +2,8 @@
  * MXGenius Onboarding Module
  *
  * Versioned first-run experience for the current authenticated application:
- * role selection, guided tab switching, persistent hotspot pulses, and
- * improved empty-state CTAs for chart containers.
+ * role selection, guided tab switching, clean completion, and improved
+ * empty-state CTAs for chart containers.
  */
 const MXOnboarding = (() => {
   /* ── Constants ────────────────────────────────────────────────────── */
@@ -182,7 +182,6 @@ const MXOnboarding = (() => {
   let selectedRole = null;
   let tourIndex = 0;
   let tourSteps = [];
-  let activeHotspots = [];
 
   /* ── Utilities ────────────────────────────────────────────────────── */
   function portal() {
@@ -489,59 +488,6 @@ const MXOnboarding = (() => {
     markComplete();
     clearPortal();
     switchTabSafe(selectedRole === 'procurement' ? 'parts' : 'dashboard');
-    setTimeout(placeHotspots, 300);
-  }
-
-  function placeHotspots() {
-    removeHotspots();
-
-    const spots = selectedRole === 'procurement'
-      ? [
-          { target: '#partsNav', dismissEvent: 'click' },
-          { target: '#btnReceivePart', dismissEvent: 'click' }
-        ]
-      : [
-          { target: '#chatToggleNav', dismissEvent: 'click' },
-          { target: '#activeCaseCard, .active-case-card', dismissEvent: 'click' }
-        ];
-
-    spots.forEach(spot => {
-      const el = findTarget(spot.target);
-      if (!el) return;
-
-      const dot = document.createElement('div');
-      dot.className = 'onboarding-hotspot';
-
-      // Position relative to the target
-      const updatePosition = () => {
-        const rect = getRect(el);
-        dot.style.top = (rect.top - 2) + 'px';
-        dot.style.left = (rect.right - 4) + 'px';
-        dot.style.position = 'fixed';
-      };
-      updatePosition();
-
-      document.body.appendChild(dot);
-      activeHotspots.push({ dot, el, updatePosition });
-
-      // Dismiss on first interaction
-      const dismiss = () => {
-        dot.classList.add('onboarding-hotspot--fade');
-        setTimeout(() => dot.remove(), 500);
-        el.removeEventListener(spot.dismissEvent, dismiss);
-      };
-      el.addEventListener(spot.dismissEvent, dismiss, { once: true });
-    });
-
-    // Reposition on scroll/resize
-    const reposition = () => activeHotspots.forEach(h => h.updatePosition());
-    window.addEventListener('scroll', reposition, { passive: true });
-    window.addEventListener('resize', reposition, { passive: true });
-  }
-
-  function removeHotspots() {
-    activeHotspots.forEach(h => h.dot.remove());
-    activeHotspots = [];
   }
 
   /* ── Empty State CTAs ─────────────────────────────────────────────── */
@@ -636,7 +582,6 @@ const MXOnboarding = (() => {
     localStorage.removeItem(LS_ROLE);
     selectedRole = null;
     tourIndex = 0;
-    removeHotspots();
     showWelcome();
   }
 

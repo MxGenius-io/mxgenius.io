@@ -35,6 +35,10 @@ const tooltipVoiceoverMaster = await readFile(
   new URL('../assets/xr-ui-fx/audio/tooltips/scripts/voiceover-master.txt', import.meta.url),
   'utf8'
 );
+const viewerNavigationCaptions = await readFile(
+  new URL('../assets/xr-ui-fx/audio/tooltips/captions/3d-viewer-navigation.vtt', import.meta.url),
+  'utf8'
+);
 const applicationStyles = await readFile(new URL('../app-styles.css', import.meta.url), 'utf8');
 const modelCatalog = JSON.parse(await readFile(new URL('../3d-viewer/models.json', import.meta.url), 'utf8'));
 const fleetProxy = await readFile(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
@@ -591,7 +595,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=25/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=26/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -608,10 +612,25 @@ test('XR procedure media uses direct video assets with optional timed mesh pairi
 test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.doesNotMatch(dashboard, /data-guide-id="3d-viewer-navigation"/);
   assert.equal((viewer.match(/data-guide-id="3d-viewer-navigation"/g) || []).length, 1);
-  assert.match(viewer, /grid-template-areas:[\s\S]*"back model library"[\s\S]*"xr xr end"/);
+  assert.match(viewer, /\.header-action-cluster \{[\s\S]*justify-content: flex-end;[\s\S]*margin-left: auto;/);
+  assert.match(viewer, /@media \(max-width: 768px\)[\s\S]*\.header-action-cluster \{[\s\S]*flex-wrap: wrap;[\s\S]*justify-content: flex-end;/);
   assert.match(viewer, /#advanced-controls \{[\s\S]*flex-wrap: wrap !important;[\s\S]*overflow-x: hidden !important;/);
-  assert.match(viewer, /class="header-end-actions"/);
+  assert.match(viewer, /id="back-to-dashboard-btn"[\s\S]*aria-label="Back to dashboard"[\s\S]*<svg/);
+  assert.match(viewer, /class="model-selector-shell"[\s\S]*id="model-select" aria-label="Select active 3D model"/);
+  assert.match(viewer, /class="header-action-cluster"[\s\S]*class="header-end-actions"/);
   assert.match(viewer, /id="advanced-controls" style="display: none;/);
+  assert.doesNotMatch(viewer, /View tools|viewer-tools-menu/);
+  assert.match(viewer, /id="model-library-button"[\s\S]*aria-label="Open model library"/);
+  assert.match(viewer, /id="hud-preview-button"[\s\S]*aria-label="Show spatial HUD preview"/);
+  assert.match(viewer, /id="hud-sound-button"[\s\S]*aria-label="Mute spatial interface sound"/);
+  assert.match(viewer, /id="toggle-advanced-controls"[\s\S]*aria-label="Show display controls"/);
+  assert.match(viewer, /document\.addEventListener\('pointerdown',[\s\S]*setAdvancedControlsOpen\(false\)/);
+  assert.match(viewer, /#reset-camera \{[\s\S]*right: 16px;[\s\S]*bottom: 16px;/);
+  assert.match(viewer, /id="enter-vr-button"[\s\S]*aria-disabled="true"[\s\S]*aria-label="VR headset unavailable"/);
+  assert.match(viewer, /id="vr-support-message"[\s\S]*No headset detected/);
+  assert.match(viewer, /navigator\.xr\.isSessionSupported\('immersive-vr'\)/);
+  assert.match(viewer, /if \(!headsetAvailable\) \{[\s\S]*showUnavailableMessage\(\)/);
+  assert.match(viewer, /nativeButton\.click\(\)/);
 });
 
 test('XR animation scrubber drives authored clips from controller or fingertip position', () => {
@@ -674,7 +693,6 @@ test('viewer quick access is limited to the curated local model folder set', asy
       'FLIR Thermal Camera',
       'Power Tool Battery',
       'Single-Board Computer Prototype',
-      'VR Headset',
       'Virtual Reality Headset'
     ].sort()
   );
@@ -777,13 +795,13 @@ test('maintenance case creation binds the explicit submit action to a short-live
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=5"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=5"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=8"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=6"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
-  assert.match(dashboard, /guided-tooltip\.css\?v=3/);
-  assert.match(dashboard, /onboarding\.css\?v=3/);
+  assert.match(dashboard, /guided-tooltip\.css\?v=4/);
+  assert.match(dashboard, /onboarding\.css\?v=4/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /restart/);
@@ -805,10 +823,15 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /controller selection and fingertip contact/);
   assert.match(onboarding, /MXGuidedTooltip\?\.mount/);
   assert.match(onboarding, /MXGuidedTooltip\?\.stop/);
+  assert.doesNotMatch(onboarding, /placeHotspots|onboarding-hotspot/);
+  assert.doesNotMatch(onboardingStyles, /\.onboarding-hotspot/);
   assert.match(onboardingStyles, /\.onboarding-welcome/);
   assert.match(guidedTooltip, /document\.createElement\('video'\)/);
   assert.match(guidedTooltip, /document\.createElement\('audio'\)/);
   assert.match(guidedTooltip, /track\.kind = 'captions'/);
+  assert.match(guidedTooltip, /track\.default = false/);
+  assert.match(guidedTooltip, /transcript\.className = 'guided-tooltip-guide__transcript'/);
+  assert.match(guidedTooltip, /transcript\.textContent = item\.script/);
   assert.match(guidedTooltip, /video\.playsInline = true/);
   assert.match(guidedTooltip, /prefers-reduced-motion: reduce/);
   assert.match(guidedTooltip, /\['recording', 'ready'\]\.includes\(item\.status\)/);
@@ -818,6 +841,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltip, /audioOnly: Boolean\(reducedMotion && video && voiceover\)/);
   assert.match(guidedTooltip, /Video \+ voiceover script ready/);
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__video/);
+  assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__transcript/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
   assert.match(dashboard, /id="guidedTourButton"/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
@@ -854,9 +878,29 @@ test('context help binds accessible anchored popovers across product surfaces', 
 });
 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
-  assert.equal(tooltipManifest.version, 2);
+  assert.equal(tooltipManifest.version, 4);
   assert.ok(Array.isArray(tooltipManifest.tooltips));
   assert.ok(tooltipManifest.tooltips.length >= 25);
+  assert.deepEqual(
+    tooltipManifest.tooltips.filter((item) => item.status === 'ready').map((item) => item.id),
+    [
+      'main-navigation',
+      'ai-copilot',
+      'maintenance-case',
+      'parts-management',
+      'parts-receiving',
+      'fleet-globe-controls',
+      'fleet-location-data',
+      'aircraft-explorer',
+      '3d-viewer-navigation',
+      'model-library',
+      'model-context'
+    ]
+  );
+  assert.match(guidedTooltip, /manifest\.json\?v=4/);
+  assert.match(viewerNavigationCaptions, /^WEBVTT\r?\n/);
+  assert.match(viewerNavigationCaptions, /00:00:00\.400 --> 00:00:05\.850/);
+  assert.match(viewerNavigationCaptions, /Desktop HUD Preview mirrors the spatial interface/);
   const ids = tooltipManifest.tooltips.map((item) => item.id);
   assert.equal(new Set(ids).size, ids.length, 'tooltip IDs must be unique');
 
@@ -869,11 +913,14 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       await access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url));
     }
     if (item.status !== 'ready') continue;
-    await Promise.all([
+    const requiredMedia = [
       access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.video}`, import.meta.url)),
-      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url)),
-      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.captions}`, import.meta.url))
-    ]);
+      access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url))
+    ];
+    if (item.captions) {
+      requiredMedia.push(access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.captions}`, import.meta.url)));
+    }
+    await Promise.all(requiredMedia);
   }
 
   const productionGuides = tooltipManifest.tooltips.filter((item) => item.status !== 'retired');

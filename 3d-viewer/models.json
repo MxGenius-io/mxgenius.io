@@ -94,19 +94,6 @@
     "operationalStatus": "demo_asset"
   },
   {
-    "file": "models/VRHeadset_v1.glb",
-    "name": "VR Headset",
-    "type": "apparatus",
-    "lod": "source",
-    "revision": "v1",
-    "provider": "workspace",
-    "sourceAuthority": "MXGenius",
-    "collection": "Local model set",
-    "sizeBytes": 20515624,
-    "quickAccess": true,
-    "operationalStatus": "demo_asset"
-  },
-  {
     "file": "models/SM_AntiqueCamera_Optics_v1.glb",
     "name": "Antique Camera Optics",
     "type": "demo_model",

@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0d1117">
     <title>MXGenius — 3D Viewer</title>
-    <link rel="stylesheet" href="../guided-tooltip.css?v=3">
+    <link rel="stylesheet" href="../guided-tooltip.css?v=4">
     <!-- Fonts: system fallback (airgap — no external CDN) -->
     <style>
         /* ============================================
@@ -114,8 +114,37 @@
         .header::-webkit-scrollbar { display: none; }
         .header > * { flex-shrink: 0; }
 
-        .header-spacer {
-            flex: 1 1 auto;
+        .header-back-btn {
+            display: inline-grid;
+            place-items: center;
+            width: 38px;
+            height: 34px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.07);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .header-back-btn:hover {
+            border-color: rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.15);
+        }
+
+        .header-back-btn svg {
+            width: 19px;
+            height: 19px;
+            pointer-events: none;
+        }
+
+        .header-action-cluster {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-left: auto;
             min-width: 0;
         }
 
@@ -126,9 +155,7 @@
             gap: 8px;
         }
 
-        .header-xr-actions {
-            margin-left: 7px;
-        }
+        .header-xr-actions { margin-left: 0; }
 
         .header-logo {
             height: 44px;
@@ -170,35 +197,43 @@
             letter-spacing: 0.02em;
         }
 
-        /* Header Model Dropdown */
+        /* Native model dropdown presented as a compact build-tool icon. */
+        .model-selector-shell {
+            position: relative;
+            display: inline-grid;
+            place-items: center;
+            width: 38px;
+            height: 34px;
+            min-width: 38px;
+            border: 1px solid rgba(88, 166, 255, 0.48);
+            border-radius: 6px;
+            background: rgba(31, 111, 235, 0.12);
+            color: #9ecbff;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .model-selector-shell:hover,
+        .model-selector-shell:focus-within {
+            border-color: var(--accent);
+            background: rgba(31, 111, 235, 0.24);
+            color: #d8ecff;
+        }
+
+        .model-selector-shell svg {
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+        }
+
         .header-model-select {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--accent);
-            font-family: var(--font-mono);
-            font-size: 0.72rem;
-            font-weight: 500;
-            padding: 6px 28px 6px 12px;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            opacity: 0;
             cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2358a6ff'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            min-width: 180px;
-            max-width: 300px;
-            transition: border-color 0.15s ease;
-        }
-
-        .header-model-select:hover {
-            border-color: var(--accent);
-        }
-
-        .header-model-select:focus {
             outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 1px var(--accent);
         }
 
         .header-meta {
@@ -614,7 +649,7 @@
            ============================================ */
         #desc-panel {
             position: absolute;
-            bottom: 16px;
+            bottom: 60px;
             right: 16px;
             background: rgba(13, 17, 23, 0.88);
             backdrop-filter: blur(12px);
@@ -651,6 +686,37 @@
             font-size: 0.75rem;
             color: var(--text-secondary);
             line-height: 1.5;
+        }
+
+        #reset-camera {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            z-index: 66;
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 50%;
+            background: rgba(8, 16, 29, 0.82);
+            color: #d8e6f5;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        #reset-camera:hover {
+            border-color: rgba(88, 166, 255, 0.68);
+            background: rgba(31, 111, 235, 0.24);
+            transform: translateY(-1px);
+        }
+
+        #reset-camera svg {
+            width: 19px;
+            height: 19px;
+            pointer-events: none;
         }
 
         /* ============================================
@@ -756,11 +822,7 @@
            ============================================ */
         @media (max-width: 768px) {
             .header {
-                display: grid !important;
-                grid-template-columns: auto minmax(0, 1fr) auto;
-                grid-template-areas:
-                    "back model library"
-                    "xr xr end";
+                display: flex !important;
                 height: auto !important;
                 min-height: var(--header-height);
                 padding: 8px 12px !important;
@@ -769,45 +831,18 @@
             }
 
             #back-to-dashboard-btn {
-                grid-area: back;
                 margin: 0 !important;
+                align-self: flex-start;
             }
 
-            .header-model-select {
-                grid-area: model;
-                width: 100%;
-                min-width: 0;
-                max-width: none;
-            }
-
-            #model-library-button {
-                grid-area: library;
-                margin: 0;
-            }
-
-            .header-xr-actions {
-                grid-area: xr;
-                min-width: 0;
-                margin: 0;
-            }
-
-            #enter-vr-button,
-            #enter-ar-button {
-                max-width: 100%;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .header-spacer { display: none; }
-
-            .header-end-actions {
-                grid-area: end;
-                justify-self: end;
+            .header-action-cluster {
+                flex: 1 1 auto;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                gap: 6px;
+                margin-left: auto;
                 min-width: 0;
             }
-
-            .header-tools-menu { margin-left: 0; }
 
             #advanced-controls {
                 flex-wrap: wrap !important;
@@ -855,7 +890,10 @@
         #enter-vr-button,
         #enter-ar-button,
         #hud-preview-button,
-        #hud-sound-button {
+        #hud-sound-button,
+        #procedure-media-button,
+        #toggle-advanced-controls,
+        #model-library-button {
             position: static !important;
             inset: auto !important;
             width: auto !important;
@@ -874,19 +912,91 @@
             transition: background 0.2s ease, border-color 0.2s ease;
         }
 
-        #enter-vr-button:hover:not(:disabled),
+        #xr-button-container {
+            position: relative;
+        }
+
+        #enter-vr-button {
+            display: inline-grid !important;
+            place-items: center;
+            width: 38px !important;
+            height: 34px !important;
+            padding: 0 !important;
+        }
+
+        #enter-vr-button svg {
+            width: 21px;
+            height: 21px;
+            pointer-events: none;
+        }
+
+        #model-library-button,
+        #hud-preview-button,
+        #hud-sound-button,
+        #procedure-media-button,
+        #toggle-advanced-controls {
+            display: inline-grid !important;
+            place-items: center;
+            width: 38px !important;
+            height: 34px !important;
+            min-width: 38px;
+            margin: 0 !important;
+            padding: 0 !important;
+            cursor: pointer;
+        }
+
+        #model-library-button svg,
+        #hud-preview-button svg,
+        #hud-sound-button svg,
+        #procedure-media-button svg,
+        #toggle-advanced-controls svg {
+            width: 19px;
+            height: 19px;
+            pointer-events: none;
+        }
+
+        #enter-vr-button:hover[aria-disabled="false"],
         #enter-ar-button:hover:not(:disabled),
         #hud-preview-button:hover:not(:disabled),
-        #hud-sound-button:hover:not(:disabled) {
+        #hud-sound-button:hover:not(:disabled),
+        #procedure-media-button:hover:not(:disabled),
+        #toggle-advanced-controls:hover:not(:disabled),
+        #model-library-button:hover {
             background: rgba(255,255,255,0.15);
             border-color: rgba(255,255,255,0.4);
         }
 
-        #enter-vr-button:disabled,
+        #enter-vr-button[aria-disabled="true"],
         #enter-ar-button:disabled {
-            cursor: default;
-            opacity: 0.55;
+            cursor: not-allowed;
+            opacity: 0.5 !important;
         }
+
+        #enter-vr-button[aria-disabled="true"] {
+            color: #94a3b8 !important;
+            border-color: rgba(148, 163, 184, 0.24) !important;
+            background: rgba(71, 85, 105, 0.12) !important;
+        }
+
+        #vr-support-message {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            z-index: 120;
+            width: max-content;
+            max-width: min(220px, calc(100vw - 24px));
+            padding: 7px 10px;
+            border: 1px solid rgba(96, 165, 250, 0.42);
+            border-radius: 6px;
+            background: rgba(7, 12, 22, 0.96);
+            color: #d6e6ff;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            white-space: nowrap;
+        }
+
+        #vr-support-message[hidden] { display: none; }
 
         #enter-ar-button {
             border-color: rgba(34, 211, 238, 0.58) !important;
@@ -895,7 +1005,6 @@
         }
 
         #hud-preview-button {
-            margin-left: 8px;
             border-color: rgba(245, 185, 66, 0.5) !important;
             color: #ffd98a !important;
         }
@@ -907,7 +1016,6 @@
         }
 
         #hud-sound-button {
-            margin-left: 8px;
             border-color: rgba(103, 232, 249, 0.46) !important;
             color: #b9f6ff !important;
         }
@@ -918,73 +1026,30 @@
             background: rgba(255,255,255,0.03) !important;
         }
 
+        #hud-sound-button .sound-off-icon { display: none; }
+        #hud-sound-button[aria-pressed="false"] .sound-on-icon { display: none; }
+        #hud-sound-button[aria-pressed="false"] .sound-off-icon { display: block; }
+
         #procedure-media-button {
-            margin-left: 10px;
-            padding: 7px 11px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            font: 600 0.7rem/1 var(--font-primary);
-            cursor: pointer;
+            color: var(--text-secondary) !important;
         }
-        #procedure-media-button[data-ready="true"] { border-color: rgba(34, 211, 238, 0.5); color: #8beaff; }
-        #procedure-media-button:disabled { opacity: 0.45; cursor: default; }
+        #procedure-media-button[data-ready="true"] { border-color: rgba(34, 211, 238, 0.5) !important; color: #8beaff !important; }
+        #procedure-media-button:disabled { opacity: 0.45 !important; cursor: default; }
+        #toggle-advanced-controls[aria-pressed="true"] {
+            border-color: rgba(88, 166, 255, 0.72) !important;
+            background: rgba(31, 111, 235, 0.24) !important;
+            color: #d8ecff !important;
+        }
         #model-library-button {
-            margin-left: 8px;
-            padding: 7px 11px;
-            border: 1px solid rgba(88, 166, 255, 0.48);
-            border-radius: 4px;
-            background: rgba(31, 111, 235, 0.12);
-            color: #9ecbff;
-            font: 600 0.7rem/1 var(--font-primary);
-            cursor: pointer;
-            white-space: nowrap;
+            border: 1px solid rgba(88, 166, 255, 0.48) !important;
+            background: rgba(31, 111, 235, 0.12) !important;
+            color: #9ecbff !important;
         }
         #model-library-button:hover,
         #model-library-button[aria-expanded="true"] {
-            border-color: var(--accent);
-            background: rgba(31, 111, 235, 0.24);
-            color: #d8ecff;
-        }
-        .header-tools-menu {
-            position: relative;
-            margin-left: 8px;
-            z-index: 220;
-        }
-        .header-tools-menu summary {
-            list-style: none;
-            padding: 7px 11px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            font: 600 0.7rem/1 var(--font-primary);
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        .header-tools-menu summary::-webkit-details-marker { display: none; }
-        .header-tools-menu[open] summary {
-            border-color: rgba(88, 166, 255, 0.62);
-            color: #d8ecff;
-        }
-        .header-tools-panel {
-            position: absolute;
-            top: calc(100% + 9px);
-            right: 0;
-            display: grid;
-            width: 190px;
-            padding: 8px;
-            gap: 6px;
-            border: 1px solid rgba(88, 166, 255, 0.42);
-            border-radius: 8px;
-            background: rgba(8, 16, 29, 0.98);
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
-        }
-        .header-tools-panel > button {
-            width: 100% !important;
-            margin: 0 !important;
-            text-align: left !important;
+            border-color: var(--accent) !important;
+            background: rgba(31, 111, 235, 0.24) !important;
+            color: #d8ecff !important;
         }
         .reference-library-drawer {
             position: fixed;
@@ -1119,36 +1184,48 @@
          Header
          ============================================ -->
     <div class="header">
-        <button class="header-back-btn" id="back-to-dashboard-btn" style="background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: var(--text-primary); padding: 6px 12px; border-radius: 4px; font-family: var(--font-primary); font-size: 0.8rem; cursor: pointer; margin-right: 15px; transition: background 0.2s ease;">⬅ Back</button>
-        
-        <select class="header-model-select" id="model-select">
-            <option value="">No models loaded</option>
-        </select>
-        <button id="model-library-button" type="button" aria-expanded="false" aria-controls="model-library-drawer" title="Browse workspace and public reference models">Models</button>
-
-        <div class="header-xr-actions">
-            <div id="ar-button-container" hidden>
-                <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
+        <button class="header-back-btn" id="back-to-dashboard-btn" type="button" title="Back to dashboard" aria-label="Back to dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M9 12h10"/></svg>
+        </button>
+        <div class="header-action-cluster">
+            <div class="model-selector-shell" title="Select active 3D model">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5 4-3 3 3-3 4-4-4Z"/><path d="m16.5 7.5-9 9"/><path d="m5.5 14.5 4 4-2.5 2.5-4-4 2.5-2.5Z"/><path d="M4 4h5l2 2-5 5-2-2V4Z"/></svg>
+                <select class="header-model-select" id="model-select" aria-label="Select active 3D model">
+                    <option value="">No models loaded</option>
+                </select>
             </div>
-            <div id="xr-button-container">
-                <button id="enter-vr-button" type="button" disabled title="Checking browser headset support">Checking VR…</button>
+            <button id="model-library-button" type="button" aria-expanded="false" aria-controls="model-library-drawer" title="Open model library" aria-label="Open model library">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5v-16Z"/></svg>
+            </button>
+            <div class="header-xr-actions">
+                <div id="ar-button-container" hidden>
+                    <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
+                </div>
+                <div id="xr-button-container">
+                    <button id="enter-vr-button" type="button" aria-disabled="true" title="No headset detected" aria-label="VR headset unavailable">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-3h-4l-2 3H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>
+                    </button>
+                    <span id="vr-support-message" role="status" aria-live="polite" hidden>No headset detected</span>
+                </div>
+            </div>
+            <div class="header-end-actions">
+                <button id="hud-preview-button" type="button" aria-pressed="false" title="Show spatial HUD preview" aria-label="Show spatial HUD preview">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <button id="hud-sound-button" type="button" aria-pressed="true" title="Spatial interface sound is waiting for your first interaction" aria-label="Mute spatial interface sound">
+                    <svg class="sound-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6M19.5 6.5a8 8 0 0 1 0 11"/></svg>
+                    <svg class="sound-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="m18 10 4 4M22 10l-4 4"/></svg>
+                </button>
+                <button id="procedure-media-button" type="button" disabled data-ready="false" title="No procedure media" aria-label="No procedure media">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3V9Z"/></svg>
+                </button>
+                <button id="toggle-advanced-controls" type="button" aria-pressed="false" title="Show display controls" aria-label="Show display controls">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 17h10M18 17h2"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+                </button>
+                <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
             </div>
         </div>
         <span id="hud-audio-status" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Spatial interface sound is ready to start</span>
-        <div class="header-spacer" aria-hidden="true"></div>
-        <div class="header-end-actions">
-            <button class="guided-help-trigger" type="button" data-guide-id="3d-viewer-navigation" aria-label="Explain the 3D inspection viewer" aria-expanded="false">?</button>
-            <details class="header-tools-menu" id="viewer-tools-menu">
-                <summary>View tools</summary>
-                <div class="header-tools-panel" role="group" aria-label="Viewer display tools">
-                    <button id="hud-preview-button" type="button" aria-pressed="false" title="Preview the spatial maintenance HUD in the desktop viewport">HUD Preview</button>
-                    <button id="hud-sound-button" type="button" aria-pressed="true" title="Sound will start with your first interaction">Sound On</button>
-                    <button id="procedure-media-button" type="button" disabled data-ready="false">No procedure media</button>
-                    <button id="toggle-advanced-controls" style="background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">⚙ Controls</button>
-                    <button id="reset-camera" style="background:none; border:1px solid var(--border); color:var(--text-primary); font-family:var(--font-primary); font-size:0.75rem; padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.2s ease;">Reset Camera</button>
-                </div>
-            </details>
-        </div>
     </div>
 
     <section class="procedure-media-drawer" id="procedure-media-drawer" hidden aria-label="Procedure media">
@@ -1290,6 +1367,10 @@
         <div id="canvas-container"></div>
         <iframe id="sketchfab-frame" title="Public 3D model" hidden allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
 
+        <button id="reset-camera" type="button" title="Reset camera" aria-label="Reset camera">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 5v6h-6"/><circle cx="12" cy="12" r="2.5"/></svg>
+        </button>
+
         <div id="part-inspector" aria-live="polite">
             <div class="part-inspector-label">Part selection</div>
             <button class="guided-help-trigger" type="button" data-guide-id="mesh-inspection" aria-label="Explain mesh inspection" aria-expanded="false">?</button>
@@ -1325,7 +1406,7 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=10"></script>
     <script src="../realtime-client.js?v=2"></script>
-    <script src="../guided-tooltip.js?v=5"></script>
+    <script src="../guided-tooltip.js?v=8"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
             alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
@@ -2394,12 +2475,63 @@
             const container = document.getElementById('xr-button-container');
             if (!container) return;
 
-            const button = VRButton.createButton(renderer);
+            const nativeButton = VRButton.createButton(renderer);
+            nativeButton.id = 'native-enter-vr-button';
+            nativeButton.hidden = true;
+            nativeButton.style.display = 'none';
+
+            const button = document.createElement('button');
             button.id = 'enter-vr-button';
-            button.title = 'View the aircraft in the HDRI maintenance workspace';
-            container.replaceChildren(button);
+            button.type = 'button';
+            button.setAttribute('aria-disabled', 'true');
+            button.setAttribute('aria-label', 'VR headset unavailable');
+            button.title = 'No headset detected';
+            button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-3h-4l-2 3H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>';
+
+            const supportMessage = document.createElement('span');
+            supportMessage.id = 'vr-support-message';
+            supportMessage.setAttribute('role', 'status');
+            supportMessage.setAttribute('aria-live', 'polite');
+            supportMessage.hidden = true;
+            supportMessage.textContent = 'No headset detected';
+            let messageTimer = 0;
+            let headsetAvailable = false;
+
+            const setHeadsetAvailable = (available) => {
+                headsetAvailable = Boolean(available);
+                button.setAttribute('aria-disabled', String(!headsetAvailable));
+                button.setAttribute('aria-label', headsetAvailable ? 'Enter VR' : 'VR headset unavailable');
+                button.title = headsetAvailable
+                    ? 'View the aircraft in the HDRI maintenance workspace'
+                    : 'No headset detected';
+            };
+
+            const showUnavailableMessage = () => {
+                supportMessage.hidden = false;
+                window.clearTimeout(messageTimer);
+                messageTimer = window.setTimeout(() => { supportMessage.hidden = true; }, 2600);
+            };
+
+            button.addEventListener('click', () => {
+                if (!headsetAvailable) {
+                    showUnavailableMessage();
+                    return;
+                }
+                nativeButton.click();
+            });
+
+            container.replaceChildren(button, nativeButton, supportMessage);
+            if (window.isSecureContext && navigator.xr?.isSessionSupported) {
+                navigator.xr.isSessionSupported('immersive-vr')
+                    .then(setHeadsetAvailable)
+                    .catch(() => setHeadsetAvailable(false));
+            } else {
+                setHeadsetAvailable(false);
+            }
 
             renderer.xr.addEventListener('sessionstart', () => {
+                button.setAttribute('aria-label', 'Exit VR');
+                button.title = 'Exit VR';
                 void xrUIAudio?.unlock();
                 stageSceneForXR('local-floor');
                 xrMediaPanel?.setPresenting(true);
@@ -2410,6 +2542,7 @@
                 xrVoice?.setPresenting(true);
             });
             renderer.xr.addEventListener('sessionend', () => {
+                setHeadsetAvailable(headsetAvailable);
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
                 xrMaintenanceHUD?.setPresenting(false, camera);
@@ -2650,7 +2783,8 @@
             const pairing = document.getElementById('procedure-media-pairing');
             button.disabled = !ready;
             button.dataset.ready = String(ready);
-            button.textContent = ready ? 'Procedure media' : 'No procedure media';
+            button.title = ready ? 'Open procedure media' : 'No procedure media';
+            button.setAttribute('aria-label', button.title);
             drawer.hidden = true;
             title.textContent = ready ? String(tutorial.title || 'Procedure media') : 'Procedure media';
             const selector = tutorial?.meshSelector;
@@ -2995,7 +3129,7 @@
                         ? 'unavailable'
                         : 'waiting for your first interaction';
             button.setAttribute('aria-pressed', String(!muted));
-            button.textContent = muted ? 'Sound Off' : 'Sound On';
+            button.setAttribute('aria-label', muted ? 'Enable spatial interface sound' : 'Mute spatial interface sound');
             button.title = muted ? 'Enable spatial interface sound' : `Spatial interface sound is ${stateLabel}`;
             status.textContent = muted
                 ? 'Spatial interface sound muted'
@@ -3116,12 +3250,12 @@
             const procedureDrawer = document.getElementById('procedure-media-drawer');
             const hudPreviewButton = document.getElementById('hud-preview-button');
             const hudSoundButton = document.getElementById('hud-sound-button');
-            const viewerToolsMenu = document.getElementById('viewer-tools-menu');
             hudPreviewButton.addEventListener('click', () => {
                 void xrUIAudio?.unlock();
                 const preview = hudPreviewButton.getAttribute('aria-pressed') !== 'true';
                 hudPreviewButton.setAttribute('aria-pressed', String(preview));
-                hudPreviewButton.textContent = preview ? 'Hide HUD' : 'HUD Preview';
+                hudPreviewButton.title = preview ? 'Hide spatial HUD preview' : 'Show spatial HUD preview';
+                hudPreviewButton.setAttribute('aria-label', hudPreviewButton.title);
                 document.body.dataset.hudPreview = String(preview);
                 xrMaintenanceHUD?.setContext(viewerContext);
                 xrMaintenanceHUD?.setPreview(preview, camera);
@@ -3313,10 +3447,6 @@
             document.getElementById('model-library-weight').addEventListener('change', renderModelLibrary);
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape' && !document.getElementById('model-library-drawer').hidden) closeModelLibrary();
-                if (event.key === 'Escape') viewerToolsMenu.open = false;
-            });
-            document.addEventListener('pointerdown', (event) => {
-                if (viewerToolsMenu.open && !viewerToolsMenu.contains(event.target)) viewerToolsMenu.open = false;
             });
             document.getElementById('model-upload-input').addEventListener('change', async (event) => {
                 const input = event.currentTarget;
@@ -3538,21 +3668,24 @@
         //  Boot & UI Logic
         // =============================================
         
-        // Toggle Advanced Controls
+        // Toggle display controls
         const toggleControlsBtn = document.getElementById('toggle-advanced-controls');
         const advancedControls = document.getElementById('advanced-controls');
         if (toggleControlsBtn && advancedControls) {
+            const setAdvancedControlsOpen = (open) => {
+                advancedControls.style.display = open ? 'flex' : 'none';
+                toggleControlsBtn.setAttribute('aria-pressed', String(open));
+                toggleControlsBtn.title = open ? 'Hide display controls' : 'Show display controls';
+                toggleControlsBtn.setAttribute('aria-label', toggleControlsBtn.title);
+            };
             toggleControlsBtn.addEventListener('click', () => {
                 const isHidden = advancedControls.style.display === 'none';
-                if (isHidden) {
-                    advancedControls.style.display = 'flex';
-                    toggleControlsBtn.style.background = 'var(--accent-dim)';
-                    toggleControlsBtn.style.borderColor = 'var(--accent)';
-                } else {
-                    advancedControls.style.display = 'none';
-                    toggleControlsBtn.style.background = 'var(--bg-tertiary)';
-                    toggleControlsBtn.style.borderColor = 'var(--border)';
-                }
+                setAdvancedControlsOpen(isHidden);
+            });
+            document.addEventListener('pointerdown', (event) => {
+                if (advancedControls.style.display === 'none') return;
+                if (advancedControls.contains(event.target) || toggleControlsBtn.contains(event.target)) return;
+                setAdvancedControlsOpen(false);
             });
         }
 

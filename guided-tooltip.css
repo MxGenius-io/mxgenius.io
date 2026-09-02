@@ -145,6 +145,15 @@
   height: 32px;
 }
 
+.guided-tooltip-guide__transcript {
+  margin: 0 !important;
+  padding: 10px 11px 12px;
+  border-top: 1px solid rgba(103, 232, 249, 0.14);
+  color: rgba(202, 216, 235, 0.8) !important;
+  font-size: 0.7rem !important;
+  line-height: 1.5 !important;
+}
+
 .guided-tooltip-guide__play {
   position: absolute;
   inset: 50% auto auto 50%;

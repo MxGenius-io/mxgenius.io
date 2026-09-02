@@ -153,8 +153,9 @@ test('Smithsonian catalog exposes bounded Air and Space GLBs as CC0 reference ge
 
 test('viewer exposes one filtered model library without presenting reference geometry as an imported twin', () => {
   assert.match(viewer, /id="model-library-button"/);
-  assert.match(viewer, /id="viewer-tools-menu"/);
-  assert.match(viewer, /<summary>View tools<\/summary>/);
+  assert.doesNotMatch(viewer, /id="viewer-tools-menu"|<summary>View tools<\/summary>/);
+  assert.match(viewer, /id="hud-preview-button"[\s\S]*id="hud-sound-button"[\s\S]*id="toggle-advanced-controls"/);
+  assert.match(viewer, /id="reset-camera"[\s\S]*aria-label="Reset camera"/);
   assert.match(viewer, /id="model-library-provider"/);
   assert.match(viewer, /fetch\(definition\.url\)/);
   assert.match(viewer, /url: '\.\/nasa-aeronautics-models\.json'/);
@@ -172,7 +173,7 @@ test('viewer exposes one filtered model library without presenting reference geo
   assert.match(viewer, /format === 'x3d'/);
   assert.match(viewer, /function x3dToObject\(xmlText/);
   assert.match(viewer, /function loadX3D\(url, entry\)/);
-  assert.match(viewer, /viewerToolsMenu\.open = false/);
+  assert.doesNotMatch(viewer, /viewerToolsMenu/);
   assert.match(viewer, /data-part-selected="true"/);
   assert.match(viewer, /reference_asset/);
   assert.match(viewer, /entry\.sourceAuthority \|\| 'Public source'/);

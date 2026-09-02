@@ -3,7 +3,7 @@ const MXGuidedTooltip = (() => {
   const scriptBase = document.currentScript?.src
     ? new URL('.', document.currentScript.src)
     : new URL('.', document.baseURI);
-  const DEFAULT_MANIFEST = new URL('assets/xr-ui-fx/audio/tooltips/scripts/manifest.json?v=2', scriptBase).href;
+  const DEFAULT_MANIFEST = new URL('assets/xr-ui-fx/audio/tooltips/scripts/manifest.json?v=4', scriptBase).href;
   let manifestUrl = DEFAULT_MANIFEST;
   let manifestPromise = null;
   let activeMedia = [];
@@ -127,7 +127,7 @@ const MXGuidedTooltip = (() => {
         track.label = 'English';
         track.srclang = 'en';
         track.src = captionsUrl;
-        track.default = true;
+        track.default = false;
         video.appendChild(track);
       }
       shell.appendChild(video);
@@ -142,6 +142,12 @@ const MXGuidedTooltip = (() => {
       voiceover.className = 'guided-tooltip-guide__voiceover';
       shell.appendChild(voiceover);
       activeMedia.push(voiceover);
+    }
+    if (item.script) {
+      const transcript = document.createElement('p');
+      transcript.className = 'guided-tooltip-guide__transcript';
+      transcript.textContent = item.script;
+      shell.appendChild(transcript);
     }
 
     const play = async ({ audioOnly = false } = {}) => {
@@ -171,12 +177,11 @@ const MXGuidedTooltip = (() => {
         voiceover.currentTime = video.currentTime;
         void voiceover.play().catch(() => {});
       });
-      video.addEventListener('pause', () => voiceover.pause());
-      video.addEventListener('seeking', () => { voiceover.currentTime = video.currentTime; });
-      video.addEventListener('ended', () => {
-        voiceover.pause();
-        voiceover.currentTime = 0;
+      video.addEventListener('pause', () => {
+        // A shorter video should hold its final frame while narration finishes.
+        if (!video.ended) voiceover.pause();
       });
+      video.addEventListener('seeking', () => { voiceover.currentTime = video.currentTime; });
     }
     host.appendChild(shell);
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

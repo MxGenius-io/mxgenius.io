@@ -49,7 +49,7 @@
       await globalThis.MXGENIUS_AUTH.getToken();
       current = session();
     }
-    if (!current.accessToken) throw new Error('Sign in is required to report a bug.');
+    if (!current.accessToken) throw new Error('Sign in is required to submit feedback.');
     return current;
   }
 
@@ -337,10 +337,11 @@
 
   function applyMode(mode) {
     const config = MODES[mode] || MODES.bug;
-    state.mode = mode;
+    state.mode = MODES[mode] ? mode : 'bug';
+    if (elements.type) elements.type.value = state.mode;
     elements.heading.textContent = config.heading;
     elements.closeBtn.setAttribute('aria-label', config.closeLabel);
-    elements.severityField.hidden = mode !== 'bug';
+    elements.severityField.hidden = state.mode !== 'bug';
   }
 
   async function open(mode = 'bug') {
@@ -431,6 +432,7 @@
     elements.clearBtn = document.getElementById('feedbackClearBtn');
     elements.pasteBtn = document.getElementById('feedbackPasteBtn');
     elements.form = document.getElementById('feedbackReporterForm');
+    elements.type = document.getElementById('feedbackType');
     elements.title = document.getElementById('feedbackTitle');
     elements.severityField = document.getElementById('feedbackSeverityField');
     elements.severity = document.getElementById('feedbackSeverity');
@@ -441,7 +443,6 @@
     elements.cancelBtn = document.getElementById('feedbackReporterCancel');
     elements.closeBtn = document.getElementById('feedbackReporterClose');
     elements.openBtn = document.getElementById('feedbackReporterBtn');
-    elements.featureOpenBtn = document.getElementById('featureReporterBtn');
     elements.confirmationModal = document.getElementById('feedbackConfirmationModal');
     elements.confirmationMessage = document.getElementById('feedbackConfirmationMessage');
     elements.confirmationClose = document.getElementById('feedbackConfirmationClose');
@@ -451,9 +452,7 @@
     elements.openBtn?.addEventListener('click', () => {
       open('bug').catch((error) => console.warn('Feedback reporter failed to open', error));
     });
-    elements.featureOpenBtn?.addEventListener('click', () => {
-      open('feature').catch((error) => console.warn('Feedback reporter failed to open', error));
-    });
+    elements.type?.addEventListener('change', () => applyMode(elements.type.value));
     elements.closeBtn?.addEventListener('click', close);
     elements.cancelBtn?.addEventListener('click', close);
     elements.form?.addEventListener('submit', submit);
