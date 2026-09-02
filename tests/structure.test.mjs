@@ -125,8 +125,13 @@ test('Pages validation uses supported and reproducible toolchains', () => {
   assert.match(pagesWorkflow, /uses: actions\/deploy-pages@v5/);
   assert.match(
     pagesWorkflow,
-    /deploy:[\s\S]*uses: actions\/checkout@v7[\s\S]*lfs: true[\s\S]*Assemble static release/,
+    /deploy:[\s\S]*Materialize guided tooltip videos[\s\S]*git lfs pull --include="assets\/xr-ui-fx\/visual\/tooltips\/\*\.mp4" --exclude=""[\s\S]*Assemble static release/,
     'the Pages release must materialize Git LFS video payloads before assembling the site'
+  );
+  assert.doesNotMatch(
+    pagesWorkflow,
+    /deploy:[\s\S]*uses: actions\/checkout@v7\s+with:\s+lfs: true/,
+    'the Pages release must not download multi-gigabyte report videos when only tooltip media changed'
   );
   assert.match(pagesWorkflow, /toolchain: 1\.98\.0/);
   assert.match(rustToolchain, /channel = "1\.98\.0"/);

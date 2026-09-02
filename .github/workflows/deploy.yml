@@ -81,8 +81,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          lfs: true
+
+      - name: Materialize guided tooltip videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/xr-ui-fx/visual/tooltips/*.mp4" --exclude=""
 
       - name: Assemble static release
         shell: bash
