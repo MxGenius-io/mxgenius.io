@@ -401,7 +401,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=46/);
+  assert.match(dashboard, /app\.js\?v=47/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -591,7 +591,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=24/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=25/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -611,6 +611,7 @@ test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.match(viewer, /grid-template-areas:[\s\S]*"back model library"[\s\S]*"xr xr end"/);
   assert.match(viewer, /#advanced-controls \{[\s\S]*flex-wrap: wrap !important;[\s\S]*overflow-x: hidden !important;/);
   assert.match(viewer, /class="header-end-actions"/);
+  assert.match(viewer, /id="advanced-controls" style="display: none;/);
 });
 
 test('XR animation scrubber drives authored clips from controller or fingertip position', () => {
@@ -762,6 +763,8 @@ test('company detail hydrates contacts and aircraft relationships with user-faci
   assert.match(application, /aircraftList\(\{ token: TOKEN, bearer: BEARER, filters: \{ aclist: relationshipIds \} \}\)/);
   assert.match(application, /<th>Tail Number<\/th>/);
   assert.match(application, /tailNumberByAircraftId/);
+  assert.match(application, /r\.isoperator === 'Y' \? 'Yes' : 'No'/);
+  assert.doesNotMatch(application, /r\.isoperator === 'Y' \? 'âœ“'/);
   assert.doesNotMatch(application, /<th>Aircraft ID<\/th>/);
 });
 

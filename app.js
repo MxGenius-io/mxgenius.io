@@ -3751,7 +3751,7 @@ async function showAircraftDetail(id) {
                   <td class="td-accent">${escapeMarkup(r.name)}</td>
                   <td>${escapeMarkup(r.relationtype)}</td>
                   <td class="td-dim">${escapeMarkup(r.businesstype)}</td>
-                  <td>${r.isoperator === 'Y' ? 'âœ“' : ''}</td>
+                  <td>${r.isoperator === 'Y' ? 'Yes' : 'No'}</td>
                 </tr>
               `).join('')}
             </tbody>
