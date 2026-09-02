@@ -56,11 +56,25 @@ const MXCaseWorkspace = (() => {
     const aircraftLabel = canonical.registration || [canonical.make, canonical.model].filter(Boolean).join(' ') || 'Aircraft';
     const confidence = result.trace.map((entry) => entry.confidence?.level || entry.confidence?.basis).filter(Boolean).join(', ');
     target.innerHTML = `
-      <div class="case-workspace__summary">
-        <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
-        <div class="case-workspace__metric"><span>Status</span>${escapeHtml(displayToken(caseState.status, 'Open'))}</div>
-        <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(displayToken(caseState.priority, 'Routine'))}</div>
-        <div class="case-workspace__metric"><span>Last updated</span>${escapeHtml(displayDate(caseState.updated_at || caseState.opened_at))}</div>
+      <div class="case-workspace__case-hero">
+        <div class="case-workspace__gallery" aria-label="Maintenance case image gallery">
+          <figure class="case-workspace__case-media">
+            <img id="caseWorkspaceImage" src="media/deck-mechanic.jpg" alt="Maintenance case preview">
+            <figcaption>${escapeHtml(aircraftLabel)} · ${escapeHtml(displayToken(caseState.priority, 'Routine'))}</figcaption>
+            <span class="case-workspace__gallery-count" id="caseWorkspaceImageCount">1 / 1</span>
+          </figure>
+          <div class="case-workspace__gallery-rail" id="caseWorkspaceGallery" aria-label="Choose case image">
+            <button type="button" class="case-workspace__gallery-thumb is-active" aria-label="Show image 1" aria-pressed="true">
+              <img src="media/deck-mechanic.jpg" alt="">
+            </button>
+          </div>
+        </div>
+        <div class="case-workspace__summary">
+          <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
+          <div class="case-workspace__metric"><span>Status</span>${escapeHtml(displayToken(caseState.status, 'Open'))}</div>
+          <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(displayToken(caseState.priority, 'Routine'))}</div>
+          <div class="case-workspace__metric"><span>Last updated</span>${escapeHtml(displayDate(caseState.updated_at || caseState.opened_at))}</div>
+        </div>
       </div>
       <section><strong>Discrepancy</strong><div>${escapeHtml(caseState.raw_discrepancy)}</div></section>
       <section><strong>Timeline</strong>${list(context.timeline, (entry) => `${escapeHtml(entry.occurred_at)} — ${escapeHtml(entry.summary)}`)}</section>

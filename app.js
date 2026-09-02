@@ -97,7 +97,7 @@ function applyCapabilityUiEffect(name, envelopeOrOutput) {
 
 const MXCaseState = {
   active: null,
-  imageObjectUrl: '',
+  imageObjectUrls: [],
   normalizeRegistration(value) {
     return String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
   },
@@ -113,31 +113,78 @@ const MXCaseState = {
       month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
     }).format(parsed);
   },
+  renderImageGallery(sources, alternative) {
+    const gallery = document.getElementById('caseWorkspaceGallery');
+    const stage = document.getElementById('caseWorkspaceImage');
+    const count = document.getElementById('caseWorkspaceImageCount');
+    const images = sources.length ? sources : ['media/deck-mechanic.jpg'];
+    const select = (index) => {
+      if (stage) {
+        stage.src = images[index];
+        stage.alt = alternative || 'Maintenance case image';
+      }
+      if (count) count.textContent = `${index + 1} / ${images.length}`;
+      gallery?.querySelectorAll('.case-workspace__gallery-thumb').forEach((button, buttonIndex) => {
+        const selected = buttonIndex === index;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    };
+    if (gallery) {
+      gallery.replaceChildren(...images.map((source, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `case-workspace__gallery-thumb${index === 0 ? ' is-active' : ''}`;
+        button.setAttribute('aria-label', `Show image ${index + 1}`);
+        button.setAttribute('aria-pressed', String(index === 0));
+        const image = document.createElement('img');
+        image.src = source;
+        image.alt = '';
+        button.appendChild(image);
+        button.addEventListener('click', () => select(index));
+        return button;
+      }));
+    }
+    select(0);
+    return images[0];
+  },
   async updateCardImage(detail, canonical) {
-    const image = document.getElementById('activeCaseImage');
-    if (!image) return;
-    if (this.imageObjectUrl) URL.revokeObjectURL(this.imageObjectUrl);
-    this.imageObjectUrl = '';
-    image.src = 'media/deck-mechanic.jpg';
-    image.alt = '';
+    const thumbnail = document.getElementById('activeCaseImage');
+    const alternative = canonical.registration
+      ? `${canonical.registration} maintenance case`
+      : 'Maintenance case image';
+    this.imageObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    this.imageObjectUrls = [];
+    const fallback = this.renderImageGallery(['media/deck-mechanic.jpg'], alternative);
+    if (thumbnail) {
+      thumbnail.src = fallback;
+      thumbnail.alt = alternative;
+    }
     const candidates = [
       ...(Array.isArray(detail?.aircraft?.images) ? detail.aircraft.images : []),
       ...(Array.isArray(canonical?.images) ? canonical.images : [])
-    ];
-    const source = candidates.find((candidate) => /^https:\/\//i.test(String(candidate || '')));
-    if (!source) return;
+    ].filter((candidate, index, items) => (
+      /^https:\/\//i.test(String(candidate || '')) && items.indexOf(candidate) === index
+    )).slice(0, 8);
+    if (!candidates.length) return;
     const expectedCaseId = detail.caseId;
-    try {
-      const objectUrl = await MXApplicationClient.aircraftImageBlobUrl(source);
-      if (this.active?.caseId !== expectedCaseId) {
-        URL.revokeObjectURL(objectUrl);
-        return;
+    const results = await Promise.allSettled(
+      candidates.map((source) => MXApplicationClient.aircraftImageBlobUrl(source))
+    );
+    const objectUrls = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value);
+    if (this.active?.caseId !== expectedCaseId) {
+      objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+      return;
+    }
+    if (objectUrls.length) {
+      this.imageObjectUrls = objectUrls;
+      const first = this.renderImageGallery(objectUrls, alternative);
+      if (thumbnail) {
+        thumbnail.src = first;
+        thumbnail.alt = alternative;
       }
-      this.imageObjectUrl = objectUrl;
-      image.src = objectUrl;
-      image.alt = canonical.registration ? `${canonical.registration} aircraft` : 'Aircraft for this maintenance case';
-    } catch (_) {
-      // Keep the bundled maintenance image when licensed aircraft media is unavailable.
     }
   },
   matchesAircraft(aircraft) {

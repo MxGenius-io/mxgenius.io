@@ -376,8 +376,10 @@ const MXOnboarding = (() => {
     const title = document.createElement('h3');
     title.textContent = step.title;
 
-    const body = document.createElement('p');
-    body.textContent = step.body;
+    const fallbackBody = document.createElement('p');
+    fallbackBody.className = 'onboarding-tooltip__fallback';
+    fallbackBody.textContent = step.body;
+    fallbackBody.hidden = true;
 
     const mediaHost = document.createElement('div');
     mediaHost.className = 'guided-tooltip-host';
@@ -408,17 +410,24 @@ const MXOnboarding = (() => {
     tooltip.appendChild(stepLabel);
     tooltip.appendChild(title);
     tooltip.appendChild(mediaHost);
-    tooltip.appendChild(body);
+    tooltip.appendChild(fallbackBody);
     tooltip.appendChild(actions);
 
     root.appendChild(tooltip);
 
     // Position tooltip relative to target
     positionTooltip(tooltip, target, step.position);
-    void window.MXGuidedTooltip?.mount(mediaHost, step.guideId, {
+    const guideMount = window.MXGuidedTooltip?.mount(mediaHost, step.guideId, {
       autoplay: true,
       onReady: () => positionTooltip(tooltip, target, step.position)
     });
+    if (guideMount) {
+      void guideMount.then((mounted) => {
+        if (!mounted && fallbackBody.isConnected) fallbackBody.hidden = false;
+      });
+    } else {
+      fallbackBody.hidden = false;
+    }
 
     // Focus management
     nextBtn.focus();

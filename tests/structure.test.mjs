@@ -123,6 +123,11 @@ test('Pages validation uses supported and reproducible toolchains', () => {
   assert.match(pagesWorkflow, /uses: actions\/configure-pages@v6/);
   assert.match(pagesWorkflow, /uses: actions\/upload-pages-artifact@v5/);
   assert.match(pagesWorkflow, /uses: actions\/deploy-pages@v5/);
+  assert.match(
+    pagesWorkflow,
+    /deploy:[\s\S]*uses: actions\/checkout@v7[\s\S]*lfs: true[\s\S]*Assemble static release/,
+    'the Pages release must materialize Git LFS video payloads before assembling the site'
+  );
   assert.match(pagesWorkflow, /toolchain: 1\.98\.0/);
   assert.match(rustToolchain, /channel = "1\.98\.0"/);
   assert.doesNotMatch(pagesWorkflow, /node-version: '20'/);
@@ -415,7 +420,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=48/);
+  assert.match(dashboard, /app\.js\?v=50/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -807,7 +812,7 @@ test('maintenance case creation binds the explicit submit action to a short-live
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=8"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=1"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=8"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=9"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
@@ -817,6 +822,8 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /MXDashboardSplash\?\.ready/);
+  assert.match(onboarding, /fallbackBody\.hidden = true/);
+  assert.match(onboarding, /if \(!mounted && fallbackBody\.isConnected\) fallbackBody\.hidden = false/);
   assert.match(onboarding, /restart/);
   assert.match(onboarding, /injectEmptyCta/);
   assert.match(onboarding, /mxg_onboarding_complete_v3/);
@@ -862,6 +869,19 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
   assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
   assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);
+});
+
+test('recalled maintenance cases reuse the existing aircraft image path inside the workspace', () => {
+  assert.match(caseWorkspace, /id="caseWorkspaceImage"[\s\S]*media\/deck-mechanic\.jpg/);
+  assert.match(caseWorkspace, /id="caseWorkspaceGallery"/);
+  assert.match(caseWorkspace, /case-workspace__gallery-thumb is-active/);
+  assert.match(caseWorkspace, /case-workspace__case-hero/);
+  assert.match(application, /renderImageGallery\(sources, alternative\)/);
+  assert.match(application, /const first = this\.renderImageGallery\(objectUrls, alternative\)/);
+  assert.match(application, /thumbnail\.src = first/);
+  assert.match(application, /Promise\.allSettled/);
+  assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl\(source\)/);
+  assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*(?:image|photo|media)/i);
 });
 
 test('dashboard arrival splash runs a synchronized four-second welcome sequence', async () => {
