@@ -27,7 +27,9 @@ test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and
   assert.match(presence, /capture-snapshot/);
   assert.match(presence, /sendUserMessage\(\{/);
   assert.match(presence, /images: \[\{ dataUrl: snapshot\.dataUrl \}\]/);
-  assert.match(presence, /Start the live voice session before taking a snapshot/);
+  assert.match(presence, /Saved to the active maintenance case/);
+  assert.match(presence, /MXGeniusCaseEvidenceTray/);
+  assert.match(presence, /animateSnapshotToEvidence/);
   assert.match(presence, /Tap mic: voice/);
   assert.match(presence, /setDockTarget/);
   assert.match(presence, /this\.connectPromise/);
@@ -80,14 +82,14 @@ test('sensor scene owns the head-following thermal bridge while the fleet globe 
   assert.match(sensors, /mxgenius:sensor-diagnostics/);
   assert.match(sensors, /FRAME_MAGIC = 0x4d584753/);
   assert.match(sensors, /MAX_THERMAL_PIXELS = 1920 \* 1080/);
-  assert.match(sensors, /FLIR HANDSHAKE TRACE/);
+  assert.match(sensors, /MXGENIUS SENSOR BRIDGE/);
   assert.match(sensors, /message\.type === 'bridge\.status'/);
   assert.match(sensors, /message\.type === 'bridge\.trace'/);
   assert.match(sensors, /W01 PAIR/);
   assert.match(sensors, /W10 RENDER/);
   assert.match(sensors, /bridgeRuntimeStatus/);
   assert.match(sensors, /this\.handshakeTrace/);
-  assert.match(sensors, /credentials redacted/);
+  assert.match(sensors, /LIVE SENSOR WORKSPACE/);
   assert.match(sensors, /bridge\.hello/);
   assert.match(sensors, /connection error · verify bridge is installed and running/);
   assert.match(globe, /BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR/);
@@ -103,6 +105,9 @@ test('sensor scene owns the head-following thermal bridge while the fleet globe 
   assert.match(sensors, /headset\.snapshot\.result/);
   assert.match(sensors, /this\.pendingSnapshots/);
   assert.match(globe, /onSnapshotRequest: sensorOnlyScene \? \(\) => xrSensors\.requestHeadsetSnapshot\(\) : null/);
+  assert.match(globe, /onSnapshotCaptured: sensorOnlyScene \? saveSnapshotToActiveCase : null/);
+  assert.match(globe, /mxg_active_case_id/);
+  assert.match(globe, /MXApplicationClient\.cases\.attachMedia/);
   assert.match(globe, /emitSceneAction\('sensor-status'/);
   assert.match(globe, /emitSceneAction\(action, input, target, xrSensors\.group\)/);
   assert.match(xrAudio, /case 'toggle-thermal-screen'/);
@@ -134,7 +139,7 @@ test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet 
 });
 
 test('sensor scene cache-busts the commissioning browser client', () => {
-  assert.match(globe, /xr-sensor-orb\.js\?v=8/);
+  assert.match(globe, /xr-sensor-orb\.js\?v=9/);
   assert.match(sensors, /commissioning\.browser_ack/);
   assert.match(sensors, /W14 PASS/);
 });

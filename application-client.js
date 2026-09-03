@@ -248,6 +248,37 @@ const MXApplicationClient = (() => {
     return applicationJson(`/api/cases/${encodeURIComponent(caseId)}`, { session });
   }
 
+  function listCaseMedia(caseId, session = {}) {
+    return applicationJson(`/api/cases/${encodeURIComponent(caseId)}/media`, { session });
+  }
+
+  async function getCaseMedia({ caseId, observationId, mediaIndex = 0, session = {} }) {
+    const path = `/api/cases/${encodeURIComponent(caseId)}/media/${encodeURIComponent(observationId)}/${encodeURIComponent(mediaIndex)}/content`;
+    return (await applicationRequest(path, { session, contentType: null })).blob();
+  }
+
+  async function attachCaseMedia({ caseId, media, note = 'Headset visual observation', componentId = null, session = {} }) {
+    if (!(media instanceof Blob)) throw new TypeError('Case media must be a Blob or File');
+    const upload = await uploadContent(media, session);
+    const capabilityArguments = {
+      case_id: caseId,
+      note: String(note || 'Headset visual observation').slice(0, 10_000),
+      component_id: componentId || null,
+      media_refs: [upload.source_reference]
+    };
+    const confirmation = await issueConfirmation({
+      toolName: 'mxg.maintenance_case.attach_observation',
+      arguments: capabilityArguments,
+      session
+    });
+    const envelope = await callCapability(
+      'mxg.maintenance_case.attach_observation',
+      capabilityArguments,
+      { ...session, confirmationGrant: confirmation.token }
+    );
+    return { upload, envelope, observation: capabilityOutput(envelope) };
+  }
+
   function listThreads(session = {}) {
     return applicationJson('/api/threads', { session });
   }
@@ -1372,7 +1403,10 @@ const MXApplicationClient = (() => {
     }),
     cases: Object.freeze({
       list: listCases,
-      get: getCase
+      get: getCase,
+      listMedia: listCaseMedia,
+      getMedia: getCaseMedia,
+      attachMedia: attachCaseMedia
     }),
     threads: Object.freeze({
       list: listThreads,

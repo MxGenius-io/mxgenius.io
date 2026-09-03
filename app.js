@@ -116,14 +116,25 @@ const MXCaseState = {
   renderImageGallery(sources, alternative) {
     const gallery = document.getElementById('caseWorkspaceGallery');
     const stage = document.getElementById('caseWorkspaceImage');
+    const videoStage = document.getElementById('caseWorkspaceVideo');
     const count = document.getElementById('caseWorkspaceImageCount');
-    const images = sources.length ? sources : ['media/deck-mechanic.jpg'];
+    const media = (sources.length ? sources : ['media/deck-mechanic.jpg']).map((source) => (
+      typeof source === 'string' ? { source, kind: 'image' } : source
+    ));
     const select = (index) => {
-      if (stage) {
-        stage.src = images[index];
+      const selectedMedia = media[index];
+      const isVideo = selectedMedia.kind === 'video';
+      if (stage && !isVideo) {
+        stage.src = selectedMedia.source;
         stage.alt = alternative || 'Maintenance case image';
       }
-      if (count) count.textContent = `${index + 1} / ${images.length}`;
+      if (stage) stage.hidden = isVideo;
+      if (videoStage) {
+        if (isVideo && videoStage.src !== selectedMedia.source) videoStage.src = selectedMedia.source;
+        if (!isVideo) videoStage.pause();
+        videoStage.hidden = !isVideo;
+      }
+      if (count) count.textContent = `${index + 1} / ${media.length}`;
       gallery?.querySelectorAll('.case-workspace__gallery-thumb').forEach((button, buttonIndex) => {
         const selected = buttonIndex === index;
         button.classList.toggle('is-active', selected);
@@ -131,22 +142,28 @@ const MXCaseState = {
       });
     };
     if (gallery) {
-      gallery.replaceChildren(...images.map((source, index) => {
+      gallery.replaceChildren(...media.map((item, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `case-workspace__gallery-thumb${index === 0 ? ' is-active' : ''}`;
-        button.setAttribute('aria-label', `Show image ${index + 1}`);
+        button.setAttribute('aria-label', `Show ${item.kind === 'video' ? 'video' : 'image'} ${index + 1}`);
         button.setAttribute('aria-pressed', String(index === 0));
-        const image = document.createElement('img');
-        image.src = source;
-        image.alt = '';
-        button.appendChild(image);
+        if (item.kind === 'video') {
+          const label = document.createElement('span');
+          label.textContent = 'VIDEO';
+          button.appendChild(label);
+        } else {
+          const image = document.createElement('img');
+          image.src = item.source;
+          image.alt = '';
+          button.appendChild(image);
+        }
         button.addEventListener('click', () => select(index));
         return button;
       }));
     }
     select(0);
-    return images[0];
+    return media.find((item) => item.kind !== 'video')?.source || 'media/deck-mechanic.jpg';
   },
   async updateCardImage(detail, canonical) {
     const thumbnail = document.getElementById('activeCaseImage');
@@ -160,27 +177,44 @@ const MXCaseState = {
       thumbnail.src = fallback;
       thumbnail.alt = alternative;
     }
-    const candidates = [
+    const caseMedia = (Array.isArray(detail?.caseMedia) ? detail.caseMedia : [])
+      .filter((item) => ['image', 'video'].includes(item?.kind) && item.observationId !== undefined)
+      .slice(0, 8);
+    const aircraftCandidates = [
       ...(Array.isArray(detail?.aircraft?.images) ? detail.aircraft.images : []),
       ...(Array.isArray(canonical?.images) ? canonical.images : [])
     ].filter((candidate, index, items) => (
       /^https:\/\//i.test(String(candidate || '')) && items.indexOf(candidate) === index
     )).slice(0, 8);
-    if (!candidates.length) return;
+    if (!caseMedia.length && !aircraftCandidates.length) return;
     const expectedCaseId = detail.caseId;
-    const results = await Promise.allSettled(
-      candidates.map((source) => MXApplicationClient.aircraftImageBlobUrl(source))
-    );
-    const objectUrls = results
+    const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+    const results = await Promise.allSettled([
+      ...caseMedia.map(async (item) => ({
+        source: URL.createObjectURL(await MXApplicationClient.cases.getMedia({
+          caseId: expectedCaseId,
+          observationId: item.observationId,
+          mediaIndex: item.mediaIndex,
+          session
+        })),
+        kind: item.kind
+      })),
+      ...aircraftCandidates.map(async (source) => ({
+        source: await MXApplicationClient.aircraftImageBlobUrl(source),
+        kind: 'image'
+      }))
+    ]);
+    const loadedMedia = results
       .filter((result) => result.status === 'fulfilled')
       .map((result) => result.value);
+    const objectUrls = loadedMedia.map((item) => item.source);
     if (this.active?.caseId !== expectedCaseId) {
       objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
       return;
     }
-    if (objectUrls.length) {
+    if (loadedMedia.length) {
       this.imageObjectUrls = objectUrls;
-      const first = this.renderImageGallery(objectUrls, alternative);
+      const first = this.renderImageGallery(loadedMedia, alternative);
       if (thumbnail) {
         thumbnail.src = first;
         thumbnail.alt = alternative;

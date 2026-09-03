@@ -87,6 +87,7 @@ const MXCaseWorkspace = (() => {
         <div class="case-workspace__gallery" aria-label="Maintenance case image gallery">
           <figure class="case-workspace__case-media">
             <img id="caseWorkspaceImage" src="media/deck-mechanic.jpg" alt="Maintenance case preview">
+            <video id="caseWorkspaceVideo" controls playsinline preload="metadata" hidden aria-label="Maintenance case video evidence"></video>
             <figcaption>${escapeHtml(aircraftLabel)} · ${escapeHtml(displayToken(caseState.priority, 'Routine'))}</figcaption>
             <span class="case-workspace__gallery-count" id="caseWorkspaceImageCount">1 / 1</span>
           </figure>
@@ -189,7 +190,8 @@ const MXCaseWorkspace = (() => {
         }, activeSession),
         MXApplicationClient.capabilities.call('mxg.aircraft.profile', {
           aircraft_id: caseState.aircraft_id
-        }, activeSession)
+        }, activeSession),
+        MXApplicationClient.cases.listMedia(caseId, activeSession)
       ]);
       let supporting = await loadSupportingDetails(requestSession);
       if (supporting.some((entry) => entry.status === 'rejected' && authenticationError(entry.reason))) {
@@ -197,7 +199,7 @@ const MXCaseWorkspace = (() => {
         const renewedSession = await session({ forceRefresh: true });
         supporting = await loadSupportingDetails(renewedSession);
       }
-      const [contextResult, profileResult] = supporting;
+      const [contextResult, profileResult, mediaResult] = supporting;
       const contextEnvelope = contextResult.status === 'fulfilled' ? contextResult.value : null;
       const profileEnvelope = profileResult.status === 'fulfilled' ? profileResult.value : null;
       const supportingErrors = supporting
@@ -236,6 +238,7 @@ const MXCaseWorkspace = (() => {
             model: profile.model
           }]
         },
+        caseMedia: mediaResult?.status === 'fulfilled' ? (mediaResult.value.media || []) : [],
         trace: [
           contextEnvelope && traceEntry('mxg.maintenance_case.build_context', contextEnvelope),
           profileEnvelope && traceEntry('mxg.aircraft.profile', profileEnvelope)

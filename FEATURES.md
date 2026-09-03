@@ -244,7 +244,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Optional entitlement/install fallback.
 - `[x]` Quest-local browser consumer and companion producer routes.
 - `[x]` FLIR transport works independently of Pi diagnostics.
-- `[x]` Optional Pi diagnostics and remote-witness sources.
+- `[x]` Optional Pi diagnostics source.
 - `[x]` Three-stage activation display: app handoff, native panel, and FLIR source.
 - `[x]` Explicit source/transport state rather than model-inferred readiness.
 - `[x]` Compatibility trace with failure reason and credential-shape redaction.
@@ -253,7 +253,11 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Full-state and sequenced-delta rebuilds of diagnostic state.
 - `[x]` Head-following spatial sensor panel.
 - `[x]` Thermal panel show/pin/scale controls.
-- `[x]` Snapshot evidence control and shared Realtime voice presence.
+- `[x]` Quest passthrough snapshot capture persists to the active maintenance case through the existing authenticated evidence store.
+- `[x]` Active-case evidence tray with smooth captured-thumbnail transfer and shared Realtime voice presence.
+- `[x]` Maintenance case gallery and dashboard thumbnail recall stored images through tenant-scoped authenticated media routes.
+- `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
+- `[~]` Remote Witness consent and gateway contracts exist; the customer media room, short-lived case invite/QR, viewer presence, and revoke/end controls remain to be mounted.
 - `[x]` Contextual sensor-bridge guide.
 - `[~]` Production XR negotiation is intentionally not mounted until the relay contract is approved.
 - `[!]` Physical Quest + FLIR hardware acceptance and release-channel validation.

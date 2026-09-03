@@ -61,11 +61,14 @@ function harness(outputs, orchestration = null) {
           ? JSON.parse(options.body)
           : options.body;
         requests.push({ url, options, request });
+        const responsePayload = url.includes('/api/content/uploads')
+          ? { source_reference: 'azure-blob://documents/content-uploads/org-1/headset.jpg' }
+          : { ok: true, request };
         return {
           ok: true,
           status: options.method === 'DELETE' ? 204 : 200,
           headers: { get: () => 'application/json' },
-          json: async () => ({ ok: true, request }),
+          json: async () => responsePayload,
           arrayBuffer: async () => new TextEncoder().encode('glTF-test').buffer,
           blob: async () => new Blob(['workspace-asset'], { type: 'application/pdf' }),
           text: async () => ''
@@ -346,6 +349,34 @@ test('chat sends bounded image inputs and content uploads use the authenticated 
   assert.equal(requests[1].options.headers.Authorization, 'Bearer oidc-token');
   assert.equal(requests[1].options.headers['Content-Type'], 'application/pdf');
   assert.equal(requests[1].request, file);
+});
+
+test('case media upload is explicitly confirmed and attached to the active case', async () => {
+  const { client, requests } = harness({
+    'mxg.maintenance_case.attach_observation': {
+      observation_id: 'observation-1',
+      evidence_id: 'evidence-1'
+    }
+  });
+  const media = new Blob(['jpeg'], { type: 'image/jpeg' });
+  Object.defineProperty(media, 'name', { value: 'headset.jpg' });
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+
+  const result = await client.cases.attachMedia({
+    caseId: 'case-1',
+    media,
+    note: 'Quest passthrough capture',
+    session
+  });
+
+  const confirmation = requests.find((entry) => entry.url.endsWith('/confirmations'));
+  assert.equal(confirmation.request.tool_name, 'mxg.maintenance_case.attach_observation');
+  assert.deepEqual(confirmation.request.arguments.media_refs, [
+    'azure-blob://documents/content-uploads/org-1/headset.jpg'
+  ]);
+  const attach = requests.find((entry) => entry.request?.params?.name === 'mxg.maintenance_case.attach_observation');
+  assert.equal(attach.options.headers['X-MXG-Confirmation-Grant'], 'single-use-grant');
+  assert.equal(result.observation.observation_id, 'observation-1');
 });
 
 test('project workspaces use tenant-authenticated versioned saves and private assets', async () => {

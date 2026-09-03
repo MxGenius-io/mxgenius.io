@@ -874,7 +874,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
     // pin serves the build without these controls.
     assert.match(html, /parts-workspace\.js\?v=24/);
     assert.match(html, /parts-workspace\.css\?v=19/);
-    assert.match(html, /application-client\.js\?v=36/);
+    assert.match(html, /application-client\.js\?v=37/);
   });
 });
 

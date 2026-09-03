@@ -83,6 +83,7 @@ const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
 const MAX_PROJECT_WORKSPACE_BYTES: usize = 512 * 1024;
 const MAX_FEEDBACK_SCREENSHOT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_CASE_MEDIA_BYTES: usize = 50 * 1024 * 1024;
 /// A parts file is a few thousand rows of short text. The global body limit is
 /// 100 MiB, which is not a meaningful gate for a spreadsheet.
 const MAX_PARTS_IMPORT_BYTES: usize = 8 * 1024 * 1024;
@@ -214,6 +215,11 @@ pub fn router_with_health_and_manual(
         .route("/api/demo-data", post(load_demo_data))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
+        .route("/api/cases/:case_id/media", get(list_case_media))
+        .route(
+            "/api/cases/:case_id/media/:observation_id/:media_index/content",
+            get(get_case_media_content),
+        )
         .route("/api/parts", get(search_parts))
         .route("/api/parts/shortages", get(list_parts_shortages))
         .route(
@@ -611,6 +617,10 @@ fn content_upload_media_type(media_type: &str, filename: &str) -> Option<&'stati
         "image/png"
     } else if lowercase.ends_with(".webp") {
         "image/webp"
+    } else if lowercase.ends_with(".mp4") {
+        "video/mp4"
+    } else if lowercase.ends_with(".webm") {
+        "video/webm"
     } else {
         return None;
     };
@@ -658,43 +668,29 @@ async fn upload_content(
         return realtime_error(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             "INVALID_CONTENT_UPLOAD_TYPE",
-            "supported content types are PDF, Word, text, Markdown, CSV, JSON, HTML, JPEG, PNG, and WebP",
+            "supported content types are PDF, Word, text, Markdown, CSV, JSON, HTML, JPEG, PNG, WebP, MP4, and WebM",
         );
     };
-    let sas = match std::env::var("MXGENIUS_CONTENT_UPLOAD_SAS") {
-        Ok(value) if !value.trim().is_empty() => value.replace("%26", "&"),
-        _ => {
-            return realtime_error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "CONTENT_UPLOAD_NOT_CONFIGURED",
-                "content upload storage is not configured",
-            )
-        }
-    };
-    let origin = std::env::var("MXGENIUS_CONTENT_UPLOAD_ORIGIN")
-        .or_else(|_| std::env::var("MXGENIUS_MANUAL_ASSET_ORIGIN"))
-        .unwrap_or_else(|_| "https://mxgstorage50106.blob.core.windows.net".into());
     let upload_id = Uuid::new_v4();
     let blob_path = format!(
         "documents/content-uploads/{}/{}-{}",
         context.organization_id.0, upload_id, filename
     );
-    let url = format!(
-        "{}/{}?{}",
-        origin.trim_end_matches('/'),
-        blob_path,
-        sas.trim_start_matches('?')
-    );
-    let upstream = match state
+    let access = match workspace_read_blob_access(&state.realtime_client, &blob_path).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state
         .realtime_client
-        .put(url)
+        .put(access.url)
         .header("x-ms-blob-type", "BlockBlob")
         .header("x-ms-version", "2023-11-03")
         .header(header::CONTENT_TYPE, media_type)
-        .body(body.clone())
-        .send()
-        .await
-    {
+        .body(body.clone());
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(
@@ -5424,6 +5420,224 @@ async fn get_case(
 }
 
 #[derive(Debug, Serialize, FromRow)]
+struct CaseMediaObservationRow {
+    id: Uuid,
+    note: String,
+    media_refs: Value,
+    created_at: OffsetDateTime,
+}
+
+fn case_media_storage_key(reference: &str, organization_id: Uuid) -> Option<String> {
+    let storage_key = reference.strip_prefix("azure-blob://")?;
+    let expected_prefix = format!("documents/content-uploads/{organization_id}/");
+    if !storage_key.starts_with(&expected_prefix)
+        || storage_key.contains("..")
+        || storage_key
+            .chars()
+            .any(|character| matches!(character, '\\' | '?' | '#'))
+    {
+        return None;
+    }
+    Some(storage_key.to_owned())
+}
+
+fn case_media_type(storage_key: &str) -> Option<&'static str> {
+    let lowercase = storage_key.to_ascii_lowercase();
+    if lowercase.ends_with(".jpg") || lowercase.ends_with(".jpeg") {
+        Some("image/jpeg")
+    } else if lowercase.ends_with(".png") {
+        Some("image/png")
+    } else if lowercase.ends_with(".webp") {
+        Some("image/webp")
+    } else if lowercase.ends_with(".mp4") {
+        Some("video/mp4")
+    } else if lowercase.ends_with(".webm") {
+        Some("video/webm")
+    } else {
+        None
+    }
+}
+
+async fn case_media_rows(
+    pool: &sqlx::PgPool,
+    organization_id: Uuid,
+    case_id: Uuid,
+) -> Result<Vec<CaseMediaObservationRow>, sqlx::Error> {
+    sqlx::query_as::<_, CaseMediaObservationRow>(
+        r#"SELECT id,note,media_refs,created_at
+           FROM observations
+           WHERE organization_id=$1 AND case_id=$2
+             AND jsonb_array_length(media_refs) > 0
+           ORDER BY created_at DESC"#,
+    )
+    .bind(organization_id)
+    .bind(case_id)
+    .fetch_all(pool)
+    .await
+}
+
+async fn list_case_media(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(case_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    match case_exists(pool, context.organization_id.0, case_id).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return realtime_error(StatusCode::NOT_FOUND, "CASE_NOT_FOUND", "case not found")
+        }
+        Err(error) => return persistence_error("case_media.case_exists", error),
+    }
+    let rows = match case_media_rows(pool, context.organization_id.0, case_id).await {
+        Ok(value) => value,
+        Err(error) => return persistence_error("case_media.list", error),
+    };
+    let mut media = Vec::new();
+    for row in rows {
+        let Some(references) = row.media_refs.as_array() else {
+            continue;
+        };
+        for (media_index, reference) in references.iter().enumerate() {
+            let Some(reference) = reference.as_str() else {
+                continue;
+            };
+            let Some(storage_key) = case_media_storage_key(reference, context.organization_id.0)
+            else {
+                continue;
+            };
+            let Some(media_type) = case_media_type(&storage_key) else {
+                continue;
+            };
+            media.push(json!({
+                "observationId": row.id,
+                "mediaIndex": media_index,
+                "mediaType": media_type,
+                "kind": if media_type.starts_with("video/") { "video" } else { "image" },
+                "note": row.note,
+                "createdAt": row.created_at,
+                "contentUrl": format!(
+                    "/api/cases/{case_id}/media/{}/{media_index}/content",
+                    row.id
+                )
+            }));
+        }
+    }
+    (StatusCode::OK, Json(json!({"media": media}))).into_response()
+}
+
+async fn get_case_media_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((case_id, observation_id, media_index)): Path<(Uuid, Uuid, usize)>,
+) -> Response {
+    let requested_range = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let media_refs: Option<Value> = match sqlx::query_scalar(
+        r#"SELECT media_refs FROM observations
+           WHERE organization_id=$1 AND case_id=$2 AND id=$3"#,
+    )
+    .bind(context.organization_id.0)
+    .bind(case_id)
+    .bind(observation_id)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("case_media.get", error),
+    };
+    let reference = media_refs
+        .as_ref()
+        .and_then(Value::as_array)
+        .and_then(|items| items.get(media_index))
+        .and_then(Value::as_str);
+    let Some((storage_key, media_type)) = reference
+        .and_then(|value| case_media_storage_key(value, context.organization_id.0))
+        .and_then(|key| case_media_type(&key).map(|media_type| (key, media_type)))
+    else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "CASE_MEDIA_NOT_FOUND",
+            "case media was not found",
+        );
+    };
+    let access = match workspace_read_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state.realtime_client.get(access.url);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    if let Some(range) = requested_range {
+        request = request.header("range", range);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CASE_MEDIA_UNAVAILABLE",
+                "case media could not be retrieved",
+            )
+        }
+    };
+    let response_status = if upstream.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        StatusCode::PARTIAL_CONTENT
+    } else {
+        StatusCode::OK
+    };
+    let content_range = upstream
+        .headers()
+        .get("content-range")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let accept_ranges = upstream
+        .headers()
+        .get("accept-ranges")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("bytes")
+        .to_owned();
+    let content = match upstream.bytes().await {
+        Ok(value) if value.len() <= MAX_CASE_MEDIA_BYTES => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CASE_MEDIA_INVALID",
+                "case media exceeded the delivery limit",
+            )
+        }
+    };
+    let mut response = Response::builder()
+        .status(response_status)
+        .header(header::CONTENT_TYPE, media_type)
+        .header(header::CACHE_CONTROL, "private, max-age=300")
+        .header(header::ACCEPT_RANGES, accept_ranges)
+        .header(header::CONTENT_LENGTH, content.len());
+    if let Some(content_range) = content_range {
+        response = response.header(header::CONTENT_RANGE, content_range);
+    }
+    response
+        .body(Body::from(content))
+        .expect("valid case media response")
+}
+
+#[derive(Debug, Serialize, FromRow)]
 struct ThreadApiRow {
     id: Uuid,
     case_id: Option<Uuid>,
@@ -8457,9 +8671,38 @@ mod structured_advisory_tests {
             Some("text/markdown")
         );
         assert_eq!(
+            content_upload_media_type("video/mp4", "passthrough.mp4"),
+            Some("video/mp4")
+        );
+        assert_eq!(
             content_upload_media_type("application/octet-stream", "payload.exe"),
             None
         );
+    }
+
+    #[test]
+    fn case_media_references_are_tenant_scoped_and_visual_only() {
+        let organization_id = Uuid::new_v4();
+        let valid =
+            format!("azure-blob://documents/content-uploads/{organization_id}/capture-frame.jpg");
+        assert_eq!(
+            case_media_storage_key(&valid, organization_id),
+            Some(format!(
+                "documents/content-uploads/{organization_id}/capture-frame.jpg"
+            ))
+        );
+        assert_eq!(case_media_type(&valid), Some("image/jpeg"));
+        assert_eq!(case_media_type("clip.webm"), Some("video/webm"));
+        assert!(case_media_storage_key(
+            "azure-blob://documents/content-uploads/another-org/capture.jpg",
+            organization_id
+        )
+        .is_none());
+        assert!(case_media_storage_key(
+            &format!("azure-blob://documents/content-uploads/{organization_id}/../secret.jpg"),
+            organization_id
+        )
+        .is_none());
     }
 
     #[test]

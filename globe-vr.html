@@ -54,7 +54,7 @@
   <script src="runtime-config.js?v=5"></script>
   <script src="auth.js?v=11"></script>
   <script src="cache.js"></script>
-  <script src="application-client.js?v=11"></script>
+  <script src="application-client.js?v=37"></script>
   <script src="realtime-client.js?v=2"></script>
 </head>
 <body>
@@ -79,7 +79,7 @@
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
     <small class="sensor-install-help">Alpha access grants entitlement; install from Quest Library → Not installed while signed into the invited account.</small>
-    <details class="sensor-trace-shell" open>
+    <details class="sensor-trace-shell">
       <summary>BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR</summary>
       <pre class="sensor-trace" id="sensorTrace">Waiting for sensor preflight…</pre>
     </details>
@@ -89,7 +89,7 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=5';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=6';
     import { XRUIAudio } from './xr-ui-audio.js?v=1';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -126,14 +126,23 @@
       sessionStorage.setItem('mxg_thermal_local_token', sensorHandoff.localToken);
       history.replaceState(null, '', `${location.pathname}${location.search}`);
     }
-    const xrSessionId = sensorHandoff?.sessionId || sessionStorage.getItem('mxg_xr_session_id') || crypto.randomUUID();
+    function createOpaqueXrId(prefix = 'xr') {
+      if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+      const bytes = new Uint8Array(16);
+      if (globalThis.crypto?.getRandomValues) {
+        globalThis.crypto.getRandomValues(bytes);
+        return `${prefix}-${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
+      }
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+    }
+    const xrSessionId = sensorHandoff?.sessionId || sessionStorage.getItem('mxg_xr_session_id') || createOpaqueXrId();
     sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
     const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
     sensorSetup.hidden = !sensorOnlyScene;
     let SensorOrbClass = null;
-    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=8'));
+    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=9'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
@@ -266,7 +275,106 @@
     let xrAudio = null;
     let fleetHud = null;
     let xrSensors = null;
+    let xrVoice = null;
+    let activeCaseState = null;
     let selectedCluster = null;
+
+    async function sensorApplicationSession({ forceRefresh = false } = {}) {
+      await globalThis.MXGENIUS_CONFIG?.ready;
+      const refreshed = globalThis.MXGENIUS_AUTH?.getToken
+        ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
+        : '';
+      const configured = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+      return {
+        accessToken: refreshed || configured.accessToken,
+        organizationId: configured.organizationId,
+        correlationId: createOpaqueXrId('request')
+      };
+    }
+
+    async function withRenewedSensorSession(operation) {
+      let requestSession = await sensorApplicationSession();
+      try {
+        return await operation(requestSession);
+      } catch (error) {
+        if (error?.status !== 401 || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+        MXApplicationClient.capabilities.disconnect(requestSession);
+        requestSession = await sensorApplicationSession({ forceRefresh: true });
+        return operation(requestSession);
+      }
+    }
+
+    function snapshotFile(snapshot) {
+      const encoded = String(snapshot?.dataUrl || '').split(',', 2)[1] || '';
+      const binary = atob(encoded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const blob = new Blob([bytes], { type: 'image/jpeg' });
+      Object.defineProperty(blob, 'name', { value: `quest-passthrough-${timestamp}.jpg` });
+      return blob;
+    }
+
+    async function restoreActiveCase() {
+      if (!sensorOnlyScene) return null;
+      const caseId = localStorage.getItem('mxg_active_case_id');
+      if (!caseId) {
+        activeCaseState = null;
+        xrVoice?.setEvidenceContext();
+        return null;
+      }
+      try {
+        activeCaseState = await withRenewedSensorSession(async (requestSession) => {
+          const [current, gallery] = await Promise.all([
+            MXApplicationClient.cases.get(caseId, requestSession),
+            MXApplicationClient.cases.listMedia(caseId, requestSession)
+          ]);
+          return { caseId, case: current.case, media: gallery.media || [] };
+        });
+        xrVoice?.setEvidenceContext({
+          caseId,
+          aircraftId: activeCaseState.case?.aircraft_id,
+          count: activeCaseState.media.length
+        });
+        void xrVoice?.refreshContext();
+        return activeCaseState;
+      } catch (error) {
+        activeCaseState = null;
+        xrVoice?.setEvidenceContext();
+        status.textContent = `Open a maintenance case before capturing evidence · ${error.message}`;
+        return null;
+      }
+    }
+
+    async function saveSnapshotToActiveCase(snapshot) {
+      const current = activeCaseState || await restoreActiveCase();
+      if (!current?.caseId) throw new Error('Open a maintenance case on the dashboard before capturing evidence');
+      const result = await withRenewedSensorSession((requestSession) => MXApplicationClient.cases.attachMedia({
+        caseId: current.caseId,
+        media: snapshotFile(snapshot),
+        note: `Quest passthrough capture · ${snapshot.eye || 'headset'} camera`,
+        session: requestSession
+      }));
+      const refreshed = await withRenewedSensorSession(async (requestSession) => {
+        const [caseResult, gallery] = await Promise.all([
+          MXApplicationClient.cases.get(current.caseId, requestSession),
+          MXApplicationClient.cases.listMedia(current.caseId, requestSession)
+        ]);
+        return {
+          caseId: current.caseId,
+          case: caseResult.case,
+          media: gallery.media || []
+        };
+      });
+      activeCaseState = refreshed;
+      void xrVoice?.refreshContext();
+      return {
+        caseId: current.caseId,
+        aircraftId: refreshed.case?.aircraft_id,
+        count: refreshed.media.length,
+        observationId: result.observation?.observation_id
+      };
+    }
     function updateSceneSoundState(detail = {}) {
       const muted = Boolean(detail.muted);
       sceneSoundButton.setAttribute('aria-pressed', String(!muted));
@@ -357,11 +465,16 @@
       }
     });
     if (xrSensors) scene.add(xrSensors.group);
-    const xrVoice = new XRRealtimePresence({
+    xrVoice = new XRRealtimePresence({
       pointCount: sensorOnlyScene ? 1800 : 720,
       pointSize: sensorOnlyScene ? 0.0007 : 0.0012,
       contextProvider: () => sensorOnlyScene
-        ? { surface: 'sensor-diagnostics' }
+        ? {
+            surface: 'sensor-diagnostics',
+            caseId: activeCaseState?.caseId || null,
+            aircraftId: activeCaseState?.case?.aircraft_id || null,
+            caseVersion: activeCaseState?.case?.version ?? null
+          }
         : {
             surface: 'fleet-globe',
             fleetLocation: selectedCluster ? {
@@ -372,11 +485,13 @@
             } : null
           },
       onSnapshotRequest: sensorOnlyScene ? () => xrSensors.requestHeadsetSnapshot() : null,
+      onSnapshotCaptured: sensorOnlyScene ? saveSnapshotToActiveCase : null,
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrVoice.group)
     });
     if (xrSensors) xrVoice.setDockTarget(xrSensors.voiceDock);
     scene.add(xrVoice.group);
     xrSensors?.startPreflight();
+    if (sensorOnlyScene) void restoreActiveCase();
     const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();

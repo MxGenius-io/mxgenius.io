@@ -425,7 +425,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=50/);
+  assert.match(dashboard, /app\.js\?v=51/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -882,10 +882,12 @@ test('recalled maintenance cases reuse the existing aircraft image path inside t
   assert.match(caseWorkspace, /case-workspace__gallery-thumb is-active/);
   assert.match(caseWorkspace, /case-workspace__case-hero/);
   assert.match(application, /renderImageGallery\(sources, alternative\)/);
-  assert.match(application, /const first = this\.renderImageGallery\(objectUrls, alternative\)/);
+  assert.match(application, /const first = this\.renderImageGallery\(loadedMedia, alternative\)/);
   assert.match(application, /thumbnail\.src = first/);
   assert.match(application, /Promise\.allSettled/);
   assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl\(source\)/);
+  assert.match(application, /MXApplicationClient\.cases\.getMedia/);
+  assert.match(caseWorkspace, /MXApplicationClient\.cases\.listMedia/);
   assert.match(caseWorkspace, /getToken\(\{ forceRefresh \}\)/);
   assert.match(caseWorkspace, /session\(\{ forceRefresh: true \}\)/);
   assert.match(caseWorkspace, /Promise\.allSettled/);

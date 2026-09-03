@@ -169,7 +169,10 @@
 }
 .case-workspace__gallery { min-width: 0; }
 .case-workspace__case-media::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 48%, rgba(2, 8, 23, .86)); }
-.case-workspace__case-media img { width: 100%; height: 100%; min-height: 168px; object-fit: cover; display: block; }
+.case-workspace__case-media > img,
+.case-workspace__case-media > video { width: 100%; height: 100%; min-height: 168px; object-fit: cover; display: block; }
+.case-workspace__case-media > video[hidden],
+.case-workspace__case-media > img[hidden] { display: none; }
 .case-workspace__case-media figcaption { position: absolute; z-index: 1; inset: auto 12px 10px; color: #dceaf7; font-size: .68rem; font-weight: 700; letter-spacing: .035em; }
 .case-workspace__gallery-count { position: absolute; z-index: 1; inset: 10px 10px auto auto; padding: 4px 7px; border: 1px solid rgba(148, 163, 184, .22); border-radius: 999px; color: #dceaf7; background: rgba(2, 8, 23, .72); font: 700 .58rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .case-workspace__gallery-rail { display: flex; gap: 7px; margin-top: 8px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: thin; }
@@ -177,7 +180,9 @@
 .case-workspace__gallery-thumb:hover { opacity: .9; transform: translateY(-1px); }
 .case-workspace__gallery-thumb.is-active { opacity: 1; border-color: rgba(103, 232, 249, .72); box-shadow: 0 0 0 2px rgba(34, 211, 238, .08); }
 .case-workspace__gallery-thumb:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
-.case-workspace__gallery-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.case-workspace__gallery-thumb img,
+.case-workspace__gallery-thumb video { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.case-workspace__gallery-thumb span { display: grid; height: 100%; place-items: center; color: #a5f3fc; font: 700 .55rem/1 ui-monospace, monospace; letter-spacing: .06em; }
 .case-workspace__summary { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
 .case-workspace__case-hero .case-workspace__summary { grid-column: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: stretch; }
 .case-workspace__metric,

@@ -126,6 +126,7 @@ export class XRSensorOrb {
     this.preflighting = false;
     this.disposed = false;
     this.active = this.presentation === 'head-screen';
+    this.screenReveal = this.active ? 1 : 0;
     this.screenPinned = false;
     this.state = 'unconfigured';
     this.socket = null;
@@ -236,7 +237,7 @@ export class XRSensorOrb {
     this.screenRoot.add(this.screenFrame);
     this.thermalScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.96, 0.72),
-      new THREE.MeshBasicMaterial({ map: this.thermalTexture, toneMapped: false, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ map: this.thermalTexture, transparent: true, opacity: 1, toneMapped: false, side: THREE.DoubleSide })
     );
     this.thermalScreen.name = 'MXGeniusThermalPixels';
     this.screenRoot.add(this.thermalScreen);
@@ -303,7 +304,7 @@ export class XRSensorOrb {
   }
 
   applyScreenLayout() {
-    this.screenRoot.scale.setScalar(this.screenScale);
+    this.applyScreenReveal();
     const baseY = -0.43 * this.screenScale - 0.08;
     this.screenToggle.position.set(-0.38, baseY, 0.014);
     this.screenPin.position.set(-0.12, baseY, 0.014);
@@ -312,6 +313,16 @@ export class XRSensorOrb {
     this.voiceDock.position.set(0.53, baseY + 0.015, 0.02);
     this.panel.position.x = -0.42 * this.screenScale - 0.34;
     this.drawScreenButtons();
+  }
+
+  applyScreenReveal() {
+    if (!this.screenRoot) return;
+    const reveal = THREE.MathUtils.smoothstep(this.screenReveal, 0, 1);
+    this.screenRoot.visible = reveal > 0.01;
+    this.screenRoot.scale.setScalar(this.screenScale * Math.max(0.001, reveal));
+    this.screenRoot.position.y = -0.055 * (1 - reveal);
+    this.screenFrame.material.opacity = 0.98 * reveal;
+    this.thermalScreen.material.opacity = reveal;
   }
 
   drawScreenButton(button, label, active = false) {
@@ -395,7 +406,6 @@ export class XRSensorOrb {
   setActive(active, input = 'unknown') {
     this.active = Boolean(active);
     if (this.presentation === 'head-screen') {
-      this.screenRoot.visible = this.active;
       this.drawScreenButtons();
       this.sendThermalControl(input);
       this.onAction('toggle-thermal-screen', input, { active: this.active, state: this.state, frames: this.frames });
@@ -967,7 +977,7 @@ export class XRSensorOrb {
     ctx.strokeRect(4, 4, 1016, 632);
     ctx.fillStyle = '#67e8f9';
     ctx.font = '700 30px ui-monospace, monospace';
-    ctx.fillText(this.presentation === 'head-screen' ? 'FLIR HANDSHAKE TRACE' : 'PI EDGE DIAGNOSTICS', 42, 58);
+    ctx.fillText(this.presentation === 'head-screen' ? 'MXGENIUS SENSOR BRIDGE' : 'PI EDGE DIAGNOSTICS', 42, 58);
     ctx.fillStyle = '#e9f8ff';
     ctx.font = '600 24px system-ui, sans-serif';
     ctx.fillText(
@@ -978,26 +988,38 @@ export class XRSensorOrb {
       98
     );
     if (this.presentation === 'head-screen') {
-      const trace = this.handshakeTrace.slice(-10);
-      let y = 146;
-      for (const entry of trace) {
-        const seconds = (entry.elapsedMs / 1000).toFixed(1).padStart(5, ' ');
-        ctx.fillStyle = {
-          success: '#6ee7b7',
-          warn: '#fcd34d',
-          error: '#fda4af',
-          info: '#7dd3fc'
-        }[entry.level] || '#7dd3fc';
+      ctx.fillStyle = '#67e8f9';
+      ctx.font = '700 22px ui-monospace, monospace';
+      ctx.fillText('LIVE SENSOR WORKSPACE', 42, 148);
+      const cards = [
+        ['THERMAL LINK', this.state === 'connected' ? this.sourceStatus : this.state, this.state === 'connected' ? '#fb923c' : '#7dd3fc'],
+        ['QUEST COMPANION', this.companionStatus, this.companionStatus === 'ready' ? '#6ee7b7' : '#fcd34d'],
+        ['PI DIAGNOSTICS', this.diagnosticsBridge.url ? this.diagnosticsState : 'optional', this.diagnosticsState === 'connected' ? '#6ee7b7' : '#94a3b8'],
+        ['EVIDENCE CAPTURE', this.socket?.readyState === WebSocket.OPEN ? 'ready' : 'waiting', this.socket?.readyState === WebSocket.OPEN ? '#a7f3d0' : '#fcd34d']
+      ];
+      cards.forEach(([label, value, color], index) => {
+        const column = index % 2;
+        const row = Math.floor(index / 2);
+        const x = 42 + column * 478;
+        const y = 178 + row * 152;
+        ctx.fillStyle = 'rgba(15, 35, 52, 0.88)';
+        ctx.fillRect(x, y, 438, 118);
+        ctx.strokeStyle = 'rgba(103, 232, 249, 0.22)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, 438, 118);
+        ctx.fillStyle = '#819bb0';
         ctx.font = '700 18px ui-monospace, monospace';
-        ctx.fillText(`${seconds}s ${entry.stage.padEnd(12).slice(0, 12)}`, 42, y);
-        ctx.fillStyle = '#e5f4fb';
-        ctx.font = '500 18px ui-monospace, monospace';
-        ctx.fillText(entry.message.slice(0, 65), 276, y);
-        y += 43;
-      }
-      ctx.fillStyle = '#8ba6b8';
-      ctx.font = '18px ui-monospace, monospace';
-      ctx.fillText(`SESSION ${this.sessionId?.slice(0, 8) || 'none'} · ${this.frames} FRAMES · credentials redacted`, 42, 600);
+        ctx.fillText(label, x + 24, y + 38);
+        ctx.fillStyle = color;
+        ctx.font = '700 29px system-ui, sans-serif';
+        ctx.fillText(clean(value, 'waiting').replaceAll('-', ' ').toUpperCase().slice(0, 24), x + 24, y + 84);
+      });
+      ctx.fillStyle = '#9cb5c9';
+      ctx.font = '20px system-ui, sans-serif';
+      ctx.fillText('Pinch CAPTURE to file a passthrough frame into the active maintenance case.', 42, 520);
+      ctx.fillStyle = '#60788d';
+      ctx.font = '17px ui-monospace, monospace';
+      ctx.fillText(`SESSION ${this.sessionId?.slice(0, 8) || 'none'} · ${this.frames} THERMAL FRAMES`, 42, 585);
       this.panelTexture.needsUpdate = true;
       return;
     }
@@ -1040,6 +1062,8 @@ export class XRSensorOrb {
       const diagnosticsTarget = 0.9;
       const diagnosticsScale = THREE.MathUtils.lerp(this.panel.scale.x, diagnosticsTarget, 1 - Math.exp(-delta * 11));
       this.panel.scale.setScalar(Math.max(0.001, diagnosticsScale));
+      this.screenReveal = THREE.MathUtils.lerp(this.screenReveal, this.active ? 1 : 0, 1 - Math.exp(-delta * 12));
+      this.applyScreenReveal();
       return;
     }
     const wrist = this.rightHand?.joints?.wrist;

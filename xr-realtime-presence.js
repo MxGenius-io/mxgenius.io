@@ -43,11 +43,13 @@ export class XRRealtimePresence {
     pointCount = 720,
     pointSize = 0.0012,
     onSnapshotRequest = null,
+    onSnapshotCaptured = null,
     onAction = () => {}
   } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
     this.contextProvider = contextProvider;
     this.onSnapshotRequest = typeof onSnapshotRequest === 'function' ? onSnapshotRequest : null;
+    this.onSnapshotCaptured = typeof onSnapshotCaptured === 'function' ? onSnapshotCaptured : null;
     this.onAction = onAction;
     this.state = 'disconnected';
     this.userText = '';
@@ -62,6 +64,8 @@ export class XRRealtimePresence {
     this.connectPromise = null;
     this.disposed = false;
     this.snapshotBusy = false;
+    this.evidenceContext = { caseId: null, aircraftId: null, count: 0 };
+    this.captureAnimations = [];
     this.handledCalls = new Set();
     this.audioContext = null;
     this.analysers = [];
@@ -156,9 +160,25 @@ export class XRRealtimePresence {
     this.snapshotButton.userData.xrHitSize = { width: 0.18, height: 0.09 };
     this.snapshotButton.visible = false;
     this.group.add(this.snapshotButton);
+
+    this.evidenceCanvas = document.createElement('canvas');
+    this.evidenceCanvas.width = 640;
+    this.evidenceCanvas.height = 160;
+    this.evidenceContext2d = this.evidenceCanvas.getContext('2d');
+    this.evidenceTexture = new THREE.CanvasTexture(this.evidenceCanvas);
+    this.evidenceTexture.colorSpace = THREE.SRGBColorSpace;
+    this.evidenceTray = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.42, 0.105),
+      new THREE.MeshBasicMaterial({ map: this.evidenceTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    this.evidenceTray.name = 'MXGeniusCaseEvidenceTray';
+    this.evidenceTray.position.set(0.34, -0.33, 0.01);
+    this.evidenceTray.visible = false;
+    this.group.add(this.evidenceTray);
     this.drawPanel();
     this.drawMicButton();
     this.drawSnapshotButton();
+    this.drawEvidenceTray();
   }
 
   createPointCloud() {
@@ -210,6 +230,7 @@ export class XRRealtimePresence {
     this.dockTarget = target;
     this.micButton.visible = Boolean(target);
     this.snapshotButton.visible = Boolean(target && this.onSnapshotRequest);
+    this.evidenceTray.visible = Boolean(target);
     this.hitTarget.visible = !target;
     if (target) {
       this.panel.position.set(0.58, 0.27, 0);
@@ -307,6 +328,15 @@ export class XRRealtimePresence {
     await this.connect(input);
   }
 
+  setEvidenceContext({ caseId = null, aircraftId = null, count = 0 } = {}) {
+    this.evidenceContext = {
+      caseId: cleanText(caseId, '') || null,
+      aircraftId: cleanText(aircraftId, '') || null,
+      count: Math.max(0, Number(count) || 0)
+    };
+    this.drawEvidenceTray();
+  }
+
   async captureSnapshot(input = 'xr') {
     if (this.disposed || this.snapshotBusy) return;
     if (!this.onSnapshotRequest) {
@@ -314,34 +344,43 @@ export class XRRealtimePresence {
       this.drawPanel();
       return;
     }
-    if (!this.session || ['disconnected', 'connecting', 'failed'].includes(this.state)) {
-      this.toolText = 'Start the live voice session before taking a snapshot';
-      this.drawPanel();
-      return;
-    }
     this.snapshotBusy = true;
-    this.toolText = 'Capturing one headset frame…';
+    this.toolText = 'Capturing one passthrough frame…';
     this.drawPanel();
     this.drawSnapshotButton();
     this.onAction('realtime-snapshot-request', input, { state: this.state });
     try {
       const snapshot = await this.onSnapshotRequest();
-      if (this.disposed || !this.session) throw new Error('Live model session closed before snapshot delivery');
       if (!snapshot?.dataUrl || !/^data:image\/jpeg;base64,/i.test(snapshot.dataUrl)) {
         throw new Error('Quest companion returned an invalid snapshot');
       }
-      const sent = this.session.sendUserMessage({
+      const saved = this.onSnapshotCaptured
+        ? await this.onSnapshotCaptured(snapshot, { input, context: this.contextProvider() || null })
+        : null;
+      if (saved?.count !== undefined) {
+        this.setEvidenceContext({
+          caseId: saved.caseId || this.evidenceContext.caseId,
+          aircraftId: saved.aircraftId || this.evidenceContext.aircraftId,
+          count: saved.count
+        });
+      }
+      this.animateSnapshotToEvidence(snapshot.dataUrl);
+      const modelReady = Boolean(this.session) && !['disconnected', 'connecting', 'failed'].includes(this.state);
+      const sent = modelReady ? this.session.sendUserMessage({
         text: 'Use this headset snapshot as visual context for the active maintenance session. Describe what is visible and connect it to the current discussion.',
         images: [{ dataUrl: snapshot.dataUrl }]
-      });
-      if (!sent) throw new Error('Live model data channel is not open');
-      this.userText = `Headset snapshot attached · ${snapshot.width || '?'}×${snapshot.height || '?'}`;
-      this.toolText = 'Snapshot sent to the active model context';
+      }) : false;
+      this.userText = `Passthrough capture saved · ${snapshot.width || '?'}×${snapshot.height || '?'}`;
+      this.toolText = sent
+        ? 'Saved to the active case and shared with the model'
+        : 'Saved to the active maintenance case';
       this.panelTarget = 1;
-      this.onAction('realtime-snapshot-sent', input, {
+      this.onAction('case-evidence-captured', input, {
         width: snapshot.width || 0,
         height: snapshot.height || 0,
-        eye: snapshot.eye || 'unknown'
+        eye: snapshot.eye || 'unknown',
+        caseId: saved?.caseId || this.evidenceContext.caseId,
+        sharedWithModel: sent
       });
     } catch (error) {
       this.toolText = cleanText(error?.message, 'Headset snapshot failed');
@@ -351,6 +390,32 @@ export class XRRealtimePresence {
       this.drawPanel();
       this.drawSnapshotButton();
     }
+  }
+
+  animateSnapshotToEvidence(dataUrl) {
+    if (!dataUrl || this.disposed) return;
+    new THREE.TextureLoader().load(dataUrl, (texture) => {
+      if (this.disposed) {
+        texture.dispose();
+        return;
+      }
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const thumbnail = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.18, 0.12),
+        new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 1, toneMapped: false, side: THREE.DoubleSide })
+      );
+      thumbnail.position.copy(this.snapshotButton.position);
+      thumbnail.position.z += 0.02;
+      this.group.add(thumbnail);
+      this.captureAnimations.push({
+        mesh: thumbnail,
+        texture,
+        elapsed: 0,
+        duration: 0.78,
+        from: thumbnail.position.clone(),
+        to: this.evidenceTray.position.clone().add(new THREE.Vector3(-0.14, 0, 0.018))
+      });
+    });
   }
 
   async connect(input) {
@@ -617,7 +682,7 @@ export class XRRealtimePresence {
   drawSnapshotButton() {
     if (!this.snapshotContext) return;
     const ctx = this.snapshotContext;
-    const active = Boolean(this.session) && !['disconnected', 'connecting', 'failed'].includes(this.state);
+    const active = Boolean(this.onSnapshotRequest && this.evidenceContext.caseId);
     ctx.clearRect(0, 0, this.snapshotCanvas.width, this.snapshotCanvas.height);
     ctx.fillStyle = 'rgba(5, 18, 31, 0.97)';
     ctx.fillRect(4, 4, this.snapshotCanvas.width - 8, this.snapshotCanvas.height - 8);
@@ -627,8 +692,32 @@ export class XRRealtimePresence {
     ctx.fillStyle = active ? '#edf6ff' : '#94a3b8';
     ctx.font = '700 38px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(this.snapshotBusy ? 'WAIT' : 'SNAP', this.snapshotCanvas.width / 2, 94);
+    ctx.fillText(this.snapshotBusy ? 'WAIT' : 'CAPTURE', this.snapshotCanvas.width / 2, 94);
     this.snapshotTexture.needsUpdate = true;
+  }
+
+  drawEvidenceTray() {
+    if (!this.evidenceContext2d) return;
+    const ctx = this.evidenceContext2d;
+    const { caseId, aircraftId, count } = this.evidenceContext;
+    ctx.clearRect(0, 0, this.evidenceCanvas.width, this.evidenceCanvas.height);
+    ctx.fillStyle = 'rgba(5, 18, 31, 0.97)';
+    ctx.fillRect(4, 4, this.evidenceCanvas.width - 8, this.evidenceCanvas.height - 8);
+    ctx.strokeStyle = caseId ? '#2dd4bf' : '#475569';
+    ctx.lineWidth = 7;
+    ctx.strokeRect(4, 4, this.evidenceCanvas.width - 8, this.evidenceCanvas.height - 8);
+    ctx.fillStyle = caseId ? '#99f6e4' : '#94a3b8';
+    ctx.font = '700 24px ui-monospace, monospace';
+    ctx.fillText(caseId ? 'ACTIVE CASE EVIDENCE' : 'NO ACTIVE CASE', 30, 48);
+    ctx.fillStyle = '#edf6ff';
+    ctx.font = '700 34px system-ui, sans-serif';
+    ctx.fillText(caseId ? `${aircraftId || 'CASE'} · ${count} SAVED` : 'Open a case on the dashboard', 30, 105);
+    ctx.fillStyle = caseId ? '#2dd4bf' : '#64748b';
+    ctx.beginPath();
+    ctx.arc(590, 80, 22, 0, Math.PI * 2);
+    ctx.fill();
+    this.evidenceTexture.needsUpdate = true;
+    this.drawSnapshotButton();
   }
 
   update(delta, time, { camera = null } = {}) {
@@ -665,6 +754,22 @@ export class XRRealtimePresence {
     this.ring.material.opacity = 0.35 + level * 0.55;
     const panelScale = THREE.MathUtils.lerp(this.panel.scale.x, this.panelTarget, 1 - Math.exp(-delta * 11));
     this.panel.scale.setScalar(Math.max(0.001, panelScale));
+    for (const animation of [...this.captureAnimations]) {
+      animation.elapsed += delta;
+      const progress = Math.min(1, animation.elapsed / animation.duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      animation.mesh.position.lerpVectors(animation.from, animation.to, eased);
+      const scale = THREE.MathUtils.lerp(1, 0.28, eased);
+      animation.mesh.scale.setScalar(scale);
+      animation.mesh.material.opacity = 1 - Math.max(0, (progress - 0.72) / 0.28);
+      if (progress >= 1) {
+        this.group.remove(animation.mesh);
+        animation.mesh.geometry.dispose();
+        animation.mesh.material.dispose();
+        animation.texture.dispose();
+        this.captureAnimations.splice(this.captureAnimations.indexOf(animation), 1);
+      }
+    }
   }
 
   dispose() {
@@ -675,7 +780,13 @@ export class XRRealtimePresence {
     this.disconnect();
     const geometries = new Set();
     const materials = new Set();
-    const textures = new Set([this.texture, this.micTexture]);
+    for (const animation of this.captureAnimations.splice(0)) {
+      this.group.remove(animation.mesh);
+      animation.mesh.geometry.dispose();
+      animation.mesh.material.dispose();
+      animation.texture.dispose();
+    }
+    const textures = new Set([this.texture, this.micTexture, this.snapshotTexture, this.evidenceTexture]);
     this.group.traverse((object) => {
       if (object.geometry) geometries.add(object.geometry);
       const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
