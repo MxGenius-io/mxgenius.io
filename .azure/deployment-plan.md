@@ -81,12 +81,12 @@ Status: Validated — 2026-09-03 Spatial Target + Remote Witness Alpha 21
   Rust format/tests/strict Clippy/release build, Android unit/lint, and signed
   APK verification pass against the exact release tree.
 - [ ] Meta accepts Alpha 21 and its automated security/malware gates clear.
-- [ ] `main` is pushed to `https://github.com/MxGenius-io/mxgenius.io.git` with
+- [x] `main` is pushed to `https://github.com/MxGenius-io/mxgenius.io.git` with
   no branch, pull request, merge conflict, or uncommitted release file.
-- [ ] ACR publishes one immutable image from the exact committed
+- [x] ACR publishes one immutable image from the exact committed
   `services/mcp` context; the candidate revision becomes Healthy and latest-ready
   before Single mode moves its existing traffic.
-- [ ] Post-promotion `/healthz`, `/readyz`, and `/adapterz` return HTTP 200;
+- [x] Post-promotion `/healthz`, `/readyz`, and `/adapterz` return HTTP 200;
   witness exchange rejects an invented invitation, protected creation routes
   reject unauthenticated callers, and startup logs contain no migration, panic,
   or bind failure.
@@ -122,7 +122,31 @@ Validated on September 3, 2026 against the frozen working-tree candidate:
 
 ### Deployment proof
 
-Pending Azure and Meta promotion.
+Git and Azure were promoted and verified on September 3, 2026; Meta Alpha 21
+remains the final manual release-channel handoff:
+
+- Commit `7cadceb03411bf17a014168befccb184c981fc5f` was pushed directly to
+  `origin/main`. GitHub Pages returned HTTP 200 for `witness.html`, `witness.js`,
+  and `xr-target-registry.js`.
+- ACR run `cj21` published
+  `mxgacr50106.azurecr.io/mxg-core:spatial-witness-7cadceb-20260903` with digest
+  `sha256:06b3a58a1e516d8cb37f5f29efcf810125cbb075f3c729d7a23c89a36a27f540`.
+- Revision `mxg-core--spatialwitness-7cadceb` is active, Healthy, Running,
+  Provisioned, latest-ready, and serving 100% traffic with one replica. The six
+  reviewed spatial-scan and witness values are present as non-secret settings.
+- `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. Adapter readiness
+  reports `spatial_scan` and `remote_witness` ready; an invented invitation
+  returned `WITNESS_NOT_FOUND` and valid anonymous invitation creation returned
+  `AUTH_REQUIRED`.
+- Startup logs show the existing SQLx migration state, 45 registered tools, 15
+  resources, 8 prompts, and a clean HTTP bind on port 3030 with no panic or
+  migration failure.
+- The exact signed Alpha 21 APK remains at
+  `services/xr-flir-companion/app/build/outputs/apk/release/app-release.apk` with
+  SHA-256
+  `9fc89f88537c41f13f940b022d0ea7d6aa1fcb4dff5d7a922a688729cb76aafc`.
+  The public runtime marker intentionally remains Alpha 19 until Meta accepts
+  this artifact and its automated gates clear.
 
 ### Rollback
 
