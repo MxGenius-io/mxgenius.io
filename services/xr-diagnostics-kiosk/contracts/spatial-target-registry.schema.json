@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/spatial-target-registry.schema.json",
+  "title": "MXG spatial target registry",
+  "oneOf": [
+    { "$ref": "#/$defs/state" },
+    { "$ref": "#/$defs/delta" }
+  ],
+  "$defs": {
+    "sessionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}:[A-Za-z0-9._:-]{1,240}$"
+    },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 10,
+      "properties": {
+        "aircraftId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "caseId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "componentId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "icao": { "type": "string", "minLength": 1, "maxLength": 16 },
+        "meshId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "meshPath": { "type": "string", "minLength": 1, "maxLength": 360 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "partNumber": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "serialNumber": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "zoneId": { "type": "string", "minLength": 1, "maxLength": 180 }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "quaternion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z", "w"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "w": { "type": "number" }
+      }
+    },
+    "pose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "quaternion"],
+      "properties": {
+        "position": { "$ref": "#/$defs/position" },
+        "quaternion": { "$ref": "#/$defs/quaternion" }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coordinateFrame"],
+      "properties": {
+        "coordinateFrame": {
+          "enum": ["screen-normalized", "model-local", "xr-local", "ar-world", "geographic", "dom"]
+        },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "pose": { "$ref": "#/$defs/pose" },
+        "selector": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "objectName": { "type": "string", "minLength": 1, "maxLength": 180 }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targetId", "kind", "label", "state", "confidence", "confidenceBasis",
+        "source", "targetRevision", "observedAtMs", "expiresAtMs", "aliases", "anchor"
+      ],
+      "properties": {
+        "targetId": { "$ref": "#/$defs/targetId" },
+        "kind": {
+          "enum": ["aircraft", "case", "component", "mesh", "part-unit", "sensor", "fleet-location", "observed-object"]
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "state": { "enum": ["candidate", "locked", "lost", "cleared"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidenceBasis": { "enum": ["detector", "mapped-geometry", "deterministic-lookup", "user"] },
+        "source": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "targetRevision": { "type": "integer", "minimum": 1 },
+        "observedAtMs": { "type": "integer", "minimum": 0 },
+        "expiresAtMs": { "type": "integer", "minimum": 0 },
+        "aliases": { "$ref": "#/$defs/aliases" },
+        "anchor": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema", "schemaVersion", "sessionId", "registryRevision", "observedAtMs", "activeTargetId", "targets"],
+      "properties": {
+        "type": { "const": "spatial.targets.state" },
+        "schema": { "const": "mxg.spatial.targets" },
+        "schemaVersion": { "const": "1.0.0" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "registryRevision": { "type": "integer", "minimum": 1 },
+        "observedAtMs": { "type": "integer", "minimum": 0 },
+        "activeTargetId": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/targetId" }
+          ]
+        },
+        "targets": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/target" }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "targetId"],
+      "properties": {
+        "op": { "enum": ["add", "replace", "remove"] },
+        "targetId": { "$ref": "#/$defs/targetId" },
+        "target": { "$ref": "#/$defs/target" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "enum": ["add", "replace"] } } },
+          "then": { "required": ["target"] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "remove" } } },
+          "then": { "not": { "required": ["target"] } }
+        }
+      ]
+    },
+    "delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema", "schemaVersion", "sessionId", "baseRevision", "registryRevision", "observedAtMs", "operations"],
+      "properties": {
+        "type": { "const": "spatial.targets.delta" },
+        "schema": { "const": "mxg.spatial.targets" },
+        "schemaVersion": { "const": "1.0.0" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "baseRevision": { "type": "integer", "minimum": 1 },
+        "registryRevision": { "type": "integer", "minimum": 2 },
+        "observedAtMs": { "type": "integer", "minimum": 0 },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/operation" }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,139 @@
 # MXGenius Azure Deployment Plan
 
-Status: Deployed — 2026-08-25 Parts Model Extraction
+Status: Validated — 2026-09-03 Spatial Target + Remote Witness Alpha 21
+
+## Spatial Target + Remote Witness Alpha 21 Delta — 2026-09-03
+
+### Project overview and approval
+
+- **Goal:** publish the completed spatial-target contract, deliberate still-frame
+  scan path, Remote Witness signaling/state service, customer browser surface,
+  and Quest Alpha 21 wearer capture/control implementation for the physical
+  headset acceptance matrix.
+- **Path:** MODIFY the existing application plane. GitHub Pages publishes the
+  static root from the shared `main` branch; one immutable `mxg-core` image
+  revision carries the Rust API/WSS changes; the existing Meta private Alpha
+  channel receives the already-verified signed APK.
+- **Approval:** on September 3, 2026, the user explicitly authorized the Git,
+  Azure, and Meta release handoff before entering the headset.
+- **Azure context:** reuse the current default `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), existing Central US resource group
+  `mxg-rg-50106`, registry `mxgacr50106`, Container Apps environment
+  `mxg-cae-50106`, and Container App `mxg-core`.
+- **Classification / scale / budget:** existing private Alpha pilot. No new
+  resource, replica, SKU, region, database object, role, secret, or topology is
+  introduced. Spatial scans are deliberate still-image requests with a hard
+  daily cap; continuous witness media is peer-to-peer WebRTC, not Azure-proxied.
+
+### Components, recipe, and architecture
+
+| Component | Type | Technology | Deployment target |
+|---|---|---|---|
+| Spatial scan + target/session commands | Containerized API | Rust / Axum / existing Responses client | Existing `mxg-core` Container App |
+| Remote Witness room, consent, projection, signaling | Containerized API + WSS | Rust / Axum in-memory TTL rooms | Existing `mxg-core` Container App, one replica |
+| Customer witness + XR controls | Static frontend | HTML / CSS / JavaScript / WebRTC | Existing GitHub Pages site from `main` |
+| Wearer capture + controls | Signed Android APK | Horizon OS / Spatial SDK / libwebrtc | Existing Meta Alpha channel |
+
+- **Recipe:** existing Azure CLI + remote ACR build + Container Apps revision
+  promotion. No AZD, Bicep, Terraform, or infrastructure provisioning applies.
+- **Specialized technology check:** no Copilot SDK, Azure Functions, APIM,
+  AI-gateway, AKS, Terraform, or cross-cloud marker applies.
+- **State shape:** Remote Witness rooms remain bounded, TTL-scoped, and
+  in-process. The existing one-replica deployment is therefore an explicit
+  invariant for this Alpha; no second core or shared room store is created.
+- **Media shape:** Azure WSS carries only bounded consent, presence,
+  projection, and SDP/ICE messages. Video flows directly between the Quest and
+  customer browser. TURN remains disabled until the physical network matrix
+  demonstrates a relay is required.
+
+### Release contents and configuration
+
+- Publish the live `witness.*` JSON schema and canonical Android/browser
+  signaling fixtures, the one-viewer invitation/exchange/room/control/media/WSS
+  routes, and the read-only `witness.html` customer surface.
+- Publish the deliberate spatial scan endpoint with 1280-pixel / 1 MiB input
+  bounds, 0.85 display threshold, five-result limit, eight-second timeout,
+  two-second cooldown, 12-per-minute limit, 100-per-day limit, and bounded
+  hash-only cache. Scan images are not persisted.
+- Set only these non-secret application settings on the promoted core:
+  - `MXGENIUS_SPATIAL_SCAN_ENABLED=true`
+  - `MXGENIUS_SPATIAL_SCAN_MODEL=gpt-5.4-mini`
+  - `MXGENIUS_WITNESS_JOIN_URL=https://mxgenius.io/witness.html`
+  - `MXGENIUS_WITNESS_INVITE_TTL_SECONDS=300`
+  - `MXGENIUS_WITNESS_SESSION_TTL_SECONDS=3600`
+  - `MXGENIUS_WITNESS_MAX_VIEWERS=1`
+- Preserve every existing secret reference and environment setting, including
+  the current server-held model key. Do not print, replace, or add a credential.
+- Upload the exact signed `0.1.0-alpha.21` (`versionCode 21`) ARM64 APK whose
+  local release verifier and checksum match `meta/meta-release.json`. After Meta
+  accepts the upload, update the browser version marker and release metadata to
+  Alpha 21 before the final Git push.
+- No database migration is included. Existing case gallery/evidence storage is
+  reused; Remote Witness adds no archive or parallel media store.
+
+### Validation and promotion gates
+
+- [x] User approved the application-only release and the existing subscription,
+  Central US location, GitHub Pages site, and Meta Alpha channel.
+- [x] Live read-only inventory confirms the resource group, Container Apps
+  environment, registry, and current `mxg-core` revision are Succeeded/Running.
+- [x] Git diff, secret/large-file review, full Node suite, Python schema tests,
+  Rust format/tests/strict Clippy/release build, Android unit/lint, and signed
+  APK verification pass against the exact release tree.
+- [ ] Meta accepts Alpha 21 and its automated security/malware gates clear.
+- [ ] `main` is pushed to `https://github.com/MxGenius-io/mxgenius.io.git` with
+  no branch, pull request, merge conflict, or uncommitted release file.
+- [ ] ACR publishes one immutable image from the exact committed
+  `services/mcp` context; the candidate revision becomes Healthy and latest-ready
+  before Single mode moves its existing traffic.
+- [ ] Post-promotion `/healthz`, `/readyz`, and `/adapterz` return HTTP 200;
+  witness exchange rejects an invented invitation, protected creation routes
+  reject unauthenticated callers, and startup logs contain no migration, panic,
+  or bind failure.
+- [ ] The deployed frontend exposes `witness.html`, advertises Alpha 21, and the
+  deployed core reports spatial scan enabled plus Remote Witness available.
+
+### Validation proof
+
+Validated on September 3, 2026 against the frozen working-tree candidate:
+
+- `git diff --check` passed; 119 changed/new release files contain no file over
+  10 MiB. Secret-pattern review found only deliberate fake credential fields in
+  test fixtures and no GitHub/AWS/private-key signature.
+- The complete frontend suite passed 368 tests. Python schema validation passed
+  10 tests, including the Remote Witness and spatial command fixtures.
+- `cargo fmt --all -- --check`, 256 locked Rust workspace tests, strict
+  all-target Clippy, and the locked optimized `mxgenius-mcp` build passed.
+- Android unit tests, debug/release lint, signed release assembly, manifest/ABI/
+  dependency/control/credential verification, and signature validation passed.
+  The resulting `0.1.0-alpha.21` ARM64 APK is 176,508,662 bytes with SHA-256
+  `9fc89f88537c41f13f940b022d0ea7d6aa1fcb4dff5d7a922a688729cb76aafc`,
+  matching `meta/meta-release.json` exactly.
+- ACR validation run `cj20` built the complete 18-step Dockerfile from the exact
+  367.987-KiB `services/mcp` context with `--no-push` and completed successfully.
+- Live preflight returned HTTP 200 from `/healthz`, `/readyz`, and `/adapterz`.
+  The current resource group, Container Apps environment, registry, and core app
+  are Succeeded; `mxg-core` is Running in Single mode with one minimum replica.
+- Static RBAC changes are not applicable. Live role verification confirms the
+  unchanged core identity retains `Storage Blob Data Contributor` on the
+  private `documents` container and its dormant `Cognitive Services User` role.
+  ACR access continues through the existing registry secret reference; no role
+  or secret was added or changed.
+
+### Deployment proof
+
+Pending Azure and Meta promotion.
+
+### Rollback
+
+- Preserve image `mxgacr50106.azurecr.io/mxg-core:parts-model-f8d95cb-20260825`
+  and revision `mxg-core--partsmodel-f8d95cb` until the headset/browser smoke
+  passes.
+- If the candidate does not build, start, become ready, authenticate, or pass
+  health and fail-closed probes, restore the prior image/revision. Do not delete
+  resources, data, assets, revisions, secrets, role assignments, or Meta builds.
+- The static frontend can be restored to Git commit `6c69116`; Alpha 19 remains
+  the Meta fallback while Alpha 21 is evaluated.
 
 ## Parts Model Extraction Delta — 2026-08-25
 

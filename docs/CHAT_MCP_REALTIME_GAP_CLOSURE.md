@@ -26,7 +26,7 @@ The work is complete when:
 
 ## Scope boundaries
 
-- Preserve the locked 50 canonical MCP capability names.
+- Preserve the 45 active canonical MCP capability names retained from the original locked catalog.
 - Preserve server-owned identity, tenant, role, case access, and confirmation context.
 - Do not send the user's Entra token, confirmation grant, or other MXGenius credentials to OpenAI.
 - Do not let text or voice models execute mutations without the existing application confirmation path.
@@ -180,7 +180,7 @@ Reference:
 
 - [x] Add machine-readable capability availability to the authenticated backend catalog.
 - [ ] Distinguish `available`, `degraded`, `not_configured`, and `unauthorized`.
-- [ ] Keep all 50 tools visible in the human operations workbench with honest availability.
+- [ ] Keep all 45 active tools visible in the human operations workbench with honest availability.
 - [ ] Give the model only tools relevant to the active case, user intent, role, and configured adapters.
 - [ ] Exclude mutations until an active case and confirmation UI are available.
 - [x] Keep tool names and input schemas canonical; use transport aliases only at the Realtime boundary.

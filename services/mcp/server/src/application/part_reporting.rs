@@ -118,7 +118,12 @@ impl ReportQuery {
     }
 
     fn cursor(&self) -> Result<Option<Cursor>, PartsInventoryError> {
-        let Some(raw) = self.cursor.as_deref().map(str::trim).filter(|v| !v.is_empty()) else {
+        let Some(raw) = self
+            .cursor
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+        else {
             return Ok(None);
         };
         let (at, id) = raw

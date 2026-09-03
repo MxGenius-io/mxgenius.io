@@ -43,9 +43,15 @@ pub struct RotableQuery {
     pub aircraft_id: Option<String>,
     pub part_number: Option<String>,
     pub include_retired: Option<bool>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page: Option<i64>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page_size: Option<i64>,
 }
 

@@ -6,7 +6,7 @@ The application mounts `services/mcp` as a separate capability service. It does 
 
 - `shared`: canonical types, policy vocabulary, envelopes, and 50 request/response contracts.
 - `server`: MCP transport, trusted identity, policy enforcement, handlers, and adapters.
-- `migrations`: 12 ordered Postgres migrations.
+- `migrations`: 26 ordered Postgres migrations, including retained entries for retired schema.
 - `fixtures`: fictional data for explicit local mode only.
 
 ## Application boundary
@@ -45,7 +45,7 @@ Identity, tenant, role, approval, and confirmation never appear in tool argument
 3. Prove case/event/evidence/audit/approval/trace writes commit once or roll back together.
 4. Prove tenant-safe foreign keys and cross-tenant denial.
 5. Start production mode with OIDC and Postgres configuration.
-6. Initialize MCP, list exactly 50 tools, and execute the first case slice.
+6. Initialize MCP, list exactly 45 active tools, and execute the first case slice.
 7. Mount the application through `application-client.js`; do not expose operational credentials to the static browser.
 
 The repository-level `docs/PRODUCTION_MOUNT_TASKLIST.md` is the authoritative status ledger.

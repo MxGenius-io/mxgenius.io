@@ -1,0 +1,45 @@
+{
+  "type": "spatial.targets.state",
+  "schema": "mxg.spatial.targets",
+  "schemaVersion": "1.0.0",
+  "sessionId": "session-contract-1",
+  "registryRevision": 2,
+  "observedAtMs": 1780000001000,
+  "activeTargetId": null,
+  "targets": [
+    {
+      "targetId": "observation:scan-contract-1:candidate-1",
+      "kind": "observed-object",
+      "label": "Hand tool",
+      "state": "candidate",
+      "confidence": 0.93,
+      "confidenceBasis": "detector",
+      "source": "simulated-analyzer",
+      "targetRevision": 1,
+      "observedAtMs": 1780000001000,
+      "expiresAtMs": 1780000016000,
+      "aliases": {},
+      "anchor": {
+        "coordinateFrame": "screen-normalized",
+        "bounds": { "x": 0.12, "y": 0.24, "width": 0.26, "height": 0.31 }
+      }
+    },
+    {
+      "targetId": "observation:scan-contract-1:candidate-2",
+      "kind": "observed-object",
+      "label": "Battery",
+      "state": "candidate",
+      "confidence": 0.87,
+      "confidenceBasis": "detector",
+      "source": "simulated-analyzer",
+      "targetRevision": 1,
+      "observedAtMs": 1780000001000,
+      "expiresAtMs": 1780000016000,
+      "aliases": { "partNumber": "SIMULATED-NOT-VERIFIED" },
+      "anchor": {
+        "coordinateFrame": "screen-normalized",
+        "bounds": { "x": 0.54, "y": 0.33, "width": 0.19, "height": 0.28 }
+      }
+    }
+  ]
+}

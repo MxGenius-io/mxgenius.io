@@ -1,0 +1,11 @@
+{
+  "type": "witness.signal",
+  "signal": {
+    "kind": "offer",
+    "to": "22222222-2222-4222-8222-222222222222",
+    "description": {
+      "type": "offer",
+      "sdp": "v=0\r\no=- 123456 2 IN IP4 127.0.0.1\r\ns=MxGenius Sensor Bridge\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=rtpmap:102 H264/90000\r\na=sendonly\r\n"
+    }
+  }
+}

@@ -6,8 +6,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" />
     <uses-feature android:name="android.hardware.usb.host" android:required="true" />
     <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
@@ -72,7 +74,7 @@
         <service
             android:name=".SensorBridgeService"
             android:exported="false"
-            android:foregroundServiceType="dataSync|camera"
+            android:foregroundServiceType="dataSync|camera|mediaProjection"
             android:stopWithTask="false" />
     </application>
 </manifest>

@@ -5,6 +5,7 @@ import {
   formatDiagnosticsLayout,
   loadDiagnosticsLayout
 } from './xr-diagnostics-layout.js';
+import { HeadsetFrameAcquirer } from './xr-headset-frame.js';
 
 const THERMAL_BRIDGE_STORAGE_KEY = 'mxg_thermal_bridge_url';
 const THERMAL_TOKEN_STORAGE_KEY = 'mxg_thermal_bridge_token';
@@ -12,8 +13,6 @@ const PI_DIAGNOSTICS_BRIDGE_STORAGE_KEY = 'mxg_pi_diagnostics_bridge_url';
 const FRAME_MAGIC = 0x4d584753;
 const MAX_THERMAL_PIXELS = 1920 * 1080;
 const MAX_HANDSHAKE_TRACE_ENTRIES = 64;
-const MAX_SNAPSHOT_DATA_URL_CHARS = 1_450_000;
-const SNAPSHOT_TIMEOUT_MS = 10_000;
 
 function clean(value, fallback = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -130,7 +129,20 @@ export class XRSensorOrb {
     this.screenPinned = false;
     this.state = 'unconfigured';
     this.socket = null;
-    this.pendingSnapshots = new Map();
+    this.frameAcquirer = new HeadsetFrameAcquirer({
+      isConnected: () => this.socket?.readyState === 1,
+      send: (message) => this.socket.send(JSON.stringify(message)),
+      onStatus: (event) => {
+        if (event.state === 'requesting') {
+          this.trace('W11 SNAPSHOT', `${event.purpose} request sent · ${event.timeoutMs} ms ceiling`, 'info');
+        } else if (event.state === 'received') {
+          const frame = event.frame;
+          this.trace('W12 SNAPSHOT', `${frame.purpose} · ${frame.width}×${frame.height} ${frame.eye}-eye JPEG received`, 'success');
+        } else if (event.state === 'failed') {
+          this.trace('W12 SNAPSHOT', `${event.purpose} · ${event.detail}`, 'error');
+        }
+      }
+    });
     this.reconnectTimer = null;
     this.reconnectAttempt = 0;
     this.diagnosticsState = 'unconfigured';
@@ -159,6 +171,7 @@ export class XRSensorOrb {
     this.bridge = configuredThermalBridge({ url: bridgeUrl, token: bridgeToken });
     this.diagnosticsBridge = configuredDiagnosticsBridge({ url: diagnosticsBridgeUrl });
     this.remoteWitnessState = remoteWitnessUrl ? 'configured' : 'unconfigured';
+    this.pendingWitnessBootstrap = null;
     this.diagnosticsSchemaUrls = configuredDiagnosticsSchemas();
     this.diagnosticsLayout = null;
     this.diagnosticsLayoutState = 'loading';
@@ -427,38 +440,17 @@ export class XRSensorOrb {
     }
   }
 
-  requestHeadsetSnapshot({ timeoutMs = SNAPSHOT_TIMEOUT_MS } = {}) {
+  acquireHeadsetFrame({ purpose = 'evidence', timeoutMs } = {}) {
     if (this.disposed) return Promise.reject(new Error('Sensor scene is closed'));
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Quest snapshot bridge is not connected'));
-    }
-    const requestId = globalThis.crypto?.randomUUID?.()
-      || `snapshot_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-    const boundedTimeout = THREE.MathUtils.clamp(Number(timeoutMs) || SNAPSHOT_TIMEOUT_MS, 2000, 20000);
-    this.trace('W11 SNAPSHOT', 'request sent · waiting for one Quest RGB frame', 'info');
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingSnapshots.delete(requestId);
-        this.trace('W12 SNAPSHOT', 'timed out · companion did not return a frame', 'error');
-        reject(new Error('Headset snapshot timed out'));
-      }, boundedTimeout);
-      this.pendingSnapshots.set(requestId, { resolve, reject, timer });
-      try {
-        this.socket.send(JSON.stringify({ type: 'headset.snapshot.request', requestId }));
-      } catch (error) {
-        clearTimeout(timer);
-        this.pendingSnapshots.delete(requestId);
-        reject(error);
-      }
-    });
+    return this.frameAcquirer.acquireHeadsetFrame({ purpose, timeoutMs });
+  }
+
+  requestHeadsetSnapshot(options = {}) {
+    return this.acquireHeadsetFrame({ ...options, purpose: options.purpose || 'evidence' });
   }
 
   failPendingSnapshots(reason = 'Quest snapshot bridge disconnected') {
-    for (const pending of this.pendingSnapshots.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error(reason));
-    }
-    this.pendingSnapshots.clear();
+    this.frameAcquirer.failPending(reason);
   }
 
   handleObject(object, input = 'unknown') {
@@ -557,6 +549,7 @@ export class XRSensorOrb {
       socket.addEventListener('close', (event) => {
         if (this.socket === socket) this.socket = null;
         this.failPendingSnapshots('Quest snapshot bridge disconnected');
+        this.failPendingWitnessBootstrap('Quest witness bootstrap bridge disconnected');
         this.trace(
           'W00 SOCKET',
           `closed ${event.code || 1006} · ${event.reason || (event.wasClean ? 'clean close' : 'no bridge response')}`,
@@ -679,6 +672,65 @@ export class XRSensorOrb {
     this.drawPanel();
   }
 
+  sendWitnessBootstrap(invitation, projection = {}) {
+    if (this.disposed) return Promise.reject(new Error('Sensor scene is closed'));
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.sessionId) {
+      return Promise.reject(new Error('Sensor Bridge is not connected'));
+    }
+    if (this.pendingWitnessBootstrap) {
+      return Promise.reject(new Error('A witness bootstrap is already pending'));
+    }
+    const roomId = clean(invitation?.roomId);
+    const payload = {
+      type: 'witness.bootstrap',
+      version: 1,
+      sessionId: this.sessionId,
+      roomId,
+      joinUrl: clean(invitation?.joinUrl),
+      manualCode: clean(invitation?.manualCode).toUpperCase(),
+      audience: clean(invitation?.state?.audience, 'Aircraft customer'),
+      ...(invitation?.qrDataUrl ? { qrDataUrl: String(invitation.qrDataUrl) } : {}),
+      producerCredential: String(invitation?.producerCredential || ''),
+      socketPath: clean(invitation?.socketPath, '/api/xr/witness/ws'),
+      socketUrl: clean(invitation?.socketUrl),
+      expiresAtMs: Number(invitation?.sessionExpiresAtMs),
+      iceServers: Array.isArray(invitation?.iceServers) ? invitation.iceServers.slice(0, 4) : [],
+      projection: {
+        target: projection?.target || null,
+        caseSummary: projection?.caseSummary || null,
+        caseMedia: Array.isArray(projection?.caseMedia) ? projection.caseMedia.slice(0, 8) : []
+      }
+    };
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.pendingWitnessBootstrap?.roomId !== roomId) return;
+        this.pendingWitnessBootstrap = null;
+        this.remoteWitnessState = 'bootstrap-timeout';
+        this.emitStatus();
+        reject(new Error('Sensor Bridge did not acknowledge the witness room'));
+      }, 8000);
+      this.pendingWitnessBootstrap = { roomId, resolve, reject, timer };
+      this.remoteWitnessState = 'bootstrapping';
+      this.emitStatus();
+      try {
+        this.socket.send(JSON.stringify(payload));
+        this.trace('W20 WITNESS', `native bootstrap sent · room ${roomId.slice(0, 8)}`, 'info');
+      } catch (error) {
+        this.failPendingWitnessBootstrap(error?.message || 'Witness bootstrap send failed');
+      }
+    });
+  }
+
+  failPendingWitnessBootstrap(detail) {
+    const pending = this.pendingWitnessBootstrap;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingWitnessBootstrap = null;
+    this.remoteWitnessState = 'bootstrap-failed';
+    this.emitStatus();
+    pending.reject(new Error(detail));
+  }
+
   setDiagnosticsState(state) {
     const previous = this.diagnosticsState;
     this.diagnosticsState = state;
@@ -694,34 +746,8 @@ export class XRSensorOrb {
     if (typeof event.data === 'string') {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === 'headset.snapshot.result') {
-          const pending = this.pendingSnapshots.get(message.requestId);
-          if (!pending) return;
-          clearTimeout(pending.timer);
-          this.pendingSnapshots.delete(message.requestId);
-          if (message.status !== 'ok') {
-            const detail = clean(message.detail, message.code || 'Headset snapshot failed');
-            this.trace('W12 SNAPSHOT', detail, 'error');
-            pending.reject(new Error(detail));
-            return;
-          }
-          if (typeof message.dataUrl !== 'string'
-            || !/^data:image\/jpeg;base64,/i.test(message.dataUrl)
-            || message.dataUrl.length > MAX_SNAPSHOT_DATA_URL_CHARS) {
-            this.trace('W12 SNAPSHOT', 'rejected · invalid or oversized JPEG result', 'error');
-            pending.reject(new Error('Headset snapshot payload was invalid or oversized'));
-            return;
-          }
-          const result = {
-            dataUrl: message.dataUrl,
-            width: Number(message.width) || 0,
-            height: Number(message.height) || 0,
-            eye: clean(message.eye, 'unknown'),
-            capturedAtMs: Number(message.capturedAtMs) || Date.now()
-          };
-          this.trace('W12 SNAPSHOT', `${result.width}×${result.height} ${result.eye}-eye JPEG received`, 'success');
-          pending.resolve(result);
-        } else if (message.type === 'bridge.hello') {
+        if (this.frameAcquirer.handleMessage(message)) return;
+        if (message.type === 'bridge.hello') {
           this.bridgeHello = message;
           this.trace('W06 HELLO', `${message.transport || 'bridge'} · ${message.frameProtocol || 'unknown protocol'} · v${message.version || '?'}`, 'success');
           this.drawPanel();
@@ -762,6 +788,21 @@ export class XRSensorOrb {
             `${phase}${message.reason ? ` · ${message.reason}` : ''}${message.version ? ` · ${message.version}` : ''}`,
             message.ready === true ? 'success' : phase === 'failed' ? 'error' : phase === 'stopped' ? 'warn' : 'info'
           );
+          this.emitStatus();
+          this.drawPanel();
+        } else if (message.type === 'witness.bootstrap.ack') {
+          const pending = this.pendingWitnessBootstrap;
+          if (!pending || clean(message.roomId) !== pending.roomId) return;
+          clearTimeout(pending.timer);
+          this.pendingWitnessBootstrap = null;
+          if (message.status === 'accepted') {
+            this.remoteWitnessState = 'native-bound';
+            this.trace('W21 WITNESS', `native bootstrap accepted · room ${pending.roomId.slice(0, 8)}`, 'success');
+            pending.resolve({ status: 'accepted', roomId: pending.roomId });
+          } else {
+            this.remoteWitnessState = 'bootstrap-rejected';
+            pending.reject(new Error(`Sensor Bridge rejected witness bootstrap (${clean(message.code, 'unknown')})`));
+          }
           this.emitStatus();
           this.drawPanel();
         } else if (message.type === 'source.status') {
@@ -1102,7 +1143,8 @@ export class XRSensorOrb {
     clearTimeout(this.diagnosticsReconnectTimer);
     this.reconnectTimer = null;
     this.diagnosticsReconnectTimer = null;
-    this.failPendingSnapshots('Sensor scene closed before snapshot completed');
+    this.frameAcquirer.dispose();
+    this.failPendingWitnessBootstrap('Sensor scene disposed');
 
     const thermalSocket = this.socket;
     const diagnosticsSocket = this.diagnosticsSocket;

@@ -172,7 +172,10 @@ async fn main() -> anyhow::Result<()> {
         // confirm, unit transitions, metadata correction, quantity adjust, and
         // split are all unreachable locally. Attach the production verifier
         // whenever the pool and a signing secret are both present.
-        match (&production_pool, std::env::var("MXGENIUS_CONFIRMATION_SECRET")) {
+        match (
+            &production_pool,
+            std::env::var("MXGENIUS_CONFIRMATION_SECRET"),
+        ) {
             (Some(pool), Ok(secret)) => {
                 let verifier = PostgresConfirmationGrantVerifier::new(
                     pool.clone(),
@@ -276,39 +279,6 @@ fn insecure_local_role(raw: Option<String>) -> anyhow::Result<Role> {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_unset_or_cleared_variable_keeps_the_default() {
-        for raw in [None, Some(String::new()), Some("   ".into())] {
-            assert_eq!(insecure_local_role(raw).unwrap(), Role::Administrator);
-        }
-    }
-
-    #[test]
-    fn a_named_role_is_taken_and_may_be_typed_loosely() {
-        assert_eq!(insecure_local_role(Some("quality".into())).unwrap(), Role::Quality);
-        assert_eq!(insecure_local_role(Some(" Quality ".into())).unwrap(), Role::Quality);
-        assert_eq!(
-            insecure_local_role(Some("technician".into())).unwrap(),
-            Role::Technician
-        );
-    }
-
-    /// A typo must not quietly become Administrator, and the message has to be
-    /// self-correcting.
-    #[test]
-    fn a_misspelled_role_refuses_to_boot_and_names_the_valid_set() {
-        let error = insecure_local_role(Some("qualtiy".into())).unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("qualtiy"), "{message}");
-        assert!(message.contains("quality"), "{message}");
-        assert!(message.contains("administrator"), "{message}");
-    }
-}
-
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name)
         .map_err(|_| anyhow::anyhow!("required environment variable {name} is unset"))
@@ -326,5 +296,44 @@ fn init_tracing() {
         builder.with_writer(std::io::stderr).init();
     } else {
         builder.init();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unset_or_cleared_variable_keeps_the_default() {
+        for raw in [None, Some(String::new()), Some("   ".into())] {
+            assert_eq!(insecure_local_role(raw).unwrap(), Role::Administrator);
+        }
+    }
+
+    #[test]
+    fn a_named_role_is_taken_and_may_be_typed_loosely() {
+        assert_eq!(
+            insecure_local_role(Some("quality".into())).unwrap(),
+            Role::Quality
+        );
+        assert_eq!(
+            insecure_local_role(Some(" Quality ".into())).unwrap(),
+            Role::Quality
+        );
+        assert_eq!(
+            insecure_local_role(Some("technician".into())).unwrap(),
+            Role::Technician
+        );
+    }
+
+    /// A typo must not quietly become Administrator, and the message has to be
+    /// self-correcting.
+    #[test]
+    fn a_misspelled_role_refuses_to_boot_and_names_the_valid_set() {
+        let error = insecure_local_role(Some("qualtiy".into())).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("qualtiy"), "{message}");
+        assert!(message.contains("quality"), "{message}");
+        assert!(message.contains("administrator"), "{message}");
     }
 }

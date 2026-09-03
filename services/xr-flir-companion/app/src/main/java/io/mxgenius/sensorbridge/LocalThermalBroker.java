@@ -15,7 +15,10 @@ import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,14 +40,20 @@ final class LocalThermalBroker extends WebSocketServer {
         void acknowledgeBrowser(String runId, int renderedFrames);
     }
 
+    interface WitnessBootstrapHandler {
+        CompletionStage<Void> accept(RemoteWitnessBootstrap bootstrap);
+    }
+
     static final int DEFAULT_PORT = 4109;
     private static final String PATH = "/thermal";
     private final Set<String> allowedOrigins;
     private final Set<WebSocket> consumers = ConcurrentHashMap.newKeySet();
+    private final Set<WebSocket> sessionBoundConsumers = ConcurrentHashMap.newKeySet();
     private final String nodeId;
     private final Listener listener;
     private final SnapshotHandler snapshotHandler;
     private final CommissioningHandler commissioningHandler;
+    private final WitnessBootstrapHandler witnessBootstrapHandler;
     private final CountDownLatch started = new CountDownLatch(1);
     private static final int HISTORY_LIMIT = 64;
     private final Object eventHistoryLock = new Object();
@@ -53,11 +62,13 @@ final class LocalThermalBroker extends WebSocketServer {
     private volatile String token;
     private volatile String sourceStatus = "standby";
     private volatile String sourceReason;
+    private volatile UUID acceptedWitnessRoomId;
 
     LocalThermalBroker(InetSocketAddress address, Set<String> allowedOrigins, String nodeId, Listener listener) {
         this(address, allowedOrigins, nodeId, listener,
                 (requestId, responder) -> responder.failure("snapshot-unavailable", "headset snapshot capture is unavailable"),
-                (runId, renderedFrames) -> {});
+                (runId, renderedFrames) -> {},
+                bootstrap -> unavailableWitnessBootstrap());
     }
 
     LocalThermalBroker(
@@ -66,7 +77,8 @@ final class LocalThermalBroker extends WebSocketServer {
             String nodeId,
             Listener listener,
             SnapshotHandler snapshotHandler) {
-        this(address, allowedOrigins, nodeId, listener, snapshotHandler, (runId, renderedFrames) -> {});
+        this(address, allowedOrigins, nodeId, listener, snapshotHandler, (runId, renderedFrames) -> {},
+                bootstrap -> unavailableWitnessBootstrap());
     }
 
     LocalThermalBroker(
@@ -76,12 +88,25 @@ final class LocalThermalBroker extends WebSocketServer {
             Listener listener,
             SnapshotHandler snapshotHandler,
             CommissioningHandler commissioningHandler) {
+        this(address, allowedOrigins, nodeId, listener, snapshotHandler, commissioningHandler,
+                bootstrap -> unavailableWitnessBootstrap());
+    }
+
+    LocalThermalBroker(
+            InetSocketAddress address,
+            Set<String> allowedOrigins,
+            String nodeId,
+            Listener listener,
+            SnapshotHandler snapshotHandler,
+            CommissioningHandler commissioningHandler,
+            WitnessBootstrapHandler witnessBootstrapHandler) {
         super(address);
         this.allowedOrigins = Set.copyOf(allowedOrigins);
         this.nodeId = nodeId;
         this.listener = listener;
         this.snapshotHandler = snapshotHandler;
         this.commissioningHandler = commissioningHandler;
+        this.witnessBootstrapHandler = witnessBootstrapHandler;
         setReuseAddr(true);
         setConnectionLostTimeout(15);
     }
@@ -91,6 +116,8 @@ final class LocalThermalBroker extends WebSocketServer {
         token = nextToken;
         for (WebSocket consumer : consumers) consumer.close(1008, "thermal session replaced");
         consumers.clear();
+        sessionBoundConsumers.clear();
+        acceptedWitnessRoomId = null;
         listener.onState("local ready");
     }
 
@@ -147,6 +174,7 @@ final class LocalThermalBroker extends WebSocketServer {
 
     @Override public void onClose(WebSocket connection, int code, String reason, boolean remote) {
         consumers.remove(connection);
+        sessionBoundConsumers.remove(connection);
         listener.onState(consumers.isEmpty() ? "local ready" : "local connected");
     }
 
@@ -165,7 +193,10 @@ final class LocalThermalBroker extends WebSocketServer {
                     connection.close(1008, "thermal session mismatch");
                     return;
                 }
+                sessionBoundConsumers.add(connection);
                 publishTrace("B05", "BROKER", "bound", "WebXR session bind matched activation", "success");
+            } else if ("witness.bootstrap".equals(type)) {
+                acceptWitnessBootstrap(connection, payload);
             } else if ("thermal.control".equals(type)) {
                 publishTrace(
                         "B06",
@@ -179,14 +210,24 @@ final class LocalThermalBroker extends WebSocketServer {
                     sendSnapshotFailure(connection, requestId, "snapshot-request", "snapshot request id is invalid");
                     return;
                 }
-                publishTrace("B07", "SNAPSHOT", "requested", "authenticated WebXR client requested one headset frame", "info");
+                String purpose = payload.optString("purpose", "evidence");
+                String scanId = payload.optString("scanId", "");
+                if (!("scan".equals(purpose) || "evidence".equals(purpose))) {
+                    sendSnapshotFailure(connection, requestId, "snapshot-purpose", "snapshot purpose must be scan or evidence");
+                    return;
+                }
+                if ("scan".equals(purpose) && !scanId.matches("^[A-Za-z0-9_-]{8,80}$")) {
+                    sendSnapshotFailure(connection, requestId, purpose, scanId, "snapshot-scan-id", "scan id is invalid");
+                    return;
+                }
+                publishTrace("B07", "SNAPSHOT", "requested", "authenticated WebXR client requested one " + purpose + " frame", "info");
                 snapshotHandler.request(requestId, new SnapshotResponder() {
                     @Override public void success(byte[] jpeg, int width, int height, String eye) {
-                        sendSnapshotSuccess(connection, requestId, jpeg, width, height, eye);
+                        sendSnapshotSuccess(connection, requestId, purpose, scanId, jpeg, width, height, eye);
                     }
 
                     @Override public void failure(String code, String detail) {
-                        sendSnapshotFailure(connection, requestId, code, detail);
+                        sendSnapshotFailure(connection, requestId, purpose, scanId, code, detail);
                     }
                 });
             } else if ("commissioning.browser_ack".equals(type)) {
@@ -257,7 +298,8 @@ final class LocalThermalBroker extends WebSocketServer {
                             .put("mxgs-1")
                             .put("thermal-jpeg")
                             .put("headset-snapshot")
-                            .put("thermal-commissioning-v1"));
+                            .put("thermal-commissioning-v1")
+                            .put("remote-witness-bootstrap-v1"));
             return new JSONObject().put("type", "node.status").put("status", "connected").put("node", node).toString();
         } catch (JSONException error) {
             throw new IllegalStateException(error);
@@ -277,6 +319,77 @@ final class LocalThermalBroker extends WebSocketServer {
             return message.toString();
         } catch (JSONException error) {
             return null;
+        }
+    }
+
+    private void acceptWitnessBootstrap(WebSocket connection, JSONObject payload) {
+        String roomId = safeRoomId(payload.optString("roomId", ""));
+        if (!sessionBoundConsumers.contains(connection)) {
+            sendWitnessBootstrapAck(connection, roomId, "rejected", "session-bind-required");
+            return;
+        }
+        try {
+            RemoteWitnessBootstrap bootstrap = RemoteWitnessBootstrap.parse(payload, sessionId, System.currentTimeMillis());
+            UUID currentRoom = acceptedWitnessRoomId;
+            if (currentRoom != null) {
+                sendWitnessBootstrapAck(connection, roomId, "rejected", "bootstrap-already-bound");
+                return;
+            }
+            acceptedWitnessRoomId = bootstrap.roomId;
+            String expectedSessionId = sessionId;
+            CompletionStage<Void> ready = witnessBootstrapHandler.accept(bootstrap);
+            if (ready == null) throw new IllegalStateException("native witness bootstrap returned no readiness stage");
+            ready.whenComplete((ignored, error) -> {
+                if (!bootstrap.roomId.equals(acceptedWitnessRoomId)
+                        || !expectedSessionId.equals(sessionId)) return;
+                if (error != null) {
+                    acceptedWitnessRoomId = null;
+                    publishTrace("W20", "WITNESS", "rejected", "native witness producer could not connect", "error");
+                    sendWitnessBootstrapAck(connection, roomId, "rejected", "native-producer-unavailable");
+                    return;
+                }
+                publishTrace("W20", "WITNESS", "bound", "native witness producer connected for room " + bootstrap.roomId, "success");
+                sendWitnessBootstrapAck(connection, bootstrap.roomId.toString(), "accepted", null);
+            });
+        } catch (RuntimeException error) {
+            acceptedWitnessRoomId = null;
+            publishTrace("W20", "WITNESS", "rejected", "native witness bootstrap failed validation", "error");
+            sendWitnessBootstrapAck(connection, roomId, "rejected", "invalid-bootstrap");
+        }
+    }
+
+    private static String safeRoomId(String candidate) {
+        try {
+            return UUID.fromString(candidate).toString();
+        } catch (RuntimeException ignored) {
+            return "00000000-0000-0000-0000-000000000000";
+        }
+    }
+
+    private static CompletionStage<Void> unavailableWitnessBootstrap() {
+        CompletableFuture<Void> unavailable = new CompletableFuture<>();
+        unavailable.completeExceptionally(new IllegalStateException("native witness producer unavailable"));
+        return unavailable;
+    }
+
+    private void sendWitnessBootstrapAck(
+            WebSocket connection,
+            String roomId,
+            String status,
+            String code) {
+        if (!connection.isOpen() || !consumers.contains(connection)) return;
+        try {
+            JSONObject ack = new JSONObject()
+                    .put("type", "witness.bootstrap.ack")
+                    .put("version", RemoteWitnessBootstrap.VERSION)
+                    .put("sessionId", sessionId)
+                    .put("roomId", roomId)
+                    .put("status", status)
+                    .put("observedAtMs", System.currentTimeMillis());
+            if (code != null) ack.put("code", code);
+            connection.send(ack.toString());
+        } catch (JSONException ignored) {
+            connection.close(1011, "witness bootstrap acknowledgement failed");
         }
     }
 
@@ -322,45 +435,66 @@ final class LocalThermalBroker extends WebSocketServer {
     private void sendSnapshotSuccess(
             WebSocket connection,
             String requestId,
+            String purpose,
+            String scanId,
             byte[] jpeg,
             int width,
             int height,
             String eye) {
         if (jpeg == null || jpeg.length == 0 || jpeg.length > 1024 * 1024) {
-            sendSnapshotFailure(connection, requestId, "snapshot-size", "snapshot JPEG exceeded the transport limit");
+            sendSnapshotFailure(connection, requestId, purpose, scanId, "snapshot-size", "snapshot JPEG exceeded the transport limit");
             return;
         }
         if (!connection.isOpen() || !consumers.contains(connection)) return;
         try {
             String dataUrl = "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg);
-            connection.send(new JSONObject()
+            JSONObject result = new JSONObject()
                     .put("type", "headset.snapshot.result")
                     .put("requestId", requestId)
+                    .put("purpose", purpose)
                     .put("status", "ok")
                     .put("mimeType", "image/jpeg")
                     .put("width", width)
                     .put("height", height)
                     .put("eye", eye)
                     .put("capturedAtMs", System.currentTimeMillis())
-                    .put("dataUrl", dataUrl)
-                    .toString());
-            publishTrace("B09", "SNAPSHOT", "delivered", "one headset JPEG returned to its requesting WebXR client", "success");
+                    .put("camera", new JSONObject()
+                            .put("source", "quest-passthrough")
+                            .put("eye", eye)
+                            .put("poseAvailable", false)
+                            .put("intrinsicsAvailable", false))
+                    .put("dataUrl", dataUrl);
+            if (!scanId.isBlank()) result.put("scanId", scanId);
+            connection.send(result.toString());
+            publishTrace("B09", "SNAPSHOT", "delivered", "one " + purpose + " JPEG returned to its requesting WebXR client", "success");
         } catch (JSONException error) {
-            sendSnapshotFailure(connection, requestId, "snapshot-encode", "snapshot result could not be encoded");
+            sendSnapshotFailure(connection, requestId, purpose, scanId, "snapshot-encode", "snapshot result could not be encoded");
         }
     }
 
     private void sendSnapshotFailure(WebSocket connection, String requestId, String code, String detail) {
+        sendSnapshotFailure(connection, requestId, "", "", code, detail);
+    }
+
+    private void sendSnapshotFailure(
+            WebSocket connection,
+            String requestId,
+            String purpose,
+            String scanId,
+            String code,
+            String detail) {
         if (!connection.isOpen()) return;
         try {
-            connection.send(new JSONObject()
+            JSONObject result = new JSONObject()
                     .put("type", "headset.snapshot.result")
                     .put("requestId", requestId == null ? "" : requestId)
                     .put("status", "failed")
                     .put("code", cleanProtocolText(code, "snapshot-failed"))
                     .put("detail", cleanProtocolText(detail, "headset snapshot failed"))
-                    .put("capturedAtMs", System.currentTimeMillis())
-                    .toString());
+                    .put("capturedAtMs", System.currentTimeMillis());
+            if ("scan".equals(purpose) || "evidence".equals(purpose)) result.put("purpose", purpose);
+            if (scanId != null && scanId.matches("^[A-Za-z0-9_-]{8,80}$")) result.put("scanId", scanId);
+            connection.send(result.toString());
         } catch (JSONException ignored) {
             connection.send("{\"type\":\"headset.snapshot.result\",\"status\":\"failed\",\"code\":\"snapshot-failed\"}");
         }

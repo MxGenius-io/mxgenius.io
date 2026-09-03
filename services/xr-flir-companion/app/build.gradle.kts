@@ -19,8 +19,8 @@ android {
         applicationId = "io.mxgenius.sensorbridge"
         minSdk = 34
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.1.0-poc.18"
+        versionCode = 21
+        versionName = "0.1.0-alpha.21"
         buildConfigField("String", "FLIR_SDK_VERSION", "\"2.22.0\"")
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -54,12 +54,16 @@ android {
     buildFeatures { buildConfig = true }
 
     packaging { resources.excludes.add("META-INF/LICENSE") }
+
+    sourceSets.getByName("test").resources.srcDir("../../xr-diagnostics-kiosk/fixtures")
 }
 
 dependencies {
     implementation("", name = "androidsdk-release", ext = "aar")
     implementation("", name = "thermalsdk-release", ext = "aar")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    // Pinned native WebRTC build for the Remote Witness Quest compositor track.
+    implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation("org.java-websocket:Java-WebSocket:1.6.0") {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }

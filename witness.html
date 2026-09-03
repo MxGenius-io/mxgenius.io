@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>MXGenius Remote Witness</title>
+  <link rel="stylesheet" href="witness.css?v=1">
+</head>
+<body>
+  <main class="witness-shell">
+    <header class="brand-bar">
+      <a class="brand" href="index.html" aria-label="MXGenius home">
+        <img src="assets/mxgenius_logo.png" alt="">
+        <span>MXGenius</span>
+      </a>
+      <span class="read-only-badge">READ-ONLY CUSTOMER VIEW</span>
+    </header>
+
+    <section class="join-card" id="joinCard">
+      <p class="eyebrow">REMOTE WITNESS</p>
+      <h1>Join the aircraft inspection</h1>
+      <p>A private invitation lets you watch the technician’s shared view. It does not grant access to the maintenance system.</p>
+      <form id="joinForm">
+        <label for="manualCode">Manual join code</label>
+        <div class="join-row">
+          <input id="manualCode" name="manualCode" maxlength="14" autocomplete="one-time-code" inputmode="text" placeholder="XXXX XXXX XXXX">
+          <button type="submit">Join securely</button>
+        </div>
+      </form>
+      <p class="status-line" id="joinStatus" role="status">Enter the code shown by the technician.</p>
+    </section>
+
+    <section class="room" id="room" hidden>
+      <div class="session-strip">
+        <div>
+          <p class="eyebrow">LIVE CUSTOMER VIEW</p>
+          <h1 id="roomAudience">Aircraft inspection</h1>
+        </div>
+        <div class="connection-state" id="connectionState" data-state="waiting">
+          <span aria-hidden="true"></span><strong>Connecting</strong>
+        </div>
+      </div>
+
+      <div class="viewer-grid">
+        <section class="video-card" aria-label="Technician shared view">
+          <video id="witnessVideo" autoplay playsinline controls muted></video>
+          <div class="video-waiting" id="videoWaiting">
+            <span class="pulse-ring" aria-hidden="true"></span>
+            <strong>Waiting for wearer approval</strong>
+            <p>The technician controls when the live view begins and can pause it at any time.</p>
+          </div>
+          <div class="live-flag" id="liveFlag" hidden>LIVE POV</div>
+        </section>
+
+        <aside class="context-card">
+          <section id="targetSection" hidden>
+            <p class="eyebrow">CURRENT TARGET</p>
+            <h2 id="targetName">Selected component</h2>
+            <p id="targetDetail"></p>
+          </section>
+          <section id="caseSection" hidden>
+            <p class="eyebrow">MAINTENANCE CASE</p>
+            <h2 id="caseAircraft">Aircraft</h2>
+            <p id="caseDiscrepancy"></p>
+            <span class="case-state" id="caseState"></span>
+          </section>
+          <section id="mediaSection" hidden>
+            <p class="eyebrow">SHARED EVIDENCE</p>
+            <div class="media-grid" id="mediaGrid"></div>
+          </section>
+          <p class="empty-context" id="emptyContext">The technician has not shared case or target details.</p>
+        </aside>
+      </div>
+
+      <div class="interaction-grid">
+        <form class="comment-card" id="commentForm">
+          <label for="commentText">Send an observation to the technician</label>
+          <div class="comment-row">
+            <input id="commentText" maxlength="500" placeholder="For example: Please show that panel again">
+            <button type="submit">Send</button>
+          </div>
+          <small>Comments are proposed observations. They do not alter the maintenance case.</small>
+        </form>
+        <label class="consent-card">
+          <input type="checkbox" id="recordingConsent">
+          <span><strong>Allow session recording</strong><small>Recording stays off unless both you and the wearer consent.</small></span>
+        </label>
+      </div>
+      <p class="room-message" id="roomMessage" role="status"></p>
+    </section>
+  </main>
+  <script src="runtime-config.js?v=5"></script>
+  <script src="application-client.js?v=39"></script>
+  <script src="witness.js?v=1"></script>
+</body>
+</html>

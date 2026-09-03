@@ -1,0 +1,10 @@
+{
+  "type": "spatial.command.result",
+  "version": 1,
+  "commandId": "command_scan_0001",
+  "sessionId": "session-contract-1",
+  "status": "stale",
+  "reason": "Expected registry revision 3 but current revision is 9",
+  "registryRevision": 9,
+  "observedAtMs": 1780000009000
+}

@@ -1,79 +1,353 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mxgenius.io/contracts/remote-witness-session.schema.json",
-  "title": "MXG Remote Witness session messages",
+  "title": "MXG Remote Witness v1 messages",
+  "description": "Bounded browser, Quest-loopback, native producer, and customer-viewer messages. Continuous media is never valid under this schema.",
   "oneOf": [
-    { "$ref": "#/$defs/request" },
-    { "$ref": "#/$defs/consent" },
-    { "$ref": "#/$defs/status" }
+    { "$ref": "#/$defs/bootstrap" },
+    { "$ref": "#/$defs/bootstrapAck" },
+    { "$ref": "#/$defs/control" },
+    { "$ref": "#/$defs/signalMessage" },
+    { "$ref": "#/$defs/statePublish" },
+    { "$ref": "#/$defs/stateEvent" },
+    { "$ref": "#/$defs/roomEvent" },
+    { "$ref": "#/$defs/roomEnded" },
+    { "$ref": "#/$defs/comment" },
+    { "$ref": "#/$defs/recordingConsent" },
+    { "$ref": "#/$defs/proposedObservationEvent" },
+    { "$ref": "#/$defs/ping" },
+    { "$ref": "#/$defs/pong" },
+    { "$ref": "#/$defs/error" }
   ],
   "$defs": {
-    "base": {
+    "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "credential": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "timestamp": { "type": "integer", "minimum": 0 },
+    "layers": {
       "type": "object",
-      "required": ["type", "version", "sessionId", "observedAtMs"],
+      "additionalProperties": false,
+      "required": ["pov", "thermal", "target", "caseSummary", "caseMedia", "microphone"],
       "properties": {
-        "type": { "type": "string" },
-        "version": { "const": 1 },
-        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "observedAtMs": { "type": "integer", "minimum": 0 }
+        "pov": { "type": "boolean" },
+        "thermal": { "type": "boolean" },
+        "target": { "type": "boolean" },
+        "caseSummary": { "type": "boolean" },
+        "caseMedia": { "type": "boolean" },
+        "microphone": { "type": "boolean" }
       }
     },
-    "request": {
-      "allOf": [
-        { "$ref": "#/$defs/base" },
-        {
-          "type": "object",
-          "required": ["audience", "capture", "layers", "wearerInitiated", "recordingRequested"],
-          "properties": {
-            "type": { "const": "remote-witness.request" },
-            "audience": { "enum": ["hq", "customer"] },
-            "capture": { "enum": ["wearer-pov", "service-camera"] },
-            "layers": {
-              "type": "array",
-              "uniqueItems": true,
-              "items": { "enum": ["headset-ui", "thermal", "diagnostics", "microphone"] }
-            },
-            "wearerInitiated": { "const": true },
-            "recordingRequested": { "type": "boolean" }
-          }
-        }
-      ]
+    "iceUrl": {
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^(stun:|stuns:|turn:|turns:)"
     },
-    "consent": {
-      "allOf": [
-        { "$ref": "#/$defs/base" },
-        {
-          "type": "object",
-          "required": ["granted", "grantedBy", "expiresAtMs", "recordingGranted"],
-          "properties": {
-            "type": { "const": "remote-witness.consent" },
-            "granted": { "type": "boolean" },
-            "grantedBy": { "const": "wearer" },
-            "expiresAtMs": { "type": "integer", "minimum": 0 },
-            "recordingGranted": { "type": "boolean" }
-          }
-        }
-      ]
-    },
-    "status": {
-      "allOf": [
-        { "$ref": "#/$defs/base" },
-        {
-          "type": "object",
-          "required": ["state", "viewerCount", "recording"],
-          "properties": {
-            "type": { "const": "remote-witness.status" },
-            "state": { "enum": ["idle", "requesting-consent", "connecting", "live", "paused", "ended", "failed"] },
-            "viewerCount": { "type": "integer", "minimum": 0 },
-            "recording": { "type": "boolean" },
-            "activeLayers": {
+    "iceServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["urls"],
+      "properties": {
+        "urls": {
+          "oneOf": [
+            { "$ref": "#/$defs/iceUrl" },
+            {
               "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
               "uniqueItems": true,
-              "items": { "enum": ["headset-ui", "thermal", "diagnostics", "microphone"] }
+              "items": { "$ref": "#/$defs/iceUrl" }
             }
+          ]
+        },
+        "username": { "type": "string", "maxLength": 256 },
+        "credential": { "type": "string", "maxLength": 256 },
+        "credentialType": { "const": "password" }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": { "type": ["object", "null"], "maxProperties": 24 },
+        "caseSummary": { "type": ["object", "null"], "maxProperties": 12 },
+        "caseMedia": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "object", "maxProperties": 16 }
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "version", "sessionId", "roomId", "joinUrl", "manualCode", "producerCredential", "socketPath", "socketUrl", "expiresAtMs", "iceServers"],
+      "properties": {
+        "type": { "const": "witness.bootstrap" },
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "joinUrl": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 1024 },
+        "manualCode": { "type": "string", "pattern": "^[A-F0-9]{12}$" },
+        "audience": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "qrDataUrl": { "type": "string", "pattern": "^data:image/svg\\+xml;base64,", "maxLength": 32768 },
+        "producerCredential": { "$ref": "#/$defs/credential" },
+        "socketPath": { "const": "/api/xr/witness/ws" },
+        "socketUrl": { "type": "string", "format": "uri", "pattern": "^wss://", "maxLength": 1024 },
+        "expiresAtMs": { "$ref": "#/$defs/timestamp" },
+        "iceServers": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/iceServer" } },
+        "projection": { "$ref": "#/$defs/projection" }
+      }
+    },
+    "bootstrapAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "version", "sessionId", "roomId", "status", "observedAtMs"],
+      "properties": {
+        "type": { "const": "witness.bootstrap.ack" },
+        "version": { "const": 1 },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "status": { "enum": ["accepted", "rejected"] },
+        "code": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+        "observedAtMs": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "control": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "action"],
+          "properties": {
+            "type": { "const": "witness.control" },
+            "action": { "enum": ["approve", "pause", "resume", "revoke", "stop-recording"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "action", "layers"],
+          "properties": {
+            "type": { "const": "witness.control" },
+            "action": { "const": "set-layers" },
+            "layers": { "$ref": "#/$defs/layers" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "action", "consent"],
+          "properties": {
+            "type": { "const": "witness.control" },
+            "action": { "const": "recording-consent" },
+            "consent": { "type": "boolean" }
           }
         }
       ]
+    },
+    "description": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "sdp"],
+      "properties": {
+        "type": { "enum": ["offer", "answer"] },
+        "sdp": { "type": "string", "minLength": 1, "maxLength": 57344 }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate"],
+      "properties": {
+        "candidate": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "sdpMid": { "type": ["string", "null"], "maxLength": 256 },
+        "sdpMLineIndex": { "type": ["integer", "null"], "minimum": 0, "maximum": 65535 },
+        "usernameFragment": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "signal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "viewer-ready" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "to", "description"],
+          "properties": {
+            "kind": { "const": "offer" },
+            "to": { "$ref": "#/$defs/uuid" },
+            "description": { "$ref": "#/$defs/description" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "description"],
+          "properties": {
+            "kind": { "const": "answer" },
+            "description": { "$ref": "#/$defs/description" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "candidate"],
+          "properties": {
+            "kind": { "const": "ice" },
+            "to": { "$ref": "#/$defs/uuid" },
+            "candidate": { "$ref": "#/$defs/candidate" }
+          }
+        }
+      ]
+    },
+    "signalMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "signal"],
+      "properties": {
+        "type": { "const": "witness.signal" },
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "from": { "enum": ["producer", "customer-viewer"] },
+        "participantId": { "$ref": "#/$defs/uuid" },
+        "signal": { "$ref": "#/$defs/signal" }
+      },
+      "dependentRequired": {
+        "from": ["roomId", "participantId"],
+        "roomId": ["from", "participantId"],
+        "participantId": ["roomId", "from"]
+      }
+    },
+    "statePublish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "state"],
+      "properties": {
+        "type": { "const": "witness.state.publish" },
+        "state": { "$ref": "#/$defs/projection" }
+      }
+    },
+    "stateEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "roomId", "state"],
+      "properties": {
+        "type": { "const": "witness.state" },
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "state": { "$ref": "#/$defs/projection" }
+      }
+    },
+    "recording": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "wearerConsented", "viewerConsented"],
+      "properties": {
+        "state": { "enum": ["off", "consented"] },
+        "wearerConsented": { "type": "boolean" },
+        "viewerConsented": { "type": "boolean" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observationId", "participantId", "source", "text", "observedAtMs"],
+      "properties": {
+        "observationId": { "$ref": "#/$defs/uuid" },
+        "participantId": { "$ref": "#/$defs/uuid" },
+        "source": { "const": "remote-witness-customer" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "observedAtMs": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roomId", "audience", "status", "approved", "layers", "viewerCount", "recording", "expiresAtMs", "proposedObservations"],
+      "properties": {
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "audience": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "enum": ["headset-offline", "awaiting-approval", "awaiting-viewer", "live", "paused", "revoked", "expired"] },
+        "approved": { "type": "boolean" },
+        "layers": { "$ref": "#/$defs/layers" },
+        "viewerCount": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "recording": { "$ref": "#/$defs/recording" },
+        "expiresAtMs": { "$ref": "#/$defs/timestamp" },
+        "proposedObservations": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/observation" } }
+      }
+    },
+    "roomEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "room"],
+      "properties": {
+        "type": { "enum": ["witness.room-state", "witness.presence"] },
+        "room": { "$ref": "#/$defs/room" }
+      }
+    },
+    "roomEnded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "roomId"],
+      "properties": {
+        "type": { "const": "witness.room-ended" },
+        "roomId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "comment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "witness.comment" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "recordingConsent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "consent"],
+      "properties": {
+        "type": { "const": "witness.recording-consent" },
+        "consent": { "type": "boolean" }
+      }
+    },
+    "proposedObservationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "roomId", "observation"],
+      "properties": {
+        "type": { "const": "witness.proposed-observation" },
+        "roomId": { "$ref": "#/$defs/uuid" },
+        "observation": { "$ref": "#/$defs/observation" }
+      }
+    },
+    "ping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": { "type": { "const": "witness.ping" } }
+    },
+    "pong": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "atMs"],
+      "properties": {
+        "type": { "const": "witness.pong" },
+        "atMs": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "code", "message"],
+      "properties": {
+        "type": { "const": "witness.error" },
+        "code": { "type": "string", "pattern": "^WITNESS_[A-Z0-9_]{1,64}$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
     }
   }
 }

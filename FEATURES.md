@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -230,6 +230,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Selected JetNet location carried into spatial model context.
 - `[x]` Realtime voice presence with microphone control.
 - `[x]` Shared globe-specific spatial audio cues.
+- `[~]` Shared VR browser launcher and animated quick-access panel are mounted for controller and fingertip input; PartsBase and other approved aircraft-resource destinations remain intentionally unconfigured.
 - `[x]` Contextual help entry point using the same guide as the browser globe.
 - `[x]` Fleet route excludes FLIR and Pi initialization.
 - `[!]` Final Quest/browser headset acceptance and comfort pass.
@@ -257,7 +258,9 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Active-case evidence tray with smooth captured-thumbnail transfer and shared Realtime voice presence.
 - `[x]` Maintenance case gallery and dashboard thumbnail recall stored images through tenant-scoped authenticated media routes.
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
-- `[~]` Remote Witness consent and gateway contracts exist; the customer media room, short-lived case invite/QR, viewer presence, and revoke/end controls remain to be mounted.
+- `[x]` Remote Witness room with wearer-generated opaque QR/manual invitation, single-use exchange, reconnectable viewer credential, approval, pause, layer controls, presence count, expiry, and revoke.
+- `[x]` Read-only customer witness page with peer-to-peer WebRTC, shared target/case projection, existing case-gallery media, sourced proposed observations, and separate recording consent.
+- `[~]` Physical Quest composite/passthrough capture and production TURN fallback need a headset/network acceptance pass; no continuous video traverses or persists in MCP.
 - `[x]` Contextual sensor-bridge guide.
 - `[~]` Production XR negotiation is intentionally not mounted until the relay contract is approved.
 - `[!]` Physical Quest + FLIR hardware acceptance and release-channel validation.

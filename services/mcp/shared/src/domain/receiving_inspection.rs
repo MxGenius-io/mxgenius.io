@@ -267,7 +267,11 @@ mod tests {
 
     #[test]
     fn every_vocabulary_round_trips_and_rejects_the_unknown() {
-        for gate in [GateResult::Pass, GateResult::Fail, GateResult::NotApplicable] {
+        for gate in [
+            GateResult::Pass,
+            GateResult::Fail,
+            GateResult::NotApplicable,
+        ] {
             assert_eq!(GateResult::parse(gate.as_str()), Some(gate));
         }
         assert_eq!(GateResult::parse("maybe"), None);
@@ -293,10 +297,7 @@ mod tests {
         let mut gates = all_pass();
         gates.dangerous_goods_paperwork = GateResult::NotApplicable;
         assert!(!gates.any_failed());
-        assert_eq!(
-            Outcome::proposed_from(&gates, false),
-            Outcome::Accepted
-        );
+        assert_eq!(Outcome::proposed_from(&gates, false), Outcome::Accepted);
     }
 
     #[test]

@@ -62,10 +62,12 @@ foreach ($requiredManifestToken in @(
     'ThermalImmersiveActivity',
     'libossdk.oculus.so',
     'android.permission.CAMERA',
+    'android.hardware.camera',
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
     'android.hardware.usb.host',
-    'dataSync|camera',
+    'dataSync|camera|mediaProjection',
     '@mipmap/mxgenius_launcher',
     '@mipmap/mxgenius_launcher_round'
 )) {
@@ -98,7 +100,13 @@ foreach ($requiredImmersiveToken in @(
     '@+id/immersive_reconnect',
     '@+id/immersive_commission',
     '@+id/immersive_commission_status',
-    '@+id/immersive_trace'
+    '@+id/immersive_witness_status',
+    '@+id/immersive_witness_capture',
+    '@+id/immersive_witness_qr',
+    '@+id/immersive_witness_pause',
+    '@+id/immersive_witness_resume',
+    '@+id/immersive_witness_end',
+    '@+id/immersive_witness_layers_toggle'
 )) {
     Assert-ReleaseRequirement ($immersiveLayoutSource.Contains($requiredImmersiveToken)) "native immersive panel is missing $requiredImmersiveToken"
 }
@@ -122,6 +130,53 @@ foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistra
 foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
+foreach ($requiredWitnessBootstrapToken in @(
+    'RemoteWitnessBootstrap',
+    'RemoteWitnessSocket',
+    'witness.bootstrap',
+    'witness.bootstrap.ack',
+    'remote-witness-bootstrap-v1',
+    'session-bind-required',
+    'native-producer-unavailable',
+    'Sec-WebSocket-Protocol'
+)) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredWitnessBootstrapToken)) "native witness bootstrap is missing $requiredWitnessBootstrapToken"
+}
+foreach ($requiredWitnessMediaToken in @(
+    'RemoteWitnessCaptureController',
+    'RemoteWitnessPeerController',
+    'ScreenCapturerAndroid',
+    'HardwareVideoEncoderFactory',
+    'FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION',
+    'createScreenCaptureIntent',
+    'MXG-WITNESS-POV',
+    '1280',
+    '720',
+    'CAPTURE_FPS = 15',
+    'MAX_RECONNECT_ATTEMPTS = 3'
+)) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredWitnessMediaToken)) "native witness media path is missing $requiredWitnessMediaToken"
+}
+foreach ($requiredWitnessControlToken in @(
+    'RemoteWitnessUiState',
+    'RemoteWitnessQrCode',
+    'beginWitnessStart',
+    'pauseWitness',
+    'endWitness',
+    'toggleWitnessExtras',
+    'WAITING, CONNECTING, LIVE, PAUSED, ENDED, ERROR',
+    'witness.control'
+)) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredWitnessControlToken)) "native witness wearer controls are missing $requiredWitnessControlToken"
+}
+foreach ($forbiddenWitnessCredentialSink in @('putString("producerCredential"', 'putExtra("producerCredential"', 'Log.d("producerCredential"')) {
+    Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenWitnessCredentialSink)) "native witness credential reached a forbidden sink: $forbiddenWitnessCredentialSink"
+}
+Assert-ReleaseRequirement (-not $manifestSource.Contains('android.permission.RECORD_AUDIO')) 'Remote Witness must remain video-only until microphone consent is implemented'
+$appBuildSource = Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'app\build.gradle.kts')
+Assert-ReleaseRequirement ($appBuildSource.Contains('io.github.webrtc-sdk:android:150.7871.01')) 'libwebrtc dependency is not pinned to the audited build'
+$webrtcAuditPath = Join-Path (Split-Path $projectRoot -Parent) '..\docs\design\remote-witness-webrtc-dependency.md'
+Assert-ReleaseRequirement (Test-Path -LiteralPath $webrtcAuditPath -PathType Leaf) 'libwebrtc dependency audit and license record is missing'
 foreach ($requiredUsbLifecycleToken in @(
     'UsbPermissionHandler',
     'requestFlirOnePermisson',
@@ -217,6 +272,7 @@ foreach ($requiredPackagedToken in @(
     'android.permission.CAMERA',
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
+    'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
     'android.hardware.usb.host'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"
@@ -235,7 +291,7 @@ Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'p
 Assert-ReleaseRequirement ($packagedResources.Contains('id/enter_immersive')) 'packaged standalone panel is missing id/enter_immersive'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/power_guidance')) 'packaged standalone panel is missing id/power_guidance'
 Assert-ReleaseRequirement (-not $packagedResources.Contains('xml/flir_usb_devices')) 'competing FLIR USB attachment filter is still packaged'
-foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_trace')) {
+foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_witness_status', 'immersive_witness_capture', 'immersive_witness_qr', 'immersive_witness_pause', 'immersive_witness_resume', 'immersive_witness_end', 'immersive_witness_layers_toggle')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
 }
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {
@@ -278,6 +334,7 @@ try {
     Assert-ReleaseRequirement ($nativeEntries.Count -gt 0) 'APK contains no native libraries'
     $abis = @($nativeEntries | ForEach-Object { [regex]::Match($_.FullName, '^lib/([^/]+)/').Groups[1].Value } | Sort-Object -Unique)
     Assert-ReleaseRequirement ($abis.Count -eq 1 -and $abis[0] -eq 'arm64-v8a') "APK must contain only ARM64 native libraries; found: $($abis -join ', ')"
+    Assert-ReleaseRequirement (($nativeEntries | Where-Object { $_.FullName -eq 'lib/arm64-v8a/libjingle_peerconnection_so.so' }).Count -eq 1) 'APK is missing the pinned ARM64 libwebrtc runtime'
 }
 finally {
     $archive.Dispose()

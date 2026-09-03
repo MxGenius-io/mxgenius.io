@@ -1,0 +1,28 @@
+{
+  "type": "spatial.targets.state",
+  "schema": "mxg.spatial.targets",
+  "schemaVersion": "1.0.0",
+  "sessionId": "session-contract-1",
+  "registryRevision": 4,
+  "observedAtMs": 1780000003000,
+  "activeTargetId": "observation:scan-contract-1:candidate-old",
+  "targets": [
+    {
+      "targetId": "observation:scan-contract-1:candidate-old",
+      "kind": "observed-object",
+      "label": "Expired candidate",
+      "state": "locked",
+      "confidence": 0.91,
+      "confidenceBasis": "detector",
+      "source": "simulated-analyzer",
+      "targetRevision": 1,
+      "observedAtMs": 1780000003000,
+      "expiresAtMs": 1780000018000,
+      "aliases": {},
+      "anchor": {
+        "coordinateFrame": "screen-normalized",
+        "bounds": { "x": 0.2, "y": 0.2, "width": 0.2, "height": 0.2 }
+      }
+    }
+  ]
+}

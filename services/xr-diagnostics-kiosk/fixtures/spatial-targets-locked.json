@@ -1,0 +1,28 @@
+{
+  "type": "spatial.targets.state",
+  "schema": "mxg.spatial.targets",
+  "schemaVersion": "1.0.0",
+  "sessionId": "session-contract-1",
+  "registryRevision": 3,
+  "observedAtMs": 1780000002000,
+  "activeTargetId": "observation:scan-contract-1:candidate-1",
+  "targets": [
+    {
+      "targetId": "observation:scan-contract-1:candidate-1",
+      "kind": "observed-object",
+      "label": "Hand tool",
+      "state": "locked",
+      "confidence": 0.93,
+      "confidenceBasis": "user",
+      "source": "simulated-analyzer",
+      "targetRevision": 2,
+      "observedAtMs": 1780000002000,
+      "expiresAtMs": 1780000017000,
+      "aliases": {},
+      "anchor": {
+        "coordinateFrame": "screen-normalized",
+        "bounds": { "x": 0.12, "y": 0.24, "width": 0.26, "height": 0.31 }
+      }
+    }
+  ]
+}

@@ -2,8 +2,8 @@
 
 Standalone Rust capability service for the locked MXGenius v1 catalog:
 
-- exactly 50 typed tools;
-- 16 resources and 8 prompts;
+- exactly 45 active typed tools after the five retired `mxg.mro.*` capabilities;
+- 15 resources and 8 prompts;
 - MCP Streamable HTTP (`POST /mcp`) and local stdio;
 - canonical domain/contracts in `shared`;
 - transport, identity, policy, handlers, and adapters in `server`;
@@ -32,7 +32,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo build --workspace
 ```
 
-Current gate: 51 tests pass across the workspace, including the locked 50-tool schema and RBAC snapshots, transport and application-orchestration black-box cases, tenant isolation, confirmation binding, case rollback, digital-twin marker persistence, production-adapter behavior, and datetime wire-format tests.
+The current workspace gate covers the locked 45-tool schema and RBAC snapshots, transport and application-orchestration black-box cases, tenant isolation, confirmation binding, case rollback, digital-twin marker persistence, production-adapter behavior, and datetime wire-format tests.
 
 ## Local development
 
@@ -95,6 +95,15 @@ MXGENIUS_PARTSBASE_CLIENT_ID       # issued credential for oauth_password mode
 MXGENIUS_PARTSBASE_CLIENT_SECRET   # issued credential for oauth_password mode
 MXGENIUS_PARTSBASE_USERNAME        # issued/account credential for oauth_password mode
 MXGENIUS_PARTSBASE_PASSWORD        # issued/account credential for oauth_password mode
+MXGENIUS_SPATIAL_SCAN_ENABLED      # optional kill switch; false by default
+OPENAI_API_KEY                     # server-only provider credential used when spatial scan is enabled
+MXGENIUS_SPATIAL_SCAN_MODEL        # optional; default gpt-5.4-mini
+MXGENIUS_SPATIAL_SCAN_MAX_EDGE     # optional; clamped to 320..1280
+MXGENIUS_SPATIAL_SCAN_MAX_BYTES    # optional; clamped to 32 KiB..1 MiB
+MXGENIUS_SPATIAL_SCAN_TIMEOUT_MS   # optional; clamped to 1000..8000
+MXGENIUS_SPATIAL_SCAN_COOLDOWN_MS  # optional; default 2000
+MXGENIUS_SPATIAL_SCAN_RATE_PER_MINUTE # optional; default 12 per organization
+MXGENIUS_SPATIAL_SCAN_DAILY_LIMIT  # optional; default 100 per organization
 ```
 
 Production startup:
@@ -110,7 +119,11 @@ Production startup:
 9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable;
 10. mounts public AviationWeather.gov METAR/TAF data for `mxg.weather.airport_now`. Maintenance-window, ramp-risk, ferry, and hazard derivations stay unavailable until their operational thresholds are accepted;
 11. prepares PartsBase market-pricing access behind server-only credential modes. It is not mounted as canonical supplier data until licensed live response mapping is validated;
-12. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images.
+12. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images;
+13. mounts deliberate still-frame spatial analysis only when its kill switch and server-side provider credential are both configured. Frames are JPEG-only, bounded to 1280 pixels and 1 MiB, analyzed once per uncached scan, and never persisted or logged. `/adapterz` exposes the effective non-secret scan policy and aggregate request, provider-attempt, cache-hit, throttle, budget, and timeout counters.
+14. mounts Remote Witness on `/api/xr/witness/*`: authenticated wearer-created rooms, opaque single-use invitations, reconnectable role-scoped WSS credentials, explicit approval/pause/layer/revoke controls, and read-only case-media delivery. The socket accepts only bounded JSON state/signaling, admits one producer at a time, and rejects binary media; the Quest companion can claim that producer role through its authenticated loopback bootstrap.
+
+Remote Witness room state is intentionally ephemeral and in-process in this build. Keep the MCP service on one replica (or use connection affinity that preserves both HTTP and WSS room ownership) until this state is moved to a shared TTL store. Leave TURN disabled unless the physical network matrix proves it is needed; if enabled, issue short-lived relay credentials through the server-side `MXGENIUS_WITNESS_ICE_SERVERS_JSON` seam and never commit durable credentials.
 
 Provider credentials are an adapter concern, never MCP tool arguments or browser configuration. `browser_broker` means a future OAuth callback service owns login and refresh and writes a short-lived bearer token to the configured server-only file; the adapter rereads that token for each call. This keeps browser authorization replaceable without coupling it to provider response parsing. It does not imply that a given vendor supports browser OAuth; each provider must explicitly authorize that mode.
 

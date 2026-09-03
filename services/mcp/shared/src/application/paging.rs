@@ -38,11 +38,13 @@ where
         Missing,
     }
 
-    Ok(match Raw::deserialize(deserializer).unwrap_or(Raw::Missing) {
-        Raw::Number(value) => Some(value),
-        Raw::Text(value) => value.trim().parse::<i64>().ok(),
-        Raw::Missing => None,
-    })
+    Ok(
+        match Raw::deserialize(deserializer).unwrap_or(Raw::Missing) {
+            Raw::Number(value) => Some(value),
+            Raw::Text(value) => value.trim().parse::<i64>().ok(),
+            Raw::Missing => None,
+        },
+    )
 }
 
 /// A validated, clamped window over a list.
@@ -193,7 +195,11 @@ mod tests {
 
     #[test]
     fn a_page_past_the_end_is_empty_and_reports_no_more() {
-        let page = Page::new(Vec::<u8>::new(), PageRequest::clamped(Some(99), Some(50)), 10);
+        let page = Page::new(
+            Vec::<u8>::new(),
+            PageRequest::clamped(Some(99), Some(50)),
+            10,
+        );
         assert!(page.items.is_empty());
         assert_eq!(page.total_count, 10);
         assert!(!page.has_more);

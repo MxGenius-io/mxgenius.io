@@ -12,12 +12,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::body::{Body, Bytes};
+use axum::extract::ws::{Message as WebSocketMessage, WebSocket, WebSocketUpgrade};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use base64::Engine as _;
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
@@ -45,19 +47,23 @@ use crate::application::part_traceability::{
 };
 use crate::application::parts_inventory::{
     AdjustQuantityInput, ConfirmReceivingInput, CorrectUnitInput, CreateReceivingDraftInput,
-    ExtractionProposal, PartsInventoryError, PartsInventoryRepository,
-    RegisterAssetInput, ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction,
-    TransitionUnitInput, UpsertLocationInput,
+    ExtractionProposal, PartsInventoryError, PartsInventoryRepository, RegisterAssetInput,
+    ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction, TransitionUnitInput,
+    UpsertLocationInput,
 };
-use crate::application::rotables::{
-    CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
-};
-use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::application::receiving_inspection::{
     DiscrepancyQuery, OpenDiscrepancyInput, ReceivingInspectionRepository, RecordInspectionInput,
     ResolveDiscrepancyInput,
 };
-use mxgenius_shared::application::paging::PageRequest;
+use crate::application::remote_witness::{
+    CreateWitnessInvitation, ExchangeWitnessInvitation, RemoteWitnessError, RemoteWitnessService,
+    WitnessControlInput, WitnessSocketAdmission,
+};
+use crate::application::rotables::{
+    CreateRotableInput, RetireRotableInput, RotableQuery, RotableRepository, UpdateRotableInput,
+};
+use crate::application::spatial_scan::{SpatialScanService, SpatialScanWireRequest};
+use crate::confirmation::PostgresConfirmationGrantIssuer;
 use crate::context::{AuthError, AuthRequest};
 use crate::dispatcher::{Dispatcher, JsonRpcRequest};
 use mxgenius_shared::adapters::manual::{
@@ -66,6 +72,7 @@ use mxgenius_shared::adapters::manual::{
 };
 use mxgenius_shared::adapters::source::AdapterHealth;
 use mxgenius_shared::application::context::ExecutionContext;
+use mxgenius_shared::application::paging::PageRequest;
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceAssetAvailability};
 use mxgenius_shared::domain::ids::{CorrelationId, OrganizationId};
 
@@ -87,6 +94,7 @@ const MAX_CASE_MEDIA_BYTES: usize = 50 * 1024 * 1024;
 /// A parts file is a few thousand rows of short text. The global body limit is
 /// 100 MiB, which is not a meaningful gate for a spreadsheet.
 const MAX_PARTS_IMPORT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SPATIAL_SCAN_BODY_BYTES: usize = 1_500_000;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
 
@@ -98,6 +106,8 @@ struct AppState {
     confirmation_issuer: Option<Arc<PostgresConfirmationGrantIssuer>>,
     manual: Arc<dyn ManualCorpusAdapter>,
     parts_enabled: bool,
+    spatial_scan: Arc<SpatialScanService>,
+    remote_witness: Arc<RemoteWitnessService>,
 }
 
 #[derive(Clone)]
@@ -164,6 +174,8 @@ pub fn router_with_health_and_manual(
         },
         HealthState::Local => None,
     };
+    let spatial_scan_service = Arc::new(SpatialScanService::from_env(realtime_client.clone()));
+    let remote_witness_service = Arc::new(RemoteWitnessService::from_env());
     let state = AppState {
         dispatcher,
         health,
@@ -178,6 +190,8 @@ pub fn router_with_health_and_manual(
                 )
             })
             .unwrap_or(false),
+        spatial_scan: spatial_scan_service,
+        remote_witness: remote_witness_service,
     };
     Router::new()
         .route("/healthz", get(healthz))
@@ -213,6 +227,28 @@ pub fn router_with_health_and_manual(
             get(get_feedback_report_screenshot),
         )
         .route("/api/demo-data", post(load_demo_data))
+        .route(
+            "/api/spatial/scan",
+            post(spatial_scan).layer(DefaultBodyLimit::max(MAX_SPATIAL_SCAN_BODY_BYTES)),
+        )
+        .route(
+            "/api/xr/witness/invitations",
+            post(create_witness_invitation),
+        )
+        .route(
+            "/api/xr/witness/invitations/exchange",
+            post(exchange_witness_invitation),
+        )
+        .route("/api/xr/witness/rooms/:room_id", get(get_witness_room))
+        .route(
+            "/api/xr/witness/rooms/:room_id/control",
+            post(control_witness_room),
+        )
+        .route(
+            "/api/xr/witness/media/:observation_id/:media_index",
+            get(get_witness_case_media),
+        )
+        .route("/api/xr/witness/ws", get(witness_socket))
         .route("/api/cases", get(list_cases))
         .route("/api/cases/:case_id", get(get_case))
         .route("/api/cases/:case_id/media", get(list_case_media))
@@ -228,8 +264,14 @@ pub fn router_with_health_and_manual(
         )
         .route("/api/parts/reports/fitments", get(report_part_events))
         .route("/api/parts/reports/summary", get(report_movement_summary))
-        .route("/api/parts/reports/suppliers", get(report_supplier_performance))
-        .route("/api/parts/reports/part-activity", get(report_part_activity))
+        .route(
+            "/api/parts/reports/suppliers",
+            get(report_supplier_performance),
+        )
+        .route(
+            "/api/parts/reports/part-activity",
+            get(report_part_activity),
+        )
         .route(
             "/api/parts/imports",
             get(list_part_imports).post(apply_part_import),
@@ -1976,6 +2018,7 @@ async fn adapterz(State(state): State<AppState>) -> Response {
         Ok(mode) => {
             let manual = state.manual.source_info().await;
             let registry = state.dispatcher.registry();
+            let spatial_config = state.spatial_scan.config();
             let capability_state = |name: &str| {
                 registry
                     .tool(name)
@@ -1995,7 +2038,24 @@ async fn adapterz(State(state): State<AppState>) -> Response {
                         "weather": capability_state("mxg.weather.airport_now"),
                         "parts": capability_state("mxg.parts.resolve"),
                         "scheduling": capability_state("mxg.scheduling.conflict_scan"),
-                        "digital_twin": capability_state("mxg.digital_twin.list_models")
+                        "digital_twin": capability_state("mxg.digital_twin.list_models"),
+                        "spatial_scan": state.spatial_scan.availability(),
+                        "remote_witness": {
+                            "status": "ready",
+                            "signaling": "websocket-json",
+                            "media": "peer-to-peer-webrtc",
+                            "accepts_media": false
+                        },
+                        "spatial_scan_policy": {
+                            "kill_switch_active": !spatial_config.enabled,
+                            "maximum_image_bytes": spatial_config.maximum_image_bytes,
+                            "maximum_long_edge": spatial_config.maximum_long_edge,
+                            "timeout_ms": spatial_config.timeout.as_millis(),
+                            "cooldown_ms": spatial_config.cooldown.as_millis(),
+                            "rate_per_minute": spatial_config.rate_per_minute,
+                            "daily_limit": spatial_config.daily_limit,
+                            "telemetry": state.spatial_scan.telemetry()
+                        }
                     }
                 })),
             )
@@ -2175,6 +2235,414 @@ fn persistence_not_configured() -> Response {
     )
 }
 
+async fn spatial_scan(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<SpatialScanWireRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let scan_id = input.scan_id.clone();
+    let request_id = input.request_id.clone();
+    let request = match input.decode(state.spatial_scan.config()) {
+        Ok(value) => value,
+        Err(reason) => {
+            return (
+                StatusCode::OK,
+                Json(
+                    state
+                        .spatial_scan
+                        .invalid_image_response(scan_id, request_id, reason),
+                ),
+            )
+                .into_response()
+        }
+    };
+    let response = state
+        .spatial_scan
+        .analyze(&context, request, realtime_safety_identifier(&context))
+        .await;
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+async fn create_witness_invitation(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateWitnessInvitation>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(context) => context,
+        Err(response) => return response,
+    };
+    match state.remote_witness.create_invitation(&context, input) {
+        Ok(invitation) => {
+            let qr_data_url = match qr_svg_data_url(&invitation.join_url) {
+                Ok(value) => value,
+                Err(message) => {
+                    return realtime_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "WITNESS_QR_FAILED",
+                        message,
+                    )
+                }
+            };
+            let mut response = match serde_json::to_value(invitation) {
+                Ok(Value::Object(value)) => value,
+                _ => {
+                    return realtime_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "WITNESS_SERIALIZATION_FAILED",
+                        "remote witness invitation could not be serialized",
+                    )
+                }
+            };
+            response.insert("qrDataUrl".into(), Value::String(qr_data_url));
+            (StatusCode::CREATED, Json(Value::Object(response))).into_response()
+        }
+        Err(error) => witness_error(error),
+    }
+}
+
+async fn exchange_witness_invitation(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<ExchangeWitnessInvitation>,
+) -> Response {
+    if !origin_allowed(&headers) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        );
+    }
+    match state.remote_witness.exchange_invitation(input) {
+        Ok(session) => (StatusCode::OK, Json(session)).into_response(),
+        Err(error) => witness_error(error),
+    }
+}
+
+async fn get_witness_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(room_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(context) => context,
+        Err(response) => return response,
+    };
+    match state.remote_witness.summary(&context, room_id) {
+        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
+        Err(error) => witness_error(error),
+    }
+}
+
+async fn control_witness_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(room_id): Path<Uuid>,
+    Json(input): Json<WitnessControlInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(context) => context,
+        Err(response) => return response,
+    };
+    match state.remote_witness.control(&context, room_id, input) {
+        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
+        Err(error) => witness_error(error),
+    }
+}
+
+async fn get_witness_case_media(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((observation_id, media_index)): Path<(Uuid, usize)>,
+) -> Response {
+    if !origin_allowed(&headers) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        );
+    }
+    let requested_range = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let credential = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Witness "));
+    let Some(credential) = credential else {
+        return realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "WITNESS_CREDENTIAL_REQUIRED",
+            "a remote witness media credential is required",
+        );
+    };
+    let access = match state.remote_witness.authorize_case_media(credential) {
+        Ok(value) => value,
+        Err(error) => return witness_error(error),
+    };
+    let case_id = match Uuid::parse_str(&access.case_id) {
+        Ok(value) => value,
+        Err(_) => return witness_error(RemoteWitnessError::NotFound),
+    };
+    let Some(pool) = postgres_pool(&state) else {
+        return persistence_not_configured();
+    };
+    let media_refs: Option<Value> = match sqlx::query_scalar(
+        r#"SELECT media_refs FROM observations
+           WHERE organization_id=$1 AND case_id=$2 AND id=$3"#,
+    )
+    .bind(access.organization_id)
+    .bind(case_id)
+    .bind(observation_id)
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return persistence_error("witness_case_media.get", error),
+    };
+    let reference = media_refs
+        .as_ref()
+        .and_then(Value::as_array)
+        .and_then(|items| items.get(media_index))
+        .and_then(Value::as_str);
+    let Some((storage_key, media_type)) = reference
+        .and_then(|value| case_media_storage_key(value, access.organization_id))
+        .and_then(|key| case_media_type(&key).map(|media_type| (key, media_type)))
+    else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "CASE_MEDIA_NOT_FOUND",
+            "case media was not found",
+        );
+    };
+    let blob_access = match workspace_read_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state.realtime_client.get(blob_access.url);
+    if let Some(token) = blob_access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    if let Some(range) = requested_range {
+        request = request.header(header::RANGE, range);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CASE_MEDIA_UNAVAILABLE",
+                "case media could not be retrieved",
+            )
+        }
+    };
+    let response_status = if upstream.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        StatusCode::PARTIAL_CONTENT
+    } else {
+        StatusCode::OK
+    };
+    let content_range = upstream
+        .headers()
+        .get(header::CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let accept_ranges = upstream
+        .headers()
+        .get(header::ACCEPT_RANGES)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("bytes")
+        .to_owned();
+    let content = match upstream.bytes().await {
+        Ok(value) if value.len() <= MAX_CASE_MEDIA_BYTES => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CASE_MEDIA_INVALID",
+                "case media exceeded the delivery limit",
+            )
+        }
+    };
+    let mut response = Response::builder()
+        .status(response_status)
+        .header(header::CONTENT_TYPE, media_type)
+        .header(header::CACHE_CONTROL, "private, no-store")
+        .header(header::ACCEPT_RANGES, accept_ranges)
+        .header(header::CONTENT_LENGTH, content.len());
+    if let Some(content_range) = content_range {
+        response = response.header(header::CONTENT_RANGE, content_range);
+    }
+    response
+        .body(Body::from(content))
+        .expect("valid remote witness media response")
+}
+
+async fn witness_socket(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    if !origin_allowed(&headers) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "ORIGIN_DENIED",
+            "invalid Origin header",
+        );
+    }
+    let Some(credential) = witness_socket_credential(&headers) else {
+        return realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "WITNESS_CREDENTIAL_REQUIRED",
+            "a remote witness socket credential is required",
+        );
+    };
+    let admission = match state.remote_witness.connect(&credential) {
+        Ok(value) => value,
+        Err(error) => return witness_error(error),
+    };
+    let service = state.remote_witness.clone();
+    upgrade
+        .protocols(["mxg-witness.v1"])
+        .on_upgrade(move |socket| serve_witness_socket(socket, service, admission))
+        .into_response()
+}
+
+fn witness_socket_credential(headers: &HeaderMap) -> Option<String> {
+    let protocols = headers.get(header::SEC_WEBSOCKET_PROTOCOL)?.to_str().ok()?;
+    let mut supported = false;
+    let mut credential = None;
+    for protocol in protocols.split(',').map(str::trim) {
+        if protocol == "mxg-witness.v1" {
+            supported = true;
+        } else if protocol.len() == 64 && protocol.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            credential = Some(protocol.to_ascii_lowercase());
+        }
+    }
+    supported.then_some(credential).flatten()
+}
+
+async fn serve_witness_socket(
+    socket: WebSocket,
+    service: Arc<RemoteWitnessService>,
+    mut admission: WitnessSocketAdmission,
+) {
+    let identity = admission.identity.clone();
+    let (mut sender, mut receiver) = socket.split();
+    if sender
+        .send(WebSocketMessage::Text(admission.initial_event.to_string()))
+        .await
+        .is_err()
+    {
+        service.disconnect(&identity);
+        return;
+    }
+    loop {
+        tokio::select! {
+            event = admission.events.recv() => {
+                let value = match event {
+                    Ok(value) => value,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        match service.socket_summary(&identity) {
+                            Ok(value) => value,
+                            Err(_) => break,
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                };
+                if sender.send(WebSocketMessage::Text(value.to_string())).await.is_err() {
+                    break;
+                }
+            }
+            incoming = receiver.next() => {
+                let Some(Ok(message)) = incoming else { break };
+                match message {
+                    WebSocketMessage::Text(text) => {
+                        let response = serde_json::from_str::<Value>(&text)
+                            .map_err(|_| RemoteWitnessError::Invalid)
+                            .and_then(|value| service.handle_socket_message(&identity, value));
+                        match response {
+                            Ok(Some(value)) => {
+                                if sender.send(WebSocketMessage::Text(value.to_string())).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Ok(None) => {}
+                            Err(error) => {
+                                let payload = json!({
+                                    "type": "witness.error",
+                                    "code": witness_error_code(&error),
+                                    "message": error.to_string()
+                                });
+                                if sender.send(WebSocketMessage::Text(payload.to_string())).await.is_err() {
+                                    break;
+                                }
+                                if matches!(error, RemoteWitnessError::Revoked | RemoteWitnessError::SessionExpired) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    WebSocketMessage::Ping(value) => {
+                        if sender.send(WebSocketMessage::Pong(value)).await.is_err() {
+                            break;
+                        }
+                    }
+                    WebSocketMessage::Pong(_) => {}
+                    WebSocketMessage::Close(_) => break,
+                    WebSocketMessage::Binary(_) => {
+                        let payload = json!({
+                            "type": "witness.error",
+                            "code": "WITNESS_MEDIA_NOT_ACCEPTED",
+                            "message": "continuous media must use peer-to-peer WebRTC"
+                        });
+                        let _ = sender.send(WebSocketMessage::Text(payload.to_string())).await;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    service.disconnect(&identity);
+}
+
+fn witness_error(error: RemoteWitnessError) -> Response {
+    let status = match error {
+        RemoteWitnessError::Invalid => StatusCode::BAD_REQUEST,
+        RemoteWitnessError::NotFound => StatusCode::NOT_FOUND,
+        RemoteWitnessError::InviteExpired
+        | RemoteWitnessError::SessionExpired
+        | RemoteWitnessError::Revoked => StatusCode::GONE,
+        RemoteWitnessError::InviteConsumed
+        | RemoteWitnessError::ViewerLimit
+        | RemoteWitnessError::ProducerAlreadyConnected => StatusCode::CONFLICT,
+        RemoteWitnessError::AccessDenied => StatusCode::FORBIDDEN,
+        RemoteWitnessError::ApprovalRequired | RemoteWitnessError::RecordingConsentRequired => {
+            StatusCode::PRECONDITION_REQUIRED
+        }
+    };
+    realtime_error(status, witness_error_code(&error), &error.to_string())
+}
+
+fn witness_error_code(error: &RemoteWitnessError) -> &'static str {
+    match error {
+        RemoteWitnessError::Invalid => "WITNESS_INVALID",
+        RemoteWitnessError::NotFound => "WITNESS_NOT_FOUND",
+        RemoteWitnessError::InviteExpired => "WITNESS_INVITE_EXPIRED",
+        RemoteWitnessError::InviteConsumed => "WITNESS_INVITE_CONSUMED",
+        RemoteWitnessError::SessionExpired => "WITNESS_SESSION_EXPIRED",
+        RemoteWitnessError::Revoked => "WITNESS_REVOKED",
+        RemoteWitnessError::AccessDenied => "WITNESS_ACCESS_DENIED",
+        RemoteWitnessError::ViewerLimit => "WITNESS_VIEWER_LIMIT",
+        RemoteWitnessError::ProducerAlreadyConnected => "WITNESS_PRODUCER_ALREADY_CONNECTED",
+        RemoteWitnessError::ApprovalRequired => "WITNESS_APPROVAL_REQUIRED",
+        RemoteWitnessError::RecordingConsentRequired => "WITNESS_RECORDING_CONSENT_REQUIRED",
+    }
+}
+
 async fn application_context(
     state: &AppState,
     headers: &HeaderMap,
@@ -2248,7 +2716,10 @@ async fn application_context_with_confirmation(
 /// keep working, and the window metadata sits beside them. Serializing the
 /// `Page` itself under that key instead would silently turn the array into an
 /// object and break every existing reader.
-fn paged_json<T: Serialize>(key: &'static str, page: mxgenius_shared::application::paging::Page<T>) -> Response {
+fn paged_json<T: Serialize>(
+    key: &'static str,
+    page: mxgenius_shared::application::paging::Page<T>,
+) -> Response {
     (
         StatusCode::OK,
         Json(json!({
@@ -2373,9 +2844,15 @@ struct ListLocationsQuery {
 struct ShortagesQuery {
     /// Default hides requirements stock already covers.
     include_covered: Option<bool>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     page: Option<i64>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     page_size: Option<i64>,
 }
 
@@ -4237,16 +4714,18 @@ async fn record_parts_inspection(
         Some(value) => value == "accepted",
         // An omitted outcome follows the gates, so the same reasoning applies
         // to what the gates would produce.
-        None => !input.shipping_damage
-            && [
-                &input.part_number_matches_order,
-                &input.serial_matches_tag,
-                &input.tag_present_and_legible,
-                &input.shelf_life_acceptable,
-                &input.dangerous_goods_paperwork,
-            ]
-            .iter()
-            .all(|gate| gate.as_str() != "fail"),
+        None => {
+            !input.shipping_damage
+                && [
+                    &input.part_number_matches_order,
+                    &input.serial_matches_tag,
+                    &input.tag_present_and_legible,
+                    &input.shelf_life_acceptable,
+                    &input.dangerous_goods_paperwork,
+                ]
+                .iter()
+                .all(|gate| gate.as_str() != "fail")
+        }
     };
     if accepts && !parts_inspection_release_allowed(&context) {
         return realtime_error(
@@ -8795,9 +9274,7 @@ mod structured_advisory_tests {
     /// is how the limit silently outlives the schema.
     #[test]
     fn the_quantity_columns_still_match_the_published_bound() {
-        use mxgenius_shared::domain::quantity::{
-            MAX_QUANTITY, MIN_QUANTITY, QUANTITY_COLUMN_TYPE,
-        };
+        use mxgenius_shared::domain::quantity::{MAX_QUANTITY, MIN_QUANTITY, QUANTITY_COLUMN_TYPE};
         let inventory = include_str!("../../../migrations/0015_parts_inventory.sql");
         let inspection = include_str!("../../../migrations/0026_receiving_inspection.sql");
         for (sql, column) in [

@@ -95,7 +95,7 @@ pub fn stub_input_value() -> Value {
     Value::Object(Default::default())
 }
 
-/// Default registry with all 50 tools, the application services wired in,
+/// Default registry with all 45 active tools, the application services wired in,
 /// the resource templates, and the orchestration prompts.
 pub fn default_registry(
     case_service: Arc<dyn CaseService>,

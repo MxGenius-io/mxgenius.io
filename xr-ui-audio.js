@@ -50,11 +50,24 @@ export function cueForXRAction(action, target = {}) {
       return 'workflow_complete';
     case 'open-fleet-location':
       return 'spatial_acquire';
+    case 'spatial-scan-requested':
+      return 'spatial_acquire';
+    case 'spatial-scan-completed':
+      return target.status === 'ready' ? 'spatial_candidate' : target.status === 'empty' ? 'spatial_rejected' : null;
+    case 'spatial-target-arrive':
+      return 'spatial_target_arrive';
+    case 'spatial-candidate-next':
+      return 'spatial_candidate';
+    case 'spatial-target-locked':
+      return 'spatial_confirm';
+    case 'spatial-targets-cleared':
+      return 'ui_cancel_retract';
     case 'toggle-globe-rotation':
     case 'globe-filter':
     case 'globe-texture':
     case 'globe-page':
     case 'thermal-screen-scale':
+    case 'browser-link-unavailable':
       return 'ui_press_secondary';
     case 'globe-recenter':
       return 'spatial_confirm';
@@ -65,6 +78,8 @@ export function cueForXRAction(action, target = {}) {
     case 'toggle-thermal-screen':
     case 'toggle-sensor-orb':
       return target.active ? 'ui_press_primary' : 'ui_cancel_retract';
+    case 'browser-panel-toggle':
+      return target.open ? 'ui_press_primary' : 'ui_cancel_retract';
     case 'thermal-screen-anchor':
       return target.pinned ? 'spatial_confirm' : 'ui_cancel_retract';
     case 'sensor-status':

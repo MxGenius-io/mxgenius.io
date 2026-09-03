@@ -1,0 +1,13 @@
+{
+  "type": "witness.signal",
+  "signal": {
+    "kind": "ice",
+    "to": "22222222-2222-4222-8222-222222222222",
+    "candidate": {
+      "candidate": "candidate:1 1 UDP 2122260223 192.0.2.1 5000 typ host",
+      "sdpMid": "0",
+      "sdpMLineIndex": 0,
+      "usernameFragment": "contract"
+    }
+  }
+}

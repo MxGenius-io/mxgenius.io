@@ -116,9 +116,15 @@ pub struct EventQuery {
     pub part_number: Option<String>,
     pub part_serial: Option<String>,
     pub stock_unit_id: Option<Uuid>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page: Option<i64>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page_size: Option<i64>,
 }
 

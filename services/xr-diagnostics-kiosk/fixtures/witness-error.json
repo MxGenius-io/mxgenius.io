@@ -1,0 +1,5 @@
+{
+  "type": "witness.error",
+  "code": "WITNESS_PRODUCER_ALREADY_CONNECTED",
+  "message": "remote witness producer is already connected"
+}

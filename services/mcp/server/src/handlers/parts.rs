@@ -243,9 +243,17 @@ impl Tool for PartsAlternatesTool {
         // on which way each row happened to be written. `direction` says which
         // side matched so the relation can be inverted for the rows found from
         // the far side.
-        let rows: Vec<(Uuid, String, String, Option<String>, String, bool, Option<String>, i32)> =
-            sqlx::query_as(
-                r#"SELECT p.id, p.part_number, p.description, p.manufacturer,
+        let rows: Vec<(
+            Uuid,
+            String,
+            String,
+            Option<String>,
+            String,
+            bool,
+            Option<String>,
+            i32,
+        )> = sqlx::query_as(
+            r#"SELECT p.id, p.part_number, p.description, p.manufacturer,
                           a.relation, a.one_way, a.authority, 1 AS direction
                    FROM part_alternates a
                    JOIN parts p ON p.id = a.alternate_part_id
@@ -260,16 +268,24 @@ impl Tool for PartsAlternatesTool {
                      -- the substitute is approved in one direction only.
                      AND a.one_way = false
                    ORDER BY 2"#,
-            )
-            .bind(part_id)
-            .fetch_all(self.pool.as_ref())
-            .await
-            .map_err(|e| parts_db_error("parts alternates", e))?;
+        )
+        .bind(part_id)
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_err(|e| parts_db_error("parts alternates", e))?;
 
         let mut alternates = Vec::new();
         let mut supersessions = Vec::new();
-        for (id, part_number, description, manufacturer, relation, _one_way, authority, direction)
-            in rows
+        for (
+            id,
+            part_number,
+            description,
+            manufacturer,
+            relation,
+            _one_way,
+            authority,
+            direction,
+        ) in rows
         {
             let Some(parsed) = AlternateRelation::parse(&relation) else {
                 // An unknown relation is a schema drift, not a substitute to
@@ -277,7 +293,11 @@ impl Tool for PartsAlternatesTool {
                 // claim.
                 continue;
             };
-            let effective = if direction < 0 { parsed.inverted() } else { parsed };
+            let effective = if direction < 0 {
+                parsed.inverted()
+            } else {
+                parsed
+            };
             let entry = PartsResolveMatch {
                 part_id: mxgenius_shared::domain::ids::PartId(id),
                 part_number,
@@ -285,7 +305,11 @@ impl Tool for PartsAlternatesTool {
                 manufacturer,
                 // The authority the operator asserted the claim against. An
                 // unsourced claim says so rather than reading as approved.
-                applicability: match authority.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+                applicability: match authority
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                {
                     Some(source) => format!("{}: {source}", effective.as_str()),
                     None => format!("{}: no authority recorded", effective.as_str()),
                 },

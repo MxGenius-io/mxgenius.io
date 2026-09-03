@@ -60,10 +60,13 @@ function requireMarkers(text, markers, label) {
 }
 
 function run(command, commandArgs, cwd = ROOT) {
-  const completed = spawnSync(command, commandArgs, {
+  const windowsNpm = process.platform === 'win32' && command === 'npm';
+  const executable = windowsNpm ? (process.env.ComSpec || 'cmd.exe') : command;
+  const executableArgs = windowsNpm ? ['/d', '/s', '/c', 'npm test'] : commandArgs;
+  const completed = spawnSync(executable, executableArgs, {
     cwd,
     encoding: 'utf8',
-    shell: process.platform === 'win32',
+    shell: false,
     timeout: 180_000
   });
   requireCondition(

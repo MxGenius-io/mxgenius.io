@@ -209,6 +209,24 @@ const MXApplicationClient = (() => {
     return (await applicationRequest(path, options)).json();
   }
 
+  async function publicApplicationJson(path, { method = 'POST', body, signal } = {}) {
+    const response = await fetch(`${MCP_BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      signal,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({ error: { message: `Application request failed (${response.status})` } }));
+    if (!response.ok) {
+      const error = new Error(payload.error?.message || `Application request failed (${response.status})`);
+      error.code = payload.error?.code || 'APPLICATION_REQUEST_FAILED';
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  }
+
   function chat({ message, images = [], textModel, threadId, history = [], fleetSignals, caseContext, aircraftContext, displayContext, accessToken, organizationId, correlationId, signal }) {
     if (!accessToken && !runtimeConfig.allowInsecurePilot) throw new Error('Authenticated application session required');
     const headers = {
@@ -412,6 +430,84 @@ const MXApplicationClient = (() => {
       method: 'POST',
       body: { confirm: 'LOAD_DEMO_DATA' }
     });
+  }
+
+  function scanSpatialFrame({ sessionId, frame, session = {} }) {
+    if (!frame || frame.purpose !== 'scan') throw new TypeError('A deliberate spatial scan frame is required');
+    return applicationJson('/api/spatial/scan', {
+      session,
+      method: 'POST',
+      body: {
+        sessionId: String(sessionId || '').slice(0, 128),
+        scanId: String(frame.scanId || '').slice(0, 80),
+        requestId: frame.requestId ? String(frame.requestId).slice(0, 80) : null,
+        image: {
+          dataUrl: frame.dataUrl,
+          width: frame.width,
+          height: frame.height,
+          capturedAtMs: frame.capturedAtMs
+        }
+      }
+    });
+  }
+
+  function createWitnessInvitation({ xrSessionId, caseId = null, audience = 'Customer', layers = null, session = {} }) {
+    return applicationJson('/api/xr/witness/invitations', {
+      session,
+      method: 'POST',
+      body: {
+        xrSessionId: String(xrSessionId || '').slice(0, 128),
+        caseId: caseId ? String(caseId).slice(0, 128) : null,
+        audience: String(audience || 'Customer').slice(0, 80),
+        ...(layers ? { layers } : {})
+      }
+    });
+  }
+
+  function exchangeWitnessInvitation({ invitation = null, manualCode = null, signal } = {}) {
+    return publicApplicationJson('/api/xr/witness/invitations/exchange', {
+      method: 'POST',
+      signal,
+      body: {
+        invitation: invitation ? String(invitation).slice(0, 128) : null,
+        manualCode: manualCode ? String(manualCode).replace(/\s+/g, '').slice(0, 16) : null
+      }
+    });
+  }
+
+  function getWitnessRoom(roomId, session = {}) {
+    return applicationJson(`/api/xr/witness/rooms/${encodeURIComponent(roomId)}`, { session });
+  }
+
+  function controlWitnessRoom(roomId, input, session = {}) {
+    return applicationJson(`/api/xr/witness/rooms/${encodeURIComponent(roomId)}/control`, {
+      session,
+      method: 'POST',
+      body: input
+    });
+  }
+
+  function witnessSocketUrl(socketPath = '/api/xr/witness/ws') {
+    const url = new URL(`${MCP_BASE}${socketPath}`, globalThis.location?.href || 'https://mxgenius.io/');
+    url.protocol = url.protocol === 'http:' ? 'ws:' : 'wss:';
+    return url.href;
+  }
+
+  async function getWitnessMedia({ observationId, mediaIndex = 0, credential, signal } = {}) {
+    const path = `/api/xr/witness/media/${encodeURIComponent(observationId)}/${encodeURIComponent(mediaIndex)}`;
+    const response = await fetch(`${MCP_BASE}${path}`, {
+      headers: { Authorization: `Witness ${String(credential || '')}` },
+      credentials: 'include',
+      signal
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ error: { message: `Witness media failed (${response.status})` } }));
+      const error = new Error(payload.error?.message || `Witness media failed (${response.status})`);
+      error.code = payload.error?.code || 'WITNESS_MEDIA_FAILED';
+      error.status = response.status;
+      throw error;
+    }
+    return response.blob();
   }
 
   function getProjectWorkspace(workspaceKey, session = {}) {
@@ -1443,6 +1539,17 @@ const MXApplicationClient = (() => {
     }),
     demoData: Object.freeze({
       load: loadDemoData
+    }),
+    spatial: Object.freeze({
+      scan: scanSpatialFrame
+    }),
+    witness: Object.freeze({
+      createInvitation: createWitnessInvitation,
+      exchangeInvitation: exchangeWitnessInvitation,
+      getRoom: getWitnessRoom,
+      controlRoom: controlWitnessRoom,
+      socketUrl: witnessSocketUrl,
+      getMedia: getWitnessMedia
     }),
     betaAccess: Object.freeze({
       list: listBetaAccess,

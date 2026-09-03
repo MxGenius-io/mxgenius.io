@@ -44,12 +44,16 @@ export class XRRealtimePresence {
     pointSize = 0.0012,
     onSnapshotRequest = null,
     onSnapshotCaptured = null,
+    onScanFrame = null,
+    spatialCommands = null,
     onAction = () => {}
   } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
     this.contextProvider = contextProvider;
     this.onSnapshotRequest = typeof onSnapshotRequest === 'function' ? onSnapshotRequest : null;
     this.onSnapshotCaptured = typeof onSnapshotCaptured === 'function' ? onSnapshotCaptured : null;
+    this.onScanFrame = typeof onScanFrame === 'function' ? onScanFrame : null;
+    this.spatialCommands = spatialCommands;
     this.onAction = onAction;
     this.state = 'disconnected';
     this.userText = '';
@@ -64,6 +68,8 @@ export class XRRealtimePresence {
     this.connectPromise = null;
     this.disposed = false;
     this.snapshotBusy = false;
+    this.framePurpose = null;
+    this.scanState = 'idle';
     this.evidenceContext = { caseId: null, aircraftId: null, count: 0 };
     this.captureAnimations = [];
     this.handledCalls = new Set();
@@ -161,6 +167,23 @@ export class XRRealtimePresence {
     this.snapshotButton.visible = false;
     this.group.add(this.snapshotButton);
 
+    this.scanCanvas = document.createElement('canvas');
+    this.scanCanvas.width = 320;
+    this.scanCanvas.height = 144;
+    this.scanContext = this.scanCanvas.getContext('2d');
+    this.scanTexture = new THREE.CanvasTexture(this.scanCanvas);
+    this.scanTexture.colorSpace = THREE.SRGBColorSpace;
+    this.scanButton = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.18, 0.09),
+      new THREE.MeshBasicMaterial({ map: this.scanTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    this.scanButton.name = 'MXGeniusSpatialScan';
+    this.scanButton.position.set(0.315, -0.205, 0.012);
+    this.scanButton.userData.xrVoiceAction = 'scan-scene';
+    this.scanButton.userData.xrHitSize = { width: 0.18, height: 0.09 };
+    this.scanButton.visible = false;
+    this.group.add(this.scanButton);
+
     this.evidenceCanvas = document.createElement('canvas');
     this.evidenceCanvas.width = 640;
     this.evidenceCanvas.height = 160;
@@ -178,6 +201,7 @@ export class XRRealtimePresence {
     this.drawPanel();
     this.drawMicButton();
     this.drawSnapshotButton();
+    this.drawScanButton();
     this.drawEvidenceTray();
   }
 
@@ -222,7 +246,7 @@ export class XRRealtimePresence {
   }
 
   interactiveObjects() {
-    return [this.dockTarget ? this.micButton : this.hitTarget, this.snapshotButton, this.pinTarget]
+    return [this.dockTarget ? this.micButton : this.hitTarget, this.snapshotButton, this.scanButton, this.pinTarget]
       .filter((object) => object.visible);
   }
 
@@ -230,6 +254,7 @@ export class XRRealtimePresence {
     this.dockTarget = target;
     this.micButton.visible = Boolean(target);
     this.snapshotButton.visible = Boolean(target && this.onSnapshotRequest);
+    this.scanButton.visible = Boolean(target && this.onSnapshotRequest);
     this.evidenceTray.visible = Boolean(target);
     this.hitTarget.visible = !target;
     if (target) {
@@ -243,7 +268,7 @@ export class XRRealtimePresence {
 
   controlInstruction() {
     return this.dockTarget
-      ? 'Tap mic: voice | tap SNAP: send one headset frame | diamond: pin'
+      ? 'Tap mic: voice | SCAN: inspect | CAPTURE: case evidence | diamond: pin'
       : 'Tap cloud: voice | tap diamond: pin';
   }
 
@@ -268,6 +293,10 @@ export class XRRealtimePresence {
       void this.captureSnapshot(input);
       return true;
     }
+    if (target?.userData?.xrVoiceAction === 'scan-scene') {
+      void this.scanScene(input);
+      return true;
+    }
     void this.toggle(input);
     return true;
   }
@@ -283,7 +312,7 @@ export class XRRealtimePresence {
   fingerTargetAt(point) {
     if (!this.presenting || !this.group.visible) return null;
     if (this.dockTarget) {
-      for (const button of [this.micButton, this.snapshotButton]) {
+      for (const button of [this.micButton, this.snapshotButton, this.scanButton]) {
         if (!button.visible) continue;
         button.updateMatrixWorld(true);
         button.worldToLocal(this.localPoint.copy(point));
@@ -338,19 +367,26 @@ export class XRRealtimePresence {
   }
 
   async captureSnapshot(input = 'xr') {
-    if (this.disposed || this.snapshotBusy) return;
+    if (this.disposed || this.framePurpose) return;
     if (!this.onSnapshotRequest) {
       this.toolText = 'Headset snapshot bridge is unavailable';
       this.drawPanel();
       return;
     }
+    if (!this.evidenceContext.caseId) {
+      this.toolText = 'Open a maintenance case before capturing evidence';
+      this.drawPanel();
+      return;
+    }
     this.snapshotBusy = true;
+    this.framePurpose = 'evidence';
     this.toolText = 'Capturing one passthrough frame…';
     this.drawPanel();
     this.drawSnapshotButton();
+    this.drawScanButton();
     this.onAction('realtime-snapshot-request', input, { state: this.state });
     try {
-      const snapshot = await this.onSnapshotRequest();
+      const snapshot = await this.onSnapshotRequest({ purpose: 'evidence' });
       if (!snapshot?.dataUrl || !/^data:image\/jpeg;base64,/i.test(snapshot.dataUrl)) {
         throw new Error('Quest companion returned an invalid snapshot');
       }
@@ -387,9 +423,88 @@ export class XRRealtimePresence {
       this.onAction('realtime-snapshot-failed', input, { reason: this.toolText });
     } finally {
       this.snapshotBusy = false;
+      this.framePurpose = null;
       this.drawPanel();
       this.drawSnapshotButton();
+      this.drawScanButton();
     }
+  }
+
+  async scanScene(input = 'xr', { isCurrent = null } = {}) {
+    if (this.disposed || this.framePurpose) return { status: 'unavailable', count: 0, reason: 'Headset frame capture is busy' };
+    if (!this.onSnapshotRequest) {
+      this.scanState = 'unavailable';
+      this.toolText = 'Headset scan bridge is unavailable';
+      this.drawPanel();
+      this.drawScanButton();
+      return { status: 'unavailable', count: 0, reason: this.toolText };
+    }
+    this.framePurpose = 'scan';
+    this.scanState = 'scanning';
+    this.toolText = 'Scanning one passthrough frame…';
+    this.drawPanel();
+    this.drawSnapshotButton();
+    this.drawScanButton();
+    this.onAction('spatial-scan-requested', input, { state: this.scanState });
+    try {
+      const frame = await this.onSnapshotRequest({ purpose: 'scan' });
+      if (!frame?.dataUrl || !/^data:image\/jpeg;base64,/i.test(frame.dataUrl)) {
+        throw new Error('Quest companion returned an invalid scan frame');
+      }
+      const outcome = this.onScanFrame
+        ? await this.onScanFrame(frame, { input, context: this.contextProvider() || null, isCurrent })
+        : { status: 'unavailable', reason: 'Scene analyzer is not connected yet' };
+      const status = ['ready', 'empty', 'stale', 'unavailable', 'failed'].includes(outcome?.status)
+        ? outcome.status
+        : Number(outcome?.count) > 0 ? 'ready' : 'empty';
+      const candidateCount = Math.max(0, Number(outcome?.count) || 0);
+      this.scanState = status;
+      if (status === 'ready') this.toolText = `${Math.max(1, candidateCount)} high-confidence target${candidateCount === 1 ? '' : 's'} found`;
+      else if (status === 'empty') this.toolText = 'Scan complete · no high-confidence targets';
+      else if (status === 'stale') this.toolText = cleanText(outcome?.reason, 'Scene changed · scan again');
+      else if (status === 'unavailable') this.toolText = cleanText(outcome?.reason, 'Scan captured · scene analysis unavailable');
+      else this.toolText = cleanText(outcome?.reason, 'Scene analysis failed');
+      this.onAction('spatial-scan-completed', input, {
+        status: this.scanState,
+        scanId: frame.scanId || null,
+        requestId: frame.requestId || null,
+        width: frame.width || 0,
+        height: frame.height || 0,
+        capturedAtMs: frame.capturedAtMs || 0,
+        camera: frame.camera || null,
+        candidateCount
+      });
+      return { ...outcome, status, count: candidateCount };
+    } catch (error) {
+      this.scanState = error?.code === 'frame-unavailable' ? 'unavailable' : 'failed';
+      this.toolText = cleanText(error?.message, 'Headset scan failed');
+      this.onAction('spatial-scan-failed', input, { status: this.scanState, reason: this.toolText });
+      return { status: this.scanState, count: 0, reason: this.toolText };
+    } finally {
+      // The scan JPEG is deliberately not retained, attached, or sent to the
+      // conversation here. Wave 3 consumes it only through onScanFrame.
+      this.framePurpose = null;
+      this.drawPanel();
+      this.drawSnapshotButton();
+      this.drawScanButton();
+    }
+  }
+
+  setScanState(state = 'idle', message = '') {
+    if (this.disposed || this.framePurpose) return false;
+    const nextState = ['idle', 'ready', 'empty', 'unavailable', 'failed'].includes(state)
+      ? state
+      : 'idle';
+    this.scanState = nextState;
+    if (message) this.toolText = cleanText(message, '');
+    this.drawPanel();
+    this.drawScanButton();
+    return true;
+  }
+
+  setSpatialCommands(spatialCommands = null) {
+    this.spatialCommands = spatialCommands;
+    if (this.session) void this.configureTools();
   }
 
   animateSnapshotToEvidence(dataUrl) {
@@ -510,10 +625,16 @@ export class XRRealtimePresence {
           ? `The selected JetNet fleet location is ${cleanText(fleetLocation.icao)} in ${cleanText([fleetLocation.city, fleetLocation.country].filter(Boolean).join(', '), 'an unknown location')}, representing ${Number(fleetLocation.count) || 0} cached aircraft. Use that location as the current fleet context.`
           : 'The fleet globe is active, but no JetNet location is selected yet.'
         : '';
+      const spatialProjection = caseContext?.spatialTargets || null;
+      const spatialInstruction = spatialProjection
+        ? `The bounded spatial target projection is ${JSON.stringify(spatialProjection)}. Use only exact target IDs and revisions from this projection. A stale command acknowledgement means the scene changed; do not retry it or move the visible highlight.`
+        : 'No spatial target projection is available. Do not claim a target is visible or invoke a target-specific spatial command.';
       this.session?.configureTools(listed.tools, {
-        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
+        clientTools: this.spatialCommands?.clientTools?.() || [],
+        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} ${spatialInstruction} Spatial commands change local presentation only and must be acknowledged by their client tool result. Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
       });
-      this.toolText = `${listed.tools?.length || 0} operations ready`;
+      const spatialCount = this.spatialCommands?.clientTools?.().length || 0;
+      this.toolText = `${(listed.tools?.length || 0) + spatialCount} operations ready`;
       this.drawPanel();
     } catch (error) {
       this.setState('degraded', `Tools unavailable: ${error.code || 'request failed'}`);
@@ -528,6 +649,20 @@ export class XRRealtimePresence {
       args = typeof event.arguments === 'string' ? JSON.parse(event.arguments) : event.arguments;
     } catch {
       this.session?.sendToolOutput(event.callId, { status: 'failed', error: { code: 'INVALID_TOOL_ARGUMENTS', message: 'Tool arguments were not valid JSON.' } });
+      return;
+    }
+    if (event.spec?.meta?.client_handler === 'spatial_command') {
+      if (!this.spatialCommands?.dispatchTool) {
+        this.session?.sendToolOutput(event.callId, { status: 'unavailable', reason: 'Spatial command bridge is unavailable' });
+        this.toolText = `${event.spec.title || event.name} unavailable`;
+        this.drawPanel();
+        return;
+      }
+      this.setState('thinking');
+      const result = await this.spatialCommands.dispatchTool(event.spec.name, args || {});
+      this.session?.sendToolOutput(event.callId, result);
+      this.toolText = `${event.spec.title || event.name} · ${result.status}`;
+      this.drawPanel();
       return;
     }
     if (!event.spec?.name || !/^mxg\.[a-z_]+\.[a-z_]+$/.test(event.spec.name)) {
@@ -683,17 +818,43 @@ export class XRRealtimePresence {
     if (!this.snapshotContext) return;
     const ctx = this.snapshotContext;
     const active = Boolean(this.onSnapshotRequest && this.evidenceContext.caseId);
+    const busy = Boolean(this.framePurpose);
     ctx.clearRect(0, 0, this.snapshotCanvas.width, this.snapshotCanvas.height);
     ctx.fillStyle = 'rgba(5, 18, 31, 0.97)';
     ctx.fillRect(4, 4, this.snapshotCanvas.width - 8, this.snapshotCanvas.height - 8);
-    ctx.strokeStyle = this.snapshotBusy ? '#fbbf24' : active ? '#a78bfa' : '#64748b';
+    ctx.strokeStyle = busy ? '#fbbf24' : active ? '#a78bfa' : '#64748b';
     ctx.lineWidth = 7;
     ctx.strokeRect(4, 4, this.snapshotCanvas.width - 8, this.snapshotCanvas.height - 8);
     ctx.fillStyle = active ? '#edf6ff' : '#94a3b8';
     ctx.font = '700 38px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(this.snapshotBusy ? 'WAIT' : 'CAPTURE', this.snapshotCanvas.width / 2, 94);
+    ctx.fillText(busy ? 'WAIT' : 'CAPTURE', this.snapshotCanvas.width / 2, 94);
     this.snapshotTexture.needsUpdate = true;
+  }
+
+  drawScanButton() {
+    if (!this.scanContext) return;
+    const ctx = this.scanContext;
+    const busy = Boolean(this.framePurpose);
+    const palette = {
+      idle: '#22d3ee', scanning: '#fbbf24', ready: '#34d399', empty: '#94a3b8', stale: '#fbbf24',
+      unavailable: '#64748b', failed: '#fb7185'
+    };
+    const labels = {
+      idle: 'SCAN', scanning: 'SCANNING', ready: 'TARGETS', empty: 'EMPTY',
+      stale: 'STALE', unavailable: 'OFFLINE', failed: 'RETRY'
+    };
+    ctx.clearRect(0, 0, this.scanCanvas.width, this.scanCanvas.height);
+    ctx.fillStyle = 'rgba(5, 18, 31, 0.97)';
+    ctx.fillRect(4, 4, this.scanCanvas.width - 8, this.scanCanvas.height - 8);
+    ctx.strokeStyle = busy ? '#fbbf24' : palette[this.scanState] || palette.idle;
+    ctx.lineWidth = 7;
+    ctx.strokeRect(4, 4, this.scanCanvas.width - 8, this.scanCanvas.height - 8);
+    ctx.fillStyle = this.onSnapshotRequest ? '#edf6ff' : '#94a3b8';
+    ctx.font = '700 34px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(busy ? 'WAIT' : labels[this.scanState] || labels.idle, this.scanCanvas.width / 2, 94);
+    this.scanTexture.needsUpdate = true;
   }
 
   drawEvidenceTray() {
@@ -786,7 +947,7 @@ export class XRRealtimePresence {
       animation.mesh.material.dispose();
       animation.texture.dispose();
     }
-    const textures = new Set([this.texture, this.micTexture, this.snapshotTexture, this.evidenceTexture]);
+    const textures = new Set([this.texture, this.micTexture, this.snapshotTexture, this.scanTexture, this.evidenceTexture]);
     this.group.traverse((object) => {
       if (object.geometry) geometries.add(object.geometry);
       const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];

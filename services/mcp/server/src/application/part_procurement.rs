@@ -29,10 +29,16 @@ pub struct RequestQueueQuery {
     pub overdue_only: Option<bool>,
     pub missing_need_by_only: Option<bool>,
     /// One-based page number. Clamped, never rejected.
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page: Option<i64>,
     /// Rows per page. Clamped to the paging module's ceiling.
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page_size: Option<i64>,
 }
 

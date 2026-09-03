@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxgenius.io/contracts/spatial-scene-command.schema.json",
+  "title": "MXG spatial scene command and result",
+  "oneOf": [
+    { "$ref": "#/$defs/command" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "sessionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,80}$"
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}:[A-Za-z0-9._:-]{1,240}$"
+    },
+    "argumentValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string", "maxLength": 500 },
+        {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": ["boolean", "number", "string"],
+            "maxLength": 180
+          }
+        }
+      ]
+    },
+    "arguments": {
+      "type": "object",
+      "maxProperties": 12,
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]{0,39}$" },
+      "additionalProperties": { "$ref": "#/$defs/argumentValue" }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type", "version", "commandId", "sessionId", "action", "arguments",
+        "expectedRegistryRevision", "issuedAtMs", "expiresAtMs"
+      ],
+      "properties": {
+        "type": { "const": "spatial.command" },
+        "version": { "const": 1 },
+        "commandId": { "$ref": "#/$defs/commandId" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "action": { "enum": ["scan", "lock", "highlight", "frame", "clear", "set-thermal", "open-case", "attach-evidence"] },
+        "targetId": { "$ref": "#/$defs/targetId" },
+        "arguments": { "$ref": "#/$defs/arguments" },
+        "expectedRegistryRevision": { "type": "integer", "minimum": 1 },
+        "expectedTargetRevision": { "type": "integer", "minimum": 1 },
+        "issuedAtMs": { "type": "integer", "minimum": 0 },
+        "expiresAtMs": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "enum": ["lock", "highlight", "frame", "open-case", "attach-evidence"] } } },
+          "then": { "required": ["targetId"] }
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "version", "commandId", "sessionId", "status", "registryRevision", "observedAtMs"],
+      "properties": {
+        "type": { "const": "spatial.command.result" },
+        "version": { "const": 1 },
+        "commandId": { "$ref": "#/$defs/commandId" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "status": { "enum": ["applied", "rejected", "stale", "unavailable"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "registryRevision": { "type": "integer", "minimum": 1 },
+        "targetRevision": { "type": "integer", "minimum": 1 },
+        "observedAtMs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

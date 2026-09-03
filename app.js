@@ -83,6 +83,23 @@ const MX3DViewer = {
 
 window.MX3DViewer = MX3DViewer;
 
+const MXSpatialSceneCommands = globalThis.MXSpatialCommands?.createDispatcher && globalThis.MXTargetContext?.registry
+  ? globalThis.MXSpatialCommands.createDispatcher({
+      registry: globalThis.MXTargetContext.registry,
+      adapter: globalThis.MXSpatialCommands.createEmbeddedViewerAdapter({
+        viewer: MX3DViewer,
+        registry: globalThis.MXTargetContext.registry
+      })
+    })
+  : null;
+
+window.MXSpatialSceneCommands = MXSpatialSceneCommands;
+window.addEventListener('mxgenius:spatial-command-request', async (event) => {
+  if (!MXSpatialSceneCommands || !event.detail) return;
+  const result = await MXSpatialSceneCommands.dispatch(event.detail);
+  window.dispatchEvent(new CustomEvent('mxgenius:spatial-command-result', { detail: result }));
+});
+
 function applyCapabilityUiEffect(name, envelopeOrOutput) {
   if (name !== 'mxg.digital_twin.highlight_zone') return;
   const output = envelopeOrOutput?.output || envelopeOrOutput || {};
@@ -960,6 +977,7 @@ function setupChatPanel() {
         : null,
       market_intelligence: displayedMarketIntelContext,
       active_target: globalThis.MXTargetContext?.get?.() || null,
+      spatial_targets: globalThis.MXTargetContext?.registry?.modelProjection?.() || null,
       digital_twin: {
         context: MX3DViewer.context || null,
         highlighted_part: MX3DViewer.pendingSelector || null,
@@ -2059,6 +2077,9 @@ Rules:
   let pendingRealtimeMutation = null;
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
+  globalThis.MXTargetContext?.registry?.subscribe?.(() => {
+    if (realtimeSession?.channel?.readyState === 'open') void configureRealtimeCompanion();
+  });
 
   function cancelRealtimeStructuredTurn() {
     realtimeStructuredGeneration += 1;
@@ -2282,6 +2303,10 @@ Rules:
       : 'No maintenance case is currently active. Ask the user to select or create a case before requesting a case-bound action.';
     const confirmedMutationTools = (listed.tools || [])
       .filter((tool) => tool.meta?.requires_human_approval === true);
+    const spatialProjection = globalThis.MXTargetContext?.registry?.modelProjection?.() || null;
+    const spatialDescription = spatialProjection
+      ? `The bounded spatial target projection is ${JSON.stringify(spatialProjection)}. Use only its exact target IDs and revisions; stale acknowledgements mean the visible scene changed and must not be retried.`
+      : 'No spatial target projection is available. Do not claim a target is visible.';
     realtimeSession.configureTools(confirmedMutationTools, {
       toolChoice: 'required',
       clientTools: [{
@@ -2334,8 +2359,8 @@ Rules:
           client_handler: 'parts_stock_lookup',
           requires_human_approval: false
         }
-      }],
-      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. When the user asks whether a part is in stock, how many there are, or where one is, call mxg__parts__lookup_stock and speak only its spoken_summary. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
+      }, ...(MXSpatialSceneCommands?.clientTools?.() || [])],
+      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} ${spatialDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. Spatial commands change local presentation only and must be acknowledged by their client tool result. When the user asks whether a part is in stock, how many there are, or where one is, call mxg__parts__lookup_stock and speak only its spoken_summary. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
     });
   }
 
@@ -2499,6 +2524,15 @@ Rules:
     }
     if (event.spec?.meta?.client_handler === 'parts_stock_lookup') {
       await executeRealtimePartsLookup(event.callId, capabilityArguments);
+      return;
+    }
+    if (event.spec?.meta?.client_handler === 'spatial_command') {
+      const result = MXSpatialSceneCommands
+        ? await MXSpatialSceneCommands.dispatchTool(event.spec.name, capabilityArguments || {})
+        : { status: 'unavailable', reason: 'Spatial command bridge is unavailable' };
+      realtimeSession.sendToolOutput(event.callId, result);
+      handledRealtimeCalls.add(event.callId);
+      setRealtimeUiState(result.status === 'applied' ? 'listening' : 'degraded', `${event.spec.title || event.name} · ${result.status}`);
       return;
     }
     if (!event.spec?.name || !/^mxg\.[a-z_]+\.[a-z_]+$/.test(event.spec.name)) {

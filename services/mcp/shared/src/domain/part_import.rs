@@ -373,7 +373,9 @@ pub fn validate_row(row: &RawRow) -> Result<ParsedRow, Vec<RowProblem>> {
             // out-of-range cell failed inside the batch transaction and rolled
             // the whole import back as a 503, with no per-row diagnostic --
             // despite the preview existing to give exactly that.
-            Ok(value) if value > 0.0 && crate::domain::quantity::quantity_problem(value).is_some() => {
+            Ok(value)
+                if value > 0.0 && crate::domain::quantity::quantity_problem(value).is_some() =>
+            {
                 problems.push(RowProblem::QuantityOutOfRange(raw.clone()));
                 None
             }

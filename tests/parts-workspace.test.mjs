@@ -687,7 +687,7 @@ test('Part interchangeability', async (t) => {
 
   await t.test('a supersession inverts when read from the other part', () => {
     assert.match(domain, /pub fn inverted/);
-    assert.match(handler, /if direction < 0 \{ parsed\.inverted\(\) \}/);
+    assert.match(handler, /if\s+direction\s*<\s*0\s*\{\s*parsed\.inverted\(\)\s*\}/);
   });
 
   await t.test('silence is not a determination that no alternate exists', () => {
@@ -874,7 +874,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
     // pin serves the build without these controls.
     assert.match(html, /parts-workspace\.js\?v=24/);
     assert.match(html, /parts-workspace\.css\?v=19/);
-    assert.match(html, /application-client\.js\?v=37/);
+    assert.match(html, /application-client\.js\?v=39/);
   });
 });
 

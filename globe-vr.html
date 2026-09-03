@@ -41,6 +41,9 @@
     body.sensor-scene { background: radial-gradient(circle at 55% 42%, #0b2740 0, #050914 56%, #02050d 100%); }
     body.sensor-scene .hud { border-color: rgba(251,146,60,.44); }
     body.sensor-scene .hud strong { color: #fb923c; }
+    .spatial-preview { position: fixed; right: 14px; bottom: 14px; z-index: 4; display: flex; gap: 7px; padding: 8px; border: 1px solid rgba(34,211,238,.35); border-radius: 9px; background: rgba(5,9,20,.9); }
+    .spatial-preview[hidden] { display: none; }
+    .spatial-preview button { padding: 7px 10px; border: 1px solid #31566c; border-radius: 7px; background: #0a2333; color: #dffaff; font: 700 11px system-ui, sans-serif; cursor: pointer; }
   </style>
   <script type="importmap">
   {
@@ -54,8 +57,10 @@
   <script src="runtime-config.js?v=5"></script>
   <script src="auth.js?v=11"></script>
   <script src="cache.js"></script>
-  <script src="application-client.js?v=37"></script>
+  <script src="application-client.js?v=39"></script>
   <script src="realtime-client.js?v=2"></script>
+  <script src="xr-target-registry.js?v=1"></script>
+  <script src="spatial-commands.js?v=1"></script>
 </head>
 <body>
   <div class="hud">
@@ -84,14 +89,29 @@
       <pre class="sensor-trace" id="sensorTrace">Waiting for sensor preflight…</pre>
     </details>
   </section>
+  <div class="spatial-preview" id="spatialPreviewControls" hidden aria-label="Local spatial target preview controls">
+    <button id="spatialPreviewScan" type="button">Simulate scan</button>
+    <button id="spatialPreviewNext" type="button">Next</button>
+    <button id="spatialPreviewLock" type="button">Lock</button>
+    <button id="spatialPreviewClear" type="button">Clear</button>
+  </div>
 
   <script src="guided-tooltip.js?v=9"></script>
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=6';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=8';
+    import { XRBrowserPanel } from './xr-browser-panel.js?v=1';
+    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=2';
     import { XRUIAudio } from './xr-ui-audio.js?v=1';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
+    import {
+      ConnectedSpatialScanAnalyzer,
+      SimulatedSpatialScanAnalyzer,
+      applySpatialScanResult
+    } from './spatial-scan-analyzer.js?v=2';
+    import { XRSpatialTargetHUD } from './xr-spatial-target-hud.js?v=2';
+    import { XRInputDwellGate } from './xr-input-dwell.js?v=1';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
@@ -114,6 +134,11 @@
     const sensorTrace = document.getElementById('sensorTrace');
     const sceneSoundButton = document.getElementById('sceneSoundButton');
     const sceneHelpButton = document.getElementById('sceneHelpButton');
+    const spatialPreviewControls = document.getElementById('spatialPreviewControls');
+    const spatialPreviewScan = document.getElementById('spatialPreviewScan');
+    const spatialPreviewNext = document.getElementById('spatialPreviewNext');
+    const spatialPreviewLock = document.getElementById('spatialPreviewLock');
+    const spatialPreviewClear = document.getElementById('spatialPreviewClear');
     const pageQuery = new URLSearchParams(location.search);
     let sensorHandoff = null;
     try {
@@ -139,10 +164,17 @@
     sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
     const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
+    const localPreviewHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)
+      || /^10\./.test(location.hostname)
+      || /^192\.168\./.test(location.hostname)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(location.hostname);
+    const spatialSimulationScenario = pageQuery.get('spatialSim');
+    const spatialSimulationEnabled = sensorOnlyScene && localPreviewHost
+      && ['empty', 'single', 'multi'].includes(spatialSimulationScenario);
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
     sensorSetup.hidden = !sensorOnlyScene;
     let SensorOrbClass = null;
-    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=9'));
+    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=11'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
@@ -276,8 +308,28 @@
     let fleetHud = null;
     let xrSensors = null;
     let xrVoice = null;
+    let xrBrowser = null;
+    let xrWitness = null;
+    let spatialHud = null;
+    let spatialCommands = null;
+    let unsubscribeSpatialScanState = null;
     let activeCaseState = null;
     let selectedCluster = null;
+    const spatialRegistry = globalThis.MXTargetRegistry?.create?.({
+      sessionId: xrSessionId,
+      storageKey: `mxg_spatial_targets_${xrSessionId}`,
+      restore: true
+    }) || null;
+    const spatialAnalyzer = spatialSimulationEnabled
+      ? new SimulatedSpatialScanAnalyzer({ scenario: spatialSimulationScenario })
+      : sensorOnlyScene
+        ? new ConnectedSpatialScanAnalyzer({
+            sessionId: xrSessionId,
+            analyze: ({ sessionId, frame }) => withRenewedSensorSession((session) => (
+              MXApplicationClient.spatial.scan({ sessionId, frame, session })
+            ))
+          })
+        : null;
 
     async function sensorApplicationSession({ forceRefresh = false } = {}) {
       await globalThis.MXGENIUS_CONFIG?.ready;
@@ -336,6 +388,7 @@
           aircraftId: activeCaseState.case?.aircraft_id,
           count: activeCaseState.media.length
         });
+        xrWitness?.publishProjection();
         void xrVoice?.refreshContext();
         return activeCaseState;
       } catch (error) {
@@ -367,6 +420,7 @@
         };
       });
       activeCaseState = refreshed;
+      xrWitness?.publishProjection();
       void xrVoice?.refreshContext();
       return {
         caseId: current.caseId,
@@ -400,6 +454,43 @@
       window.dispatchEvent(new CustomEvent('mxgenius:xr-action', {
         detail: { action, input, target, context: { surface: sceneSurface } }
       }));
+    }
+
+    function requestHeadsetFrame(options = {}) {
+      if (spatialSimulationEnabled && sensorPreviewMode && options.purpose === 'scan') {
+        return Promise.resolve({
+          requestId: createOpaqueXrId('frame'),
+          scanId: createOpaqueXrId('scan'),
+          purpose: 'scan',
+          dataUrl: 'data:image/jpeg;base64,/9j/2Q==',
+          mimeType: 'image/jpeg',
+          width: 1280,
+          height: 720,
+          eye: 'preview',
+          capturedAtMs: Date.now(),
+          camera: { source: 'quest-passthrough', eye: 'preview', poseAvailable: false, intrinsicsAvailable: false }
+        });
+      }
+      return xrSensors.acquireHeadsetFrame(options);
+    }
+
+    async function analyzeSpatialFrame(frame, { isCurrent = null } = {}) {
+      if (!spatialAnalyzer || !spatialRegistry) {
+        return { status: 'unavailable', count: 0, reason: 'Scene analyzer is not connected yet' };
+      }
+      const result = await spatialAnalyzer.analyzeFrame(frame);
+      const guard = typeof isCurrent === 'function' ? isCurrent() : { current: true };
+      if (!guard.current) return { status: 'stale', count: 0, reason: guard.reason || 'Scene changed while the scan was running' };
+      if (!['ready', 'empty'].includes(result.status)) {
+        return {
+          status: result.status === 'invalid-image' ? 'failed' : 'unavailable',
+          providerStatus: result.status,
+          count: 0,
+          reason: result.reason || 'Spatial analysis is temporarily unavailable',
+          retryAfterMs: result.retryAfterMs || null
+        };
+      }
+      return applySpatialScanResult(spatialRegistry, result, { registryApi: globalThis.MXTargetRegistry });
     }
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -473,7 +564,8 @@
             surface: 'sensor-diagnostics',
             caseId: activeCaseState?.caseId || null,
             aircraftId: activeCaseState?.case?.aircraft_id || null,
-            caseVersion: activeCaseState?.case?.version ?? null
+            caseVersion: activeCaseState?.case?.version ?? null,
+            spatialTargets: spatialRegistry?.modelProjection?.() || null
           }
         : {
             surface: 'fleet-globe',
@@ -482,14 +574,111 @@
               city: selectedCluster.city || '',
               country: selectedCluster.country || '',
               count: Number(selectedCluster.count) || 0
-            } : null
+            } : null,
+            spatialTargets: spatialRegistry?.modelProjection?.() || null
           },
-      onSnapshotRequest: sensorOnlyScene ? () => xrSensors.requestHeadsetSnapshot() : null,
+      onSnapshotRequest: sensorOnlyScene ? requestHeadsetFrame : null,
       onSnapshotCaptured: sensorOnlyScene ? saveSnapshotToActiveCase : null,
+      onScanFrame: sensorOnlyScene ? analyzeSpatialFrame : null,
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrVoice.group)
     });
     if (xrSensors) xrVoice.setDockTarget(xrSensors.voiceDock);
     scene.add(xrVoice.group);
+    xrBrowser = new XRBrowserPanel({
+      links: globalThis.MXGENIUS_CONFIG?.xrQuickLinks,
+      onAction: (action, input, target) => emitSceneAction(action, input, target, xrBrowser.group)
+    });
+    scene.add(xrBrowser.group);
+    if (sensorOnlyScene) {
+      xrWitness = new XRRemoteWitnessPanel({
+        xrSessionId,
+        sessionProvider: sensorApplicationSession,
+        caseProvider: () => activeCaseState,
+        projectionProvider: () => ({
+          target: spatialRegistry?.modelProjection?.().activeTarget || null,
+          caseSummary: activeCaseState ? {
+            caseId: activeCaseState.caseId,
+            aircraftId: activeCaseState.case?.aircraft_id || null,
+            discrepancy: activeCaseState.case?.raw_discrepancy || activeCaseState.case?.discrepancy || null,
+            status: activeCaseState.case?.status || null
+          } : null,
+          caseMedia: activeCaseState?.media || []
+        }),
+        mediaStreamProvider: async () => {
+          if (renderer.xr.isPresenting && navigator.mediaDevices?.getDisplayMedia) {
+            return navigator.mediaDevices.getDisplayMedia({
+              video: { frameRate: { ideal: 30, max: 30 } },
+              audio: false
+            });
+          }
+          if (typeof renderer.domElement.captureStream !== 'function') {
+            throw new Error('This browser cannot share the rendered headset view');
+          }
+          return renderer.domElement.captureStream(30);
+        },
+        nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+        onAction: (action, input, target) => emitSceneAction(action, input, target, xrWitness.group),
+        onStatus: ({ room, message }) => {
+          if (renderer.xr.isPresenting && room) {
+            status.textContent = `Witness ${room.status} · ${room.viewerCount} viewer${room.viewerCount === 1 ? '' : 's'}`;
+          } else if (message) {
+            status.textContent = message;
+          }
+        }
+      });
+      scene.add(xrWitness.group);
+    }
+    if (sensorOnlyScene && spatialRegistry) {
+      spatialHud = new XRSpatialTargetHUD({
+        registry: spatialRegistry,
+        onAction: (action, input, target) => emitSceneAction(action, input, target, spatialHud.group)
+      });
+      scene.add(spatialHud.group);
+      spatialCommands = globalThis.MXSpatialCommands?.createDispatcher?.({
+        registry: spatialRegistry,
+        adapter: globalThis.MXSpatialCommands.createWebXRAdapter({
+          scan: ({ isCurrent }) => xrVoice.scanScene('model', { isCurrent }),
+          highlight: ({ command, isCurrent }) => spatialHud.highlightTarget(command.targetId, 'model', { isCurrent }),
+          lock: ({ command, isCurrent }) => {
+            const guard = isCurrent();
+            if (!guard.current) return { status: 'stale', reason: guard.reason };
+            return spatialHud.lockTargetById(command.targetId, 'model')
+              ? { status: 'applied' }
+              : { status: 'stale', reason: 'Spatial target is no longer visible' };
+          },
+          clear: ({ isCurrent }) => {
+            const guard = isCurrent();
+            if (!guard.current) return { status: 'stale', reason: guard.reason };
+            spatialHud.clear('model');
+            return { status: 'applied' };
+          },
+          setThermal: ({ command, isCurrent }) => {
+            const guard = isCurrent();
+            if (!guard.current) return { status: 'stale', reason: guard.reason };
+            if (!xrSensors) return { status: 'unavailable', reason: 'Thermal presentation is unavailable in this scene' };
+            xrSensors.setActive(command.arguments.enabled, 'model');
+            return { status: 'applied' };
+          }
+        })
+      }) || null;
+      xrVoice.setSpatialCommands(spatialCommands);
+      unsubscribeSpatialScanState = spatialRegistry.subscribe((detail = {}) => {
+        if (detail.reason === 'spatial-targets-cleared') {
+          xrVoice?.setScanState('idle', 'Targets cleared');
+        } else if (detail.reason === 'spatial-targets-expired') {
+          xrVoice?.setScanState('idle', 'Targets expired · scan again');
+        }
+        xrWitness?.publishProjection();
+        void xrVoice?.refreshContext();
+      });
+    }
+    if (sensorPreviewMode && spatialSimulationEnabled && spatialHud) {
+      spatialPreviewControls.hidden = false;
+      spatialPreviewScan.addEventListener('click', () => void xrVoice.scanScene('desktop-preview'));
+      spatialPreviewNext.addEventListener('click', () => spatialHud.nextCandidate('desktop-preview'));
+      spatialPreviewLock.addEventListener('click', () => spatialHud.lockSelected('desktop-preview'));
+      spatialPreviewClear.addEventListener('click', () => spatialHud.clear('desktop-preview'));
+    }
     xrSensors?.startPreflight();
     if (sensorOnlyScene) void restoreActiveCase();
     const TOKEN = 'LIVE_TOKEN';
@@ -1131,6 +1320,8 @@
     const panelFingerTargets = new Map();
     const hudFingerTargets = new Map();
     const backFingerTargets = new Map();
+    const browserFingerTargets = new Map();
+    const spatialFingerDwell = new XRInputDwellGate({ dwellMs: 180 });
 
     function activateCluster(index, input) {
       if (sensorOnlyScene) return;
@@ -1179,12 +1370,18 @@
         void xrAudio?.unlock();
         xrRaycaster.setFromXRController(controller);
         const uiTargets = [
+          ...(spatialHud?.interactiveObjects() || []),
+          ...(xrWitness?.interactiveObjects() || []),
+          ...xrBrowser.interactiveObjects(),
           ...xrVoice.interactiveObjects(),
           ...(xrSensors?.interactiveObjects() || []),
           backButton
         ];
         if (!sensorOnlyScene) uiTargets.push(detailsSurface, ...fleetHud.interactiveObjects());
         const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
+        if (uiHit && spatialHud?.handleObject(uiHit.object, `controller-${index}`)) return;
+        if (uiHit && xrWitness?.handleObject(uiHit.object, `controller-${index}`)) return;
+        if (uiHit && xrBrowser.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrSensors?.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === backButton) return returnToDashboard(`controller-${index}`);
@@ -1280,6 +1477,28 @@
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
 
+        const browserTarget = xrBrowser.fingerTargetAt(fingerPoint);
+        const previousBrowserTarget = browserFingerTargets.get(handIndex) || null;
+        if (browserTarget && browserTarget !== previousBrowserTarget) {
+          xrBrowser.handleObject(browserTarget, `finger-${handIndex}`);
+        }
+        browserFingerTargets.set(handIndex, browserTarget);
+        if (browserTarget) return;
+
+        const witnessTarget = xrWitness?.fingerTargetAt(fingerPoint) || null;
+        const previousWitnessTarget = hand.userData.witnessFingerTarget || null;
+        if (witnessTarget && witnessTarget !== previousWitnessTarget) {
+          xrWitness.handleObject(witnessTarget, `finger-${handIndex}`);
+        }
+        hand.userData.witnessFingerTarget = witnessTarget;
+        if (witnessTarget) return;
+
+        const spatialTarget = spatialHud?.fingerTargetAt(fingerPoint) || null;
+        if (spatialFingerDwell.update(handIndex, spatialTarget, time)) {
+          spatialHud.handleObject(spatialTarget, `finger-${handIndex}`);
+        }
+        if (spatialTarget) return;
+
         const sensorTarget = xrSensors?.fingerTargetAt(fingerPoint) || null;
         if (sensorTarget) {
           const previousSensorTarget = hand.userData.sensorFingerTarget || null;
@@ -1370,6 +1589,9 @@
       camera.getWorldPosition(panelCameraPosition);
       backButton.lookAt(panelCameraPosition);
       xrVoice.setPresenting(true);
+      xrBrowser.setPresenting(true);
+      xrWitness?.setPresenting(true);
+      spatialHud?.setPresenting(true);
       xrSensors?.setPresenting(true);
       status.textContent = sensorOnlyScene
         ? 'Sensor diagnostics active in VR · awaiting FLIR and Pi streams'
@@ -1379,6 +1601,9 @@
       detailsTarget = 0;
       backButton.visible = false;
       xrVoice.setPresenting(false);
+      xrBrowser.setPresenting(false);
+      xrWitness?.setPresenting(false);
+      spatialHud?.setPresenting(false);
       xrSensors?.setPresenting(false);
       xrActiveGrips.clear();
       xrGlobeGesture = null;
@@ -1393,6 +1618,12 @@
 
     if (sensorPreviewMode) {
       xrVoice.setPresenting(true);
+      xrBrowser.setPresenting(true);
+      xrWitness?.setPresenting(true);
+      if (localPreviewHost && pageQuery.get('witnessPreview') === '1') {
+        xrWitness?.setOpen(true, 'desktop-preview');
+      }
+      spatialHud?.setPresenting(true);
       xrSensors?.setPresenting(true);
       status.textContent = 'Desktop sensor layout preview · Quest pose emulation';
     }
@@ -1410,6 +1641,9 @@
       updateFingerCollisions(time);
       xrSensors?.update(delta, time, { camera });
       xrVoice.update(delta, time, { camera });
+      xrBrowser.update(delta, { camera });
+      xrWitness?.update(delta, { camera });
+      spatialHud?.update(delta, time, { camera });
       renderer.render(scene, camera);
     });
 
@@ -1420,6 +1654,11 @@
       renderer.setAnimationLoop(null);
       xrSensors?.dispose();
       xrVoice.dispose?.();
+      xrBrowser.dispose?.();
+      xrWitness?.dispose?.();
+      spatialHud?.dispose?.();
+      spatialFingerDwell.clear();
+      unsubscribeSpatialScanState?.();
       xrAudio?.dispose();
       fleetHud?.dispose();
       clearDetailImageGrid();

@@ -1,0 +1,10 @@
+{
+  "type": "witness.signal",
+  "signal": {
+    "kind": "answer",
+    "description": {
+      "type": "answer",
+      "sdp": "v=0\r\no=- 2 2 IN IP4 127.0.0.1\r\n"
+    }
+  }
+}

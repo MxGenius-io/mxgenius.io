@@ -47,7 +47,7 @@ WIP limit: **one implementation item**. A new item does not start until the acti
 ### NOT YET
 
 - No frontend redesign or framework migration.
-- No new capability names beyond the locked 50.
+- No new capability names beyond the 45 active names retained from the original 50-capability catalog.
 - No simulation-grade twin, autonomous return-to-service, ERP expansion, or predictive-maintenance claims.
 - No final visual polish until functional application, Realtime, and adapter wiring is complete.
 
@@ -55,7 +55,7 @@ WIP limit: **one implementation item**. A new item does not start until the acti
 
 - [x] **MCP-001** Move the extracted workspace to `services/mcp`.
 - [x] **MCP-002** Rename the nested runtime crate from `mcp` to `server`.
-- [x] **MCP-003** Preserve exactly 50 locked capability names.
+- [x] **MCP-003** Preserve exactly 45 active locked capability names after retiring the five `mxg.mro.*` tools.
 - [x] **MCP-004** Keep canonical domain/contracts in `services/mcp/shared`.
 - [x] **MCP-005** Run formatting, tests, clippy-as-error, and build from the mounted location.
 

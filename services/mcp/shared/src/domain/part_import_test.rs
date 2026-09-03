@@ -88,7 +88,9 @@ mod tests {
         let parsed = validate_row(&r).expect("an exported legacy row must re-import");
         assert_eq!(parsed.trace_type.as_deref(), Some("coc"));
         assert!(
-            parsed.notes.contains(&RowNote::LegacyTraceType("coc".into())),
+            parsed
+                .notes
+                .contains(&RowNote::LegacyTraceType("coc".into())),
             "the operator has to be told what was preserved"
         );
 
@@ -122,7 +124,10 @@ mod tests {
         // Zero still means "catalog row, no stock" and must keep parsing.
         let mut catalog = good();
         catalog.quantity = "0".into();
-        assert!(validate_row(&catalog).is_ok(), "a catalog row carries no stock");
+        assert!(
+            validate_row(&catalog).is_ok(),
+            "a catalog row carries no stock"
+        );
     }
 
     #[test]

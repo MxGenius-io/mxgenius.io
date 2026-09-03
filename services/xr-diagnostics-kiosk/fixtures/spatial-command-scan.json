@@ -1,0 +1,11 @@
+{
+  "type": "spatial.command",
+  "version": 1,
+  "commandId": "command_scan_0001",
+  "sessionId": "session-contract-1",
+  "action": "scan",
+  "arguments": { "purpose": "scan" },
+  "expectedRegistryRevision": 3,
+  "issuedAtMs": 1780000004000,
+  "expiresAtMs": 1780000012000
+}

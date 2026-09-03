@@ -1,5 +1,7 @@
-//! Typed contracts for the 50 v1 capabilities. Each tool has a request and
-//! response type. All types derive `Serialize`, `Deserialize`, and
+//! Typed contracts for the 45 active v1 capabilities retained from the
+//! originally numbered 50-capability specification. The original numbering is
+//! preserved in the modules for traceability. Each active tool has a request
+//! and response type, and all types derive `Serialize`, `Deserialize`, and
 //! `JsonSchema` so the dispatcher can publish authoritative schemas via
 //! `tools/list` and validate inbound payloads.
 //!

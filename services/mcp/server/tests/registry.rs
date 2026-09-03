@@ -1484,6 +1484,13 @@ async fn health_readiness_and_adapter_endpoints_are_distinct() {
         serde_json::from_slice(&to_bytes(adapters.into_body(), usize::MAX).await.unwrap()).unwrap();
     assert_eq!(adapters["core"]["persistence"], "in_memory");
     assert_eq!(adapters["adapters"]["weather"], "not_configured");
+    let spatial_policy = &adapters["adapters"]["spatial_scan_policy"];
+    assert!(spatial_policy["kill_switch_active"].is_boolean());
+    assert!(spatial_policy["maximum_image_bytes"].is_number());
+    assert!(spatial_policy["maximum_long_edge"].is_number());
+    assert!(spatial_policy["daily_limit"].is_number());
+    assert!(spatial_policy["telemetry"]["requestsTotal"].is_number());
+    assert!(spatial_policy["telemetry"]["providerAttemptsTotal"].is_number());
 }
 
 #[tokio::test]

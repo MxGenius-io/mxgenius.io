@@ -13,4 +13,6 @@ pub mod parts_inventory;
 pub mod policy_enforce;
 pub mod postgres_case_service;
 pub mod receiving_inspection;
+pub mod remote_witness;
 pub mod rotables;
+pub mod spatial_scan;

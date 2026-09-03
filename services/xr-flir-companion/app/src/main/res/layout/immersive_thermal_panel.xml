@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="#F2050914"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="18dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -59,48 +59,193 @@
         android:textColor="#9DB1C6"
         android:textSize="13sp" />
 
+    <LinearLayout
+        android:id="@+id/immersive_witness_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="#ED0B1322"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/immersive_witness_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CUSTOMER VIEW · ENDED"
+            android:textColor="#FBBF24"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/immersive_witness_qr"
+                android:layout_width="104dp"
+                android:layout_height="104dp"
+                android:background="#FFFFFF"
+                android:contentDescription="Customer Remote Witness join QR code"
+                android:padding="4dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/immersive_witness_audience"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Audience · Aircraft customer"
+                    android:textColor="#F4FBFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/immersive_witness_code"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:fontFamily="monospace"
+                    android:text="JOIN CODE · —"
+                    android:textColor="#67E8F9"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/immersive_witness_detail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="0 viewers · network offline · expires —"
+                    android:textColor="#9DB1C6"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/immersive_witness_layers"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="POV · TARGET · CASE"
+                    android:textColor="#A7F3D0"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/immersive_witness_recording"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="RECORDING · OFF"
+                    android:textColor="#9DB1C6"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/immersive_witness_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:textColor="#FDA4AF"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/immersive_witness_capture"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:backgroundTint="#0891B2"
+                android:text="START"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/immersive_witness_pause"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:backgroundTint="#334155"
+                android:text="PAUSE"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/immersive_witness_resume"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:backgroundTint="#0F766E"
+                android:text="RESUME"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/immersive_witness_end"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:backgroundTint="#9F1239"
+                android:text="END"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/immersive_witness_layers_toggle"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:backgroundTint="#172554"
+            android:text="SHARE THERMAL + CASE MEDIA"
+            android:textColor="#BAE6FD" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/immersive_commission_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:text="COMMISSIONING · NOT RUN"
         android:textColor="#67E8F9"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:textStyle="bold" />
 
-    <ScrollView
-        android:id="@+id/immersive_trace_scroll"
-        android:layout_width="match_parent"
-        android:layout_height="130dp"
-        android:layout_marginTop="10dp"
-        android:background="#CC02050D"
-        android:fillViewport="true"
-        android:padding="10dp">
-
-        <TextView
-            android:id="@+id/immersive_trace"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="Waiting for bridge trace…"
-            android:textColor="#A7F3D0"
-            android:textSize="11sp" />
-    </ScrollView>
-
-    <Button
-        android:id="@+id/immersive_commission"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="RUN FULL DIAGNOSTIC" />
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/immersive_arm_snapshot"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="ARM RGB SNAPSHOT" />
+        <Button
+            android:id="@+id/immersive_commission"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="RUN DIAGNOSTIC" />
+
+        <Button
+            android:id="@+id/immersive_arm_snapshot"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="ARM SNAPSHOT" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"

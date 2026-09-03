@@ -149,9 +149,15 @@ pub struct DiscrepancyReportDto {
 pub struct DiscrepancyQuery {
     pub status: Option<String>,
     pub stock_unit_id: Option<Uuid>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page: Option<i64>,
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page_size: Option<i64>,
 }
 
@@ -325,8 +331,10 @@ impl<'a> ReceivingInspectionRepository<'a> {
                 "inspect_pass",
                 "receiving_inspection",
                 inspection_id,
-                source,
-                StockUnitStatus::Available,
+                LedgerStatusTransition {
+                    from: source,
+                    to: StockUnitStatus::Available,
+                },
             )
             .await?;
         } else {
@@ -337,8 +345,10 @@ impl<'a> ReceivingInspectionRepository<'a> {
                 "inspect_quarantine",
                 "receiving_inspection",
                 inspection_id,
-                source,
-                source,
+                LedgerStatusTransition {
+                    from: source,
+                    to: source,
+                },
             )
             .await?;
         }
@@ -503,8 +513,10 @@ impl<'a> ReceivingInspectionRepository<'a> {
                 "discrepancy_hold",
                 "discrepancy_report",
                 report_id,
-                source,
-                StockUnitStatus::HoldNcm,
+                LedgerStatusTransition {
+                    from: source,
+                    to: StockUnitStatus::HoldNcm,
+                },
             )
             .await?;
         }
@@ -624,8 +636,10 @@ impl<'a> ReceivingInspectionRepository<'a> {
                         "discrepancy_release",
                         "discrepancy_report",
                         report_id,
-                        source,
-                        StockUnitStatus::Available,
+                        LedgerStatusTransition {
+                            from: source,
+                            to: StockUnitStatus::Available,
+                        },
                     )
                     .await?;
                 }
@@ -728,6 +742,11 @@ fn trimmed(value: Option<&str>) -> Option<String> {
         .map(str::to_owned)
 }
 
+struct LedgerStatusTransition {
+    from: StockUnitStatus,
+    to: StockUnitStatus,
+}
+
 /// One ledger row. The inspection or report id is the reference, so the
 /// movement and the evidence behind it point at each other.
 async fn ledger(
@@ -737,8 +756,7 @@ async fn ledger(
     event_type: &str,
     reference_type: &str,
     reference_id: Uuid,
-    from: StockUnitStatus,
-    to: StockUnitStatus,
+    transition: LedgerStatusTransition,
 ) -> Result<(), PartsInventoryError> {
     let location: Uuid = sqlx::query_scalar(
         r#"SELECT location_id FROM stock_units WHERE organization_id=$1 AND id=$2"#,
@@ -763,7 +781,10 @@ async fn ledger(
     .bind(reference_id.to_string())
     .bind(context.user_id.0)
     .bind(context.correlation_id.0)
-    .bind(serde_json::json!({"fromStatus": from.as_str(), "toStatus": to.as_str()}))
+    .bind(serde_json::json!({
+        "fromStatus": transition.from.as_str(),
+        "toStatus": transition.to.as_str()
+    }))
     .execute(&mut **tx)
     .await?;
     Ok(())

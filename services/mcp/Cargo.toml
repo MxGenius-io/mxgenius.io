@@ -41,7 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # HTTP server (for Streamable HTTP transport)
-axum = { version = "0.7", features = ["http1", "json", "macros"] }
+axum = { version = "0.7", features = ["http1", "json", "macros", "ws"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.5", features = ["trace", "cors", "limit"] }
 hyper = "1"

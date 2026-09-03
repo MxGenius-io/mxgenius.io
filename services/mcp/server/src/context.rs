@@ -128,8 +128,8 @@ impl InsecureLocalProvider {
     }
 
     pub fn with_trusted_confirmation(role: Role, confirmation: TrustedConfirmation) -> Self {
-        let approval_granted = confirmation.qualified_approval
-            && role.can_grant_qualified_approval();
+        let approval_granted =
+            confirmation.qualified_approval && role.can_grant_qualified_approval();
         let mut provider = Self::with_trusted_state(role, false, approval_granted);
         provider.inner.confirmation = Some(confirmation);
         provider
@@ -705,10 +705,11 @@ mod tests {
     /// 428 and no stock mutation could be exercised on a developer machine.
     #[tokio::test]
     async fn insecure_local_verifies_a_presented_confirmation_grant() {
-        let provider = InsecureLocalProvider::new(Role::Administrator)
-            .with_confirmation_verifier(Arc::new(StubGrantVerifier {
+        let provider = InsecureLocalProvider::new(Role::Administrator).with_confirmation_verifier(
+            Arc::new(StubGrantVerifier {
                 confirmation: grant("mxg.parts.inspect"),
-            }));
+            }),
+        );
         let context = provider
             .provide(&auth_with_grant(Some("signed-token")))
             .await
@@ -725,10 +726,11 @@ mod tests {
     /// handlers still have to reject, exactly as in production.
     #[tokio::test]
     async fn insecure_local_leaves_confirmation_unset_without_a_presented_grant() {
-        let provider = InsecureLocalProvider::new(Role::Administrator)
-            .with_confirmation_verifier(Arc::new(StubGrantVerifier {
+        let provider = InsecureLocalProvider::new(Role::Administrator).with_confirmation_verifier(
+            Arc::new(StubGrantVerifier {
                 confirmation: grant("mxg.parts.inspect"),
-            }));
+            }),
+        );
         let context = provider
             .provide(&auth_with_grant(None))
             .await

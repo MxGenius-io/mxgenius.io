@@ -26,6 +26,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -37,6 +39,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         void onFrame(Bitmap bitmap);
         default void onTrace(List<String> entries) {}
         default void onCommissioning(String summary) {}
+        default void onWitness(String summary) {}
+        default void onWitness(RemoteWitnessUiState state) {}
     }
 
     static final String ACTION_STOP = "io.mxgenius.sensorbridge.STOP";
@@ -56,6 +60,9 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile LocalThermalTransport localTransport;
     private volatile FlirCameraController camera;
     private volatile HeadsetSnapshotController headsetSnapshots;
+    private volatile RemoteWitnessBootstrap witnessBootstrap;
+    private volatile RemoteWitnessSocket witnessSocket;
+    private volatile RemoteWitnessPeerController witnessPeer;
     private BridgeActivation activation;
     private StatusListener statusListener;
     private volatile String bridgeState = "starting";
@@ -64,6 +71,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile boolean destroyed;
     private volatile boolean firstFrameTraced;
     private volatile boolean headsetCameraForegroundReady;
+    private volatile boolean mediaProjectionForegroundReady;
+    private volatile boolean witnessRoomLive;
+    private volatile String witnessState = "NO ACTIVE INVITATION";
+    private volatile RemoteWitnessUiState witnessUiState = RemoteWitnessUiState.EMPTY;
+    private volatile Intent pendingWitnessConsent;
+    private volatile boolean witnessStartRequested;
     private String relayState = "not connected (optional)";
     private String cameraState = "standby";
     private volatile String usbState = "not-checked";
@@ -79,8 +92,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     @Override public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        startForeground(
-                NOTIFICATION_ID,
+        startForeground(NOTIFICATION_ID,
                 notification("Preparing sensor bridge…"),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         headsetSnapshots = new HeadsetSnapshotController(this);
@@ -89,6 +101,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                 this::onRelayState,
                 this::onSnapshotRequest,
                 this::onBrowserCommissioningAck,
+                this::onWitnessBootstrap,
                 BuildConfig.DEBUG);
         trace("N01", "SERVICE", "foreground", "foreground service created before FLIR initialization", "success");
         setBridgeState("starting", false, "foreground-active");
@@ -115,11 +128,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
         try {
             BridgeActivation next = BridgeActivation.fromServiceIntent(intent, BuildConfig.DEBUG);
+            clearWitness("xr-session-replaced", false);
+            activation = next;
             LocalThermalTransport transport = localTransport;
             if (transport != null) transport.activate(next);
             trace("N02", "ACTIVATION", "accepted", "browser session and local token activated", "success");
             if (relay != null) relay.close();
-            activation = next;
             relay = null;
             if (next.bridgeUrl != null) {
                 relay = new RelayClient(next, stableNodeId(), state -> updateNotification());
@@ -153,6 +167,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         HeadsetSnapshotController currentSnapshots = headsetSnapshots;
         headsetSnapshots = null;
         if (currentSnapshots != null) currentSnapshots.shutdown();
+        clearWitness("service-stopped", false);
         if (relay != null) relay.close();
         LocalThermalTransport transport = localTransport;
         if (transport != null) transport.close();
@@ -166,6 +181,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         publishStatus();
         listener.onTrace(traceHistorySnapshot());
         listener.onCommissioning(commissioningSummary());
+        listener.onWitness(witnessState);
+        listener.onWitness(witnessUiState);
     }
 
     void clearStatusListener(StatusListener listener) {
@@ -253,14 +270,12 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
         if (headsetCameraForegroundReady) return true;
         try {
-            startForeground(
-                    NOTIFICATION_ID,
-                    notification("FLIR bridge ready · headset snapshot armed"),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
             headsetCameraForegroundReady = true;
+            refreshForegroundTypes("FLIR bridge ready · headset snapshot armed");
             trace("N21", "SNAPSHOT", "armed", "one-shot Quest RGB capture is ready", "success");
             return true;
         } catch (RuntimeException error) {
+            headsetCameraForegroundReady = false;
             trace("N21", "SNAPSHOT", "blocked", "Horizon OS rejected camera foreground preparation", "error");
             return false;
         }
@@ -268,6 +283,121 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
 
     boolean headsetCameraArmed() {
         return headsetCameraForegroundReady;
+    }
+
+    boolean canRequestWitnessCapture() {
+        RemoteWitnessBootstrap bootstrap = witnessBootstrap();
+        RemoteWitnessSocket socket = witnessSocket;
+        RemoteWitnessPeerController peer = witnessPeer;
+        return bootstrap != null && socket != null && socket.isOpen()
+                && peer != null && !peer.captureActive() && witnessUiState.canEnd(System.currentTimeMillis());
+    }
+
+    boolean witnessCaptureActive() {
+        RemoteWitnessPeerController peer = witnessPeer;
+        return peer != null && peer.captureActive();
+    }
+
+    RemoteWitnessUiState witnessUiState() {
+        witnessBootstrap();
+        return witnessUiState;
+    }
+
+    boolean beginWitnessStart(boolean resume) {
+        RemoteWitnessSocket socket = witnessSocket;
+        RemoteWitnessUiState state = witnessUiState;
+        long now = System.currentTimeMillis();
+        boolean allowed = resume ? state.canResume(now) : state.canStart(now);
+        String action = resume ? "resume" : "approve";
+        if (!allowed || socket == null || !socket.sendControl(action, null, null)) {
+            setWitnessUiState(state.withMedia("control-failed", action + " could not be sent"));
+            trace("W30", "WITNESS", "control-blocked", action + " was not available for the current room state", "warn");
+            return false;
+        }
+        witnessStartRequested = true;
+        setWitnessUiState(state.withMedia("consent-requested", "waiting for Horizon sharing consent"));
+        trace("W30", "WITNESS", action, "wearer requested " + action + " and compositor consent", "info");
+        return true;
+    }
+
+    boolean pauseWitness() {
+        RemoteWitnessSocket socket = witnessSocket;
+        if (socket == null || !witnessUiState.canPause(System.currentTimeMillis())
+                || !socket.sendControl("pause", null, null)) return false;
+        pendingWitnessConsent = null;
+        witnessStartRequested = false;
+        RemoteWitnessPeerController peer = witnessPeer;
+        if (peer != null) peer.stopCapture("wearer-paused");
+        setWitnessUiState(witnessUiState.withMedia("paused", "wearer paused customer view"));
+        trace("W33", "WITNESS", "paused", "wearer paused customer media", "success");
+        return true;
+    }
+
+    boolean endWitness() {
+        RemoteWitnessSocket socket = witnessSocket;
+        if (socket == null || !witnessUiState.canEnd(System.currentTimeMillis())) return false;
+        boolean sent = socket.sendControl("revoke", null, null);
+        if (!sent) {
+            setWitnessUiState(witnessUiState.withMedia("control-failed", "END could not reach the room; retry after reconnect"));
+            return false;
+        }
+        clearWitness("wearer-ended", true);
+        return true;
+    }
+
+    boolean toggleWitnessExtras() {
+        RemoteWitnessSocket socket = witnessSocket;
+        RemoteWitnessUiState state = witnessUiState;
+        return socket != null && state.canEnd(System.currentTimeMillis())
+                && socket.sendControl("set-layers", state.toggledExtras(), null);
+    }
+
+    void startWitnessCapture(int resultCode, Intent consentData) {
+        RemoteWitnessPeerController peer = witnessPeer;
+        if (resultCode != Activity.RESULT_OK || consentData == null || peer == null
+                || !witnessStartRequested || witnessBootstrap() == null) {
+            trace("W31", "WITNESS", "blocked", "valid room approval and fresh compositor consent are required", "warn");
+            pendingWitnessConsent = null;
+            witnessStartRequested = false;
+            setWitnessUiState(witnessUiState.withMedia("consent-required", "fresh wearer consent is required"));
+            return;
+        }
+        pendingWitnessConsent = new Intent(consentData);
+        setWitnessUiState(witnessUiState.withMedia("consent-granted", "waiting for approved customer room"));
+        startPendingWitnessCaptureIfReady();
+    }
+
+    private synchronized void startPendingWitnessCaptureIfReady() {
+        Intent consentData = pendingWitnessConsent;
+        RemoteWitnessPeerController peer = witnessPeer;
+        if (consentData == null || peer == null || !witnessRoomLive || !witnessStartRequested) return;
+        pendingWitnessConsent = null;
+        try {
+            mediaProjectionForegroundReady = true;
+            refreshForegroundTypes("Customer view preparing…");
+            if (!peer.startCapture(consentData)) {
+                mediaProjectionForegroundReady = false;
+                refreshForegroundTypes("Customer view unavailable");
+                witnessStartRequested = false;
+                setWitnessUiState(witnessUiState.withMedia("consent-required", "customer view was not ready"));
+                return;
+            }
+            trace("W31", "WITNESS", "capture-ready", "Horizon compositor surface connected to the native video-only WebRTC track", "success");
+            setWitnessUiState(witnessUiState.withMedia("capture-ready", peer.captureProfile()));
+        } catch (RuntimeException | LinkageError error) {
+            mediaProjectionForegroundReady = false;
+            refreshForegroundTypes("Customer view unavailable");
+            trace("W31", "WITNESS", "capture-failed", startupReason(error), "error");
+            witnessStartRequested = false;
+            setWitnessUiState(witnessUiState.withMedia("capture-failed", "Try START again"));
+        }
+    }
+
+    void projectionConsentDenied() {
+        pendingWitnessConsent = null;
+        witnessStartRequested = false;
+        trace("W30", "WITNESS", "consent-denied", "wearer did not grant compositor sharing", "warn");
+        setWitnessUiState(witnessUiState.withMedia("consent-required", "Sharing permission was not granted"));
     }
 
     String sessionId() {
@@ -391,6 +521,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         if (current != null) {
             current.onStatus(bridgeLabel(), relayState, cameraState);
             current.onCommissioning(commissioningSummary());
+            current.onWitness(witnessState);
+            current.onWitness(witnessUiState);
         }
     }
 
@@ -507,6 +639,134 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         }
     }
 
+    RemoteWitnessBootstrap witnessBootstrap() {
+        RemoteWitnessBootstrap current = witnessBootstrap;
+        if (current != null && System.currentTimeMillis() >= current.expiresAtMs) {
+            clearWitness("expired", true);
+            return null;
+        }
+        return current;
+    }
+
+    private CompletionStage<Void> onWitnessBootstrap(RemoteWitnessBootstrap bootstrap) {
+        BridgeActivation current = activation;
+        if (current == null || !current.sessionId.equals(bootstrap.sessionId)) {
+            throw new IllegalStateException("witness bootstrap does not match the active XR session");
+        }
+        clearWitness("witness-room-replaced", false);
+        witnessBootstrap = bootstrap;
+        witnessUiState = RemoteWitnessUiState.from(bootstrap);
+        witnessState = witnessUiState.safeSummary(System.currentTimeMillis());
+        RemoteWitnessPeerController nextPeer = new RemoteWitnessPeerController(
+                getApplicationContext(),
+                bootstrap,
+                signal -> {
+                    RemoteWitnessSocket activeSocket = witnessSocket;
+                    return activeSocket != null && activeSocket.sendSignal(signal);
+                },
+                new RemoteWitnessPeerController.Listener() {
+                    @Override public void onState(String state, String detail) {
+                        trace("W32", "WITNESS", state, detail, "live".equals(state) ? "success" : "info");
+                        setWitnessUiState(witnessUiState.withMedia(state, detail));
+                    }
+
+                    @Override public void onCaptureStopped(String reason) {
+                        mediaProjectionForegroundReady = false;
+                        witnessStartRequested = false;
+                        pendingWitnessConsent = null;
+                        if (!destroyed) {
+                            refreshForegroundTypes("Customer view stopped");
+                            setWitnessUiState(witnessUiState.withMedia(
+                                    "consent-required", reason.replace('-', ' ')));
+                        }
+                        RemoteWitnessSocket activeSocket = witnessSocket;
+                        if (activeSocket != null && ("projection-revoked".equals(reason) || "projection-start-failed".equals(reason))) {
+                            activeSocket.sendControl("pause", null, null);
+                        }
+                    }
+                });
+        witnessPeer = nextPeer;
+        RemoteWitnessSocket next = new RemoteWitnessSocket(bootstrap, new RemoteWitnessSocket.Listener() {
+            @Override public void onState(String state) {
+                trace("W21", "WITNESS", state, "native producer socket state changed", "connected".equals(state) ? "success" : "info");
+                setWitnessUiState(witnessUiState.withNetwork(state));
+                if (state.startsWith("reconnecting") || state.startsWith("server-error")) {
+                    RemoteWitnessPeerController activePeer = witnessPeer;
+                    if (activePeer != null) activePeer.stopCapture("signal-interrupted");
+                }
+                updateNotification();
+            }
+
+            @Override public void onRoomState(JSONObject room) {
+                JSONObject layers = room.optJSONObject("layers");
+                witnessRoomLive = "live".equals(room.optString("status"))
+                        && layers != null && layers.optBoolean("pov", false);
+                setWitnessUiState(witnessUiState.withRoom(room));
+                RemoteWitnessPeerController activePeer = witnessPeer;
+                if (activePeer != null) activePeer.onRoomState(room);
+                startPendingWitnessCaptureIfReady();
+                publishStatus();
+            }
+
+            @Override public void onSignal(UUID participantId, JSONObject signal) {
+                RemoteWitnessPeerController activePeer = witnessPeer;
+                if (activePeer != null) activePeer.onSignal(participantId, signal);
+            }
+
+            @Override public void onTerminal(String reason) {
+                clearWitnessIfCurrent(bootstrap.roomId, reason);
+            }
+        });
+        witnessSocket = next;
+        CompletableFuture<Void> ready = next.connect();
+        ready.whenComplete((ignored, error) -> {
+            if (error != null) {
+                clearWitnessIfCurrent(bootstrap.roomId, "producer-connect-failed");
+                return;
+            }
+            long delay = Math.max(1L, bootstrap.expiresAtMs - System.currentTimeMillis());
+            commissioningWorker.schedule(
+                    () -> clearWitnessIfCurrent(bootstrap.roomId, "expired"),
+                    delay,
+                    TimeUnit.MILLISECONDS);
+        });
+        trace("W20", "WITNESS", "received", "native witness room metadata held in memory pending producer connection", "info");
+        publishStatus();
+        updateNotification();
+        return ready;
+    }
+
+    private void clearWitnessIfCurrent(UUID roomId, String reason) {
+        RemoteWitnessBootstrap current = witnessBootstrap;
+        if (current != null && current.roomId.equals(roomId)) clearWitness(reason, true);
+    }
+
+    private synchronized void clearWitness(String reason, boolean traceClear) {
+        RemoteWitnessPeerController currentPeer = witnessPeer;
+        witnessPeer = null;
+        witnessRoomLive = false;
+        witnessStartRequested = false;
+        pendingWitnessConsent = null;
+        if (currentPeer != null) currentPeer.close();
+        RemoteWitnessSocket currentSocket = witnessSocket;
+        witnessSocket = null;
+        witnessBootstrap = null;
+        if (currentSocket != null) currentSocket.close();
+        mediaProjectionForegroundReady = false;
+        if (!destroyed) refreshForegroundTypes("Customer view stopped");
+        RemoteWitnessUiState ended = witnessUiState.roomId == null
+                ? RemoteWitnessUiState.EMPTY
+                : witnessUiState.ended(reason);
+        witnessUiState = ended;
+        if (destroyed) witnessState = ended.safeSummary(System.currentTimeMillis());
+        else setWitnessUiState(ended);
+        if (traceClear) {
+            trace("W22", "WITNESS", "cleared", "native witness room cleared: " + reason, "warn");
+            publishStatus();
+            updateNotification();
+        }
+    }
+
     private void scheduleCommissioningFirstFrameTimeout(String runId) {
         if (runId == null || runId.isBlank() || runId.equals(commissioningFirstFrameTimeoutRunId)) return;
         commissioningFirstFrameTimeoutRunId = runId;
@@ -591,7 +851,32 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     private void updateNotification() {
-        String text = "Bridge " + bridgeState + " · FLIR " + cameraState + " · WebXR " + relayState;
+        String text = "Bridge " + bridgeState + " · FLIR " + cameraState + " · witness " + witnessState;
         getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, notification(text));
+    }
+
+    private void setWitnessState(String state) {
+        witnessState = state == null || state.isBlank() ? "UNKNOWN" : state;
+        StatusListener current = statusListener;
+        if (current != null) current.onWitness(witnessState);
+        updateNotification();
+    }
+
+    private void setWitnessUiState(RemoteWitnessUiState state) {
+        witnessUiState = state == null ? RemoteWitnessUiState.EMPTY : state;
+        witnessState = witnessUiState.safeSummary(System.currentTimeMillis());
+        StatusListener current = statusListener;
+        if (current != null) {
+            current.onWitness(witnessState);
+            current.onWitness(witnessUiState);
+        }
+        updateNotification();
+    }
+
+    private void refreshForegroundTypes(String text) {
+        int types = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+        if (headsetCameraForegroundReady) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+        if (mediaProjectionForegroundReady) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+        startForeground(NOTIFICATION_ID, notification(text), types);
     }
 }

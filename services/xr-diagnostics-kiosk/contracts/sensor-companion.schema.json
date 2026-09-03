@@ -5,10 +5,32 @@
   "oneOf": [
     { "$ref": "#/$defs/activation" },
     { "$ref": "#/$defs/announce" },
-    { "$ref": "#/$defs/sourceStatus" }
+    { "$ref": "#/$defs/nodeStatus" },
+    { "$ref": "#/$defs/sourceStatus" },
+    { "$ref": "#/$defs/snapshotRequest" },
+    { "$ref": "#/$defs/snapshotSuccess" },
+    { "$ref": "#/$defs/snapshotFailure" },
+    { "$ref": "#/$defs/commissioningBrowserAck" },
+    { "$ref": "#/$defs/commissioningStatus" }
   ],
   "$defs": {
     "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "requestId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,80}$" },
+    "scanId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,80}$" },
+    "framePurpose": { "enum": ["scan", "evidence"] },
+    "runId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,80}$" },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "contains": { "const": "flir-one-pro-usb-c" },
+      "items": {
+        "enum": [
+          "thermal-source", "flir-one-pro-usb-c", "mxgs-1", "thermal-jpeg",
+          "radiometric-y16", "headset-snapshot", "thermal-commissioning-v1",
+          "remote-witness-bootstrap-v1"
+        ]
+      }
+    },
     "activation": {
       "type": "object",
       "additionalProperties": false,
@@ -40,15 +62,30 @@
         "nodeId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
         "nodeType": { "const": "quest-companion" },
         "nodeName": { "const": "MxGenius FLIR Companion" },
-        "capabilities": {
-          "type": "array",
-          "uniqueItems": true,
-          "contains": { "const": "flir-one-pro-usb-c" },
-          "items": { "enum": ["thermal-source", "flir-one-pro-usb-c", "mxgs-1", "thermal-jpeg", "radiometric-y16"] }
-        },
+        "capabilities": { "$ref": "#/$defs/capabilities" },
         "sourceType": { "const": "flir-one-pro" },
         "softwareVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
         "sdkVersion": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "nodeStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "status", "node"],
+      "properties": {
+        "type": { "const": "node.status" },
+        "status": { "enum": ["connected", "disconnected"] },
+        "node": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nodeId", "nodeType", "nodeName", "capabilities"],
+          "properties": {
+            "nodeId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+            "nodeType": { "const": "quest-companion" },
+            "nodeName": { "const": "MxGenius FLIR Companion" },
+            "capabilities": { "$ref": "#/$defs/capabilities" }
+          }
+        }
       }
     },
     "sourceStatus": {
@@ -62,6 +99,127 @@
         "sessionId": { "$ref": "#/$defs/sessionId" },
         "observedAtMs": { "type": "integer", "minimum": 0 },
         "reason": { "type": ["string", "null"], "maxLength": 240 }
+      }
+    },
+    "snapshotRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "requestId"],
+      "properties": {
+        "type": { "const": "headset.snapshot.request" },
+        "requestId": { "$ref": "#/$defs/requestId" },
+        "purpose": { "$ref": "#/$defs/framePurpose" },
+        "scanId": { "$ref": "#/$defs/scanId" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["purpose"], "properties": { "purpose": { "const": "scan" } } },
+          "then": { "required": ["scanId"] }
+        }
+      ]
+    },
+    "cameraMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "eye", "poseAvailable", "intrinsicsAvailable"],
+      "properties": {
+        "source": { "const": "quest-passthrough" },
+        "eye": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "poseAvailable": { "type": "boolean" },
+        "intrinsicsAvailable": { "type": "boolean" }
+      }
+    },
+    "snapshotSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "requestId", "status", "mimeType", "width", "height", "eye", "capturedAtMs", "dataUrl"],
+      "properties": {
+        "type": { "const": "headset.snapshot.result" },
+        "requestId": { "$ref": "#/$defs/requestId" },
+        "purpose": { "$ref": "#/$defs/framePurpose" },
+        "scanId": { "$ref": "#/$defs/scanId" },
+        "status": { "const": "ok" },
+        "mimeType": { "const": "image/jpeg" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 16000 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 16000 },
+        "eye": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "capturedAtMs": { "type": "integer", "minimum": 0 },
+        "camera": { "$ref": "#/$defs/cameraMetadata" },
+        "dataUrl": { "type": "string", "pattern": "^data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}$", "maxLength": 1398200 }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["purpose"], "properties": { "purpose": { "const": "scan" } } },
+          "then": { "required": ["scanId"] }
+        }
+      ]
+    },
+    "snapshotFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "requestId", "status", "code", "detail", "capturedAtMs"],
+      "properties": {
+        "type": { "const": "headset.snapshot.result" },
+        "requestId": {
+          "oneOf": [
+            { "$ref": "#/$defs/requestId" },
+            { "const": "" }
+          ]
+        },
+        "purpose": { "$ref": "#/$defs/framePurpose" },
+        "scanId": { "$ref": "#/$defs/scanId" },
+        "status": { "const": "failed" },
+        "code": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "detail": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "capturedAtMs": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["purpose"], "properties": { "purpose": { "const": "scan" } } },
+          "then": { "required": ["scanId"] }
+        }
+      ]
+    },
+    "commissioningBrowserAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "runId", "renderedFrames"],
+      "properties": {
+        "type": { "const": "commissioning.browser_ack" },
+        "runId": { "$ref": "#/$defs/runId" },
+        "renderedFrames": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "commissioningStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type", "schema", "runId", "phase", "result", "versionName", "versionCode",
+        "startedAtMs", "updatedAtMs", "firstFrameAtMs", "completedAtMs", "nativeFrames",
+        "transientSkips", "maxFrameGapMs", "requiredNativeFrames", "browserFrames",
+        "requiredBrowserFrames"
+      ],
+      "properties": {
+        "type": { "const": "commissioning.status" },
+        "schema": { "const": "mxg.thermal.commissioning.v1" },
+        "runId": { "$ref": "#/$defs/runId" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "phase": { "enum": ["camera-starting", "soaking", "awaiting-browser", "complete"] },
+        "result": { "enum": ["running", "pass", "fail"] },
+        "versionName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "versionCode": { "type": "integer", "minimum": 1 },
+        "startedAtMs": { "type": "integer", "minimum": 0 },
+        "updatedAtMs": { "type": "integer", "minimum": 0 },
+        "firstFrameAtMs": { "type": "integer", "minimum": 0 },
+        "completedAtMs": { "type": "integer", "minimum": 0 },
+        "nativeFrames": { "type": "integer", "minimum": 0 },
+        "transientSkips": { "type": "integer", "minimum": 0 },
+        "maxFrameGapMs": { "type": "integer", "minimum": 0 },
+        "requiredNativeFrames": { "type": "integer", "minimum": 1 },
+        "browserFrames": { "type": "integer", "minimum": 0 },
+        "requiredBrowserFrames": { "type": "integer", "minimum": 1 },
+        "failureBoundary": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "failureDetail": { "type": "string", "minLength": 1, "maxLength": 160 }
       }
     }
   }

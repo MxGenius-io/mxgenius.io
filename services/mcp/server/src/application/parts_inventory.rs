@@ -11,8 +11,8 @@ use uuid::Uuid;
 
 use mxgenius_shared::application::context::ExecutionContext;
 use mxgenius_shared::application::paging::{Page, PageRequest};
-use mxgenius_shared::domain::quantity::{quantity_problem, MIN_QUANTITY};
 use mxgenius_shared::domain::part::StockUnitStatus;
+use mxgenius_shared::domain::quantity::{quantity_problem, MIN_QUANTITY};
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -21,10 +21,16 @@ pub struct SearchPartsQuery {
     pub status: Option<String>,
     pub location: Option<String>,
     /// One-based page number. Clamped, never rejected.
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page: Option<i64>,
     /// Rows per page. Clamped to the paging module's ceiling.
-    #[serde(default, deserialize_with = "mxgenius_shared::application::paging::lenient_page_number")]
+    #[serde(
+        default,
+        deserialize_with = "mxgenius_shared::application::paging::lenient_page_number"
+    )]
     pub page_size: Option<i64>,
 }
 
@@ -1624,9 +1630,7 @@ impl<'a> PartsInventoryRepository<'a> {
         // recorded at its bin, so returning it to that same bin -- the normal
         // case -- used to trip this guard and made return-to-stock impossible
         // unless the operator invented a different bin.
-        if spec.requires_location
-            && spec.target_status.is_none()
-            && destination == current_location
+        if spec.requires_location && spec.target_status.is_none() && destination == current_location
         {
             return Err(PartsInventoryError::Invalid(
                 "the destination is the location the unit already occupies".into(),

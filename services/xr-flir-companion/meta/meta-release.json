@@ -14,27 +14,27 @@
     "publishedAt": "2026-08-23T23:18:00-04:00"
   },
   "uploadedBuild": {
-    "versionCode": 18,
-    "versionName": "0.1.0-poc.18",
+    "versionCode": 19,
+    "versionName": "0.1.0-alpha.19",
     "channel": "Alpha",
-    "status": "UploadedPendingMetaVerification",
+    "status": "MetaAutomatedChecksPassed",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
       "sizeBytes": 163809644,
-      "sha256": "f8769e4161a41a7c9fca6d57e63395d2bd6534376c8e593c63884d482967094d",
-      "builtAt": "2026-08-24T11:44:03-04:00"
+      "sha256": "d04bbf0345e1aed693bc851afeef4ed1fb2af96a711e1422bac324650c8fbc17",
+      "builtAt": "2026-09-03T06:27:28-04:00"
     }
   },
   "build": {
-    "versionCode": 18,
-    "versionName": "0.1.0-poc.18",
+    "versionCode": 21,
+    "versionName": "0.1.0-alpha.21",
     "channel": "Alpha",
-    "metaTestStatus": "UploadedPendingMetaVerification",
+    "metaTestStatus": "LocalVerificationPassed",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
-      "sizeBytes": 163809644,
-      "sha256": "f8769e4161a41a7c9fca6d57e63395d2bd6534376c8e593c63884d482967094d",
-      "builtAt": "2026-08-24T11:44:03-04:00"
+      "sizeBytes": 176508662,
+      "sha256": "9fc89f88537c41f13f940b022d0ea7d6aa1fcb4dff5d7a922a688729cb76aafc",
+      "builtAt": "2026-09-03T13:11:51-04:00"
     }
   },
   "releaseChannel": {

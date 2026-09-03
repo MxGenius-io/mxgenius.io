@@ -58,7 +58,7 @@ test('browser Pi and evidence contracts agree on session and scanner identity', 
   assert.equal(companion.$defs.activation.properties.localToken.pattern, '^[A-Za-z0-9_-]{32,128}$');
   assert.ok(companion.$defs.activation.anyOf.some((option) => option.required?.includes('localToken')));
   assert.equal(companion.$defs.announce.properties.nodeType.const, 'quest-companion');
-  assert.equal(companion.$defs.announce.properties.capabilities.contains.const, 'flir-one-pro-usb-c');
+  assert.equal(companion.$defs.capabilities.contains.const, 'flir-one-pro-usb-c');
   assert.match(sensorOrb, /message\.type === 'scan\.observed'/);
   assert.match(sensorOrb, /mxgenius:scan-observed/);
 });
@@ -76,8 +76,8 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config uses the current Alpha candidate build identity', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-poc\.18'/);
+test('Quest companion config distinguishes the uploaded Alpha from the next local build', () => {
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-alpha\.19'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
@@ -86,18 +86,18 @@ test('Quest companion config uses the current Alpha candidate build identity', (
   assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-poc.6');
   assert.equal(metaRelease.publishedBuild.buildId, '1296553506880260');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.uploadedBuild.versionCode, 18);
-  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-poc.18');
-  assert.equal(metaRelease.uploadedBuild.status, 'UploadedPendingMetaVerification');
-  assert.equal(metaRelease.build.versionCode, 18);
-  assert.equal(metaRelease.build.versionName, '0.1.0-poc.18');
-  assert.equal(metaRelease.build.metaTestStatus, 'UploadedPendingMetaVerification');
+  assert.equal(metaRelease.uploadedBuild.versionCode, 19);
+  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-alpha.19');
+  assert.equal(metaRelease.uploadedBuild.status, 'MetaAutomatedChecksPassed');
+  assert.equal(metaRelease.build.versionCode, 21);
+  assert.equal(metaRelease.build.versionName, '0.1.0-alpha.21');
+  assert.equal(metaRelease.build.metaTestStatus, 'LocalVerificationPassed');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 18/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-poc\.18"/);
+  assert.match(companionGradle, /versionCode = 21/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-alpha\.21"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);

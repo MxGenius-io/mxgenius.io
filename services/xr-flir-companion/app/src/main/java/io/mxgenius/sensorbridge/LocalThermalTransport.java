@@ -23,6 +23,7 @@ final class LocalThermalTransport implements ThermalTransport {
             LocalThermalBroker.Listener listener,
             LocalThermalBroker.SnapshotHandler snapshotHandler,
             LocalThermalBroker.CommissioningHandler commissioningHandler,
+            LocalThermalBroker.WitnessBootstrapHandler witnessBootstrapHandler,
             boolean debugBuild) {
         Set<String> origins = debugBuild
                 ? Set.of("https://mxgenius.io", "https://www.mxgenius.io", "http://localhost", "http://127.0.0.1")
@@ -33,7 +34,8 @@ final class LocalThermalTransport implements ThermalTransport {
                 nodeId,
                 listener,
                 snapshotHandler,
-                commissioningHandler);
+                commissioningHandler,
+                witnessBootstrapHandler);
     }
 
     boolean startAndAwait(long timeout, TimeUnit unit) throws InterruptedException {

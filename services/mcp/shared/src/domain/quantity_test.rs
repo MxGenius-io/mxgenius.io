@@ -76,7 +76,11 @@ mod tests {
                 "{value} must be caught before any comparison"
             );
         }
-        assert!(!(f64::NAN <= 0.0), "the comparison this guard replaces");
+        assert_eq!(
+            f64::NAN.partial_cmp(&0.0),
+            None,
+            "the comparison this guard replaces must remain unordered"
+        );
     }
 
     /// A ledger delta may be negative and may be zero; only its magnitude is
@@ -103,9 +107,7 @@ mod tests {
         assert!(QuantityProblem::AboveMaximum
             .message()
             .contains("999999999.999"));
-        assert!(QuantityProblem::BelowResolution
-            .message()
-            .contains("0.001"));
+        assert!(QuantityProblem::BelowResolution.message().contains("0.001"));
         assert!(QuantityProblem::NotPositive
             .message()
             .contains("greater than zero"));

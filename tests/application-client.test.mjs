@@ -351,6 +351,45 @@ test('chat sends bounded image inputs and content uploads use the authenticated 
   assert.equal(requests[1].request, file);
 });
 
+test('spatial scan uses one authenticated bounded application request', async () => {
+  const { client, requests } = harness({});
+  await client.spatial.scan({
+    sessionId: 'xr-session-1',
+    frame: {
+      purpose: 'scan',
+      scanId: 'scan-1',
+      requestId: 'frame-1',
+      dataUrl: 'data:image/jpeg;base64,/9j/2Q==',
+      width: 1280,
+      height: 720,
+      capturedAtMs: 1_780_000_000_000
+    },
+    session: {
+      accessToken: 'scan-token',
+      organizationId: 'scan-org',
+      correlationId: 'scan-correlation'
+    }
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/spatial/scan');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer scan-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'scan-org');
+  assert.equal(requests[0].options.headers['X-Correlation-ID'], 'scan-correlation');
+  assert.deepEqual(requests[0].request, {
+    sessionId: 'xr-session-1',
+    scanId: 'scan-1',
+    requestId: 'frame-1',
+    image: {
+      dataUrl: 'data:image/jpeg;base64,/9j/2Q==',
+      width: 1280,
+      height: 720,
+      capturedAtMs: 1_780_000_000_000
+    }
+  });
+});
+
 test('case media upload is explicitly confirmed and attached to the active case', async () => {
   const { client, requests } = harness({
     'mxg.maintenance_case.attach_observation': {
