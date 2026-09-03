@@ -615,7 +615,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=26/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=27/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -815,8 +815,8 @@ test('maintenance case creation binds the explicit submit action to a short-live
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=8"></script>');
-  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=1"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=9"></script>');
+  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=2"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=9"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
@@ -860,7 +860,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltip, /video\.playsInline = true/);
   assert.match(guidedTooltip, /prefers-reduced-motion: reduce/);
   assert.match(guidedTooltip, /\['recording', 'ready'\]\.includes\(item\.status\)/);
-  assert.match(guidedTooltip, /voiceover\.autoplay = options\.autoplay !== false/);
+  assert.match(guidedTooltip, /voiceover\.autoplay = false/);
   assert.match(guidedTooltip, /autoplay: options\.autoplay \?\? true/);
   assert.match(guidedTooltip, /trigger\.dataset\.guideAutoplay !== 'false'/);
   assert.match(guidedTooltip, /audioOnly: Boolean\(reducedMotion && video && voiceover\)/);
@@ -886,7 +886,21 @@ test('recalled maintenance cases reuse the existing aircraft image path inside t
   assert.match(application, /thumbnail\.src = first/);
   assert.match(application, /Promise\.allSettled/);
   assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl\(source\)/);
+  assert.match(caseWorkspace, /getToken\(\{ forceRefresh \}\)/);
+  assert.match(caseWorkspace, /session\(\{ forceRefresh: true \}\)/);
+  assert.match(caseWorkspace, /Promise\.allSettled/);
+  assert.match(caseWorkspace, /Some supporting details are temporarily unavailable/);
   assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*(?:image|photo|media)/i);
+});
+
+test('browser media access remains gesture-bound and does not request permissions on dashboard load', () => {
+  assert.doesNotMatch(dashboardSplash, /getUserMedia|navigator\.permissions|requestPermission/);
+  assert.doesNotMatch(guidedTooltip, /getUserMedia|navigator\.permissions|requestPermission/);
+  assert.match(application, /micBtn\.addEventListener\('click', handleMicTap\)/);
+  assert.match(application, /realtimeToggleBtn\.addEventListener\('change'/);
+  assert.match(dashboardSplash, /function mayAutoplayWelcome\(\)/);
+  assert.match(dashboardSplash, /touchDevice && coarsePointer/);
+  assert.doesNotMatch(viewer, /alert\('JS Error|alert\('Promise Rejection/);
 });
 
 test('dashboard arrival splash runs a synchronized four-second welcome sequence', async () => {

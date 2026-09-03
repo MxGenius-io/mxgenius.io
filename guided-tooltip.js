@@ -137,7 +137,10 @@ const MXGuidedTooltip = (() => {
       voiceover = document.createElement('audio');
       voiceover.src = voiceoverUrl;
       voiceover.preload = 'auto';
-      voiceover.autoplay = options.autoplay !== false;
+      // Playback is initiated explicitly below after the user opens the tip.
+      // Avoid an autoplay attribute that mobile browsers can interpret as an
+      // unsolicited media capability request.
+      voiceover.autoplay = false;
       voiceover.controls = !video;
       voiceover.className = 'guided-tooltip-guide__voiceover';
       shell.appendChild(voiceover);

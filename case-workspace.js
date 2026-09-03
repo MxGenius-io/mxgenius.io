@@ -5,14 +5,41 @@ const MXCaseWorkspace = (() => {
   const byId = (id) => document.getElementById(id);
   const text = (value, fallback = 'Not available') => value === null || value === undefined || value === '' ? fallback : String(value);
 
-  function session() {
+  async function session({ forceRefresh = false } = {}) {
+    await globalThis.MXGENIUS_CONFIG?.ready;
+    const refreshedAccessToken = globalThis.MXGENIUS_AUTH?.getToken
+      ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
+      : '';
     const configured = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+    const accessToken = refreshedAccessToken || configured.accessToken;
+    if (!accessToken && !globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      const error = new Error('Your sign-in needs to be renewed.');
+      error.code = 'AUTH_REQUIRED';
+      throw error;
+    }
     return {
-      accessToken: configured.accessToken,
+      accessToken,
       organizationId: configured.organizationId,
       correlationId: globalThis.crypto?.randomUUID?.(),
       confirmationGrant: configured.confirmationGrant
     };
+  }
+
+  function authenticationError(error) {
+    return ['AUTH_REQUIRED', 'ACCESS_DENIED'].includes(String(error?.code || ''))
+      || error?.status === 401;
+  }
+
+  async function authenticatedRequest(operation) {
+    let requestSession = await session();
+    try {
+      return { value: await operation(requestSession), session: requestSession };
+    } catch (error) {
+      if (!authenticationError(error) || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+      MXApplicationClient.capabilities.disconnect(requestSession);
+      requestSession = await session({ forceRefresh: true });
+      return { value: await operation(requestSession), session: requestSession };
+    }
   }
 
   function setStatus(message, state = 'idle') {
@@ -107,11 +134,9 @@ const MXCaseWorkspace = (() => {
     openButton.disabled = true;
     select.replaceChildren(new Option('Loading cases…', ''));
     try {
-      await globalThis.MXGENIUS_CONFIG?.ready;
-      if (globalThis.MXGENIUS_AUTH?.getToken) {
-        try { await globalThis.MXGENIUS_AUTH.getToken(); } catch (_) {}
-      }
-      const result = await MXApplicationClient.cases.list(session());
+      const { value: result } = await authenticatedRequest((requestSession) => (
+        MXApplicationClient.cases.list(requestSession)
+      ));
       const cases = [...(result.cases || [])].sort((left, right) => {
         const rightTime = Date.parse(right.updated_at || right.opened_at || '') || 0;
         const leftTime = Date.parse(left.updated_at || left.opened_at || '') || 0;
@@ -146,9 +171,11 @@ const MXCaseWorkspace = (() => {
     openButton.disabled = true;
     setStatus(`Opening case ${caseId}…`, 'working');
     try {
-      const current = await MXApplicationClient.cases.get(caseId, session());
+      const { value: current, session: requestSession } = await authenticatedRequest((activeSession) => (
+        MXApplicationClient.cases.get(caseId, activeSession)
+      ));
       const caseState = current.case;
-      const [contextEnvelope, profileEnvelope] = await Promise.all([
+      const loadSupportingDetails = (activeSession) => Promise.allSettled([
         MXApplicationClient.capabilities.call('mxg.maintenance_case.build_context', {
           case_id: caseId,
           include: {
@@ -159,13 +186,38 @@ const MXCaseWorkspace = (() => {
             facilities: true,
             timeline: true
           }
-        }, session()),
+        }, activeSession),
         MXApplicationClient.capabilities.call('mxg.aircraft.profile', {
           aircraft_id: caseState.aircraft_id
-        }, session())
+        }, activeSession)
       ]);
-      const context = MXApplicationClient.caseWorkspace.output(contextEnvelope);
-      const profile = MXApplicationClient.caseWorkspace.output(profileEnvelope);
+      let supporting = await loadSupportingDetails(requestSession);
+      if (supporting.some((entry) => entry.status === 'rejected' && authenticationError(entry.reason))) {
+        MXApplicationClient.capabilities.disconnect(requestSession);
+        const renewedSession = await session({ forceRefresh: true });
+        supporting = await loadSupportingDetails(renewedSession);
+      }
+      const [contextResult, profileResult] = supporting;
+      const contextEnvelope = contextResult.status === 'fulfilled' ? contextResult.value : null;
+      const profileEnvelope = profileResult.status === 'fulfilled' ? profileResult.value : null;
+      const supportingErrors = supporting
+        .filter((entry) => entry.status === 'rejected')
+        .map((entry) => entry.reason);
+      let context = {
+        timeline: [],
+        documents: [],
+        evidence_map: [],
+        unresolved_conflicts: []
+      };
+      let profile = {};
+      if (contextEnvelope) {
+        try { context = MXApplicationClient.caseWorkspace.output(contextEnvelope); }
+        catch (error) { supportingErrors.push(error); }
+      }
+      if (profileEnvelope) {
+        try { profile = MXApplicationClient.caseWorkspace.output(profileEnvelope); }
+        catch (error) { supportingErrors.push(error); }
+      }
       const result = {
         caseId,
         case: caseState,
@@ -185,14 +237,16 @@ const MXCaseWorkspace = (() => {
           }]
         },
         trace: [
-          traceEntry('mxg.maintenance_case.build_context', contextEnvelope),
-          traceEntry('mxg.aircraft.profile', profileEnvelope)
-        ]
+          contextEnvelope && traceEntry('mxg.maintenance_case.build_context', contextEnvelope),
+          profileEnvelope && traceEntry('mxg.aircraft.profile', profileEnvelope)
+        ].filter(Boolean)
       };
       render(result);
       activeCase = result;
       localStorage.setItem('mxg_active_case_id', caseId);
-      setStatus(`Case ${caseId} is active.`, 'ready');
+      setStatus(supportingErrors.length
+        ? `Case ${caseId} is active. Some supporting details are temporarily unavailable.`
+        : `Case ${caseId} is active.`, supportingErrors.length ? 'working' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
     } catch (error) {
       setStatus(`${error.code || 'CASE_OPEN_FAILED'}: ${error.message}`, 'error');
@@ -209,9 +263,9 @@ const MXCaseWorkspace = (() => {
     const registration = form.elements.registration.value.trim();
     const discrepancy = form.elements.discrepancy.value.trim();
     const priority = form.elements.priority.value;
-    const requestSession = session();
     setStatus('Resolving aircraft…', 'working');
     try {
+      const requestSession = await session();
       const lookupEnvelope = await MXApplicationClient.aircraft.lookup({
         registration,
         session: requestSession
@@ -286,7 +340,7 @@ const MXCaseWorkspace = (() => {
           aircraftId: activeCase?.case?.aircraft_id || event.detail?.context?.aircraftId,
           caseId: activeCase?.caseId || event.detail?.context?.caseId,
           componentId: selection.componentId,
-          session: session()
+          session: await session()
         });
         const component = inspection.component?.output?.component;
         const warnings = [
@@ -314,7 +368,7 @@ const MXCaseWorkspace = (() => {
           caseId: activeCase.caseId,
           componentId: activeTwinSelection.componentId,
           severity: byId('caseMarkerSeverity').value,
-          session: session()
+          session: await session()
         });
         const output = MXApplicationClient.caseWorkspace.output(envelope);
         if (!output?.marker_id) {

@@ -48,6 +48,14 @@ globalThis.MXDashboardSplash = (() => {
     }).catch(() => {});
   }
 
+  function mayAutoplayWelcome() {
+    const policy = globalThis.navigator?.getAutoplayPolicy?.(audio);
+    if (policy) return policy !== 'disallowed';
+    const touchDevice = Number(globalThis.navigator?.maxTouchPoints || 0) > 0;
+    const coarsePointer = globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+    return !(touchDevice && coarsePointer);
+  }
+
   function start() {
     if (started || !root) {
       if (!root) finish();
@@ -58,7 +66,7 @@ globalThis.MXDashboardSplash = (() => {
     root.dataset.startedAt = String(startedAt);
     root.classList.add('is-visible');
 
-    if (audio) {
+    if (audio && mayAutoplayWelcome()) {
       audio.volume = 0;
       try { audio.currentTime = 0; } catch { /* Ignore an unloaded media timeline. */ }
       audio.play().catch(() => {

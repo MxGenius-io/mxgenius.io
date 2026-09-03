@@ -194,6 +194,19 @@ test('landing page recognizes an authorized cached session without redirecting',
   assert.equal(elements.signedInAsName.textContent, 'Rocky');
 });
 
+test('authenticated callers can force a silent token renewal after an API rejection', async () => {
+  const { calls, context } = await runAuth({
+    pathname: '/dashboard.html',
+    cachedAccount: { username: 'pilot@example.com' },
+    silentToken: 'renewed-access-token'
+  });
+
+  await context.MXGENIUS_AUTH.getToken({ forceRefresh: true });
+
+  assert.equal(calls.acquireTokenSilent.length, 2);
+  assert.equal(calls.acquireTokenSilent[1].forceRefresh, true);
+});
+
 test('landing page distinguishes a whitelisting denial without logging out', async () => {
   const { calls, context, elements } = await runAuth({
     pathname: '/index.html',

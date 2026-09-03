@@ -1406,13 +1406,13 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=10"></script>
     <script src="../realtime-client.js?v=2"></script>
-    <script src="../guided-tooltip.js?v=8"></script>
+    <script src="../guided-tooltip.js?v=9"></script>
     <script type="module">
         window.addEventListener('error', function(e) {
-            alert('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
+            console.error('[3D Viewer]', e.message, e.filename, e.lineno);
         });
         window.addEventListener('unhandledrejection', function(e) {
-            alert('Promise Rejection: ' + e.reason);
+            console.error('[3D Viewer] Unhandled asynchronous error:', e.reason);
         });
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';

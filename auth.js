@@ -151,10 +151,10 @@
         ...(isLogin ? { prompt: 'select_account' } : {})
       }),
       signOut: () => instance.logoutRedirect(),
-      getToken: async () => {
+      getToken: async ({ forceRefresh = false } = {}) => {
         if (!account) return '';
         try {
-          const token = await instance.acquireTokenSilent({ account, scopes: [apiScope] });
+          const token = await instance.acquireTokenSilent({ account, scopes: [apiScope], forceRefresh });
           accessToken = token.accessToken || '';
           return accessToken;
         } catch (error) {
