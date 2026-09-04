@@ -105,7 +105,7 @@
     { id: 'workflow-handoff', name: 'Create a shift, escalation, or remote-support handoff', trigger: 'Work changes owner, needs expert help, or reaches a stop condition.', inputs: 'Case status, completed checks, evidence, unresolved questions, risk, next action, owner, and communication destination.', response: 'Situation → aircraft/task context → work completed → evidence → open risk/question → exact ask → owner/time → linked case record.', approval: 'The receiving person acknowledges ownership; required maintenance approvals remain in the system of record.', success: 'The next person can resume without repeating work, while Teams or another channel contains only the concise approved handoff and secure link.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Add the team’s preferred handoff format and a representative escalation that should appear in Teams.' }
   ];
 
-  const state = { version: 0, document: null, dirty: false, saving: false };
+  const state = { version: 0, document: null, dirty: false, saving: false, openItemId: null };
   const elements = {};
 
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -187,19 +187,27 @@
     const field = makeElement('label', 'field');
     field.append(makeElement('span', '', label));
     const select = optionSelect(options, item[key], label);
-    select.addEventListener('change', () => { item[key] = select.value; setDirty(); renderAll(); });
+    select.addEventListener('change', () => { item[key] = select.value; state.openItemId = item.id; setDirty(); renderAll(); });
     field.append(select);
     return field;
   }
   function statusLabel(value) { return STATUS_OPTIONS.find(([key]) => key === value)?.[1] || 'Needs team input'; }
-  function needLabel(value) { return NEED_OPTIONS.find(([key]) => key === value)?.[1] || 'Need to decide'; }
+  function compactNeedLabel(value) {
+    return { demo: 'First demo', v1: 'Version 1', future: 'Later', review: 'To decide' }[value] || 'To decide';
+  }
 
-  function itemSummary(item, purpose) {
+  function itemSummary(item, context) {
     const summary = document.createElement('summary');
+    const meta = makeElement('span', 'summary-meta');
+    meta.append(
+      makeElement('span', '', context || 'Details not set'),
+      makeElement('span', '', compactNeedLabel(item.need)),
+      makeElement('span', '', item.owner || 'Unassigned')
+    );
     summary.append(
       makeElement('span', 'check-mark', item.status === 'proven' ? '✓' : '•'),
       makeElement('span', 'summary-name', item.name),
-      makeElement('span', 'summary-purpose', purpose || needLabel(item.need)),
+      meta,
       makeElement('span', 'status-pill', statusLabel(item.status))
     );
     return summary;
@@ -226,11 +234,11 @@
     return actions;
   }
 
-  function renderSoftwareItem(item, index) {
+  function renderSoftwareItem(item) {
     const details = makeElement('details', 'check-item');
     details.dataset.status = item.status;
-    if (index === 0 || item.status === 'needs_input') details.open = index === 0;
-    details.append(itemSummary(item, item.purpose));
+    details.open = state.openItemId === item.id;
+    details.append(itemSummary(item, item.category || 'Software'));
     const form = makeElement('div', 'item-form');
     form.append(
       textField(item, 'name', 'System or software name'),
@@ -250,11 +258,11 @@
     return details;
   }
 
-  function renderDeviceItem(item, index) {
+  function renderDeviceItem(item) {
     const details = makeElement('details', 'check-item');
     details.dataset.status = item.status;
-    if (index === 0) details.open = true;
-    details.append(itemSummary(item, item.interface));
+    details.open = state.openItemId === item.id;
+    details.append(itemSummary(item, item.location || 'Location not set'));
     const form = makeElement('div', 'item-form');
     form.append(
       textField(item, 'name', 'Exact device / part number'),
@@ -274,11 +282,11 @@
     return details;
   }
 
-  function renderWorkflowItem(item, index) {
+  function renderWorkflowItem(item) {
     const details = makeElement('details', 'check-item');
     details.dataset.status = item.status;
-    if (index === 0) details.open = true;
-    details.append(itemSummary(item, item.trigger));
+    details.open = state.openItemId === item.id;
+    details.append(itemSummary(item, 'Aviation process'));
     const form = makeElement('div', 'item-form');
     form.append(
       textField(item, 'name', 'Process name', { wide: true }),
@@ -393,15 +401,15 @@
   }
   function addSoftware() {
     const item = normalizeSoftware({ id: newId('software'), name: 'New software or system', status: 'needs_input', need: 'review', owner: 'Unassigned' });
-    state.document.software.unshift(item); setDirty(); renderAll(); document.getElementById('software')?.scrollIntoView({ behavior: 'smooth' });
+    state.document.software.unshift(item); state.openItemId = item.id; document.getElementById('software').open = true; setDirty(); renderAll(); document.getElementById('software')?.scrollIntoView({ behavior: 'smooth' });
   }
   function addDevice() {
     const item = normalizeDevice({ id: newId('device'), name: 'New device or component', status: 'needs_input', need: 'review', owner: 'Unassigned' });
-    state.document.devices.unshift(item); setDirty(); renderAll(); document.getElementById('devices')?.scrollIntoView({ behavior: 'smooth' });
+    state.document.devices.unshift(item); state.openItemId = item.id; document.getElementById('devices').open = true; setDirty(); renderAll(); document.getElementById('devices')?.scrollIntoView({ behavior: 'smooth' });
   }
   function addWorkflow() {
     const item = normalizeWorkflow({ id: newId('workflow'), name: 'New aviation process', status: 'needs_input', need: 'review', owner: 'Unassigned' });
-    state.document.workflows.unshift(item); setDirty(); renderAll(); document.getElementById('outputs')?.scrollIntoView({ behavior: 'smooth' });
+    state.document.workflows.unshift(item); state.openItemId = item.id; document.getElementById('outputs').open = true; setDirty(); renderAll(); document.getElementById('outputs')?.scrollIntoView({ behavior: 'smooth' });
   }
   function collectElements() {
     Object.assign(elements, {

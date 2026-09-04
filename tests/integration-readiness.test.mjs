@@ -20,7 +20,7 @@ test('Settings exposes one authenticated Integration Readiness workspace', () =>
 test('the workspace owns the three requested editable lists', () => {
   for (const label of [
     'What must MXGenius talk to?',
-    'What actually attaches to the black box?',
+    'What attaches to the demo box?',
     'What should a correct answer look like?',
     '+ Add software',
     '+ Add device',
@@ -45,16 +45,16 @@ test('starter hardware separates enclosure internals from attached demo equipmen
   for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'Enclosure cooling fan', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Demo drill / driver', 'Pressure gauge / transducer']) {
     assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   }
-  assert.match(html, /Inside[\s\S]*Pi 5 · 16 GB[\s\S]*Attaches outside/);
+  assert.match(html, /Inside[\s\S]*Pi 5 · 16 GB[\s\S]*Outside/);
   assert.match(js, /calibration/);
   assert.match(js, /What the first demo must prove/);
 });
 
 test('structured output is explained in executive language with human authority intact', () => {
-  assert.match(html, /same useful order every time/);
+  assert.match(html, /What “structured output” means/);
   for (const label of ['Observation', 'Evidence', 'Meaning', 'Next action', 'Human decision', 'Record']) assert.match(html, new RegExp(label));
-  assert.match(html, /MXGenius does not release aircraft/);
-  assert.match(html, /Values and limits below are placeholders/);
+  assert.match(html, /Use approved aircraft data/);
+  assert.match(html, /Values and limits are never assumed/);
   assert.equal((js.match(/id: 'workflow-/g) || []).length, 5);
   assert.match(js, /Gold-standard example for MXGenius to mimic/);
 });
@@ -70,10 +70,16 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /beforeunload/);
 });
 
-test('the integration map and forms remain usable on narrow screens', () => {
-  assert.match(html, /class="flow-map"/);
-  assert.match(html, /Available to build on now/);
-  assert.match(css, /grid-template-columns: 1fr auto 1\.15fr auto 1fr/);
-  assert.match(css, /@media \(max-width: 760px\)/);
-  assert.match(css, /@media \(max-width: 500px\)/);
+test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {
+  assert.match(html, /class="guide-steps"/);
+  assert.match(html, /class="available-disclosure"/);
+  assert.match(html, /class="supporting-disclosure example-disclosure"/);
+  assert.match(html, /<details id="software" class="checklist-section" open>/);
+  assert.match(html, /<details id="devices" class="checklist-section">/);
+  assert.match(html, /<details id="outputs" class="checklist-section">/);
+  assert.match(js, /details\.open = state\.openItemId === item\.id/);
+  assert.match(js, /makeElement\('span', 'summary-meta'\)/);
+  assert.match(css, /grid-template-columns: 26px minmax\(180px, 1fr\) auto auto/);
+  assert.match(css, /@media \(max-width: 680px\)/);
+  assert.match(css, /@media \(max-width: 480px\)/);
 });
