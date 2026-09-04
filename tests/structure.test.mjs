@@ -498,7 +498,7 @@ test('root documentation exposes one status-marked product feature catalog', () 
 });
 
 test('Settings exposes a living, filterable feature catalog beside shared workspaces', () => {
-  assert.match(dashboard, /<option value="build-board\.html">Build Board<\/option>[\s\S]*<option value="feature-catalog\.html">Feature Catalog<\/option>[\s\S]*<option value="progress\.html">Reports<\/option>/);
+  assert.match(dashboard, /<option value="build-board\.html">Build Board<\/option>[\s\S]*<option value="integration-readiness\.html">Integration Readiness<\/option>[\s\S]*<option value="feature-catalog\.html">Feature Catalog<\/option>[\s\S]*<option value="progress\.html">Reports<\/option>/);
   assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260902', \{ cache: 'no-store' \}\)/);
   assert.match(featureCatalogPage, /id="featureSearch"/);
   assert.match(featureCatalogPage, /id="featureStatus"/);

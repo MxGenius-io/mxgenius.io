@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -21,6 +21,7 @@ This is the canonical product inventory. It records what the current repository 
 | Maintenance cases | `[~]` | Case creation, selection, status, context, and markers are mounted; the full evidence-to-closure workspace remains active work. |
 | AI copilot and maintenance advisory | `[~]` | Grounded text, multimodal, threads, Realtime voice, tools, and confirmation are mounted; streaming/fallback refinement remains. |
 | Parts and inventory | `[x]` | Receiving, review, inventory lifecycle, requests, shortages, rotables, robs, locations, and bulk import are reachable. |
+| Integration readiness | `[x]` | An organization-shared checklist now captures required software connections, first-demo enclosure and peripheral hardware, and aviation-authored response processes with owners, readiness, and versioned saves. |
 | 3D inspection and digital-twin bridge | `[~]` | Model navigation, mesh selection, HUD, XR, animation, and media are mounted; validated aircraft mappings remain limited. |
 | Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
 | Sensor bridge and diagnostics | `[~]` | Quest companion, FLIR transport, optional Pi diagnostics, trace, and spatial panel are mounted; hardware acceptance remains. |

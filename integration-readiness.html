@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Integration Readiness · MXGenius</title>
+  <meta name="description" content="Shared MXGenius software, device, and aviation workflow checklist">
+  <link rel="stylesheet" href="integration-readiness.css?v=1">
+  <style id="auth-gate">body { visibility: hidden; }</style>
+  <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="workspace-header">
+    <a class="brand" href="dashboard.html#settings" aria-label="Back to MXGenius Settings">
+      <img src="assets/mxgenius_logo.png" alt="">
+      <span>MXGenius</span>
+    </a>
+    <div class="header-actions">
+      <span id="readinessSaveState" class="save-state" role="status" aria-live="polite">Loading checklist…</span>
+      <button id="readinessReload" class="button button--quiet" type="button">Reload</button>
+      <a class="button button--quiet" href="build-board.html">Build Board</a>
+      <a class="button button--quiet" href="dashboard.html#settings">Settings</a>
+      <button id="readinessSave" class="button button--primary" type="button" disabled>Save checklist</button>
+    </div>
+  </header>
+
+  <main class="workspace-shell">
+    <section class="intro" aria-labelledby="readinessTitle">
+      <div class="intro-copy">
+        <p class="eyebrow">The stand-up list of record</p>
+        <h1 id="readinessTitle">Close every dangling wire.</h1>
+        <p>Capture every system MXGenius must talk to, every device the demo box must read, and the exact form of a useful aviation answer. If it is missing here, add it before the demo depends on it.</p>
+      </div>
+      <div class="readiness-summary" aria-label="Checklist summary">
+        <div><strong id="softwareTotal">0</strong><span>Software connections</span></div>
+        <div><strong id="deviceTotal">0</strong><span>Demo devices</span></div>
+        <div><strong id="workflowTotal">0</strong><span>Response processes</span></div>
+        <div><strong id="openTotal">0</strong><span>Still need answers</span></div>
+      </div>
+    </section>
+
+    <nav class="section-nav" aria-label="Integration readiness sections">
+      <a href="#software"><span>01</span> Connect the software</a>
+      <a href="#devices"><span>02</span> Read the equipment</a>
+      <a href="#outputs"><span>03</span> Define the answer</a>
+    </nav>
+
+    <section class="system-flow" aria-labelledby="flowTitle">
+      <div class="section-heading section-heading--compact">
+        <div>
+          <p class="eyebrow">The whole picture</p>
+          <h2 id="flowTitle">Inputs become an answer someone can act on.</h2>
+        </div>
+        <p class="plain-language"><strong>Structured output</strong> simply means MXGenius answers in the same useful order every time—facts, source, meaning, next action, approval, and record.</p>
+      </div>
+      <div class="flow-map" aria-label="Systems and devices flow through MXGenius into structured aviation work">
+        <article>
+          <span class="flow-number">1</span>
+          <h3>Bring in context</h3>
+          <p>Approved software, manuals, records, messages, and live device readings.</p>
+          <div class="flow-chips"><span>Systems</span><span>Devices</span><span>Experience</span></div>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article class="flow-core">
+          <span class="flow-number">2</span>
+          <h3>MXGenius makes sense of it</h3>
+          <p>Connect the observation to authorized evidence and the agreed maintenance process.</p>
+          <div class="flow-chips"><span>Context</span><span>Evidence</span><span>Workflow</span></div>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article>
+          <span class="flow-number">3</span>
+          <h3>Return controlled work</h3>
+          <p>A clear answer, next action, human approval point, and auditable record.</p>
+          <div class="flow-chips"><span>Answer</span><span>Action</span><span>Record</span></div>
+        </article>
+      </div>
+      <div class="available-now">
+        <strong>Available to build on now</strong>
+        <span>Microsoft identity</span><span>maintenance cases</span><span>parts & inventory</span><span>AI + voice</span><span>manual retrieval</span><span>3D / XR</span><span>FLIR + Pi bridge</span><span>shared workspaces</span>
+      </div>
+    </section>
+
+    <section id="software" class="checklist-section" aria-labelledby="softwareTitle">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">01 · Software connections</p>
+          <h2 id="softwareTitle">What must MXGenius talk to?</h2>
+          <p>Include vendor systems, internal tools, approved technical data, communication, people systems, and anything used to complete or record the work.</p>
+        </div>
+        <button id="addSoftware" class="button button--add" type="button">+ Add software</button>
+      </header>
+      <div class="section-guidance">
+        <span><strong>Name + URL</strong> Where does the team use it?</span>
+        <span><strong>Purpose</strong> Why must it connect?</span>
+        <span><strong>Exchange</strong> What comes in and what goes back?</span>
+        <span><strong>Experience</strong> How should it feel in the workday?</span>
+      </div>
+      <div id="softwareList" class="item-list"></div>
+    </section>
+
+    <section id="devices" class="checklist-section" aria-labelledby="devicesTitle">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">02 · Demo hardware</p>
+          <h2 id="devicesTitle">What actually attaches to the black box?</h2>
+          <p>Separate what lives inside the enclosure from the tools, sensors, cameras, and displays that plug into it. Record the exact connection, power, reading, and proof required.</p>
+        </div>
+        <button id="addDevice" class="button button--add" type="button">+ Add device</button>
+      </header>
+      <div class="box-diagram" aria-label="MXGenius demo enclosure connection map">
+        <div class="box-inside"><span>Inside</span><strong>Pi 5 · 16 GB</strong><small>step-down · port panel · fan</small></div>
+        <div class="box-center"><span>Working name</span><strong>MXGenius black box</strong><small>One controlled edge gateway</small></div>
+        <div class="box-outside"><span>Attaches outside</span><strong>Tools + sensors</strong><small>drill · gauge · FLIR · headset · more</small></div>
+      </div>
+      <div id="deviceList" class="item-list"></div>
+    </section>
+
+    <section id="outputs" class="checklist-section" aria-labelledby="outputsTitle">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">03 · Aviation response design</p>
+          <h2 id="outputsTitle">What should a correct answer look like?</h2>
+          <p>Start with five high-value demo processes. Aviation experts can teach MXGenius the familiar order, required evidence, human decision point, and definition of done for each one.</p>
+        </div>
+        <button id="addWorkflow" class="button button--add" type="button">+ Add process</button>
+      </header>
+
+      <aside class="answer-example" aria-labelledby="answerExampleTitle">
+        <div class="example-heading">
+          <span>Illustrative format only</span>
+          <h3 id="answerExampleTitle">Example: interpret a connected pressure reading</h3>
+          <p>Values and limits below are placeholders. The real answer must use approved aircraft data and remain subject to authorized human review.</p>
+        </div>
+        <ol class="answer-steps">
+          <li><strong>Observation</strong><span>State what was seen or measured, with unit and time.</span></li>
+          <li><strong>Evidence</strong><span>Name the device, record, manual section, and data currency.</span></li>
+          <li><strong>Meaning</strong><span>Compare the reading with the approved limit; say when evidence is missing or conflicts.</span></li>
+          <li><strong>Next action</strong><span>Give the ordered technician steps, prerequisites, cautions, and stop conditions.</span></li>
+          <li><strong>Human decision</strong><span>Name who must inspect, approve, defer, or sign off. MXGenius does not release aircraft.</span></li>
+          <li><strong>Record</strong><span>Capture the result, sources, device trace, owner, and disposition for the audit trail.</span></li>
+        </ol>
+      </aside>
+
+      <div id="workflowList" class="item-list"></div>
+    </section>
+  </main>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">Nothing has been added here yet.</div>
+  </template>
+
+  <script src="runtime-config.js?v=3"></script>
+  <script src="auth.js?v=12"></script>
+  <script src="application-client.js?v=39"></script>
+  <script src="integration-readiness.js?v=1"></script>
+</body>
+</html>
