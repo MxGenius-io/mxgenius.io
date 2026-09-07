@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
-const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource] = await Promise.all([
+const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource] = await Promise.all([
   readFile(new URL('application-client.js', root), 'utf8'),
   readFile(new URL('xr-remote-witness.js', root), 'utf8'),
   readFile(new URL('witness.js', root), 'utf8'),
@@ -14,6 +14,7 @@ const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, 
   readFile(new URL('globe-vr.html', root), 'utf8'),
   readFile(new URL('xr-sensor-orb.js', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessSocket.java', root), 'utf8'),
+  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessPeerController.java', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/contracts/remote-witness-session.schema.json', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/fixtures/witness-android-offer.json', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/fixtures/witness-android-ice.json', root), 'utf8'),
@@ -134,6 +135,24 @@ test('wearer approval gates media and recording remains consent-only', () => {
   assert.match(producerSource, /recording.*state/s);
 });
 
+test('customer microphone is explicit, permission-scoped, and uses the existing peer', () => {
+  assert.match(viewerHtml, /id="microphoneButton"[\s\S]*Enable microphone/);
+  assert.match(viewerHtml, /aria-describedby="microphoneStatus"/);
+  assert.match(viewerSource, /microphoneButton\.addEventListener\('click'/);
+  assert.match(viewerSource, /navigator\.mediaDevices\.getUserMedia\(\{/);
+  assert.match(viewerSource, /echoCancellation: true/);
+  assert.match(viewerSource, /attachMicrophone\(connection\)[\s\S]*createAnswer\(\)/);
+  assert.match(viewerSource, /microphoneStream\?\.getTracks[\s\S]*track\.stop\(\)/);
+  assert.match(viewerSource, /requestGeneration !== microphoneRequestGeneration/);
+  assert.doesNotMatch(viewerSource, /getUserMedia[\s\S]{0,160}addEventListener\(['"]load/);
+  assert.match(producerSource, /addTransceiver\?\.\('audio', \{ direction: 'recvonly' \}\)/);
+  assert.match(producerSource, /event\.track\?\.kind !== 'audio'/);
+  assert.match(globeSource, /remoteStreamConsumer: \(stream\)/);
+  assert.match(nativePeerSource, /setAudioPlayout\(true\)/);
+  assert.match(nativePeerSource, /OfferToReceiveAudio", "true"/);
+  assert.match(nativePeerSource, /instanceof AudioTrack/);
+});
+
 test('case and target context use the existing case gallery and target registry seams', () => {
   assert.match(globeSource, /spatialRegistry\?\.modelProjection\?\.\(\)\.activeTarget/);
   assert.match(globeSource, /caseMedia: activeCaseState\?\.media/);
@@ -161,6 +180,9 @@ test('Android-shaped H264 offer and ICE fixtures match the browser answer bounda
   assert.equal(offer.signal.description.type, 'offer');
   assert.match(offer.signal.description.sdp, /m=video/);
   assert.match(offer.signal.description.sdp, /H264\/90000/);
+  assert.match(offer.signal.description.sdp, /m=audio/);
+  assert.match(offer.signal.description.sdp, /opus\/48000\/2/);
+  assert.match(offer.signal.description.sdp, /a=recvonly/);
   assert.equal(ice.signal.kind, 'ice');
   assert.equal(ice.signal.candidate.sdpMid, '0');
   assert.equal(ice.signal.candidate.sdpMLineIndex, 0);

@@ -13,6 +13,8 @@
   const roomMessage = document.getElementById('roomMessage');
   const commentForm = document.getElementById('commentForm');
   const commentText = document.getElementById('commentText');
+  const microphoneButton = document.getElementById('microphoneButton');
+  const microphoneStatus = document.getElementById('microphoneStatus');
   const recordingConsent = document.getElementById('recordingConsent');
   const targetSection = document.getElementById('targetSection');
   const targetName = document.getElementById('targetName');
@@ -34,6 +36,9 @@
   let projection = {};
   let mediaGeneration = 0;
   let mediaObjectUrls = [];
+  let microphoneStream = null;
+  let microphoneState = 'off';
+  let microphoneRequestGeneration = 0;
 
   function clean(value, fallback = '') {
     return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -42,6 +47,85 @@
   function setConnection(label, state = 'waiting') {
     connectionState.dataset.state = state;
     connectionState.querySelector('strong').textContent = label;
+  }
+
+  function renderMicrophone() {
+    const supported = Boolean(navigator.mediaDevices?.getUserMedia);
+    const ended = !viewerSession || ['revoked', 'expired'].includes(room?.status);
+    microphoneButton.disabled = microphoneState === 'requesting' || ended || !supported;
+    microphoneButton.setAttribute('aria-pressed', microphoneState === 'live' ? 'true' : 'false');
+    microphoneButton.textContent = microphoneState === 'live' ? 'Mute'
+      : microphoneState === 'muted' ? 'Unmute'
+        : microphoneState === 'requesting' ? 'Waiting…' : 'Enable microphone';
+    microphoneStatus.textContent = !supported ? 'Microphone sharing is unavailable in this browser.'
+      : microphoneState === 'live' ? 'Microphone on. The technician can hear you.'
+        : microphoneState === 'muted' ? 'Microphone muted.'
+          : microphoneState === 'requesting' ? 'Waiting for browser permission…'
+            : microphoneState === 'blocked' ? 'Permission was not granted. Video and text still work.'
+              : 'Microphone is off until you enable it.';
+  }
+
+  function attachMicrophone(connection) {
+    if (!connection || !microphoneStream?.active) return false;
+    const existing = new Set((connection.getSenders?.() || []).map((sender) => sender.track?.id));
+    let added = false;
+    for (const track of microphoneStream.getAudioTracks()) {
+      if (existing.has(track.id)) continue;
+      connection.addTrack(track, microphoneStream);
+      added = true;
+    }
+    return added;
+  }
+
+  function stopMicrophone(nextState = 'off') {
+    microphoneRequestGeneration += 1;
+    for (const track of microphoneStream?.getTracks?.() || []) track.stop();
+    microphoneStream = null;
+    microphoneState = nextState;
+    renderMicrophone();
+  }
+
+  async function toggleMicrophone() {
+    if (microphoneState === 'live' || microphoneState === 'muted') {
+      const enable = microphoneState === 'muted';
+      for (const track of microphoneStream?.getAudioTracks?.() || []) track.enabled = enable;
+      microphoneState = enable ? 'live' : 'muted';
+      renderMicrophone();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      microphoneState = 'blocked';
+      renderMicrophone();
+      return;
+    }
+    microphoneState = 'requesting';
+    renderMicrophone();
+    const requestGeneration = ++microphoneRequestGeneration;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      });
+      if (requestGeneration !== microphoneRequestGeneration || !viewerSession || ['paused', 'revoked', 'expired', 'headset-offline'].includes(room?.status)) {
+        for (const track of stream.getTracks()) track.stop();
+        microphoneState = 'off';
+        renderMicrophone();
+        return;
+      }
+      microphoneStream = stream;
+      microphoneState = 'live';
+      for (const track of stream.getAudioTracks()) {
+        track.addEventListener('ended', () => {
+          if (microphoneStream === stream) stopMicrophone('off');
+        }, { once: true });
+      }
+      const added = attachMicrophone(peer);
+      renderMicrophone();
+      roomMessage.textContent = 'Microphone enabled by you.';
+      if (added && room?.status === 'live') send({ type: 'witness.signal', signal: { kind: 'viewer-ready' } });
+    } catch (_) {
+      if (requestGeneration === microphoneRequestGeneration) stopMicrophone('blocked');
+    }
   }
 
   function renderRoom() {
@@ -129,6 +213,7 @@
       joinCard.hidden = true;
       roomElement.hidden = false;
       renderRoom();
+      renderMicrophone();
       connectSocket();
     } catch (error) {
       joinStatus.textContent = clean(error?.message, 'That PIN could not be opened. Check it and try again.');
@@ -203,6 +288,7 @@
       commentText.disabled = true;
       commentForm.querySelector('button').disabled = true;
       recordingConsent.disabled = true;
+      microphoneButton.disabled = true;
       return;
     }
     if (message?.type !== 'witness.signal' || message.from !== 'producer') return;
@@ -211,6 +297,7 @@
     if (signal.kind === 'offer' && signal.description) {
       const connection = ensurePeer();
       await connection.setRemoteDescription(signal.description);
+      attachMicrophone(connection);
       const answer = await connection.createAnswer();
       await connection.setLocalDescription(answer);
       send({ type: 'witness.signal', signal: { kind: 'answer', description: connection.localDescription } });
@@ -241,6 +328,7 @@
     peer?.close();
     peer = null;
     video.srcObject = null;
+    stopMicrophone('off');
     if (room) {
       videoWaiting.hidden = false;
       liveFlag.hidden = true;
@@ -267,6 +355,10 @@
     }
   });
 
+  microphoneButton.addEventListener('click', () => {
+    void toggleMicrophone();
+  });
+
   recordingConsent.addEventListener('change', () => {
     send({ type: 'witness.recording-consent', consent: recordingConsent.checked });
   });
@@ -279,4 +371,6 @@
     for (const source of mediaObjectUrls) URL.revokeObjectURL(source);
     mediaObjectUrls = [];
   });
+
+  renderMicrophone();
 })();

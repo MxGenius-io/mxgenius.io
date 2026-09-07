@@ -34,6 +34,7 @@ export class XRRemoteWitnessPanel {
     projectionProvider = () => ({}),
     mediaStreamProvider,
     nativeBootstrapProvider,
+    remoteStreamConsumer = () => {},
     onAction = () => {},
     onStatus = () => {}
   } = {}) {
@@ -46,6 +47,7 @@ export class XRRemoteWitnessPanel {
     this.projectionProvider = projectionProvider;
     this.mediaStreamProvider = mediaStreamProvider;
     this.nativeBootstrapProvider = nativeBootstrapProvider;
+    this.remoteStreamConsumer = remoteStreamConsumer;
     this.onAction = onAction;
     this.onStatus = onStatus;
     this.presenting = false;
@@ -405,14 +407,23 @@ export class XRRemoteWitnessPanel {
   async ensurePeer(participantId) {
     if (this.peers.has(participantId)) return this.peers.get(participantId);
     const peer = new RTCPeerConnection({ iceServers: this.invitation?.iceServers || [] });
+    peer.addTransceiver?.('audio', { direction: 'recvonly' });
     peer.addEventListener('icecandidate', (event) => {
       if (event.candidate) this.send({
         type: 'witness.signal',
         signal: { kind: 'ice', to: participantId, candidate: event.candidate }
       });
     });
+    peer.addEventListener('track', (event) => {
+      if (event.track?.kind !== 'audio') return;
+      this.remoteStreamConsumer(event.streams[0] || new MediaStream([event.track]));
+      this.message = 'Customer microphone connected.';
+      this.drawPanel();
+      this.emitStatus();
+    });
     peer.addEventListener('connectionstatechange', () => {
       if (['failed', 'closed'].includes(peer.connectionState)) {
+        this.remoteStreamConsumer(null);
         peer.close();
         this.peers.delete(participantId);
       }
@@ -453,6 +464,7 @@ export class XRRemoteWitnessPanel {
     this.peers.clear();
     for (const track of this.localStream?.getTracks?.() || []) track.stop();
     this.localStream = null;
+    this.remoteStreamConsumer(null);
   }
 
   emitStatus() {

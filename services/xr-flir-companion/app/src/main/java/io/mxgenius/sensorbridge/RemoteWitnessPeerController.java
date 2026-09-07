@@ -7,6 +7,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.AddIceObserver;
+import org.webrtc.AudioTrack;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
 import org.webrtc.EglBase;
@@ -41,7 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** One video-only WebRTC producer backed by a consent-scoped Quest compositor capture. */
+/** Consent-scoped Quest video producer with customer microphone playback. */
 final class RemoteWitnessPeerController implements AutoCloseable {
     interface SignalingSender {
         boolean send(JSONObject signal);
@@ -119,7 +120,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     synchronized String captureProfile() {
         return RemoteWitnessCaptureController.CAPTURE_WIDTH + "x"
                 + RemoteWitnessCaptureController.CAPTURE_HEIGHT + "@"
-                + RemoteWitnessCaptureController.CAPTURE_FPS + "fps · video only";
+                + RemoteWitnessCaptureController.CAPTURE_FPS + "fps · customer audio receive";
     }
 
     synchronized void onRoomState(JSONObject room) {
@@ -205,7 +206,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
                     }, description);
                 }
             }
-        }, videoOnlyConstraints());
+        }, witnessMediaConstraints());
     }
 
     private void createPeer(UUID participantId) {
@@ -220,7 +221,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         }
         viewerId = participantId;
         pendingViewerId = participantId;
-        peer.setAudioPlayout(false);
+        peer.setAudioPlayout(true);
         peer.setAudioRecording(false);
         VideoTrack track = capture.track();
         if (track == null) return;
@@ -360,9 +361,9 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         return "hardware encoders: " + (codecs.isEmpty() ? "none reported" : String.join(", ", codecs));
     }
 
-    private static MediaConstraints videoOnlyConstraints() {
+    private static MediaConstraints witnessMediaConstraints() {
         MediaConstraints constraints = new MediaConstraints();
-        constraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"));
+        constraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
         constraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"));
         return constraints;
     }
@@ -440,7 +441,12 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         @Override public void onRemoveStream(MediaStream stream) {}
         @Override public void onDataChannel(DataChannel channel) {}
         @Override public void onRenegotiationNeeded() {}
-        @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] mediaStreams) {}
+        @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] mediaStreams) {
+            if (receiver.track() instanceof AudioTrack) {
+                receiver.track().setEnabled(true);
+                listener.onState("customer-audio-live", "customer microphone connected");
+            }
+        }
     }
 
     private abstract class CreateSdpObserver implements SdpObserver {

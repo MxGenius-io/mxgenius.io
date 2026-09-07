@@ -1332,10 +1332,10 @@
             <div class="footer-toggle" id="toggle-ao" title="Ambient Occlusion" style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.7rem; cursor:pointer;"><span class="ft-label">AO</span></div>
             
             <select id="hdri-select" class="footer-select" style="background:var(--bg-primary); border:1px solid var(--border); border-radius:4px; color:var(--text-primary); font-family:var(--font-mono); font-size:0.7rem; padding:4px 8px;">
-                <option value="">HDRI Off</option>
+                <option value="">No HDRI · Grid</option>
                 <option value="hdri/hangar_interior_4k.hdr">Hangar Interior</option>
                 <option value="hdri/industrial_workshop_4k.hdr">Industrial Workshop</option>
-                <option value="hdri/neon_grid_2k.hdr">Electric Blue Grid</option>
+                <option value="hdri/neon_grid_2k.hdr">Electric Blue Studio</option>
             </select>
         </div>
 
@@ -1473,6 +1473,7 @@
         let scene, camera, renderer, controls, composer;
         let bloomPass, saoPass;
         let currentModel = null;
+        let inspectionGrid = null;
         let xrPresentationState = null;
         let mixer = null;
         let animations = [];
@@ -2329,6 +2330,7 @@
                 currentModel.scale.multiplyScalar(scale);
                 currentModel.position.sub(center.multiplyScalar(scale));
             }
+            updateInspectionGrid();
 
             // Enable shadows + PBR upgrade
             let meshCount = 0;
@@ -3155,8 +3157,29 @@
         //  Placeholder Grid (when no model loaded)
         // =============================================
         function addPlaceholderGrid() {
-            const grid = new THREE.GridHelper(4, 20, 0x30363d, 0x21262d);
-            scene.add(grid);
+            updateInspectionGrid(true);
+        }
+
+        function updateInspectionGrid(forceVisible = false) {
+            if (!inspectionGrid) {
+                inspectionGrid = new THREE.GridHelper(10, 50, 0x38bdf8, 0x1e3a5f);
+                inspectionGrid.name = 'MXGeniusInspectionGrid';
+                inspectionGrid.renderOrder = -1;
+                const materials = Array.isArray(inspectionGrid.material) ? inspectionGrid.material : [inspectionGrid.material];
+                materials.forEach((material) => {
+                    material.transparent = true;
+                    material.opacity = 0.38;
+                    material.depthWrite = false;
+                });
+                scene.add(inspectionGrid);
+            }
+            if (currentModel) {
+                const bounds = new THREE.Box3().setFromObject(currentModel);
+                inspectionGrid.position.y = bounds.min.y - 0.035;
+            } else {
+                inspectionGrid.position.y = 0;
+            }
+            inspectionGrid.visible = forceVisible || !state.hdriEnabled;
         }
 
         // =============================================
@@ -3553,6 +3576,7 @@
 
         function toggleHDRI() {
             if (state.hdriEnabled) {
+                if (inspectionGrid) inspectionGrid.visible = false;
                 if (hdriTexture) {
                     applyHDRI(hdriTexture);
                 } else {
@@ -3561,6 +3585,7 @@
             } else {
                 scene.environment = null;
                 scene.background = null;
+                updateInspectionGrid();
                 // Remove envMap from all materials
                 if (currentModel) {
                     currentModel.traverse((child) => {
@@ -3579,6 +3604,7 @@
         function applyHDRI(texture) {
             scene.environment = texture;
             scene.background = texture;
+            if (inspectionGrid) inspectionGrid.visible = false;
         }
 
         function loadHDRI(path) {

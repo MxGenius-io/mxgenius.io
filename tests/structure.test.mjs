@@ -433,7 +433,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=53/);
+  assert.match(dashboard, /app\.js\?v=54/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -477,6 +477,16 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
   assert.match(viewer, /mxgenius\.viewer\.xr-action/);
   assert.match(application, /message\.type === 'mxgenius\.viewer\.xr-action'/);
   assert.doesNotMatch(`${viewer}\n${viewerVrButton}`, /Apple Vision/);
+});
+
+test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=29/);
+  assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
+  assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
+  assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
+  assert.match(viewer, /inspectionGrid\.visible = forceVisible \|\| !state\.hdriEnabled/);
+  assert.match(viewer, /function addLights\(\)[\s\S]*new THREE\.AmbientLight[\s\S]*new THREE\.DirectionalLight[\s\S]*new THREE\.HemisphereLight/);
+  assert.match(viewer, /<option value="hdri\/neon_grid_2k\.hdr">Electric Blue Studio<\/option>/);
 });
 
 test('root documentation exposes one status-marked product feature catalog', () => {
@@ -625,7 +635,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=28/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=29/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -744,7 +754,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=9/);
+  assert.match(application, /globe-vr\.html\?v=10/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);

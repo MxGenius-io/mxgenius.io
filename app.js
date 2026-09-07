@@ -5280,7 +5280,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=9');
+  window.location.assign('globe-vr.html?v=10');
 }
 
 async function loadGlobe() {

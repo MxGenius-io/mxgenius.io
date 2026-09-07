@@ -103,7 +103,7 @@
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=8';
     import { XRBrowserPanel } from './xr-browser-panel.js?v=1';
-    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=2';
+    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=3';
     import { XRUIAudio } from './xr-ui-audio.js?v=2';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -311,6 +311,7 @@
     let xrVoice = null;
     let xrBrowser = null;
     let xrWitness = null;
+    let witnessGuestAudio = null;
     let spatialHud = null;
     let spatialCommands = null;
     let unsubscribeSpatialScanState = null;
@@ -618,6 +619,18 @@
           return renderer.domElement.captureStream(30);
         },
         nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+        remoteStreamConsumer: (stream) => {
+          if (!witnessGuestAudio) {
+            witnessGuestAudio = document.createElement('audio');
+            witnessGuestAudio.autoplay = true;
+            witnessGuestAudio.playsInline = true;
+            witnessGuestAudio.hidden = true;
+            document.body.append(witnessGuestAudio);
+          }
+          witnessGuestAudio.srcObject = stream || null;
+          if (stream) void witnessGuestAudio.play().catch(() => {});
+          else witnessGuestAudio.pause();
+        },
         onAction: (action, input, target) => emitSceneAction(action, input, target, xrWitness.group),
         onStatus: ({ room, message }) => {
           if (renderer.xr.isPresenting && room) {
