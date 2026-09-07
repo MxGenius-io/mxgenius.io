@@ -862,7 +862,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
-  assert.match(dashboard, /guided-tooltip\.css\?v=4/);
+  assert.match(dashboard, /guided-tooltip\.css\?v=5/);
   assert.match(dashboard, /onboarding\.css\?v=4/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
@@ -909,8 +909,10 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__transcript/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
   assert.match(dashboard, /id="guidedTourButton"/);
+  assert.match(dashboard, /id="guidedTourButton"[\s\S]*guided-tour-launch__icon[\s\S]*<span>Tour<\/span>/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
   assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
+  assert.match(guidedTooltipStyles, /\.guided-tour-launch__icon/);
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
   assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
   assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);

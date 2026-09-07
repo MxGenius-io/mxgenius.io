@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="parts-workspace.css?v=19">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=9">
-  <link rel="stylesheet" href="guided-tooltip.css?v=4">
+  <link rel="stylesheet" href="guided-tooltip.css?v=5">
   <link rel="stylesheet" href="onboarding.css?v=4">
   <link rel="stylesheet" href="dashboard-splash.css?v=1">
   <link rel="stylesheet" href="feedback-reporter.css?v=1">
@@ -90,6 +90,9 @@
     </nav>
     <div class="header-right">
       <button class="guided-tour-launch" id="guidedTourButton" type="button" onclick="MXOnboarding.restart()" title="Start the product tour" aria-label="Start the product tour">
+        <svg class="guided-tour-launch__icon" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M11.8 8.2 15 5l-1.45 4.55L9 11l2.8-2.8ZM10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 1.7a6.3 6.3 0 1 1 0 12.6 6.3 6.3 0 0 1 0-12.6Z" fill="currentColor"/>
+        </svg>
         <span>Tour</span>
       </button>
       <button class="nav-icon-btn" id="feedbackReporterBtn" title="Report feedback (b)" aria-label="Report a bug or request a feature">

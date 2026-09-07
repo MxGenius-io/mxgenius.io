@@ -60,6 +60,12 @@
   transform: translateY(-1px);
 }
 
+.guided-tour-launch__icon {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+}
+
 .guided-tooltip-popover {
   position: fixed;
   z-index: 95000;
