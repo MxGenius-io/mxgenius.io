@@ -17,19 +17,49 @@ test('Settings exposes one authenticated Integration Readiness workspace', () =>
   assert.match(html, /src="application-client\.js\?v=\d+"/);
 });
 
-test('the workspace owns the three requested editable lists', () => {
+test('the workspace owns the four requested editable lists', () => {
   for (const label of [
     'What must MXGenius talk to?',
     'What attaches to the demo box?',
     'What should a correct answer look like?',
+    'What must move under MXGenius?',
     '+ Add software',
     '+ Add device',
-    '+ Add process'
+    '+ Add process',
+    '+ Add migration'
   ]) assert.match(html, new RegExp(label.replace(/[+?]/g, '\\$&')));
   assert.match(js, /state\.document\.software\.unshift/);
   assert.match(js, /state\.document\.devices\.unshift/);
   assert.match(js, /state\.document\.workflows\.unshift/);
+  assert.match(js, /state\.document\.migrations\.unshift/);
   assert.match(js, /Remove from checklist/);
+});
+
+test('migration separates entity ownership, access, and service cutover', () => {
+  for (const name of [
+    'Azure account ownership + operator access',
+    'Azure production services, data + secrets cutover',
+    'Apple Developer + App Store Connect',
+    'Microsoft Partner Center',
+    'GitHub organization + release ownership',
+    'Domain, DNS + company email administration',
+    'Meta Horizon developer team + Quest builds',
+    'Vendor, API + data subscription ownership'
+  ]) assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
+  assert.match(js, /Josh — confirm developer account; Rock — proposed setup lead \(confirm\)/);
+  assert.match(js, /self-imposed, not represented as a Microsoft requirement/i);
+  assert.match(js, /person who configures money to another account should not be the only person operating or approving/i);
+  assert.match(js, /Complete and test Azure company ownership and operator access first/i);
+  assert.match(js, /Array\.isArray\(input\.migrations\).*clone\(starterMigrations\)/);
+});
+
+test('migration provides current official help paths without crowding the first view', () => {
+  for (const domain of ['learn.microsoft.com', 'developer.apple.com', 'docs.github.com', 'developers.meta.com', 'www.icann.org']) {
+    assert.match(js, new RegExp(domain.replace('.', '\\.')));
+  }
+  assert.match(js, /Open official help ↗/);
+  assert.match(html, /class="supporting-disclosure migration-guide"/);
+  assert.match(html, /Access first\.[\s\S]*Then transfer\.[\s\S]*Prove the handoff\./);
 });
 
 test('starter software inventory includes known external and internal boundaries', () => {
@@ -77,6 +107,7 @@ test('progressive disclosure keeps the first view light and forms usable on narr
   assert.match(html, /<details id="software" class="checklist-section" open>/);
   assert.match(html, /<details id="devices" class="checklist-section">/);
   assert.match(html, /<details id="outputs" class="checklist-section">/);
+  assert.match(html, /<details id="migration" class="checklist-section">/);
   assert.match(js, /details\.open = state\.openItemId === item\.id/);
   assert.match(js, /makeElement\('span', 'summary-meta'\)/);
   assert.match(css, /grid-template-columns: 26px minmax\(180px, 1fr\) auto auto/);

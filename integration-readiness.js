@@ -16,6 +16,20 @@
     ['future', 'Later phase'],
     ['review', 'Need to decide']
   ];
+  const MIGRATION_TIMING_OPTIONS = [
+    ['now', 'Start now'],
+    ['before_funds', 'Before money moves'],
+    ['before_release', 'Before next release'],
+    ['after_access', 'After company access exists'],
+    ['review', 'Sequence to confirm']
+  ];
+  const MIGRATION_STATUS_OPTIONS = [
+    ['needs_input', 'Needs team input'],
+    ['scoped', 'Scope agreed'],
+    ['access_needed', 'Access needed'],
+    ['ready_to_transfer', 'Ready to transfer'],
+    ['transferred', 'Transferred']
+  ];
 
   const starterSoftware = [
     {
@@ -105,6 +119,105 @@
     { id: 'workflow-handoff', name: 'Create a shift, escalation, or remote-support handoff', trigger: 'Work changes owner, needs expert help, or reaches a stop condition.', inputs: 'Case status, completed checks, evidence, unresolved questions, risk, next action, owner, and communication destination.', response: 'Situation → aircraft/task context → work completed → evidence → open risk/question → exact ask → owner/time → linked case record.', approval: 'The receiving person acknowledges ownership; required maintenance approvals remain in the system of record.', success: 'The next person can resume without repeating work, while Teams or another channel contains only the concise approved handoff and secure link.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Add the team’s preferred handoff format and a representative escalation that should appear in Teams.' }
   ];
 
+  const starterMigrations = [
+    {
+      id: 'migration-azure-ownership', name: 'Azure account ownership + operator access', platform: 'Microsoft Azure', timing: 'now', status: 'access_needed',
+      currentOwner: 'Dwayne — current control; confirm tenant and billing owner', targetOwner: 'MXGenius legal entity + company-managed account', handoffOwner: 'Company operator other than Dwayne — assign',
+      scope: 'Entra tenant, subscriptions, billing ownership, production administration, role assignments, recovery contacts, and support access.',
+      platformRequirement: 'Confirm the exact Azure agreement and subscription type before choosing a billing-transfer or directory-transfer path. Those are separate changes and can affect access.',
+      companyControl: 'MXGenius safeguard — self-imposed, not represented as a Microsoft requirement: the person who configures money to another account should not be the only person operating or approving that destination.',
+      dependency: 'A company-managed identity must exist and the second operator must successfully sign in before any ownership change.',
+      nextStep: 'Inventory the tenant, subscription, billing owner, and current roles; add the named company operator with least privilege; test recovery and production access.',
+      success: 'MXGenius controls billing and administration, at least two authorized people can recover access, and Dwayne is no longer the sole operator.',
+      helpUrl: 'https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/billing-subscription-transfer',
+      notes: 'Do not move the tenant or subscription until role-loss effects, service identities, support plan, and rollback evidence have been reviewed.'
+    },
+    {
+      id: 'migration-azure-runtime', name: 'Azure production services, data + secrets cutover', platform: 'Azure production estate', timing: 'after_access', status: 'scoped',
+      currentOwner: 'Current Azure subscription / resource groups — inventory exact owner', targetOwner: 'MXGenius-controlled Azure environment', handoffOwner: 'Company cloud operator — assign',
+      scope: 'Container Apps and APIs, PostgreSQL, Blob Storage, AI Search, Azure OpenAI, Web PubSub, monitoring, backups, DNS bindings, managed identities, app registrations, secrets, and deployment credentials.',
+      platformRequirement: 'Service moves vary by resource type. Treat the subscription/directory decision as the boundary, then validate each dependency and identity before cutover.',
+      companyControl: 'Keep a recoverable backup and a tested rollback path. Rotate personal credentials only after the company identity and services are proven.',
+      dependency: 'Complete and test Azure company ownership and operator access first. Coordinate iOS and Quest builds so their API, identity, and signing configuration continue to point to the correct production endpoints.',
+      nextStep: 'Create an exact resource-and-data inventory with owner, region, dependency, backup, secret, cost center, move method, and acceptance check for every production service.',
+      success: 'The company operator deploys, restores, monitors, and pays for the full production estate under MXGenius control with no personal credential in the operating path.',
+      helpUrl: 'https://learn.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription',
+      notes: 'Sequence: inventory and backup → add/test access → choose account boundary → move or re-home resources → rotate secrets → validate apps and data → retain rollback evidence.'
+    },
+    {
+      id: 'migration-apple', name: 'Apple Developer + App Store Connect', platform: 'Apple / iOS', timing: 'now', status: 'needs_input',
+      currentOwner: 'Current Apple team/account — confirm Account Holder', targetOwner: 'MXGenius organization membership', handoffOwner: 'Josh — confirm developer account; Rock — proposed setup lead (confirm)',
+      scope: 'Organization enrollment, Account Holder and Admin access, App Store Connect roles, app record, TestFlight, bundle IDs, signing certificates, provisioning profiles, API keys, agreements, banking, and tax setup.',
+      platformRequirement: 'Apple permits organization team members and one Account Holder. Decide whether this is a role transfer within an organization or an app transfer between accounts; the paths are not interchangeable.',
+      companyControl: 'Company identities should own the legal, signing, recovery, and financial path. Keep named development access for the people building and releasing iOS.',
+      dependency: 'Confirm Josh’s developer access, the current Account Holder, MXGenius organization enrollment, legal authority, and who “Rock” refers to before selecting the transfer path.',
+      nextStep: 'Have Josh verify access; name the setup lead and intended Account Holder; inventory the app, build, signing, TestFlight, agreement, and banking state before changing teams.',
+      success: 'An MXGenius Account Holder and backup Admin can sign, upload, test, submit, renew, accept agreements, and recover access without relying on Dwayne’s personal account.',
+      helpUrl: 'https://developer.apple.com/help/account/access/transfer-the-account-holder-role/',
+      notes: 'If a separate app transfer is required, first confirm eligibility and preserve app metadata, sales/download records, identifiers, entitlements, and signing continuity.'
+    },
+    {
+      id: 'migration-partner-center', name: 'Microsoft Partner Center', platform: 'Microsoft Partner Center', timing: 'now', status: 'access_needed',
+      currentOwner: 'Current personal authentication / tenant path — confirm', targetOwner: 'MXGenius work account and verified company profile', handoffOwner: 'Company Partner Center owner or manager — assign',
+      scope: 'Company verification, tenant association, authentication, user roles, marketplace/developer program access, recovery, payout, tax, and support contacts as applicable.',
+      platformRequirement: 'Partner Center access uses a Microsoft Entra work account and workspace roles. Verification, program enrollment, and financial profiles depend on the program actually in use.',
+      companyControl: 'Use named company users, least-privilege roles, MFA, and a backup administrator; do not leave authentication or recovery with one personal account.',
+      dependency: 'Confirm the MXGenius Entra tenant and legal profile, then identify the existing Partner Center seller/developer account and its current role holders.',
+      nextStep: 'Sign in to the intended company tenant, complete any pending authentication or verification, add a second authorized user, and record exact workspace roles.',
+      success: 'Two authorized MXGenius users can reach the required workspace; the company profile is verified; recovery, payout, tax, and support contacts are company-controlled.',
+      helpUrl: 'https://learn.microsoft.com/en-us/partner-center/account-settings/add-manage-users',
+      notes: 'Authentication may be the only immediate blocker, but confirm which Partner Center program and workspace are in scope before marking this transferred.'
+    },
+    {
+      id: 'migration-github', name: 'GitHub organization + release ownership', platform: 'GitHub / GitHub Pages', timing: 'now', status: 'scoped',
+      currentOwner: 'MxGenius-io organization — confirm current owners and billing manager', targetOwner: 'MXGenius-controlled organization', handoffOwner: 'Second organization owner — assign',
+      scope: 'Repositories, Actions, Pages deployment, environments, secrets, CNAME/domain settings, app installations, security alerts, billing, and recovery.',
+      platformRequirement: 'GitHub organizations support multiple owners and recommend at least two owners for continuity.',
+      companyControl: 'Use company-managed identities, protected environments, 2FA, documented recovery, and no personal-only release secret.',
+      dependency: 'Confirm the organization already represents the legal entity, then inventory owners, billing, installed apps, deploy keys, Actions secrets, and branch protections.',
+      nextStep: 'Add and verify a second MXGenius organization owner, assign a billing manager if needed, and perform one release plus recovery walk-through.',
+      success: 'A second authorized owner can administer the organization and deploy mxgenius.io without Dwayne’s account or local machine.',
+      helpUrl: 'https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/maintaining-ownership-continuity-for-your-organization',
+      notes: 'The repository is already under MxGenius-io; this item verifies durable entity control rather than assuming the organization name alone completes the handoff.'
+    },
+    {
+      id: 'migration-domain', name: 'Domain, DNS + company email administration', platform: 'mxgenius.io / registrar / DNS / mail', timing: 'before_release', status: 'needs_input',
+      currentOwner: 'Current registrant, registrar, DNS, and mailbox administrators — confirm', targetOwner: 'MXGenius legal entity + company-managed admin accounts', handoffOwner: 'Primary and backup domain administrators — assign',
+      scope: 'Registrant record, registrar account, renewal payment, recovery email/phone, DNS zone, nameservers, certificates, MX/SPF/DKIM/DMARC, shared mailboxes, and service aliases.',
+      platformRequirement: 'The registrar controls its exact change-of-registrant and account-transfer process. Record any transfer lock or verification delay before changing data.',
+      companyControl: 'Keep renewal, recovery, and DNS changes under company control with two named administrators and alerts sent to a company mailbox.',
+      dependency: 'Identify the registrar, DNS host, mail provider, current registrant, renewal date, and every production record before making a change.',
+      nextStep: 'Export the DNS zone, inventory records and certificates, add a backup company administrator, and ask the registrar for its entity/registrant change procedure.',
+      success: 'MXGenius is the registrant, renewal and recovery use company contacts, two admins can operate DNS and mail, and the live site/authentication pass after a controlled test.',
+      helpUrl: 'https://www.icann.org/en/groups/ssac/documents/sac-044-en.pdf',
+      notes: 'Provider is intentionally left open until the current registrar, DNS host, and mail tenant are confirmed.'
+    },
+    {
+      id: 'migration-meta', name: 'Meta Horizon developer team + Quest builds', platform: 'Meta Horizon / Quest', timing: 'before_release', status: 'needs_input',
+      currentOwner: 'Current developer team and app owner — confirm', targetOwner: 'MXGenius developer team', handoffOwner: 'MXGenius team administrator and release manager — assign',
+      scope: 'Developer team, organization verification, members and roles, app ownership, release channels, Quest build uploads, store assets, signing material, test users, financial account, and support access.',
+      platformRequirement: 'Meta requires a developer team for app distribution and provides team members and roles in the Developer Dashboard. Confirm transfer support for the existing app before creating a replacement.',
+      companyControl: 'Use a company team, verified administrators, scoped release permissions, and a second person able to upload and manage builds.',
+      dependency: 'Identify the current team ID, app ID, owner/admins, Alpha channel, signing keys, package identity, and organization-verification state.',
+      nextStep: 'Add the MXGenius administrator, confirm the team/app ownership path with Meta support if needed, and prove an Alpha build can be uploaded and installed by the new release owner.',
+      success: 'The MXGenius team controls the Quest app, release channels, verification, signing, support, and financial settings with no personal-only dependency.',
+      helpUrl: 'https://developers.meta.com/horizon/resources/publish-account-management-intro/',
+      notes: 'Preserve the existing package/app identity and private Alpha path unless Meta confirms a safe transfer or replacement sequence.'
+    },
+    {
+      id: 'migration-vendors', name: 'Vendor, API + data subscription ownership', platform: 'External providers', timing: 'review', status: 'needs_input',
+      currentOwner: 'Current personal or project accounts — inventory', targetOwner: 'MXGenius contracts and company-managed identities', handoffOwner: 'Provider owner for each account — assign',
+      scope: 'JetNet, parts vendors, OEM portals, communications, analytics, AI/provider accounts, test services, licenses, API keys, support contracts, billing, and renewal contacts.',
+      platformRequirement: 'Each provider has its own contract, licensing, entitlement, and account-transfer rules. Some subscriptions may need a new company agreement rather than an ownership edit.',
+      companyControl: 'Separate shared business access from personal credentials; give each provider one named owner, one backup, an approved billing source, and a secret-rotation record.',
+      dependency: 'Use the Software list to identify every connected provider, then reconcile it against bank/card statements, password manager entries, source secrets, invoices, and support email.',
+      nextStep: 'Create one migration row per real provider account, add its portal/help URL, contract owner, renewal date, data export, transfer method, and validation step, then remove this catch-all row.',
+      success: 'Every paid or privileged external dependency is either company-owned, explicitly retired, or documented as non-transferable with a replacement plan.',
+      helpUrl: '',
+      notes: 'This is the completeness sweep for accounts not yet named. It should disappear once every provider has its own row.'
+    }
+  ];
+
   const state = { version: 0, document: null, dirty: false, saving: false, openItemId: null };
   const elements = {};
 
@@ -112,7 +225,7 @@
   function newId(prefix) { return globalThis.crypto?.randomUUID?.() || `${prefix}-${Date.now()}`; }
   function clean(value, length = 4000) { return String(value ?? '').slice(0, length); }
   function allowed(value, options, fallback) { return options.some(([key]) => key === value) ? value : fallback; }
-  function defaultDocument() { return { schema_version: 1, software: clone(starterSoftware), devices: clone(starterDevices), workflows: clone(starterWorkflows) }; }
+  function defaultDocument() { return { schema_version: 2, software: clone(starterSoftware), devices: clone(starterDevices), workflows: clone(starterWorkflows), migrations: clone(starterMigrations) }; }
 
   function normalizeSoftware(value) {
     const item = value && typeof value === 'object' ? value : {};
@@ -126,13 +239,18 @@
     const item = value && typeof value === 'object' ? value : {};
     return { id: clean(item.id || newId('workflow'), 100), name: clean(item.name || 'New process', 180), trigger: clean(item.trigger), inputs: clean(item.inputs), response: clean(item.response), approval: clean(item.approval), success: clean(item.success), owner: clean(item.owner || 'Unassigned', 120), need: allowed(item.need, NEED_OPTIONS, 'review'), status: allowed(item.status, STATUS_OPTIONS, 'needs_input'), example: clean(item.example) };
   }
+  function normalizeMigration(value) {
+    const item = value && typeof value === 'object' ? value : {};
+    return { id: clean(item.id || newId('migration'), 100), name: clean(item.name || 'New account or service migration', 180), platform: clean(item.platform, 160), timing: allowed(item.timing, MIGRATION_TIMING_OPTIONS, 'review'), status: allowed(item.status, MIGRATION_STATUS_OPTIONS, 'needs_input'), currentOwner: clean(item.currentOwner), targetOwner: clean(item.targetOwner), handoffOwner: clean(item.handoffOwner || 'Unassigned', 180), scope: clean(item.scope), platformRequirement: clean(item.platformRequirement), companyControl: clean(item.companyControl), dependency: clean(item.dependency), nextStep: clean(item.nextStep), success: clean(item.success), helpUrl: clean(item.helpUrl, 500), notes: clean(item.notes) };
+  }
   function normalizeDocument(value) {
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     return {
-      schema_version: 1,
+      schema_version: 2,
       software: Array.isArray(input.software) ? input.software.map(normalizeSoftware) : clone(starterSoftware),
       devices: Array.isArray(input.devices) ? input.devices.map(normalizeDevice) : clone(starterDevices),
-      workflows: Array.isArray(input.workflows) ? input.workflows.map(normalizeWorkflow) : clone(starterWorkflows)
+      workflows: Array.isArray(input.workflows) ? input.workflows.map(normalizeWorkflow) : clone(starterWorkflows),
+      migrations: Array.isArray(input.migrations) ? input.migrations.map(normalizeMigration) : clone(starterMigrations)
     };
   }
 
@@ -192,8 +310,12 @@
     return field;
   }
   function statusLabel(value) { return STATUS_OPTIONS.find(([key]) => key === value)?.[1] || 'Needs team input'; }
+  function migrationStatusLabel(value) { return MIGRATION_STATUS_OPTIONS.find(([key]) => key === value)?.[1] || 'Needs team input'; }
   function compactNeedLabel(value) {
     return { demo: 'First demo', v1: 'Version 1', future: 'Later', review: 'To decide' }[value] || 'To decide';
+  }
+  function compactMigrationTiming(value) {
+    return { now: 'Start now', before_funds: 'Before money moves', before_release: 'Before release', after_access: 'After access', review: 'Sequence to confirm' }[value] || 'Sequence to confirm';
   }
 
   function itemSummary(item, context) {
@@ -212,9 +334,9 @@
     );
     return summary;
   }
-  function itemActions(item, collection, rerender, url = '') {
+  function itemActions(item, collection, rerender, url = '', linkLabel = 'Open system URL ↗') {
     const actions = makeElement('div', 'item-actions');
-    const link = makeElement('a', '', 'Open system URL ↗');
+    const link = makeElement('a', '', linkLabel);
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     let validUrl = '';
@@ -305,6 +427,47 @@
     return details;
   }
 
+  function renderMigrationItem(item) {
+    const details = makeElement('details', 'check-item');
+    details.dataset.status = item.status;
+    details.open = state.openItemId === item.id;
+    const summary = document.createElement('summary');
+    const meta = makeElement('span', 'summary-meta');
+    meta.append(
+      makeElement('span', '', item.platform || 'Platform not set'),
+      makeElement('span', '', compactMigrationTiming(item.timing)),
+      makeElement('span', '', item.handoffOwner || 'Unassigned')
+    );
+    summary.append(
+      makeElement('span', 'check-mark', item.status === 'transferred' ? '✓' : '•'),
+      makeElement('span', 'summary-name', item.name),
+      meta,
+      makeElement('span', 'status-pill', migrationStatusLabel(item.status))
+    );
+    details.append(summary);
+    const form = makeElement('div', 'item-form');
+    form.append(
+      textField(item, 'name', 'Account, service, or server', { wide: true }),
+      textField(item, 'platform', 'Platform / provider'),
+      selectField(item, 'timing', 'When to start', MIGRATION_TIMING_OPTIONS),
+      selectField(item, 'status', 'Migration status', MIGRATION_STATUS_OPTIONS),
+      textField(item, 'currentOwner', 'Current owner / control', { multiline: true, wide: true, help: 'Use “confirm” where the legal, billing, tenant, or technical owner has not been verified.' }),
+      textField(item, 'targetOwner', 'MXGenius destination', { multiline: true, wide: true }),
+      textField(item, 'handoffOwner', 'Person responsible for the handoff', { wide: true, placeholder: 'Name or team' }),
+      textField(item, 'scope', 'What moves with it', { multiline: true, wide: true }),
+      textField(item, 'platformRequirement', 'What the platform requires', { multiline: true, wide: true }),
+      textField(item, 'companyControl', 'MXGenius safeguard', { multiline: true, wide: true, help: 'Internal separation, backup access, approval, or recovery controls—even when the platform does not require them.' }),
+      textField(item, 'dependency', 'What must happen first', { multiline: true, wide: true }),
+      textField(item, 'nextStep', 'Next owner action', { multiline: true, wide: true }),
+      textField(item, 'success', 'What proves the handoff is complete', { multiline: true, wide: true }),
+      textField(item, 'helpUrl', 'Official help URL', { type: 'url', placeholder: 'https://…' }),
+      textField(item, 'notes', 'Risks, rollback, authentication, or open questions', { multiline: true, full: true }),
+      itemActions(item, state.document.migrations, renderAll, item.helpUrl, 'Open official help ↗')
+    );
+    details.append(form);
+    return details;
+  }
+
   function renderList(target, items, renderer) {
     target.replaceChildren();
     if (!items.length) {
@@ -314,10 +477,11 @@
     items.forEach((item, index) => target.append(renderer(item, index)));
   }
   function renderSummary() {
-    const collections = [state.document.software, state.document.devices, state.document.workflows];
+    const collections = [state.document.software, state.document.devices, state.document.workflows, state.document.migrations];
     elements.softwareTotal.textContent = collections[0].length;
     elements.deviceTotal.textContent = collections[1].length;
     elements.workflowTotal.textContent = collections[2].length;
+    elements.migrationTotal.textContent = collections[3].length;
     elements.openTotal.textContent = collections.flat().filter((item) => item.status === 'needs_input' || item.status === 'access_needed').length;
   }
   function renderAll() {
@@ -325,6 +489,7 @@
     renderList(elements.softwareList, state.document.software, renderSoftwareItem);
     renderList(elements.deviceList, state.document.devices, renderDeviceItem);
     renderList(elements.workflowList, state.document.workflows, renderWorkflowItem);
+    renderList(elements.migrationList, state.document.migrations, renderMigrationItem);
     renderSummary();
   }
 
@@ -384,8 +549,8 @@
     elements.save.disabled = true;
     setSaveState('Saving shared checklist…', 'saving');
     try {
-      const allItems = [...state.document.software, ...state.document.devices, ...state.document.workflows];
-      const status = allItems.length && allItems.every((item) => item.status === 'proven') ? 'review_complete' : 'collecting';
+      const allItems = [...state.document.software, ...state.document.devices, ...state.document.workflows, ...state.document.migrations];
+      const status = allItems.length && allItems.every((item) => item.status === 'proven' || item.status === 'transferred') ? 'review_complete' : 'collecting';
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.save(
         WORKSPACE_KEY,
         { title: WORKSPACE_TITLE, status, expectedVersion: state.version, document: state.document },
@@ -411,12 +576,16 @@
     const item = normalizeWorkflow({ id: newId('workflow'), name: 'New aviation process', status: 'needs_input', need: 'review', owner: 'Unassigned' });
     state.document.workflows.unshift(item); state.openItemId = item.id; document.getElementById('outputs').open = true; setDirty(); renderAll(); document.getElementById('outputs')?.scrollIntoView({ behavior: 'smooth' });
   }
+  function addMigration() {
+    const item = normalizeMigration({ id: newId('migration'), name: 'New account or service migration', status: 'needs_input', timing: 'review', handoffOwner: 'Unassigned' });
+    state.document.migrations.unshift(item); state.openItemId = item.id; document.getElementById('migration').open = true; setDirty(); renderAll(); document.getElementById('migration')?.scrollIntoView({ behavior: 'smooth' });
+  }
   function collectElements() {
     Object.assign(elements, {
       saveState: document.getElementById('readinessSaveState'), save: document.getElementById('readinessSave'), reload: document.getElementById('readinessReload'),
-      softwareList: document.getElementById('softwareList'), deviceList: document.getElementById('deviceList'), workflowList: document.getElementById('workflowList'),
-      softwareTotal: document.getElementById('softwareTotal'), deviceTotal: document.getElementById('deviceTotal'), workflowTotal: document.getElementById('workflowTotal'), openTotal: document.getElementById('openTotal'),
-      addSoftware: document.getElementById('addSoftware'), addDevice: document.getElementById('addDevice'), addWorkflow: document.getElementById('addWorkflow'), emptyTemplate: document.getElementById('emptyStateTemplate')
+      softwareList: document.getElementById('softwareList'), deviceList: document.getElementById('deviceList'), workflowList: document.getElementById('workflowList'), migrationList: document.getElementById('migrationList'),
+      softwareTotal: document.getElementById('softwareTotal'), deviceTotal: document.getElementById('deviceTotal'), workflowTotal: document.getElementById('workflowTotal'), migrationTotal: document.getElementById('migrationTotal'), openTotal: document.getElementById('openTotal'),
+      addSoftware: document.getElementById('addSoftware'), addDevice: document.getElementById('addDevice'), addWorkflow: document.getElementById('addWorkflow'), addMigration: document.getElementById('addMigration'), emptyTemplate: document.getElementById('emptyStateTemplate')
     });
   }
   function boot() {
@@ -426,6 +595,7 @@
     elements.addSoftware.addEventListener('click', addSoftware);
     elements.addDevice.addEventListener('click', addDevice);
     elements.addWorkflow.addEventListener('click', addWorkflow);
+    elements.addMigration.addEventListener('click', addMigration);
     globalThis.addEventListener('beforeunload', (event) => { if (!state.dirty) return; event.preventDefault(); event.returnValue = ''; });
     loadChecklist();
   }

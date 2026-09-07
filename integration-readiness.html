@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Integration Readiness · MXGenius</title>
-  <meta name="description" content="Shared MXGenius software, device, and aviation workflow checklist">
-  <link rel="stylesheet" href="integration-readiness.css?v=2">
+  <meta name="description" content="Shared MXGenius software, device, aviation workflow, and migration checklist">
+  <link rel="stylesheet" href="integration-readiness.css?v=3">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
 </head>
@@ -28,20 +28,22 @@
       <div class="intro-copy">
         <p class="eyebrow">Shared planning guide</p>
         <h1 id="readinessTitle">Integration readiness</h1>
-        <p>Three short lists to shape the first MXGenius demo together.</p>
+        <p>Four short lists to shape the demo and company handoff together.</p>
       </div>
       <div class="readiness-summary" aria-label="Checklist summary">
         <div><strong id="softwareTotal">0</strong><span>Systems</span></div>
         <div><strong id="deviceTotal">0</strong><span>Devices</span></div>
         <div><strong id="workflowTotal">0</strong><span>Processes</span></div>
+        <div><strong id="migrationTotal">0</strong><span>Transfers</span></div>
         <div><strong id="openTotal">0</strong><span>Open</span></div>
       </div>
     </section>
 
-    <section class="guide-steps" aria-label="Three-step integration guide">
+    <section class="guide-steps" aria-label="Four-part readiness guide">
       <a href="#software"><span>1</span><strong>Connect</strong><small>Systems MXGenius needs</small></a>
       <a href="#devices"><span>2</span><strong>Read</strong><small>Tools the box listens to</small></a>
       <a href="#outputs"><span>3</span><strong>Respond</strong><small>Answers the team expects</small></a>
+      <a href="#migration"><span>4</span><strong>Transfer</strong><small>Accounts under MXGenius</small></a>
     </section>
 
     <details class="available-disclosure">
@@ -131,6 +133,34 @@
         <div id="workflowList" class="item-list"></div>
       </div>
     </details>
+
+    <details id="migration" class="checklist-section">
+      <summary class="section-heading">
+        <div>
+          <p class="eyebrow">04 · Transfer</p>
+          <h2 id="migrationTitle">Migration</h2>
+          <p>What must move under MXGenius?</p>
+        </div>
+        <span class="disclosure-cue">Show list</span>
+      </summary>
+      <div class="section-body">
+        <div class="section-actions">
+          <p>Move company accounts and services without losing access, builds, or records.</p>
+          <button id="addMigration" class="button button--add" type="button">+ Add migration</button>
+        </div>
+
+        <details class="supporting-disclosure migration-guide">
+          <summary>How to use this list</summary>
+          <div class="migration-guide-copy">
+            <p><strong>Access first.</strong> Add and test another company operator before changing ownership.</p>
+            <p><strong>Then transfer.</strong> Record the account, data, builds, secrets, billing, and rollback path.</p>
+            <p><strong>Prove the handoff.</strong> The new owner operates it while the original setup remains recoverable.</p>
+          </div>
+        </details>
+
+        <div id="migrationList" class="item-list"></div>
+      </div>
+    </details>
   </main>
 
   <template id="emptyStateTemplate">
@@ -140,6 +170,6 @@
   <script src="runtime-config.js?v=3"></script>
   <script src="auth.js?v=12"></script>
   <script src="application-client.js?v=39"></script>
-  <script src="integration-readiness.js?v=2"></script>
+  <script src="integration-readiness.js?v=3"></script>
 </body>
 </html>
