@@ -1,6 +1,6 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated — all local and Azure pre-deployment gates passed on 2026-09-07
+Status: Deployed — commit `5c95104` promoted and live checks passed on 2026-09-07
 
 ## UI Sound Hot Swap Delta — 2026-09-07
 
@@ -91,6 +91,24 @@ candidate:
 - Preserve `mxg-core--spatialwitness-7cadceb` and image
   `mxg-core:spatial-witness-7cadceb-20260903` as the rollback target. Do not
   delete any image, revision, resource, Blob, secret, role, or data.
+
+### Deployment proof
+
+- Git commit `5c951042bbe85ef80ee2df79988bcf6dedab5d84` was pushed to shared
+  `main`; GitHub Pages workflow run `34158265538` passed its frontend, Rust,
+  assembly, artifact, and deploy jobs.
+- ACR run `cj23` published
+  `mxg-core:ui-sounds-5c95104-20260907` with digest
+  `sha256:b638414a815c28d084df340b06cec30da8301ba2a7184aab3e85ec45673ea063`.
+- Container App revision `mxg-core--uisounds5c95104` became Healthy and
+  latest-ready with 100% Single-mode traffic and min 1/max 1 replicas.
+- Live `/healthz`, `/readyz`, and `/adapterz` returned 200. Anonymous UI-sound
+  reads and room creation returned 401, while an invented 7-digit PIN returned
+  the bounded `WITNESS_NOT_FOUND` 404 response.
+- The published site exposes the 27-cue Interface Sounds card, case-image
+  intake, launch-gated dashboard splash, and temporary no-account 7-digit PIN
+  guest page. A live browser pass confirmed a direct dashboard load does not
+  display the splash.
 
 ## Spatial Target + Remote Witness Alpha 21 Delta — 2026-09-03
 
