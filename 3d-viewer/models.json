@@ -28,7 +28,7 @@
   },
   {
     "file": "models/ElectricalTester_v1.glb",
-    "name": "Electrical Tester",
+    "name": "Digital Electrical Tester",
     "type": "apparatus_component",
     "lod": "source",
     "revision": "v1",
@@ -37,7 +37,8 @@
     "collection": "Local model set",
     "sizeBytes": 6148828,
     "quickAccess": true,
-    "operationalStatus": "demo_asset"
+    "operationalStatus": "demo_asset",
+    "description": "Digital electrical tester model for instrument placement, inspection, and headset interaction demos."
   },
   {
     "file": "models/FLIRThermalCamera_v1.glb",
@@ -55,7 +56,7 @@
   },
   {
     "file": "models/PowerToolBattery_v1.glb",
-    "name": "Power Tool Battery",
+    "name": "DeWalt Power Tool Battery",
     "type": "apparatus_component",
     "lod": "source",
     "revision": "v1",
@@ -64,7 +65,8 @@
     "collection": "Local model set",
     "sizeBytes": 6427888,
     "quickAccess": true,
-    "operationalStatus": "demo_asset"
+    "operationalStatus": "demo_asset",
+    "description": "DeWalt power tool battery model for MXGenius power-system fit and headset interaction demos."
   },
   {
     "file": "models/SingleBoardComputer_Prototype_v1.glb",
