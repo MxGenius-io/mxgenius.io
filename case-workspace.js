@@ -241,12 +241,14 @@ const MXCaseWorkspace = (() => {
 
     const select = byId('caseExistingSelect');
     const markerButton = byId('caseMarkerButton');
+    const markerSection = byId('caseMarkerSection');
     const partSelection = byId('casePartSelection');
     const markerControls = byId('caseMarkerControls');
     const result = byId('caseWorkspaceResult');
 
     if (select) select.value = '';
     if (markerButton) markerButton.disabled = true;
+    if (markerSection) markerSection.hidden = true;
     if (partSelection) {
       partSelection.textContent = '';
       partSelection.hidden = true;
@@ -258,6 +260,30 @@ const MXCaseWorkspace = (() => {
     }
     if (announce) setStatus('Default view. Select a case or open New maintenance case.', 'idle');
     if (dispatch) globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: null }));
+  }
+
+  function openCaseIntakePanel() {
+    const panel = byId('caseIntakePanel');
+    if (!panel || panel.open) return;
+    panel.classList.remove('is-closing');
+    panel.showModal();
+    byId('woReg')?.focus();
+  }
+
+  function closeCaseIntakePanel({ focusId = 'caseIntakeOpenButton' } = {}) {
+    const panel = byId('caseIntakePanel');
+    if (!panel?.open || panel.classList.contains('is-closing')) return;
+    panel.classList.add('is-closing');
+    let closed = false;
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      panel.classList.remove('is-closing');
+      panel.close();
+      if (focusId) byId(focusId)?.focus();
+    };
+    panel.addEventListener('animationend', finish, { once: true });
+    globalThis.setTimeout(finish, 240);
   }
 
   async function loadExistingCases() {
@@ -472,7 +498,9 @@ const MXCaseWorkspace = (() => {
         : `Case ${result.caseId} is live${caseImage ? ' with its image attached' : ''}.`, imageWarning ? 'error' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
       await loadExistingCases();
+      form.reset();
       resetIntakeImage();
+      closeCaseIntakePanel({ focusId: 'caseExistingSelect' });
     } catch (error) {
       setStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
     } finally {
@@ -484,6 +512,19 @@ const MXCaseWorkspace = (() => {
     byId('caseIntakeForm')?.addEventListener('submit', submit);
     byId('caseImage')?.addEventListener('change', updateIntakeImageSelection);
     byId('caseImageRemove')?.addEventListener('click', resetIntakeImage);
+    byId('caseIntakeOpenButton')?.addEventListener('click', openCaseIntakePanel);
+    byId('caseIntakeCloseButton')?.addEventListener('click', () => closeCaseIntakePanel());
+    byId('caseIntakePanel')?.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeCaseIntakePanel();
+    });
+    byId('caseIntakePanel')?.addEventListener('click', (event) => {
+      const panel = event.currentTarget;
+      const bounds = panel.getBoundingClientRect();
+      const outsidePanel = event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom;
+      if (outsidePanel) closeCaseIntakePanel();
+    });
     byId('caseExistingSelect')?.addEventListener('change', (event) => {
       if (!event.currentTarget.value) {
         clearActiveCase();
@@ -497,7 +538,9 @@ const MXCaseWorkspace = (() => {
       const target = byId('casePartSelection');
       const controls = byId('caseMarkerControls');
       const markerButton = byId('caseMarkerButton');
+      const markerSection = byId('caseMarkerSection');
       if (!target || !selection) return;
+      if (markerSection) markerSection.hidden = false;
       target.hidden = false;
       controls.hidden = false;
       activeTwinSelection = selection;

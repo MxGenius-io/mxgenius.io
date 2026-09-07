@@ -299,8 +299,12 @@ test('known POC-only data and loaders are absent', () => {
 
 test('maintenance case workspace is mounted through the canonical client boundary', () => {
   assert.match(dashboard, /id="caseIntakeForm"/);
-  assert.match(dashboard, /<details id="caseIntakeDisclosure" class="case-intake">[\s\S]*<summary class="case-intake__head">[\s\S]*<form id="caseIntakeForm"/);
-  assert.doesNotMatch(dashboard, /<details id="caseIntakeDisclosure"[^>]*\sopen(?:\s|>)/);
+  assert.match(dashboard, /id="caseIntakeOpenButton"[^>]*aria-haspopup="dialog"[\s\S]*<dialog id="caseIntakePanel" class="case-intake-panel"[\s\S]*<form id="caseIntakeForm"/);
+  assert.match(dashboard, /<form id="caseIntakeForm"[\s\S]*id="casePartSelection"[\s\S]*id="caseMarkerControls"/);
+  assert.doesNotMatch(dashboard, /caseIntakeDisclosure|<details[^>]*class="case-intake"/);
+  assert.match(caseWorkspace, /panel\.showModal\(\)/);
+  assert.match(caseWorkspace, /panel\.classList\.add\('is-closing'\)[\s\S]*panel\.close\(\)/);
+  assert.match(caseWorkspace, /caseIntakePanel'\)\?\.addEventListener\('cancel'/);
   assert.doesNotMatch(dashboard, /id="work-order-panel"/);
   assert.doesNotMatch(application, /setupWorkOrderPanel|<workorder>/i);
   assert.match(dashboard, /id="caseWorkspaceResult"/);

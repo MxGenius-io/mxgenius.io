@@ -12,7 +12,7 @@
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
   <link rel="stylesheet" href="app-styles.css?v=11">
-  <link rel="stylesheet" href="case-workspace.css?v=11">
+  <link rel="stylesheet" href="case-workspace.css?v=12">
   <link rel="stylesheet" href="parts-workspace.css?v=19">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=9">
@@ -377,28 +377,24 @@
       </div>
       <div class="case-tab__workspace case-workspace" id="caseWorkspaceContent">
         <div id="caseWorkspaceStatus" class="case-workspace__status case-workspace__status--sr-only" role="status" aria-live="polite"></div>
-        <div id="casePartSelection" class="case-workspace__status" hidden></div>
-        <div id="caseMarkerControls" class="case-workspace__actions" hidden>
-          <label for="caseMarkerSeverity">Marker severity</label>
-          <select id="caseMarkerSeverity"><option value="info">Info</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
-          <button id="caseMarkerButton" type="button" disabled>Attach case marker</button>
-        </div>
         <div class="case-workspace__actions case-existing-toolbar" id="caseExistingControls">
           <label for="caseExistingSelect">Case history</label>
           <select id="caseExistingSelect">
             <option value="">Loading cases…</option>
           </select>
           <button id="caseClearButton" type="button" aria-label="Clear active maintenance case" title="Return to the default case view">Clear</button>
+          <button id="caseIntakeOpenButton" type="button" aria-haspopup="dialog" aria-controls="caseIntakePanel">New case</button>
         </div>
-        <details id="caseIntakeDisclosure" class="case-intake">
-          <summary class="case-intake__head">
+        <div id="caseWorkspaceResult" class="case-workspace__result" hidden></div>
+        <dialog id="caseIntakePanel" class="case-intake-panel" aria-labelledby="caseIntakeTitle">
+          <header class="case-intake-panel__header">
             <div>
               <span>New maintenance case</span>
-              <h2>Record what was observed</h2>
+              <h2 id="caseIntakeTitle">Record what was observed</h2>
               <p>Start with the aircraft and the discrepancy. Diagnosis, evidence, and approvals stay connected from here.</p>
             </div>
-            <span class="case-intake__toggle" aria-hidden="true">⌄</span>
-          </summary>
+            <button id="caseIntakeCloseButton" type="button" aria-label="Close new maintenance case panel">&times;</button>
+          </header>
           <form id="caseIntakeForm" class="case-intake__body">
             <div class="case-workspace__grid">
               <div class="form-group"><label for="woReg">Aircraft registration</label><input name="registration" type="text" id="woReg" placeholder="e.g. N12345" required maxlength="32"></div>
@@ -416,10 +412,17 @@
                 <small>JPG, PNG, or WebP up to 50 MB. It will stay with the case evidence.</small>
               </div>
             </div>
+            <section id="caseMarkerSection" class="case-intake-panel__marker" aria-label="Case marker" hidden>
+              <div id="casePartSelection" class="case-workspace__status" hidden></div>
+              <div id="caseMarkerControls" class="case-workspace__actions" hidden>
+                <label for="caseMarkerSeverity">Marker severity</label>
+                <select id="caseMarkerSeverity"><option value="info">Info</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
+                <button id="caseMarkerButton" type="button" disabled>Attach case marker</button>
+              </div>
+            </section>
             <div class="case-workspace__actions"><button class="btn-email-invoice" id="caseCreateButton" type="submit">Create maintenance case</button></div>
           </form>
-        </details>
-        <div id="caseWorkspaceResult" class="case-workspace__result" hidden></div>
+        </dialog>
       </div>
     </section>
 
@@ -810,7 +813,7 @@
   <script src="xr-target-context.js?v=2"></script>
   <script src="spatial-commands.js?v=1"></script>
   <script src="realtime-client.js?v=7"></script>
-  <script src="case-workspace.js?v=12"></script>
+  <script src="case-workspace.js?v=13"></script>
   <script src="parts-workspace.js?v=24"></script>
   <script src="capability-workbench.js?v=5"></script>
   <script src="guided-tooltip.js?v=9"></script>
