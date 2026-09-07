@@ -69,6 +69,48 @@
     "description": "DeWalt power tool battery model for MXGenius power-system fit and headset interaction demos."
   },
   {
+    "file": "models/DeWaltChargingStation_v1.glb",
+    "name": "DeWalt Charging Station",
+    "type": "apparatus_component",
+    "lod": "source",
+    "revision": "v1",
+    "provider": "workspace",
+    "sourceAuthority": "MXGenius",
+    "collection": "Local model set",
+    "sizeBytes": 44467700,
+    "quickAccess": true,
+    "operationalStatus": "demo_asset",
+    "description": "DeWalt charging station model for MXGenius power-system layout and headset interaction demos."
+  },
+  {
+    "file": "models/PiPowerConverter_v1.glb",
+    "name": "Raspberry Pi Power Converter",
+    "type": "apparatus_component",
+    "lod": "source",
+    "revision": "v1",
+    "provider": "workspace",
+    "sourceAuthority": "MXGenius",
+    "collection": "Local model set",
+    "sizeBytes": 30570468,
+    "quickAccess": true,
+    "operationalStatus": "demo_asset",
+    "description": "Raspberry Pi power-converter model for MXGenius enclosure layout and headset interaction demos."
+  },
+  {
+    "file": "models/HardCase_v1.glb",
+    "name": "MXGenius Hard Case",
+    "type": "apparatus",
+    "lod": "source",
+    "revision": "v1",
+    "provider": "workspace",
+    "sourceAuthority": "MXGenius",
+    "collection": "Local model set",
+    "sizeBytes": 30144696,
+    "quickAccess": true,
+    "operationalStatus": "demo_asset",
+    "description": "Hard-case enclosure model for MXGenius component layout and headset interaction demos."
+  },
+  {
     "file": "models/SingleBoardComputer_Prototype_v1.glb",
     "name": "Single-Board Computer Prototype",
     "type": "apparatus_component",
