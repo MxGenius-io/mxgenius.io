@@ -182,12 +182,14 @@ const MXApplicationClient = (() => {
     method = 'GET',
     body,
     contentType = 'application/json',
-    headers: extraHeaders = {}
+    headers: extraHeaders = {},
+    cache = 'default'
   } = {}) {
     const response = await fetch(`${MCP_BASE}${path}`, {
       method,
       headers: { ...applicationHeaders(session, contentType), ...extraHeaders },
       credentials: 'include',
+      cache,
       signal: session.signal,
       body: body === undefined ? undefined : (contentType === 'application/json' ? JSON.stringify(body) : body)
     });
@@ -373,7 +375,8 @@ const MXApplicationClient = (() => {
   async function getProfileImage(session = {}) {
     return (await applicationRequest('/api/profile/image', {
       session,
-      contentType: null
+      contentType: null,
+      cache: 'no-store'
     })).blob();
   }
 

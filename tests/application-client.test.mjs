@@ -462,12 +462,15 @@ test('server persistence clients keep threads cases and profiles behind applicat
   await client.threads.create({ title: 'Hydraulics', caseId: 'case-1', session });
   await client.threads.update('thread-1', { title: 'Hydraulics follow-up' }, session);
   await client.threads.messages('thread-1', session);
+  await client.profile.get(session);
   await client.profile.update({
     displayName: 'MX User',
     timezone: 'America/New_York',
     settings: { compactMode: true }
   }, session);
   await client.profile.putImage(new Blob(['image'], { type: 'image/png' }), session);
+  await client.profile.getImage(session);
+  await client.profile.deleteImage(session);
   await client.digitalTwin.saveHighlight({
     modelId: 'model-1',
     meshId: 'mesh-1',
@@ -482,14 +485,18 @@ test('server persistence clients keep threads cases and profiles behind applicat
       ['/api/threads', 'POST'],
       ['/api/threads/thread-1', 'PATCH'],
       ['/api/threads/thread-1/messages', 'GET'],
+      ['/api/profile', 'GET'],
       ['/api/profile', 'PATCH'],
       ['/api/profile/image', 'PUT'],
+      ['/api/profile/image', 'GET'],
+      ['/api/profile/image', 'DELETE'],
       ['/api/digital-twin/highlight', 'PUT']
     ]
   );
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
   assert.equal(requests[2].request.case_id, 'case-1');
-  assert.equal(requests[5].request.settings.compactMode, true);
+  assert.equal(requests[6].request.settings.compactMode, true);
+  assert.equal(requests[8].options.cache, 'no-store');
 });
 
 test('beta access rules use the authenticated server boundary instead of browser storage', async () => {

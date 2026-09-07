@@ -2857,8 +2857,8 @@ function initSettings() {
   settingsTab.dataset.initialized = 'true';
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Account card Ã¢â€â‚¬Ã¢â€â‚¬
-  const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
-  const acct = session.account || window.MXGENIUS_AUTH?.account?.() || null;
+  const initialSession = window.MXGENIUS_CONFIG?.getSession?.() || {};
+  const acct = initialSession.account || window.MXGENIUS_AUTH?.account?.() || null;
   const nameEl = document.getElementById('settingsAccountName');
   const emailEl = document.getElementById('settingsAccountEmail');
   const orgEl = document.getElementById('settingsAccountOrg');
@@ -2878,12 +2878,42 @@ function initSettings() {
   const textModelSelect = document.getElementById('settingsTextModel');
   const workspaceSelect = document.getElementById('settingsWorkspaceSelect');
   const workspaceOpen = document.getElementById('settingsWorkspaceOpen');
-  const serverSession = {
-    accessToken: session.accessToken,
-    organizationId: session.organizationId,
-    correlationId: window.crypto?.randomUUID?.()
-  };
   let profileImageObjectUrl = null;
+
+  async function settingsSession({ forceRefresh = false } = {}) {
+    await Promise.resolve(window.MXGENIUS_CONFIG?.ready);
+    const refreshedAccessToken = window.MXGENIUS_AUTH?.getToken
+      ? await window.MXGENIUS_AUTH.getToken({ forceRefresh })
+      : '';
+    const configured = window.MXGENIUS_CONFIG?.getSession?.() || {};
+    const accessToken = refreshedAccessToken || configured.accessToken;
+    if (!accessToken && !window.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      const error = new Error('Your sign-in needs to be renewed.');
+      error.code = 'AUTH_REQUIRED';
+      throw error;
+    }
+    return {
+      ...configured,
+      accessToken,
+      correlationId: window.crypto?.randomUUID?.()
+    };
+  }
+
+  function settingsAuthenticationError(error) {
+    return ['AUTH_REQUIRED', 'ACCESS_DENIED'].includes(String(error?.code || ''))
+      || error?.status === 401;
+  }
+
+  async function withSettingsSession(operation) {
+    let requestSession = await settingsSession();
+    try {
+      return await operation(requestSession);
+    } catch (error) {
+      if (!settingsAuthenticationError(error) || window.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+      requestSession = await settingsSession({ forceRefresh: true });
+      return operation(requestSession);
+    }
+  }
 
   workspaceOpen?.addEventListener('click', () => {
     const destination = workspaceSelect?.value;
@@ -2895,12 +2925,12 @@ function initSettings() {
     if (nameEl) nameEl.textContent = displayName;
     if (emailEl) emailEl.textContent = acct.username || '';
     if (orgEl) orgEl.textContent = acct.tenantId ? `Tenant: ${acct.tenantId.substring(0, 8)}...` : '';
-    if (orgIdEl) orgIdEl.textContent = session.organizationId || acct.tenantId || '-';
+    if (orgIdEl) orgIdEl.textContent = initialSession.organizationId || acct.tenantId || '-';
     if (avatarEl) {
       const initials = displayName.split(' ').map(w => w[0]).join('').substring(0, 2);
       avatarEl.textContent = initials;
     }
-    if (statusEl) statusEl.textContent = session.accessToken ? 'Active - token valid' : 'Token expired';
+    if (statusEl) statusEl.textContent = 'Checking session…';
   } else {
     if (nameEl) nameEl.textContent = 'Not signed in';
     if (statusEl) statusEl.textContent = 'No session';
@@ -2925,8 +2955,9 @@ function initSettings() {
     avatarEl.textContent = displayName.split(' ').map(word => word[0]).join('').substring(0, 2);
   };
 
-  if (session.accessToken) {
-    void Promise.resolve().then(() => MXApplicationClient.profile.get(serverSession)).then(async (profile) => {
+  if (acct) {
+    void withSettingsSession((requestSession) => MXApplicationClient.profile.get(requestSession)).then(async (profile) => {
+      if (statusEl) statusEl.textContent = 'Active - token valid';
       if (profile.display_name && nameEl) nameEl.textContent = profile.display_name;
       if (profile.email && emailEl) emailEl.textContent = profile.email;
       const settings = profile.settings || {};
@@ -2975,9 +3006,15 @@ function initSettings() {
         textModelSelect.value = settings.textModel;
       }
       if (profile.image_url) {
-        try { applyProfileImage(await MXApplicationClient.profile.getImage(serverSession)); } catch (_) {}
+        try {
+          applyProfileImage(await withSettingsSession((requestSession) => MXApplicationClient.profile.getImage(requestSession)));
+          if (profileImageStatus) profileImageStatus.textContent = 'Profile image saved';
+        } catch (error) {
+          if (profileImageStatus) profileImageStatus.textContent = error.message;
+        }
       }
     }).catch((error) => {
+      if (statusEl && settingsAuthenticationError(error)) statusEl.textContent = 'Sign-in renewal required';
       console.warn('[MXGenius] Server profile unavailable:', error.message);
     });
   }
@@ -2988,7 +3025,7 @@ function initSettings() {
     if (!file) return;
     if (profileImageStatus) profileImageStatus.textContent = 'Uploading...';
     try {
-      await MXApplicationClient.profile.putImage(file, serverSession);
+      await withSettingsSession((requestSession) => MXApplicationClient.profile.putImage(file, requestSession));
       applyProfileImage(file);
       if (profileImageStatus) profileImageStatus.textContent = 'Profile image saved';
     } catch (error) {
@@ -2999,7 +3036,7 @@ function initSettings() {
   });
   profileImageRemove?.addEventListener('click', async () => {
     try {
-      await MXApplicationClient.profile.deleteImage(serverSession);
+      await withSettingsSession((requestSession) => MXApplicationClient.profile.deleteImage(requestSession));
       clearProfileImage();
       if (profileImageStatus) profileImageStatus.textContent = 'Profile image removed';
     } catch (error) {
@@ -3018,7 +3055,7 @@ function initSettings() {
     contentUploadChoose.disabled = true;
     if (contentUploadStatus) contentUploadStatus.textContent = `Uploading ${file.name}...`;
     try {
-      const result = await MXApplicationClient.content.upload(file, serverSession);
+      const result = await withSettingsSession((requestSession) => MXApplicationClient.content.upload(file, requestSession));
       if (contentUploadStatus) {
         contentUploadStatus.textContent = `${result.filename} stored for ingestion`;
       }
@@ -3032,10 +3069,10 @@ function initSettings() {
 
   let profileSaveTimer = null;
   const scheduleServerProfileSave = () => {
-    if (!session.accessToken) return;
+    if (!acct && !window.MXGENIUS_CONFIG?.allowInsecurePilot) return;
     clearTimeout(profileSaveTimer);
     profileSaveTimer = setTimeout(() => {
-      void MXApplicationClient.profile.update({
+      void withSettingsSession((requestSession) => MXApplicationClient.profile.update({
         displayName: nameEl?.textContent || acct?.name || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
         settings: {
@@ -3047,7 +3084,7 @@ function initSettings() {
           theme: localStorage.getItem('mx_theme'),
           textModel: localStorage.getItem('mx_textModel') || 'gpt-5.4-mini'
         }
-      }, serverSession).catch((error) => {
+      }, requestSession)).catch((error) => {
         console.warn('[MXGenius] Server profile save failed:', error.message);
       });
     }, 500);

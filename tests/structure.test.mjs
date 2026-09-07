@@ -433,7 +433,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=52/);
+  assert.match(dashboard, /app\.js\?v=53/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -566,8 +566,8 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
   assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=2'/);
   assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=2'/);
-  assert.match(viewer, /application-client\.js\?v=40[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
-  assert.match(globeVr, /application-client\.js\?v=40[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(viewer, /application-client\.js\?v=41[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(globeVr, /application-client\.js\?v=41[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
   assert.match(globeVr, /id="sceneSoundButton"/);
   assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
   assert.match(globeVr, /function emitSceneAction\(/);
@@ -978,7 +978,7 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(client, /uiSounds: Object\.freeze/);
   assert.match(xrUiAudio, /id: 'SND-001'/);
   assert.match(xrUiAudio, /MXGeniusSoundStorage/);
-  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=40"></script>');
+  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=41"></script>');
   const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
@@ -987,6 +987,18 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(applicationStyles, /\.settings-sound-families\s*\{[\s\S]*max-height: min\(58vh, 560px\);[\s\S]*overflow-y: auto;/);
   assert.match(applicationStyles, /\.settings-sound-families:focus-visible/);
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
+});
+
+test('Settings profile and image persistence use the current shared auth session', () => {
+  assert.match(application, /async function settingsSession\(\{ forceRefresh = false \} = \{\}\)/);
+  assert.match(application, /MXGENIUS_AUTH\?\.getToken[\s\S]{0,100}getToken\(\{ forceRefresh \}\)/);
+  assert.match(application, /async function withSettingsSession\(operation\)/);
+  assert.match(application, /settingsSession\(\{ forceRefresh: true \}\)/);
+  assert.match(application, /profile\.getImage\(requestSession\)/);
+  assert.match(application, /profile\.putImage\(file, requestSession\)/);
+  assert.match(application, /profile\.deleteImage\(requestSession\)/);
+  assert.match(client, /getProfileImage[\s\S]*cache: 'no-store'/);
+  assert.doesNotMatch(application, /if \(session\.accessToken\) \{[\s\S]{0,120}profile\.get/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {
