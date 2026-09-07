@@ -863,7 +863,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
   assert.match(dashboard, /guided-tooltip\.css\?v=5/);
-  assert.match(dashboard, /onboarding\.css\?v=4/);
+  assert.match(dashboard, /onboarding\.css\?v=5/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /MXDashboardSplash\?\.ready/);
@@ -891,6 +891,11 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.doesNotMatch(onboarding, /placeHotspots|onboarding-hotspot/);
   assert.doesNotMatch(onboardingStyles, /\.onboarding-hotspot/);
   assert.match(onboardingStyles, /\.onboarding-welcome/);
+  assert.match(onboardingStyles, /height: 100dvh/);
+  assert.match(onboardingStyles, /env\(safe-area-inset-bottom/);
+  assert.match(onboardingStyles, /max-height: 100%/);
+  assert.match(onboardingStyles, /overflow-y: auto/);
+  assert.match(onboardingStyles, /align-items: flex-start/);
   assert.match(guidedTooltip, /document\.createElement\('video'\)/);
   assert.match(guidedTooltip, /document\.createElement\('audio'\)/);
   assert.match(guidedTooltip, /track\.kind = 'captions'/);
