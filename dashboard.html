@@ -12,7 +12,7 @@
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
   <link rel="stylesheet" href="app-styles.css?v=11">
-  <link rel="stylesheet" href="case-workspace.css?v=9">
+  <link rel="stylesheet" href="case-workspace.css?v=10">
   <link rel="stylesheet" href="parts-workspace.css?v=19">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=9">
@@ -391,32 +391,35 @@
           <button id="caseOpenButton" type="button" disabled>View case</button>
           <button id="caseRefreshButton" type="button" aria-label="Refresh maintenance cases" title="Refresh maintenance cases">Refresh</button>
         </div>
-        <form id="caseIntakeForm" class="case-intake">
-          <div class="case-intake__head">
+        <details id="caseIntakeDisclosure" class="case-intake">
+          <summary class="case-intake__head">
             <div>
               <span>New maintenance case</span>
               <h2>Record what was observed</h2>
               <p>Start with the aircraft and the discrepancy. Diagnosis, evidence, and approvals stay connected from here.</p>
             </div>
-          </div>
-          <div class="case-workspace__grid">
-            <div class="form-group"><label for="woReg">Aircraft registration</label><input name="registration" type="text" id="woReg" placeholder="e.g. N12345" required maxlength="32"></div>
-            <div class="form-group"><label for="casePriority">Priority</label><select name="priority" id="casePriority"><option value="routine">Routine</option><option value="deferred">Deferred</option><option value="urgent">Urgent</option><option value="aog">AOG</option></select></div>
-            <div class="form-group form-group--wide"><label for="woDesc">Observed discrepancy</label><textarea name="discrepancy" id="woDesc" rows="5" placeholder="Describe the observed condition without diagnosing it." required maxlength="10000"></textarea></div>
-            <div class="form-group form-group--wide case-image-field">
-              <label for="caseImage">Case image <span>Optional</span></label>
-              <div class="case-image-picker">
-                <label class="case-image-picker__button" for="caseImage">Choose image</label>
-                <input name="caseImage" id="caseImage" type="file" accept="image/jpeg,image/png,image/webp">
-                <button id="caseImageRemove" type="button" hidden>Remove</button>
-                <span id="caseImageStatus">No image selected</span>
-                <img id="caseImagePreview" alt="Selected maintenance case image preview" hidden>
+            <span class="case-intake__toggle" aria-hidden="true">⌄</span>
+          </summary>
+          <form id="caseIntakeForm" class="case-intake__body">
+            <div class="case-workspace__grid">
+              <div class="form-group"><label for="woReg">Aircraft registration</label><input name="registration" type="text" id="woReg" placeholder="e.g. N12345" required maxlength="32"></div>
+              <div class="form-group"><label for="casePriority">Priority</label><select name="priority" id="casePriority"><option value="routine">Routine</option><option value="deferred">Deferred</option><option value="urgent">Urgent</option><option value="aog">AOG</option></select></div>
+              <div class="form-group form-group--wide"><label for="woDesc">Observed discrepancy</label><textarea name="discrepancy" id="woDesc" rows="5" placeholder="Describe the observed condition without diagnosing it." required maxlength="10000"></textarea></div>
+              <div class="form-group form-group--wide case-image-field">
+                <label for="caseImage">Case image <span>Optional</span></label>
+                <div class="case-image-picker">
+                  <label class="case-image-picker__button" for="caseImage">Choose image</label>
+                  <input name="caseImage" id="caseImage" type="file" accept="image/jpeg,image/png,image/webp">
+                  <button id="caseImageRemove" type="button" hidden>Remove</button>
+                  <span id="caseImageStatus">No image selected</span>
+                  <img id="caseImagePreview" alt="Selected maintenance case image preview" hidden>
+                </div>
+                <small>JPG, PNG, or WebP up to 50 MB. It will stay with the case evidence.</small>
               </div>
-              <small>JPG, PNG, or WebP up to 50 MB. It will stay with the case evidence.</small>
             </div>
-          </div>
-          <div class="case-workspace__actions"><button class="btn-email-invoice" id="caseCreateButton" type="submit">Create maintenance case</button></div>
-        </form>
+            <div class="case-workspace__actions"><button class="btn-email-invoice" id="caseCreateButton" type="submit">Create maintenance case</button></div>
+          </form>
+        </details>
         <div id="caseWorkspaceResult" class="case-workspace__result" hidden></div>
       </div>
     </section>
@@ -429,7 +432,7 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=31" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=32" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->

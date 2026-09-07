@@ -1,7 +1,7 @@
 [
   {
     "file": "models/AirplaneLogo_v1.glb",
-    "name": "Airplane Logo",
+    "name": "MXGenius Logo",
     "type": "aircraft",
     "lod": "source",
     "revision": "v1",
@@ -98,7 +98,7 @@
   },
   {
     "file": "models/HardCase_v1.glb",
-    "name": "MXGenius Hard Case",
+    "name": "Pelican Case",
     "type": "apparatus",
     "lod": "source",
     "revision": "v1",
@@ -108,7 +108,7 @@
     "sizeBytes": 30144696,
     "quickAccess": true,
     "operationalStatus": "demo_asset",
-    "description": "Hard-case enclosure model for MXGenius component layout and headset interaction demos."
+    "description": "Pelican case enclosure model for MXGenius component layout and viewer interaction demos."
   },
   {
     "file": "models/SingleBoardComputer_Prototype_v1.glb",
