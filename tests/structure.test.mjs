@@ -328,8 +328,14 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(dashboard, /id="caseExistingSelect"/);
   assert.match(dashboard, /id="caseOpenButton"/);
   assert.match(caseWorkspace, /MXApplicationClient\.cases\.list/);
-  assert.match(caseWorkspace, /sort\(\(left, right\)[\s\S]*updated_at[\s\S]*selectLatest && latestCaseId/);
-  assert.match(caseWorkspace, /loadExistingCases\(\{ selectLatest: true \}\)/);
+  assert.match(caseWorkspace, /sort\(\(left, right\)[\s\S]*updated_at[\s\S]*Default — no active case/);
+  assert.match(caseWorkspace, /function clearActiveCase[\s\S]*localStorage\.removeItem\('mxg_active_case_id'\)[\s\S]*result\.replaceChildren\(\)[\s\S]*result\.hidden = true/);
+  assert.match(caseWorkspace, /if \(!event\.currentTarget\.value\) \{[\s\S]*clearActiveCase\(\)/);
+  assert.match(caseWorkspace, /void loadExistingCases\(\)/);
+  assert.doesNotMatch(caseWorkspace, /selectLatest/);
+  assert.match(application, /clear\(\) \{[\s\S]*this\.active = null[\s\S]*No case available/);
+  assert.match(application, /MXTargetContext\?\.clear\([\s\S]*maintenance-case-cleared/);
+  assert.match(application, /No maintenance case is selected\./);
   assert.doesNotMatch(caseWorkspace, /Status \/ version|· v\$\{/);
   assert.match(caseWorkspace, /mxg\.maintenance_case\.build_context/);
   assert.match(caseWorkspace, /mxg_active_case_id/);
@@ -435,7 +441,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=54/);
+  assert.match(dashboard, /app\.js\?v=55/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);

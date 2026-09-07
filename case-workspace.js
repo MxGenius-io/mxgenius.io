@@ -234,10 +234,39 @@ const MXCaseWorkspace = (() => {
     };
   }
 
-  async function loadExistingCases({ selectLatest = false } = {}) {
+  function clearActiveCase({ announce = true, dispatch = true } = {}) {
+    activeCase = null;
+    activeTwinSelection = null;
+    localStorage.removeItem('mxg_active_case_id');
+
+    const select = byId('caseExistingSelect');
+    const openButton = byId('caseOpenButton');
+    const markerButton = byId('caseMarkerButton');
+    const partSelection = byId('casePartSelection');
+    const markerControls = byId('caseMarkerControls');
+    const result = byId('caseWorkspaceResult');
+
+    if (select) select.value = '';
+    if (openButton) openButton.disabled = true;
+    if (markerButton) markerButton.disabled = true;
+    if (partSelection) {
+      partSelection.textContent = '';
+      partSelection.hidden = true;
+    }
+    if (markerControls) markerControls.hidden = true;
+    if (result) {
+      result.replaceChildren();
+      result.hidden = true;
+    }
+    if (announce) setStatus('Default view. Select a case or open New maintenance case.', 'idle');
+    if (dispatch) globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: null }));
+  }
+
+  async function loadExistingCases() {
     const select = byId('caseExistingSelect');
     const openButton = byId('caseOpenButton');
     if (!select || !openButton) return;
+    const activeCaseId = activeCase?.caseId || '';
     select.disabled = true;
     openButton.disabled = true;
     select.replaceChildren(new Option('Loading cases…', ''));
@@ -250,7 +279,7 @@ const MXCaseWorkspace = (() => {
         const leftTime = Date.parse(left.updated_at || left.opened_at || '') || 0;
         return rightTime - leftTime || String(right.case_id || '').localeCompare(String(left.case_id || ''));
       });
-      select.replaceChildren(new Option(cases.length ? 'Select an existing case' : 'No cases available', ''));
+      select.replaceChildren(new Option('Default — no active case', ''));
       cases.forEach((caseState) => {
         const summary = text(caseState.raw_discrepancy, '').replace(/\s+/g, ' ').slice(0, 72);
         const label = [
@@ -261,11 +290,12 @@ const MXCaseWorkspace = (() => {
         ].filter(Boolean).join(' · ');
         select.add(new Option(label, caseState.case_id));
       });
-      select.disabled = cases.length === 0;
-      const latestCaseId = cases[0]?.case_id;
-      if (selectLatest && latestCaseId) {
-        select.value = latestCaseId;
-        await openExistingCase(latestCaseId);
+      select.disabled = false;
+      if (activeCaseId && cases.some((caseState) => caseState.case_id === activeCaseId)) {
+        select.value = activeCaseId;
+        openButton.disabled = false;
+      } else if (activeCaseId) {
+        clearActiveCase();
       }
     } catch (error) {
       select.replaceChildren(new Option('Cases unavailable', ''));
@@ -436,7 +466,6 @@ const MXCaseWorkspace = (() => {
         : `Case ${result.caseId} is live${caseImage ? ' with its image attached' : ''}.`, imageWarning ? 'error' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
       await loadExistingCases();
-      byId('caseExistingSelect').value = result.caseId;
       resetIntakeImage();
     } catch (error) {
       setStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
@@ -450,7 +479,11 @@ const MXCaseWorkspace = (() => {
     byId('caseImage')?.addEventListener('change', updateIntakeImageSelection);
     byId('caseImageRemove')?.addEventListener('click', resetIntakeImage);
     byId('caseExistingSelect')?.addEventListener('change', (event) => {
-      byId('caseOpenButton').disabled = !event.currentTarget.value;
+      if (!event.currentTarget.value) {
+        clearActiveCase();
+        return;
+      }
+      byId('caseOpenButton').disabled = false;
     });
     byId('caseOpenButton')?.addEventListener('click', () => void openExistingCase());
     byId('caseRefreshButton')?.addEventListener('click', () => void loadExistingCases());
@@ -523,8 +556,9 @@ const MXCaseWorkspace = (() => {
       byId('caseCreateButton').disabled = true;
       setStatus('Sign in through the application identity provider to create a case.', 'idle');
     } else {
-      setStatus('Ready to create an evidence-backed maintenance case.', 'idle');
-      void loadExistingCases({ selectLatest: true });
+      clearActiveCase({ announce: false });
+      setStatus('Default view. Select a case or open New maintenance case.', 'idle');
+      void loadExistingCases();
     }
   }
 

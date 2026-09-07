@@ -299,6 +299,49 @@ const MXCaseState = {
       const activeCount = document.getElementById('pillActiveCase');
       if (activeCount) activeCount.textContent = allClusters.some((cluster) => cluster.hasActiveCase) ? '1' : '0';
     }
+  },
+  clear() {
+    this.active = null;
+    this.imageObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    this.imageObjectUrls = [];
+
+    const card = document.getElementById('activeCaseCard');
+    const image = document.getElementById('activeCaseImage');
+    const value = document.getElementById('activeCaseValue');
+    const label = document.getElementById('activeCaseLabel');
+    const status = document.getElementById('activeCaseStatus');
+    const priority = document.getElementById('activeCasePriority');
+    const meta = document.getElementById('activeCaseMeta');
+    const nav = document.getElementById('caseNav');
+
+    if (card) {
+      card.dataset.state = 'empty';
+      delete card.dataset.priority;
+      card.setAttribute('aria-label', 'Open the latest maintenance case');
+    }
+    if (image) {
+      image.src = 'media/deck-mechanic.jpg';
+      image.alt = '';
+    }
+    if (value) value.textContent = 'No case available';
+    if (status) status.textContent = 'Ready';
+    if (priority) priority.textContent = 'No case';
+    if (label) label.textContent = 'Create a case to keep the discrepancy, evidence, decisions, and follow-up work together.';
+    if (meta) meta.textContent = 'Your newest case will appear here automatically.';
+    if (nav) {
+      delete nav.dataset.activeCaseId;
+      nav.title = 'Case Workspace';
+    }
+    document.querySelectorAll('.case-card-badge').forEach((badge) => badge.remove());
+    document.querySelectorAll('.ac-card[data-aircraft-reg]').forEach((element) => {
+      element.dataset.hasActiveCase = 'false';
+    });
+    allClusters.forEach((cluster) => {
+      cluster.hasActiveCase = false;
+    });
+    if (globeInstance && allClusters.length) renderGlobeClusters(allClusters);
+    const activeCount = document.getElementById('pillActiveCase');
+    if (activeCount) activeCount.textContent = '0';
   }
 };
 
@@ -334,10 +377,18 @@ window.addEventListener('message', (event) => {
 });
 
 window.addEventListener('mxg:case-selected', (event) => {
-  const selected = event.detail || {};
-  MXCaseState.set(selected);
-  const caseState = selected.case || {};
-  if (selected.caseId) {
+  const selected = event.detail?.caseId ? event.detail : null;
+  if (selected) {
+    MXCaseState.set(selected);
+  } else {
+    MXCaseState.clear();
+    globalThis.MXTargetContext?.clear({
+      match: { kind: 'case' },
+      reason: 'maintenance-case-cleared'
+    });
+  }
+  const caseState = selected?.case || {};
+  if (selected?.caseId) {
     globalThis.MXTargetContext?.set({
       kind: 'case',
       id: selected.caseId,
@@ -354,9 +405,9 @@ window.addEventListener('mxg:case-selected', (event) => {
       sources: ['MAINTENANCE CASE']
     }, { reason: 'maintenance-case-selected' });
   }
-  document.documentElement.dataset.activeCaseId = selected.caseId || '';
+  document.documentElement.dataset.activeCaseId = selected?.caseId || '';
   MX3DViewer.setContext({
-    caseId: selected.caseId || null,
+    caseId: selected?.caseId || null,
     aircraftId: caseState.aircraft_id || null,
     caseVersion: caseState.version ?? null
   });
@@ -1213,7 +1264,7 @@ function setupChatPanel() {
 
   window.addEventListener('mxg:case-selected', (event) => {
     chatTurns.length = 0;
-    activeCaseContext = event.detail || null;
+    activeCaseContext = event.detail?.caseId ? event.detail : null;
     activeAircraftContext = null;
     activeThreadId = null;
     localStorage.removeItem('mxg_active_thread_id');
@@ -1224,7 +1275,9 @@ function setupChatPanel() {
     notice.className = 'chat-msg ai-msg';
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.textContent = `Case ${activeCaseContext?.caseId || ''} is now the active copilot context.`;
+    bubble.textContent = activeCaseContext
+      ? `Case ${activeCaseContext.caseId} is now the active copilot context.`
+      : 'No maintenance case is selected.';
     notice.appendChild(bubble);
     history.appendChild(notice);
     history.scrollTop = history.scrollHeight;
