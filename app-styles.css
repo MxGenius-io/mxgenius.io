@@ -604,7 +604,18 @@ main {
   max-height: 760px !important;
   overflow: visible !important;
 }
-.settings-sound-families { display: grid; gap: 8px; width: 100%; }
+.settings-sound-families {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-height: min(58vh, 560px);
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--border) transparent;
+}
+.settings-sound-families:focus-visible { outline: 2px solid var(--accent-cyan, #22d3ee); outline-offset: 2px; }
 .settings-sound-family { border: 1px solid var(--border); border-radius: 9px; background: rgba(8, 14, 28, 0.42); overflow: hidden; }
 .settings-sound-family > summary {
   display: flex;
@@ -655,6 +666,7 @@ main {
 .settings-sound-savebar .btn-primary { padding: 7px 14px; font-size: 0.76rem; }
 
 @media (max-width: 620px) {
+  .settings-sound-families { max-height: 52vh; }
   .settings-sound-cue { grid-template-columns: 1fr; }
   .settings-sound-actions { justify-content: flex-start; }
 }

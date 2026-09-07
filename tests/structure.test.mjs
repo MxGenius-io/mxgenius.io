@@ -952,7 +952,7 @@ test('dashboard splash is a one-shot sequence triggered only by Open Dashboard',
 
 test('Settings exposes the organized UI sound schema as a previewable replacement card', () => {
   assert.match(dashboard, /id="settingsSoundsCard"/);
-  assert.match(dashboard, /id="settingsSoundFamilies"/);
+  assert.match(dashboard, /id="settingsSoundFamilies"[^>]*role="region"[^>]*tabindex="0"/);
   assert.match(dashboard, /id="settingsSoundFileInput"[^>]*accept="\.wav,\.mp3,\.m4a,audio\/wav,audio\/mpeg,audio\/mp4"/);
   assert.match(dashboard, /id="settingsSoundSave"[^>]*disabled>Save changes/);
   assert.match(dashboard, /sound-storage\.js\?v=1/);
@@ -984,6 +984,8 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
   assert.match(applicationStyles, /\.settings-sound-family/);
   assert.match(applicationStyles, /\.settings-sound-cue/);
+  assert.match(applicationStyles, /\.settings-sound-families\s*\{[\s\S]*max-height: min\(58vh, 560px\);[\s\S]*overflow-y: auto;/);
+  assert.match(applicationStyles, /\.settings-sound-families:focus-visible/);
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
 });
 
