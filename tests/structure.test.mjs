@@ -326,11 +326,16 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(caseWorkspace, /digitalTwin\.attachMarker/);
   assert.match(caseWorkspace, /component\?\.canonical/);
   assert.match(dashboard, /id="caseExistingSelect"/);
-  assert.match(dashboard, /id="caseOpenButton"/);
+  assert.doesNotMatch(dashboard, /id="caseOpenButton"|>View case</);
+  assert.match(dashboard, /id="caseClearButton"[^>]*>Clear<\/button>/);
+  assert.match(dashboard, /id="caseWorkspaceStatus" class="case-workspace__status case-workspace__status--sr-only"/);
   assert.match(caseWorkspace, /MXApplicationClient\.cases\.list/);
   assert.match(caseWorkspace, /sort\(\(left, right\)[\s\S]*updated_at[\s\S]*Default — no active case/);
   assert.match(caseWorkspace, /function clearActiveCase[\s\S]*localStorage\.removeItem\('mxg_active_case_id'\)[\s\S]*result\.replaceChildren\(\)[\s\S]*result\.hidden = true/);
   assert.match(caseWorkspace, /if \(!event\.currentTarget\.value\) \{[\s\S]*clearActiveCase\(\)/);
+  assert.match(caseWorkspace, /void openExistingCase\(event\.currentTarget\.value\)/);
+  assert.match(caseWorkspace, /caseClearButton'\)\?\.addEventListener\('click', \(\) => clearActiveCase\(\)\)/);
+  assert.doesNotMatch(caseWorkspace, /caseOpenButton|caseRefreshButton/);
   assert.match(caseWorkspace, /void loadExistingCases\(\)/);
   assert.doesNotMatch(caseWorkspace, /selectLatest/);
   assert.match(application, /clear\(\) \{[\s\S]*this\.active = null[\s\S]*No case available/);

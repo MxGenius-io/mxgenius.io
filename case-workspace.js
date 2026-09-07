@@ -240,14 +240,12 @@ const MXCaseWorkspace = (() => {
     localStorage.removeItem('mxg_active_case_id');
 
     const select = byId('caseExistingSelect');
-    const openButton = byId('caseOpenButton');
     const markerButton = byId('caseMarkerButton');
     const partSelection = byId('casePartSelection');
     const markerControls = byId('caseMarkerControls');
     const result = byId('caseWorkspaceResult');
 
     if (select) select.value = '';
-    if (openButton) openButton.disabled = true;
     if (markerButton) markerButton.disabled = true;
     if (partSelection) {
       partSelection.textContent = '';
@@ -264,11 +262,9 @@ const MXCaseWorkspace = (() => {
 
   async function loadExistingCases() {
     const select = byId('caseExistingSelect');
-    const openButton = byId('caseOpenButton');
-    if (!select || !openButton) return;
+    if (!select) return;
     const activeCaseId = activeCase?.caseId || '';
     select.disabled = true;
-    openButton.disabled = true;
     select.replaceChildren(new Option('Loading cases…', ''));
     try {
       const { value: result } = await authenticatedRequest((requestSession) => (
@@ -293,7 +289,6 @@ const MXCaseWorkspace = (() => {
       select.disabled = false;
       if (activeCaseId && cases.some((caseState) => caseState.case_id === activeCaseId)) {
         select.value = activeCaseId;
-        openButton.disabled = false;
       } else if (activeCaseId) {
         clearActiveCase();
       }
@@ -305,8 +300,14 @@ const MXCaseWorkspace = (() => {
 
   async function openExistingCase(caseId = byId('caseExistingSelect')?.value) {
     if (!caseId) return;
-    const openButton = byId('caseOpenButton');
-    openButton.disabled = true;
+    const select = byId('caseExistingSelect');
+    const clearButton = byId('caseClearButton');
+    const previousCaseId = activeCase?.caseId || '';
+    if (select) {
+      select.disabled = true;
+      select.setAttribute('aria-busy', 'true');
+    }
+    if (clearButton) clearButton.disabled = true;
     setStatus(`Opening case ${caseId}…`, 'working');
     try {
       const { value: current, session: requestSession } = await authenticatedRequest((activeSession) => (
@@ -389,9 +390,14 @@ const MXCaseWorkspace = (() => {
         : `Case ${caseId} is active.`, supportingErrors.length ? 'working' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
     } catch (error) {
+      if (select) select.value = previousCaseId;
       setStatus(`${error.code || 'CASE_OPEN_FAILED'}: ${error.message}`, 'error');
     } finally {
-      openButton.disabled = !byId('caseExistingSelect')?.value;
+      if (select) {
+        select.disabled = false;
+        select.removeAttribute('aria-busy');
+      }
+      if (clearButton) clearButton.disabled = false;
     }
   }
 
@@ -483,10 +489,9 @@ const MXCaseWorkspace = (() => {
         clearActiveCase();
         return;
       }
-      byId('caseOpenButton').disabled = false;
+      void openExistingCase(event.currentTarget.value);
     });
-    byId('caseOpenButton')?.addEventListener('click', () => void openExistingCase());
-    byId('caseRefreshButton')?.addEventListener('click', () => void loadExistingCases());
+    byId('caseClearButton')?.addEventListener('click', () => clearActiveCase());
     globalThis.addEventListener('mxgenius:part-selected', async (event) => {
       const selection = event.detail?.selection;
       const target = byId('casePartSelection');
