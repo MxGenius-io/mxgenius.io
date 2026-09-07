@@ -5,7 +5,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.URI;
-import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -20,23 +19,19 @@ final class RemoteWitnessBootstrap {
     private static final long MAX_SESSION_LIFETIME_MS = 4L * 60L * 60L * 1000L;
     private static final Pattern SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{1,128}$");
     private static final Pattern CREDENTIAL = Pattern.compile("^[a-f0-9]{64}$");
-    private static final Pattern MANUAL_CODE = Pattern.compile("^[A-F0-9]{12}$");
-    private static final Pattern INVITE_QUERY = Pattern.compile("^invite=[A-Fa-f0-9]{64}$");
+    private static final Pattern PIN = Pattern.compile("^[0-9]{7}$");
     private static final Pattern ICE_URL = Pattern.compile("^(stun:|stuns:|turn:|turns:).{1,1018}$");
-    private static final String QR_PREFIX = "data:image/svg+xml;base64,";
     private static final Set<String> MESSAGE_KEYS = Set.of(
-            "type", "version", "sessionId", "roomId", "joinUrl", "manualCode",
-            "audience", "qrDataUrl", "producerCredential", "socketPath", "socketUrl",
+            "type", "version", "sessionId", "roomId", "pin",
+            "audience", "producerCredential", "socketPath", "socketUrl",
             "expiresAtMs", "iceServers", "projection");
     private static final Set<String> ICE_KEYS = Set.of("urls", "username", "credential", "credentialType");
     private static final Set<String> PROJECTION_KEYS = Set.of("target", "caseSummary", "caseMedia");
 
     final String sessionId;
     final UUID roomId;
-    final String joinUrl;
-    final String manualCode;
+    final String pin;
     final String audience;
-    final String qrDataUrl;
     final String producerCredential;
     final String socketPath;
     final String socketUrl;
@@ -47,10 +42,8 @@ final class RemoteWitnessBootstrap {
     private RemoteWitnessBootstrap(
             String sessionId,
             UUID roomId,
-            String joinUrl,
-            String manualCode,
+            String pin,
             String audience,
-            String qrDataUrl,
             String producerCredential,
             String socketPath,
             String socketUrl,
@@ -59,10 +52,8 @@ final class RemoteWitnessBootstrap {
             JSONObject projection) {
         this.sessionId = sessionId;
         this.roomId = roomId;
-        this.joinUrl = joinUrl;
-        this.manualCode = manualCode;
+        this.pin = pin;
         this.audience = audience;
-        this.qrDataUrl = qrDataUrl;
         this.producerCredential = producerCredential;
         this.socketPath = socketPath;
         this.socketUrl = socketUrl;
@@ -87,21 +78,14 @@ final class RemoteWitnessBootstrap {
         } catch (RuntimeException error) {
             throw new IllegalArgumentException("invalid witness room", error);
         }
-        String joinUrl = required(payload, "joinUrl", 1024);
-        validateJoinUrl(joinUrl);
-        String manualCode = required(payload, "manualCode", 12);
-        if (!MANUAL_CODE.matcher(manualCode).matches()) {
-            throw new IllegalArgumentException("invalid witness manual code");
+        String pin = required(payload, "pin", 7);
+        if (!PIN.matcher(pin).matches()) {
+            throw new IllegalArgumentException("invalid witness PIN");
         }
-        String audience = optional(payload, "audience", "Aircraft customer", 80);
-        String qrDataUrl = optional(payload, "qrDataUrl", null, 32 * 1024);
-        if (qrDataUrl != null) validateQrDataUrl(qrDataUrl);
+        String audience = optional(payload, "audience", "Guest witness", 80);
         String producerCredential = required(payload, "producerCredential", 64);
         if (!CREDENTIAL.matcher(producerCredential).matches()) {
             throw new IllegalArgumentException("invalid witness producer credential");
-        }
-        if (joinUrl.contains(producerCredential)) {
-            throw new IllegalArgumentException("producer credential leaked into witness URL");
         }
         String socketPath = required(payload, "socketPath", 64);
         if (!SOCKET_PATH.equals(socketPath)) {
@@ -128,10 +112,8 @@ final class RemoteWitnessBootstrap {
         return new RemoteWitnessBootstrap(
                 sessionId,
                 roomId,
-                joinUrl,
-                manualCode,
+                pin,
                 audience,
-                qrDataUrl,
                 producerCredential,
                 socketPath,
                 socketUrl,
@@ -146,22 +128,6 @@ final class RemoteWitnessBootstrap {
 
     String socketUrl() {
         return socketUrl;
-    }
-
-    private static void validateJoinUrl(String value) {
-        try {
-            URI uri = URI.create(value);
-            if (!"https".equalsIgnoreCase(uri.getScheme())
-                    || uri.getHost() == null
-                    || uri.getHost().isBlank()
-                    || uri.getUserInfo() != null
-                    || uri.getFragment() != null
-                    || !INVITE_QUERY.matcher(uri.getRawQuery() == null ? "" : uri.getRawQuery()).matches()) {
-                throw new IllegalArgumentException("invalid witness join URL");
-            }
-        } catch (RuntimeException error) {
-            throw new IllegalArgumentException("invalid witness join URL", error);
-        }
     }
 
     private static void validateSocketUrl(String value, String expectedPath, String producerCredential) {
@@ -179,19 +145,6 @@ final class RemoteWitnessBootstrap {
             }
         } catch (RuntimeException error) {
             throw new IllegalArgumentException("invalid witness socket URL", error);
-        }
-    }
-
-    private static void validateQrDataUrl(String value) {
-        if (!value.startsWith(QR_PREFIX)) throw new IllegalArgumentException("invalid witness QR data URL");
-        try {
-            byte[] decoded = Base64.getDecoder().decode(value.substring(QR_PREFIX.length()));
-            String svg = new String(decoded, java.nio.charset.StandardCharsets.UTF_8);
-            if (decoded.length > 24 * 1024 || !svg.startsWith("<svg ") || !svg.contains("<path ")) {
-                throw new IllegalArgumentException("invalid witness QR image");
-            }
-        } catch (IllegalArgumentException error) {
-            throw new IllegalArgumentException("invalid witness QR image", error);
         }
     }
 

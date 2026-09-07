@@ -10,7 +10,7 @@ Legend: `[ ]` queued, `[~]` active or partially complete, `[x]` verified.
   MCP, evidence, and remote-witness touch points.
 - [x] `STL-001` Freeze the lean architecture and cost boundary in the build
   plan.
-- [x] `STL-002` Promote customer QR remote witness into its own delivery wave.
+- [x] `STL-002` Promote PIN-based public guest witness into its own delivery wave.
 
 ## Build Point 1 — Contract build
 
@@ -206,23 +206,23 @@ Wave 5 automated verification: **GREEN — 2026-09-03**
   hand feel, thermal activation, and evidence placement. They are the only open
   Wave 5 gate and require the headset/FLIR path.
 
-## Build Point 6 — Customer witness build
+## Build Point 6 — Guest witness build
 
-### Wave 6: QR invitation and remote witness
+### Wave 6: PIN invitation and remote witness
 
 - [x] `STL-080` Mount authenticated XR session negotiation with short-lived,
   role-scoped producer and viewer credentials.
-- [x] `STL-081` Add wearer-generated opaque QR invitation and manual join code.
+- [x] `STL-081` Add a wearer-generated, single-use 7-digit service PIN for customer admission.
 - [x] `STL-082` Exchange the single-use invitation for a reconnectable,
-  short-lived customer-viewer session.
+  short-lived anonymous guest-viewer session.
 - [x] `STL-083` Require wearer approval and expose audience, layers, viewer
   count, recording state, expiry, pause, and revoke controls.
 - [x] `STL-084` Carry consent, presence, target state, case projection, and
   signaling over authenticated WSS.
 - [~] `STL-085` Carry live media over WebRTC with TURN fallback instead of MCP
   or target-registry video relay.
-- [x] `STL-086` Add the browser-only read-only customer witness surface.
-- [x] `STL-087` Route customer comments to proposed sourced observations rather
+- [x] `STL-086` Add the browser-only, account-free, read-only guest witness surface.
+- [x] `STL-087` Route guest comments to proposed sourced observations rather
   than direct case mutation.
 - [x] `STL-088` Keep recording off by default and require separate consent.
 - [x] `STL-089` Verify expiry, revocation, replay rejection, tenant isolation,
@@ -243,14 +243,14 @@ Wave 5 automated verification: **GREEN — 2026-09-03**
     stale room IDs, and control after revoke/expiry.
 - [x] `STL-092` Extend the authenticated Quest-loopback channel with a one-time,
   memory-only witness bootstrap.
-  - [x] Transfer room ID, join URL, manual code, producer credential, WSS path,
+  - [x] Transfer room ID, 7-digit PIN, producer credential, WSS path,
     session expiry, and validated ICE configuration only after local-token
     authentication.
   - [x] Acknowledge native receipt before the browser relinquishes producer
     ownership.
   - [x] Clear the bootstrap on transfer failure, revoke, expiry, service stop,
     or XR session replacement.
-  - [x] Assert the producer credential never appears in the QR, deep link, URL
+  - [x] Assert the producer credential never appears in the PIN, deep link, URL
     fragment, logs, traces, preferences, browser storage, or crash text.
 - [x] `STL-093` Enforce one active producer socket and native role-scoped room
   control.
@@ -272,7 +272,7 @@ Wave 6A verification: **GREEN — 2026-09-03**
   limits fail closed.
 - The authenticated loopback sends a one-time bootstrap containing separate
   public join and Azure-core WSS URLs. The producer credential remains outside
-  URLs, storage, traces, preferences, crash text, and the customer QR.
+  URLs, storage, traces, preferences, crash text, and the public guest view.
 - The browser waits for the native WSS producer to be accepted before it
   relinquishes ownership. A bounded native connection failure is acknowledged
   as a rejection and falls back to the existing JavaScript producer.
@@ -333,13 +333,13 @@ Wave 6B local build verification: **GREEN; PHYSICAL GATE OPEN — 2026-09-03**
   MediaProjection. No FLIR bitmap, passthrough-camera frame, microphone source,
   socket binary, or new evidence store participates in the live track.
 - The remaining gate requires the physical Quest: confirm real Horizon
-  compositor frames reach the existing customer browser, outbound stats select
+  compositor frames reach the existing guest browser, outbound stats select
   hardware H.264, pause removes media, and FLIR plus one-shot evidence still run.
 
 ### Wave 6C: wearer UX and end-to-end behavior
 
 - [x] `STL-097` Add the native immersive invitation and session controls.
-  - [x] Display the existing join QR/manual code, intended audience, viewer count,
+  - [x] Display the single-use 7-digit PIN, intended audience, viewer count,
     expiry, active layers, capture state, network state, and clear error text.
   - [x] Provide START, PAUSE, RESUME, and END without exposing maintenance or
     target mutations to the customer.
@@ -351,10 +351,10 @@ Wave 6B local build verification: **GREEN; PHYSICAL GATE OPEN — 2026-09-03**
   - [x] Add Rust tests for producer ownership, native controls, disconnect pause,
     expiry, revoke, role rejection, and viewer reconnect.
   - [x] Add Android tests for bootstrap validation, honest phase transitions,
-    QR parsing, and secret redaction; enforce capture ownership, terminal
+    PIN validation and secret redaction; enforce capture ownership, terminal
     teardown boundaries, and reconnect limits in the release verifier.
   - [x] Add browser tests using Android-shaped SDP/ICE fixtures and prove the
-    customer remains read-only.
+    guest remains read-only.
   - [x] Extend APK verification for permissions, foreground-service type,
     libwebrtc ABI/license, required controls, and forbidden credential storage.
   - [x] Run targeted Node, Rust format/test/Clippy, Android unit, debug APK, and
@@ -369,7 +369,7 @@ do not get folded into this wave.
 
 Wave 6C local build verification: **GREEN; IMPLEMENTATION COMPLETE — 2026-09-03**
 
-- Alpha 21 renders the existing customer QR/manual code, audience, viewers,
+- Alpha 21 renders the single-use 7-digit guest PIN, audience, viewers,
   expiry, layers, recording/network state, and bounded errors in the native
   immersive panel. Diagnostic logs are not rendered on that wearer surface.
 - One START gesture sends wearer approval and opens fresh Horizon capture
@@ -388,8 +388,8 @@ Wave 6C local build verification: **GREEN; IMPLEMENTATION COMPLETE — 2026-09-0
 ### Wave 6D: physical matrix and release candidate
 
 - [ ] `STL-099` Run and record the physical Quest/FLIR acceptance matrix.
-  - [ ] Same LAN: QR exchange, approval, video, target/case projection, comment,
-    pause, resume, revoke, and original-QR replay rejection.
+  - [ ] Same LAN: PIN exchange, approval, video, target/case projection, comment,
+    pause, resume, revoke, and original-PIN replay rejection.
   - [ ] External path: Quest on Wi-Fi with the viewer on cellular or another home
     network.
   - [ ] Restricted path: guest/hangar or corporate network, recording the ICE
@@ -405,24 +405,23 @@ Wave 6C local build verification: **GREEN; IMPLEMENTATION COMPLETE — 2026-09-0
     smoke the exact deployed versions before naming the candidate stable.
 
 Wave 6D gate: the deployed core/frontend and Meta Alpha APK share one contract
-version; the one-viewer customer journey passes on the physical headset; the
+version; the one-viewer guest journey passes on the physical headset; the
 TURN decision is evidence-backed; rollback identifiers are recorded.
 
 Wave 6 browser/core foundation verification: **GREEN — 2026-09-03**
 
-- The core owns short-lived tenant/owner-scoped rooms, stores invitation and
-  session credentials only as SHA-256 hashes, and distinguishes a consumed QR
-  replay from an invented token without retaining the invitation secret.
-- A twelve-character manual code provides a typeable 48-bit fallback. The QR
-  contains only the public join URL and opaque invitation; no tenant, case,
-  bridge, bearer, storage, or customer data crosses in it.
+- The core owns short-lived tenant/owner-scoped rooms, stores session
+  credentials only as SHA-256 hashes, and distinguishes a consumed PIN replay
+  from an invented PIN without exposing room context.
+- A random 7-digit PIN provides the only public admission input. No tenant,
+  case, bridge, bearer, storage, account, or guest contact data crosses in it.
 - Wearer controls live in a head-following sensor-scene panel. Media acquisition
   begins only from APPROVE/RESUME, while pause, layer removal, lost-headset
   presence, expiry, and revoke close or withhold the peer stream.
 - WSS carries bounded JSON presence, consent, projection, proposed observation,
   and SDP/ICE messages. Binary payloads are rejected; continuous media uses a
   direct `RTCPeerConnection`.
-- The customer surface has no application sign-in, stores its exchanged
+- The guest surface has no application sign-in, stores its exchanged
   credential in memory only, exposes no operational case controls, and reads
   explicitly shared gallery media through the existing tenant storage path.
 - Recording remains off. Two-party consent produces only a `consented` state;

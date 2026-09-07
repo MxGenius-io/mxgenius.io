@@ -1,13 +1,103 @@
 # MXGenius Azure Deployment Plan
 
-Status: Validated — 2026-09-03 Spatial Target + Remote Witness Alpha 21
+Status: Validated — all local and Azure pre-deployment gates passed on 2026-09-07
+
+## UI Sound Hot Swap Delta — 2026-09-07
+
+### Scope and deployment path
+
+- Add one organization-scoped, versioned `index.json` below the existing private
+  `documents` Blob container and versioned WAV/MP3/M4A objects for each custom
+  sound override.
+- Add authenticated read endpoints and Manager/Administrator-only replace and
+  restore endpoints to the existing `mxg-core` Container App.
+- Keep the 27 bundled files as the automatic fallback. No existing Blob is
+  overwritten or deleted, and a failed index read never prevents the dashboard
+  or XR surfaces from using the bundled set.
+- Publish the frontend control card only with the later shared Git batch. This
+  Azure step does not push GitHub or change the public static site.
+- The final frontend batch also adds optional case-image intake and an Add image
+  action on recalled cases. Both call the already-deployed confirmed
+  `mxg.maintenance_case.attach_observation` media path; there is no second
+  upload route, storage model, database change, or Azure infrastructure delta.
+- The final XR sanity pass keeps the UI-sound adapter available in both the
+  embedded and standalone 3D viewer, verifies case-media metadata is reloaded
+  into the sensor/Remote Witness projection, and locks the anonymous guest-room
+  handoff into tests. The removed QR/manual-code path is replaced end to end by
+  a single-use 7-digit PIN, native Quest display, expiry, and revoke.
+- Reuse `Azure subscription 1`, Central US resource group `mxg-rg-50106`, ACR
+  `mxgacr50106`, Container App `mxg-core`, its current system identity, and the
+  private `documents` container. Constrain the Alpha core to one minimum and one
+  maximum replica so PIN exchange and its WebSocket always share the same
+  in-memory room owner. No resource, SKU, secret, role assignment, database
+  migration, or topology change is required.
+
+### Security and storage boundaries
+
+- Browser code receives only authenticated application URLs, never Azure Blob
+  URLs, SAS values, storage keys, or credentials.
+- Uploads are limited to the 27 published cue IDs, 5 MiB, 15 seconds, and WAV,
+  MP3, or M4A files whose extension, media type, and file signature agree.
+- Index writes use Azure ETag preconditions plus an application version so two
+  administrators cannot silently overwrite one another.
+- The current `mxg-core` identity already has `Storage Blob Data Contributor`
+  scoped to the existing private `documents` container, which is sufficient for
+  index and audio read/write operations.
+
+### Validation steps
+
+- [x] Run the complete frontend suite.
+- [x] Run Rust formatting, the complete locked workspace suite, strict Clippy,
+  and the optimized locked release build.
+- [x] Validate the new cue ID and audio signature guards with focused unit tests.
+- [x] Check the diff for whitespace errors and confirm there is no database or
+  infrastructure delta.
+- [x] Verify the current Azure subscription, Central US resource group, ACR,
+  Container App, storage account, storage role, revision mode, scale, and live
+  health/readiness endpoints.
+- [x] Confirm `Azure subscription 1` and the existing Central US target with the
+  user.
+- [x] Run one ACR `--no-push` build as the final container validation gate.
+
+### Validation proof
+
+Validated locally on 2026-09-07 against the current uncommitted shared-tree
+candidate:
+
+- `npm test`: 382 tests passed, 0 failed, including the shared case-media form
+  path and sound-library token refresh behavior.
+- `cargo fmt --all -- --check`: passed.
+- `cargo test --locked --workspace`: 258 tests passed, 0 failed.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings`: passed.
+- `cargo build --locked --release -p mxgenius-mcp`: passed.
+- `git diff --check`: passed.
+- Azure read-only preflight: subscription Enabled; resource group, ACR, storage,
+  and Container App provisioning Succeeded; `mxg-core` is Single revision mode
+  with min 1/max 2 replicas before promotion. The release sets max replicas to 1
+  to preserve the in-memory room-owner invariant. `/healthz`, `/readyz`, and
+  `/adapterz` returned 200.
+- Live role verification found `Storage Blob Data Contributor` on the exact
+  `documents` container scope for the current `mxg-core` system identity. The
+  subscription has no Azure Policy assignments.
+- Azure ACR build-only run `cj22` completed the full 18-step Dockerfile from the
+  exact `services/mcp` candidate with `--no-push`; no image was published.
+
+### Promotion and rollback
+
+- Build one immutable `mxg-core:ui-sounds-<candidate>-20260907` image from the
+  exact `services/mcp` working-tree context, create one new revision constrained
+  to one replica, wait for it to become Healthy/latest-ready, then verify health
+  and fail-closed sound API behavior before accepting Single-mode traffic.
+- Preserve `mxg-core--spatialwitness-7cadceb` and image
+  `mxg-core:spatial-witness-7cadceb-20260903` as the rollback target. Do not
+  delete any image, revision, resource, Blob, secret, role, or data.
 
 ## Spatial Target + Remote Witness Alpha 21 Delta — 2026-09-03
 
 ### Project overview and approval
 
 - **Goal:** publish the completed spatial-target contract, deliberate still-frame
-  scan path, Remote Witness signaling/state service, customer browser surface,
+  scan path, Remote Witness signaling/state service, public guest browser surface,
   and Quest Alpha 21 wearer capture/control implementation for the physical
   headset acceptance matrix.
 - **Path:** MODIFY the existing application plane. GitHub Pages publishes the
@@ -43,14 +133,14 @@ Status: Validated — 2026-09-03 Spatial Target + Remote Witness Alpha 21
   invariant for this Alpha; no second core or shared room store is created.
 - **Media shape:** Azure WSS carries only bounded consent, presence,
   projection, and SDP/ICE messages. Video flows directly between the Quest and
-  customer browser. TURN remains disabled until the physical network matrix
+  guest browser. TURN remains disabled until the physical network matrix
   demonstrates a relay is required.
 
 ### Release contents and configuration
 
 - Publish the live `witness.*` JSON schema and canonical Android/browser
   signaling fixtures, the one-viewer invitation/exchange/room/control/media/WSS
-  routes, and the read-only `witness.html` customer surface.
+  routes, and the read-only `witness.html` guest surface.
 - Publish the deliberate spatial scan endpoint with 1280-pixel / 1 MiB input
   bounds, 0.85 display threshold, five-result limit, eight-second timeout,
   two-second cooldown, 12-per-minute limit, 100-per-day limit, and bounded
@@ -58,7 +148,6 @@ Status: Validated — 2026-09-03 Spatial Target + Remote Witness Alpha 21
 - Set only these non-secret application settings on the promoted core:
   - `MXGENIUS_SPATIAL_SCAN_ENABLED=true`
   - `MXGENIUS_SPATIAL_SCAN_MODEL=gpt-5.4-mini`
-  - `MXGENIUS_WITNESS_JOIN_URL=https://mxgenius.io/witness.html`
   - `MXGENIUS_WITNESS_INVITE_TTL_SECONDS=300`
   - `MXGENIUS_WITNESS_SESSION_TTL_SECONDS=3600`
   - `MXGENIUS_WITNESS_MAX_VIEWERS=1`

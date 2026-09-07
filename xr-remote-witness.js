@@ -60,9 +60,8 @@ export class XRRemoteWitnessPanel {
     this.peers = new Map();
     this.localStream = null;
     this.nativeProducer = false;
-    this.qrImage = null;
     this.busy = false;
-    this.message = 'Create an invitation when the customer is ready.';
+    this.message = 'Create a service PIN when the customer is ready.';
     this.disposed = false;
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
@@ -187,11 +186,11 @@ export class XRRemoteWitnessPanel {
 
   async createInvitation(input = 'xr') {
     this.busy = true;
-    this.message = 'Creating private invitation…';
+    this.message = 'Creating service PIN…';
     this.drawPanel();
     try {
       if (this.room && !['revoked', 'expired'].includes(this.room.status)) {
-        this.message = 'The current invitation is still active.';
+        this.message = 'The current service PIN is still active.';
         return;
       }
       const activeCase = this.caseProvider?.() || null;
@@ -199,13 +198,12 @@ export class XRRemoteWitnessPanel {
       const invitation = await this.api.createInvitation({
         xrSessionId: this.xrSessionId,
         caseId: activeCase?.caseId || null,
-        audience: 'Aircraft customer',
+        audience: 'Guest witness',
         layers: { ...DEFAULT_LAYERS },
         session
       });
       this.invitation = invitation;
       this.room = invitation.state;
-      this.loadQr(invitation.qrDataUrl);
       this.nativeProducer = false;
       if (typeof this.nativeBootstrapProvider === 'function') {
         try {
@@ -214,7 +212,7 @@ export class XRRemoteWitnessPanel {
             socketUrl: this.api.socketUrl(invitation.socketPath)
           }, this.projectionSnapshot());
           this.nativeProducer = true;
-          this.message = 'Sensor Bridge received the room. Customer can scan the QR or enter the join code.';
+          this.message = 'Sensor Bridge received the room. Give the guest the 7-digit PIN.';
         } catch {
           this.message = 'Native handoff unavailable · using the browser witness view.';
         }
@@ -291,7 +289,7 @@ export class XRRemoteWitnessPanel {
     try {
       const session = await this.sessionProvider();
       this.room = await this.api.controlRoom(this.invitation.roomId, { action, ...extra }, session);
-      this.message = action === 'revoke' ? 'Customer access revoked.' : `Witness ${this.room.status}.`;
+      this.message = action === 'revoke' ? 'Guest access revoked.' : `Witness ${this.room.status}.`;
       if (['pause', 'revoke'].includes(action)) this.closeMedia();
       this.onAction(`witness-${action}`, input, { roomId: this.invitation.roomId, status: this.room.status });
       accepted = true;
@@ -303,17 +301,6 @@ export class XRRemoteWitnessPanel {
       this.emitStatus();
     }
     return accepted;
-  }
-
-  loadQr(source) {
-    if (!/^data:image\/svg\+xml;base64,/i.test(String(source || ''))) return;
-    const image = new Image();
-    image.onload = () => {
-      if (this.disposed) return;
-      this.qrImage = image;
-      this.drawPanel();
-    };
-    image.src = source;
   }
 
   connectSocket(credential, socketPath, expiresAtMs) {
@@ -369,7 +356,7 @@ export class XRRemoteWitnessPanel {
       this.emitStatus();
       if (['paused', 'revoked', 'expired', 'headset-offline'].includes(this.room.status)) this.closeMedia();
     }
-    if (message?.type === 'witness.signal' && message.from === 'customer-viewer') {
+    if (message?.type === 'witness.signal' && message.from === 'guest-viewer') {
       const participantId = clean(message.participantId);
       if (!participantId) return;
       const signal = message.signal || {};
@@ -525,7 +512,7 @@ export class XRRemoteWitnessPanel {
     ctx.fillText('REMOTE WITNESS', 48, 62);
     ctx.fillStyle = '#e7f8ff';
     ctx.font = '700 37px system-ui, sans-serif';
-    ctx.fillText('Customer viewing', 48, 112);
+    ctx.fillText('Guest viewing', 48, 112);
     ctx.strokeStyle = '#8dc9db';
     ctx.lineWidth = 7;
     ctx.beginPath();
@@ -545,35 +532,33 @@ export class XRRemoteWitnessPanel {
     ctx.textAlign = 'left';
 
     rounded(ctx, 48, 188, 360, 360, 22);
-    ctx.fillStyle = '#f8fafc'; ctx.fill();
-    if (this.qrImage) ctx.drawImage(this.qrImage, 68, 208, 320, 320);
-    else {
-      ctx.fillStyle = '#203447';
-      ctx.font = '700 25px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(this.busy ? 'CREATING…' : 'QR READY AFTER INVITE', 228, 375);
-      ctx.textAlign = 'left';
-    }
+    ctx.fillStyle = '#102536'; ctx.fill();
     ctx.fillStyle = '#8da8ba';
-    ctx.font = '22px system-ui, sans-serif';
-    ctx.fillText('Manual join code', 456, 228);
+    ctx.font = '700 21px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('7-DIGIT SERVICE PIN', 228, 266);
     ctx.fillStyle = '#e7f8ff';
-    ctx.font = '700 42px ui-monospace, monospace';
-    ctx.fillText(this.invitation?.manualCode || '—— ———— ————', 456, 278);
+    ctx.font = '700 58px ui-monospace, monospace';
+    ctx.fillText(this.busy ? '•••••••' : this.invitation?.pin || '———————', 228, 354);
+    ctx.fillStyle = '#8da8ba';
+    ctx.font = '20px system-ui, sans-serif';
+    ctx.fillText('mxgenius.io/witness.html', 228, 430);
+    ctx.fillText('One guest · single use', 228, 472);
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#8da8ba';
     ctx.font = '22px system-ui, sans-serif';
-    ctx.fillText(`Audience  ${clean(this.room?.audience, 'Aircraft customer')}`, 456, 336);
-    ctx.fillText(`POV       ${this.room?.layers?.pov === false ? 'OFF' : 'ON'}`, 456, 378);
-    ctx.fillText(`Thermal   ${this.room?.layers?.thermal ? 'ON' : 'OFF'}`, 456, 420);
-    ctx.fillText(`Case      ${this.room?.layers?.caseSummary === false ? 'OFF' : 'SUMMARY'}`, 456, 462);
-    ctx.fillText(`Media     ${this.room?.layers?.caseMedia ? 'ON' : 'OFF'}`, 456, 504);
-    ctx.fillText(`Recording ${String(this.room?.recording?.state || 'off').toUpperCase()}`, 456, 546);
+    ctx.fillText(`Audience  ${clean(this.room?.audience, 'Guest witness')}`, 456, 228);
+    ctx.fillText(`POV       ${this.room?.layers?.pov === false ? 'OFF' : 'ON'}`, 456, 284);
+    ctx.fillText(`Thermal   ${this.room?.layers?.thermal ? 'ON' : 'OFF'}`, 456, 340);
+    ctx.fillText(`Case      ${this.room?.layers?.caseSummary === false ? 'OFF' : 'SUMMARY'}`, 456, 396);
+    ctx.fillText(`Media     ${this.room?.layers?.caseMedia ? 'ON' : 'OFF'}`, 456, 452);
+    ctx.fillText(`Recording ${String(this.room?.recording?.state || 'off').toUpperCase()}`, 456, 508);
     ctx.fillStyle = '#9ab3c7';
     ctx.font = '21px system-ui, sans-serif';
     ctx.fillText(clean(this.message).slice(0, 78), 48, 602);
 
     const buttons = [
-      ['invite', this.room && !['revoked', 'expired'].includes(state) ? 'INVITE ACTIVE' : 'CREATE INVITE'],
+      ['invite', this.room && !['revoked', 'expired'].includes(state) ? 'PIN ACTIVE' : 'CREATE PIN'],
       ['approval', state === 'live' ? 'PAUSE VIEW' : this.room?.approved ? 'RESUME VIEW' : 'APPROVE VIEW'],
       ['layers', this.room?.layers?.thermal ? 'HIDE EXTRAS' : 'SHARE EXTRAS'],
       ['revoke', 'REVOKE ACCESS']

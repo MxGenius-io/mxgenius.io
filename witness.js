@@ -2,7 +2,7 @@
   const api = globalThis.MXApplicationClient?.witness;
   const joinCard = document.getElementById('joinCard');
   const joinForm = document.getElementById('joinForm');
-  const manualCode = document.getElementById('manualCode');
+  const witnessPin = document.getElementById('witnessPin');
   const joinStatus = document.getElementById('joinStatus');
   const roomElement = document.getElementById('room');
   const roomAudience = document.getElementById('roomAudience');
@@ -120,17 +120,18 @@
   async function join(input) {
     if (!api) throw new Error('Remote Witness is unavailable.');
     joinForm.querySelector('button').disabled = true;
-    joinStatus.textContent = 'Opening private invitation…';
+    joinStatus.textContent = 'Checking service PIN…';
     try {
       viewerSession = await api.exchangeInvitation(input);
       room = viewerSession.state;
+      witnessPin.value = '';
       history.replaceState(null, '', `${location.pathname}`);
       joinCard.hidden = true;
       roomElement.hidden = false;
       renderRoom();
       connectSocket();
     } catch (error) {
-      joinStatus.textContent = clean(error?.message, 'This invitation could not be opened.');
+      joinStatus.textContent = clean(error?.message, 'That PIN could not be opened. Check it and try again.');
     } finally {
       joinForm.querySelector('button').disabled = false;
     }
@@ -150,7 +151,7 @@
     socket.addEventListener('open', () => {
       if (generation !== socketGeneration) return;
       reconnectAttempt = 0;
-      roomMessage.textContent = 'Secure signaling connected. Waiting for the technician.';
+      roomMessage.textContent = 'Private guest room connected. Waiting for the technician.';
       send({ type: 'witness.signal', signal: { kind: 'viewer-ready' } });
     });
     socket.addEventListener('message', (event) => {
@@ -191,6 +192,19 @@
     }
     if (message?.type === 'witness.proposed-observation') roomMessage.textContent = 'Observation sent to the technician for review.';
     if (message?.type === 'witness.error') roomMessage.textContent = clean(message.message, 'The witness service rejected that request.');
+    if (message?.type === 'witness.room-ended') {
+      viewerSession = null;
+      socketGeneration += 1;
+      socket?.close();
+      socket = null;
+      closePeer();
+      setConnection('Session ended', 'ended');
+      roomMessage.textContent = 'This temporary guest room has closed.';
+      commentText.disabled = true;
+      commentForm.querySelector('button').disabled = true;
+      recordingConsent.disabled = true;
+      return;
+    }
     if (message?.type !== 'witness.signal' || message.from !== 'producer') return;
     const signal = message.signal || {};
     if (signal.to && signal.to !== viewerSession.participantId) return;
@@ -235,12 +249,12 @@
 
   joinForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    const code = manualCode.value.replace(/[^a-f0-9]/gi, '').toUpperCase();
-    if (code.length !== 12) {
-      joinStatus.textContent = 'Enter the 12-character code shown by the technician.';
+    const pin = witnessPin.value.replace(/\D/g, '');
+    if (pin.length !== 7) {
+      joinStatus.textContent = 'Enter the 7-digit PIN shown by the technician.';
       return;
     }
-    void join({ manualCode: code });
+    void join({ pin });
   });
 
   commentForm.addEventListener('submit', (event) => {
@@ -265,7 +279,4 @@
     for (const source of mediaObjectUrls) URL.revokeObjectURL(source);
     mediaObjectUrls = [];
   });
-
-  const invitation = new URLSearchParams(location.search).get('invite');
-  if (/^[a-f0-9]{64}$/i.test(invitation || '')) void join({ invitation });
 })();

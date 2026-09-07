@@ -73,7 +73,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     private volatile boolean headsetCameraForegroundReady;
     private volatile boolean mediaProjectionForegroundReady;
     private volatile boolean witnessRoomLive;
-    private volatile String witnessState = "NO ACTIVE INVITATION";
+    private volatile String witnessState = "NO ACTIVE SERVICE PIN";
     private volatile RemoteWitnessUiState witnessUiState = RemoteWitnessUiState.EMPTY;
     private volatile Intent pendingWitnessConsent;
     private volatile boolean witnessStartRequested;
@@ -328,8 +328,8 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         witnessStartRequested = false;
         RemoteWitnessPeerController peer = witnessPeer;
         if (peer != null) peer.stopCapture("wearer-paused");
-        setWitnessUiState(witnessUiState.withMedia("paused", "wearer paused customer view"));
-        trace("W33", "WITNESS", "paused", "wearer paused customer media", "success");
+        setWitnessUiState(witnessUiState.withMedia("paused", "wearer paused guest view"));
+        trace("W33", "WITNESS", "paused", "wearer paused guest media", "success");
         return true;
     }
 
@@ -363,7 +363,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
             return;
         }
         pendingWitnessConsent = new Intent(consentData);
-        setWitnessUiState(witnessUiState.withMedia("consent-granted", "waiting for approved customer room"));
+        setWitnessUiState(witnessUiState.withMedia("consent-granted", "waiting for approved guest room"));
         startPendingWitnessCaptureIfReady();
     }
 
@@ -374,19 +374,19 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         pendingWitnessConsent = null;
         try {
             mediaProjectionForegroundReady = true;
-            refreshForegroundTypes("Customer view preparing…");
+            refreshForegroundTypes("Guest view preparing…");
             if (!peer.startCapture(consentData)) {
                 mediaProjectionForegroundReady = false;
-                refreshForegroundTypes("Customer view unavailable");
+                refreshForegroundTypes("Guest view unavailable");
                 witnessStartRequested = false;
-                setWitnessUiState(witnessUiState.withMedia("consent-required", "customer view was not ready"));
+                setWitnessUiState(witnessUiState.withMedia("consent-required", "guest view was not ready"));
                 return;
             }
             trace("W31", "WITNESS", "capture-ready", "Horizon compositor surface connected to the native video-only WebRTC track", "success");
             setWitnessUiState(witnessUiState.withMedia("capture-ready", peer.captureProfile()));
         } catch (RuntimeException | LinkageError error) {
             mediaProjectionForegroundReady = false;
-            refreshForegroundTypes("Customer view unavailable");
+            refreshForegroundTypes("Guest view unavailable");
             trace("W31", "WITNESS", "capture-failed", startupReason(error), "error");
             witnessStartRequested = false;
             setWitnessUiState(witnessUiState.withMedia("capture-failed", "Try START again"));
@@ -675,7 +675,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                         witnessStartRequested = false;
                         pendingWitnessConsent = null;
                         if (!destroyed) {
-                            refreshForegroundTypes("Customer view stopped");
+                            refreshForegroundTypes("Guest view stopped");
                             setWitnessUiState(witnessUiState.withMedia(
                                     "consent-required", reason.replace('-', ' ')));
                         }
@@ -753,7 +753,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
         witnessBootstrap = null;
         if (currentSocket != null) currentSocket.close();
         mediaProjectionForegroundReady = false;
-        if (!destroyed) refreshForegroundTypes("Customer view stopped");
+        if (!destroyed) refreshForegroundTypes("Guest view stopped");
         RemoteWitnessUiState ended = witnessUiState.roomId == null
                 ? RemoteWitnessUiState.EMPTY
                 : witnessUiState.ended(reason);

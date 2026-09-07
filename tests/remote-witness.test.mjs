@@ -23,7 +23,7 @@ const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, 
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessUiState.java', root), 'utf8')
 ]);
 
-test('public invitation exchange does not require or emit an application bearer', async () => {
+test('public PIN exchange does not require or emit an application bearer', async () => {
   const requests = [];
   const context = {
     Object, String, TypeError, Error, Blob, URL, URLSearchParams,
@@ -42,10 +42,10 @@ test('public invitation exchange does not require or emit an application bearer'
   };
   context.globalThis = context;
   vm.runInNewContext(clientSource, context);
-  await context.MXApplicationClient.witness.exchangeInvitation({ manualCode: 'ABCDEF012345' });
+  await context.MXApplicationClient.witness.exchangeInvitation({ pin: '7319042' });
   assert.equal(requests[0].url, 'https://core.example/api/xr/witness/invitations/exchange');
   assert.equal('Authorization' in requests[0].options.headers, false);
-  assert.deepEqual(JSON.parse(requests[0].options.body), { invitation: null, manualCode: 'ABCDEF012345' });
+  assert.deepEqual(JSON.parse(requests[0].options.body), { pin: '7319042' });
 });
 
 test('producer and viewer credentials travel in WebSocket subprotocols, never query strings', () => {
@@ -59,6 +59,9 @@ test('live witness contract replaces the legacy message family and stays bounded
   const schema = JSON.parse(witnessSchema);
   assert.equal(schema.$defs.bootstrap.properties.type.const, 'witness.bootstrap');
   assert.equal(schema.$defs.bootstrap.properties.producerCredential.$ref, '#/$defs/credential');
+  assert.equal(schema.$defs.bootstrap.properties.pin.pattern, '^[0-9]{7}$');
+  assert.equal(schema.$defs.bootstrap.properties.joinUrl, undefined);
+  assert.equal(schema.$defs.bootstrap.properties.qrDataUrl, undefined);
   assert.equal(schema.$defs.bootstrap.properties.socketUrl.pattern, '^wss://');
   assert.equal(schema.$defs.candidate.properties.candidate.maxLength, 4096);
   assert.doesNotMatch(witnessSchema, /remote-witness\./);
@@ -72,7 +75,7 @@ test('authenticated Quest loopback transfers witness bootstrap once without URL 
   assert.match(globeSource, /nativeBootstrapProvider: \(invitation, projection\) => xrSensors\.sendWitnessBootstrap/);
   assert.match(sensorOrbSource, /type: 'witness\.bootstrap'/);
   assert.match(sensorOrbSource, /socketUrl: clean\(invitation\?\.socketUrl\)/);
-  assert.match(sensorOrbSource, /qrDataUrl: String\(invitation\.qrDataUrl\)/);
+  assert.match(sensorOrbSource, /pin: clean\(invitation\?\.pin\)/);
   assert.match(sensorOrbSource, /audience: clean\(invitation\?\.state\?\.audience/);
   assert.match(producerSource, /socketUrl: this\.api\.socketUrl\(invitation\.socketPath\)/);
   assert.match(sensorOrbSource, /message\.type === 'witness\.bootstrap\.ack'/);
@@ -104,12 +107,22 @@ test('continuous witness media is WebRTC-only and the application socket rejects
   assert.doesNotMatch(producerSource, /MediaRecorder/);
 });
 
-test('customer surface is intentionally read-only and keeps credentials in memory only', () => {
-  assert.match(viewerHtml, /READ-ONLY CUSTOMER VIEW/);
+test('public guest surface is temporary, identity-agnostic, and keeps credentials in memory only', () => {
+  assert.match(viewerHtml, /TEMPORARY GUEST VIEW/);
+  assert.match(viewerHtml, /7-digit service PIN/);
+  assert.match(viewerHtml, /inputmode="numeric"/);
+  assert.match(viewerHtml, /No account is required/);
+  assert.match(viewerHtml, /name="referrer" content="no-referrer"/);
   assert.doesNotMatch(viewerHtml, /auth\.js/);
+  assert.doesNotMatch(viewerHtml, /type="(?:email|tel)"|name="(?:email|phone|name)"/i);
+  assert.doesNotMatch(viewerSource, /URLSearchParams|\?invite=/);
   assert.doesNotMatch(viewerSource, /localStorage|sessionStorage|indexedDB/);
+  assert.match(clientSource, /publicApplicationJson[\s\S]*credentials: 'omit'/);
+  assert.match(clientSource, /Authorization: `Witness[\s\S]*credentials: 'omit'/);
   assert.match(viewerSource, /witness\.comment/);
   assert.match(viewerSource, /witness\.recording-consent/);
+  assert.match(viewerSource, /witness\.room-ended/);
+  assert.match(viewerSource, /viewerSession = null/);
   assert.doesNotMatch(viewerSource, /controlRoom|create maintenance|approve case|close case/i);
 });
 
@@ -128,10 +141,14 @@ test('case and target context use the existing case gallery and target registry 
   assert.match(transportSource, /workspace_read_blob_access/);
 });
 
-test('headset panel provides invitation, approval, layers, viewer count, expiry, and revoke', () => {
-  for (const signal of ['manualCode', 'viewerCount', 'expiresAtMs', 'APPROVE VIEW', 'SHARE EXTRAS', 'REVOKE ACCESS']) {
+test('headset panel provides PIN, approval, layers, viewer count, expiry, and revoke', () => {
+  for (const signal of ['viewerCount', 'expiresAtMs', 'APPROVE VIEW', 'SHARE EXTRAS', 'REVOKE ACCESS']) {
     assert.match(producerSource, new RegExp(signal));
   }
+  assert.match(producerSource, /this\.invitation\?\.pin/);
+  assert.match(producerSource, /7-DIGIT SERVICE PIN/);
+  assert.doesNotMatch(producerSource, /qrDataUrl|loadQr|qrImage/);
+  assert.doesNotMatch(transportSource, /WITNESS_QR_FAILED/);
   assert.match(globeSource, /xrWitness\?\.interactiveObjects/);
   assert.match(globeSource, /xrWitness\?\.fingerTargetAt/);
 });
@@ -156,9 +173,12 @@ test('native wearer controls own consent and never expose operational mutations 
   for (const action of ['beginWitnessStart', 'pauseWitness', 'endWitness', 'toggleWitnessExtras']) {
     assert.match(nativeServiceSource, new RegExp(action));
   }
-  for (const id of ['immersive_witness_qr', 'immersive_witness_capture', 'immersive_witness_pause', 'immersive_witness_resume', 'immersive_witness_end']) {
+  for (const id of ['immersive_witness_code', 'immersive_witness_capture', 'immersive_witness_pause', 'immersive_witness_resume', 'immersive_witness_end']) {
     assert.match(nativeLayoutSource, new RegExp(id));
   }
+  assert.match(nativeActivitySource, /SERVICE PIN/);
+  assert.doesNotMatch(nativeActivitySource, /RemoteWitnessQrCode|renderWitnessQr/);
+  assert.doesNotMatch(nativeLayoutSource, /immersive_witness_qr/);
   assert.match(nativeActivitySource, /createScreenCaptureIntent\(\)/);
   assert.match(nativeUiStateSource, /enum Phase \{ WAITING, CONNECTING, LIVE, PAUSED, ENDED, ERROR \}/);
   assert.match(nativeUiStateSource, /"live"\.equals\(mediaState\)/);

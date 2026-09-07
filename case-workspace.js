@@ -2,6 +2,9 @@
 const MXCaseWorkspace = (() => {
   let activeCase = null;
   let activeTwinSelection = null;
+  let intakePreviewUrl = null;
+  const CASE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  const MAX_CASE_IMAGE_BYTES = 50 * 1024 * 1024;
   const byId = (id) => document.getElementById(id);
   const text = (value, fallback = 'Not available') => value === null || value === undefined || value === '' ? fallback : String(value);
 
@@ -74,6 +77,104 @@ const MXCaseWorkspace = (() => {
     }).format(parsed);
   }
 
+  function validateCaseImage(file) {
+    if (!(file instanceof Blob) || !CASE_IMAGE_TYPES.has(file.type)) {
+      const error = new Error('Choose a JPG, PNG, or WebP image.');
+      error.code = 'CASE_IMAGE_TYPE_INVALID';
+      throw error;
+    }
+    if (!file.size || file.size > MAX_CASE_IMAGE_BYTES) {
+      const error = new Error('Choose an image no larger than 50 MB.');
+      error.code = 'CASE_IMAGE_SIZE_INVALID';
+      throw error;
+    }
+    return file;
+  }
+
+  function resetIntakeImage() {
+    if (intakePreviewUrl) URL.revokeObjectURL(intakePreviewUrl);
+    intakePreviewUrl = null;
+    const input = byId('caseImage');
+    const preview = byId('caseImagePreview');
+    const remove = byId('caseImageRemove');
+    const status = byId('caseImageStatus');
+    if (input) input.value = '';
+    if (preview) {
+      preview.removeAttribute('src');
+      preview.hidden = true;
+    }
+    if (remove) remove.hidden = true;
+    if (status) status.textContent = 'No image selected';
+  }
+
+  function updateIntakeImageSelection() {
+    const input = byId('caseImage');
+    const preview = byId('caseImagePreview');
+    const remove = byId('caseImageRemove');
+    const status = byId('caseImageStatus');
+    const file = input?.files?.[0];
+    if (!file) {
+      resetIntakeImage();
+      return;
+    }
+    try {
+      validateCaseImage(file);
+      if (intakePreviewUrl) URL.revokeObjectURL(intakePreviewUrl);
+      intakePreviewUrl = URL.createObjectURL(file);
+      if (preview) {
+        preview.src = intakePreviewUrl;
+        preview.hidden = false;
+      }
+      if (remove) remove.hidden = false;
+      if (status) status.textContent = `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    } catch (error) {
+      resetIntakeImage();
+      setStatus(`${error.code}: ${error.message}`, 'error');
+    }
+  }
+
+  function attachCaseImage({ caseId, file, note }) {
+    validateCaseImage(file);
+    return authenticatedRequest((requestSession) => MXApplicationClient.cases.attachMedia({
+      caseId,
+      media: file,
+      note,
+      session: requestSession
+    }));
+  }
+
+  function bindActiveCaseImageUpload(result) {
+    const input = byId('caseActiveImage');
+    const label = byId('caseActiveImageButton');
+    const status = byId('caseActiveImageStatus');
+    input?.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        validateCaseImage(file);
+        input.disabled = true;
+        label?.setAttribute('aria-disabled', 'true');
+        if (status) status.textContent = `Adding ${file.name}…`;
+        setStatus(`Adding image to case ${result.caseId}…`, 'working');
+        await attachCaseImage({
+          caseId: result.caseId,
+          file,
+          note: 'Image added from the maintenance case workspace'
+        });
+        await openExistingCase(result.caseId);
+      } catch (error) {
+        if (status) status.textContent = error.message;
+        setStatus(`${error.code || 'CASE_IMAGE_FAILED'}: ${error.message}`, 'error');
+      } finally {
+        if (document.contains(input)) {
+          input.disabled = false;
+          input.value = '';
+          label?.removeAttribute('aria-disabled');
+        }
+      }
+    });
+  }
+
   function render(result) {
     const target = byId('caseWorkspaceResult');
     const caseState = result.case;
@@ -96,6 +197,11 @@ const MXCaseWorkspace = (() => {
               <img src="media/deck-mechanic.jpg" alt="">
             </button>
           </div>
+          <div class="case-workspace__media-toolbar">
+            <label id="caseActiveImageButton" for="caseActiveImage">Add image</label>
+            <input id="caseActiveImage" type="file" accept="image/jpeg,image/png,image/webp">
+            <span id="caseActiveImageStatus" role="status" aria-live="polite">JPG, PNG, or WebP</span>
+          </div>
         </div>
         <div class="case-workspace__summary">
           <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
@@ -114,6 +220,7 @@ const MXCaseWorkspace = (() => {
         ${list(result.trace, (entry) => `${escapeHtml(entry.tool)} · ${escapeHtml(entry.status)} · ${escapeHtml(entry.traceId)}`)}
       </details>`;
     target.hidden = false;
+    bindActiveCaseImageUpload(result);
   }
 
   function traceEntry(tool, envelope) {
@@ -266,8 +373,10 @@ const MXCaseWorkspace = (() => {
     const registration = form.elements.registration.value.trim();
     const discrepancy = form.elements.discrepancy.value.trim();
     const priority = form.elements.priority.value;
+    const caseImage = form.elements.caseImage.files?.[0] || null;
     setStatus('Resolving aircraft…', 'working');
     try {
+      if (caseImage) validateCaseImage(caseImage);
       const requestSession = await session();
       const lookupEnvelope = await MXApplicationClient.aircraft.lookup({
         registration,
@@ -302,13 +411,33 @@ const MXCaseWorkspace = (() => {
         priority,
         session: { ...requestSession, confirmationGrant: confirmation.token }
       });
+      let imageWarning = null;
+      if (caseImage) {
+        setStatus(`Case ${result.caseId} created. Adding image…`, 'working');
+        try {
+          await attachCaseImage({
+            caseId: result.caseId,
+            file: caseImage,
+            note: 'Image attached during maintenance case intake'
+          });
+          const { value: media } = await authenticatedRequest((activeSession) => (
+            MXApplicationClient.cases.listMedia(result.caseId, activeSession)
+          ));
+          result.caseMedia = media.media || [];
+        } catch (error) {
+          imageWarning = error;
+        }
+      }
       render(result);
       activeCase = result;
       localStorage.setItem('mxg_active_case_id', result.caseId);
-      setStatus(`Case ${result.caseId} is live.`, 'ready');
+      setStatus(imageWarning
+        ? `Case ${result.caseId} is live, but the image could not be added. Use Add image to try again.`
+        : `Case ${result.caseId} is live${caseImage ? ' with its image attached' : ''}.`, imageWarning ? 'error' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
       await loadExistingCases();
       byId('caseExistingSelect').value = result.caseId;
+      resetIntakeImage();
     } catch (error) {
       setStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
     } finally {
@@ -318,6 +447,8 @@ const MXCaseWorkspace = (() => {
 
   function init() {
     byId('caseIntakeForm')?.addEventListener('submit', submit);
+    byId('caseImage')?.addEventListener('change', updateIntakeImageSelection);
+    byId('caseImageRemove')?.addEventListener('click', resetIntakeImage);
     byId('caseExistingSelect')?.addEventListener('change', (event) => {
       byId('caseOpenButton').disabled = !event.currentTarget.value;
     });

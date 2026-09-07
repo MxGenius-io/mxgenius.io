@@ -102,7 +102,6 @@ foreach ($requiredImmersiveToken in @(
     '@+id/immersive_commission_status',
     '@+id/immersive_witness_status',
     '@+id/immersive_witness_capture',
-    '@+id/immersive_witness_qr',
     '@+id/immersive_witness_pause',
     '@+id/immersive_witness_resume',
     '@+id/immersive_witness_end',
@@ -159,7 +158,6 @@ foreach ($requiredWitnessMediaToken in @(
 }
 foreach ($requiredWitnessControlToken in @(
     'RemoteWitnessUiState',
-    'RemoteWitnessQrCode',
     'beginWitnessStart',
     'pauseWitness',
     'endWitness',
@@ -291,7 +289,7 @@ Assert-ReleaseRequirement ($packagedResources.Contains('id/thermal_preview')) 'p
 Assert-ReleaseRequirement ($packagedResources.Contains('id/enter_immersive')) 'packaged standalone panel is missing id/enter_immersive'
 Assert-ReleaseRequirement ($packagedResources.Contains('id/power_guidance')) 'packaged standalone panel is missing id/power_guidance'
 Assert-ReleaseRequirement (-not $packagedResources.Contains('xml/flir_usb_devices')) 'competing FLIR USB attachment filter is still packaged'
-foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_witness_status', 'immersive_witness_capture', 'immersive_witness_qr', 'immersive_witness_pause', 'immersive_witness_resume', 'immersive_witness_end', 'immersive_witness_layers_toggle')) {
+foreach ($requiredImmersiveResource in @('immersive_thermal_preview', 'immersive_pin_toggle', 'immersive_reconnect', 'immersive_commission', 'immersive_commission_status', 'immersive_witness_status', 'immersive_witness_capture', 'immersive_witness_pause', 'immersive_witness_resume', 'immersive_witness_end', 'immersive_witness_layers_toggle')) {
     Assert-ReleaseRequirement ($packagedResources.Contains("id/$requiredImmersiveResource")) "packaged immersive panel is missing id/$requiredImmersiveResource"
 }
 foreach ($forbiddenPackagedLayoutToken in @('connect_pi', 'pi_status')) {

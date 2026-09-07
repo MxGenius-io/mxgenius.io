@@ -10,8 +10,8 @@ public final class RemoteWitnessUiState {
     enum Phase { WAITING, CONNECTING, LIVE, PAUSED, ENDED, ERROR }
 
     static final RemoteWitnessUiState EMPTY = new RemoteWitnessUiState(
-            null, "Aircraft customer", "none", false, 0, 0L,
-            null, null, null, "offline", "idle", null,
+            null, "Guest witness", "none", false, 0, 0L,
+            null, "offline", "idle", null,
             true, false, true, false, false, false, "off");
 
     final String roomId;
@@ -20,9 +20,7 @@ public final class RemoteWitnessUiState {
     final boolean approved;
     final int viewerCount;
     final long expiresAtMs;
-    final String manualCode;
-    final String joinUrl;
-    final String qrDataUrl;
+    final String pin;
     final String networkState;
     final String mediaState;
     final String error;
@@ -41,9 +39,7 @@ public final class RemoteWitnessUiState {
             boolean approved,
             int viewerCount,
             long expiresAtMs,
-            String manualCode,
-            String joinUrl,
-            String qrDataUrl,
+            String pin,
             String networkState,
             String mediaState,
             String error,
@@ -55,14 +51,12 @@ public final class RemoteWitnessUiState {
             boolean microphone,
             String recordingState) {
         this.roomId = roomId;
-        this.audience = bounded(audience, "Aircraft customer", 80);
+        this.audience = bounded(audience, "Guest witness", 80);
         this.roomStatus = bounded(roomStatus, "unknown", 32);
         this.approved = approved;
         this.viewerCount = Math.max(0, Math.min(4, viewerCount));
         this.expiresAtMs = Math.max(0L, expiresAtMs);
-        this.manualCode = manualCode;
-        this.joinUrl = joinUrl;
-        this.qrDataUrl = qrDataUrl;
+        this.pin = pin;
         this.networkState = bounded(networkState, "offline", 48);
         this.mediaState = bounded(mediaState, "idle", 48);
         this.error = error == null ? null : bounded(error, "Witness unavailable", 160);
@@ -79,7 +73,7 @@ public final class RemoteWitnessUiState {
         if (bootstrap == null) return EMPTY;
         return new RemoteWitnessUiState(
                 bootstrap.roomId.toString(), bootstrap.audience, "headset-offline", false, 0,
-                bootstrap.expiresAtMs, bootstrap.manualCode, bootstrap.joinUrl, bootstrap.qrDataUrl,
+                bootstrap.expiresAtMs, bootstrap.pin,
                 "connecting", "idle", null,
                 true, false, true, true, false, false, "off");
     }
@@ -126,7 +120,7 @@ public final class RemoteWitnessUiState {
     RemoteWitnessUiState ended(String reason) {
         return new RemoteWitnessUiState(
                 null, audience, "ended", approved, 0, expiresAtMs,
-                null, null, null, "closed", "stopped",
+                null, "closed", "stopped",
                 bounded(reason, "Session ended", 160),
                 pov, thermal, target, caseSummary, caseMedia, microphone, "off");
     }
@@ -208,7 +202,7 @@ public final class RemoteWitnessUiState {
             boolean microphone,
             String recordingState) {
         return new RemoteWitnessUiState(roomId, audience, roomStatus, approved, viewerCount, expiresAtMs,
-                manualCode, joinUrl, qrDataUrl, networkState, mediaState, error,
+                pin, networkState, mediaState, error,
                 pov, thermal, target, caseSummary, caseMedia, microphone, recordingState);
     }
 

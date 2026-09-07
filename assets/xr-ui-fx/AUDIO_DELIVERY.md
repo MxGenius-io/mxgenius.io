@@ -1,6 +1,6 @@
 # Audio Delivery — MXGenius XR UI & FX
 
-26 sound-cue source masters generated, all `status: needed` rows from `sound-cues.csv`.
+27 sound-cue source masters are registered in `sound-cues.csv`: the original 26 XR cues plus the active dashboard welcome.
 
 ## Delivery summary
 
@@ -15,7 +15,7 @@
 | Fade in | 6 ms | |
 | Fade out | 50 ms | within brief's 40–80 ms cancellation-release window |
 | Loops (SND-010, SND-020) | 120/80 ms acrossfade | seamless on join |
-| Total runtime | 13.5 s (sum) | |
+| Total runtime | 17.5 s (sum) | Includes the four-second dashboard welcome |
 
 ## Caveats
 
@@ -61,6 +61,7 @@
 | SND-024 | `system_permission_needed.wav` | `audio/system` | P2 | 260 | 260 | -11.5 | Polite hollow knock with no alarm character |
 | SND-025 | `safety_attention.wav` | `audio/system` | P0 | 380 | 380 | -2.6 | One decisive broadband attention cue with short tail |
 | SND-026 | `safety_acknowledged.wav` | `audio/system` | P0 | 280 | 280 | -2.6 | Grounded low-mid confirmation tone |
+| SND-027 | `Welcome.wav` | `audio/system` | P2 | 4000 | 4010 | — | Spoken MXGenius welcome paired with the dashboard splash |
 
 ## Production notes
 

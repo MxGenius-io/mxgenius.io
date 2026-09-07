@@ -7,6 +7,7 @@
 // changing the HTTP wire contract.
 #![allow(clippy::result_large_err)]
 
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -85,6 +86,9 @@ const MAX_CHAT_MESSAGE_BYTES: usize = 20 * 1024;
 const MAX_CHAT_IMAGES: usize = 4;
 const MAX_CHAT_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 const MAX_CONTENT_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
+const MAX_UI_SOUND_BYTES: usize = 5 * 1024 * 1024;
+const MAX_UI_SOUND_INDEX_BYTES: usize = 128 * 1024;
+const MAX_UI_SOUND_DURATION_MS: u32 = 15_000;
 const MAX_PROFILE_IMAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TWIN_MODEL_BYTES: usize = 100 * 1024 * 1024;
 const MAX_PROFILE_SETTINGS_BYTES: usize = 32 * 1024;
@@ -201,6 +205,12 @@ pub fn router_with_health_and_manual(
         .route("/chat", post(chat))
         .route("/api/chat/models", get(list_chat_models))
         .route("/api/content/uploads", post(upload_content))
+        .route("/api/ui-sounds", get(get_ui_sound_index))
+        .route(
+            "/api/ui-sounds/:cue_id",
+            axum::routing::put(put_ui_sound).delete(delete_ui_sound),
+        )
+        .route("/api/ui-sounds/:cue_id/content", get(get_ui_sound_content))
         .route(
             "/api/project-workspaces/:workspace_key",
             get(get_project_workspace).put(save_project_workspace),
@@ -775,6 +785,570 @@ async fn upload_content(
         })),
     )
         .into_response()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct UiSoundOverride {
+    filename: String,
+    media_type: String,
+    byte_size: usize,
+    duration_ms: u32,
+    content_hash: String,
+    storage_key: String,
+    updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct UiSoundManifest {
+    schema_version: u32,
+    version: u64,
+    updated_at: Option<String>,
+    updated_by: Option<Uuid>,
+    #[serde(default)]
+    cues: BTreeMap<String, UiSoundOverride>,
+}
+
+impl Default for UiSoundManifest {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            version: 0,
+            updated_at: None,
+            updated_by: None,
+            cues: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PutUiSoundQuery {
+    filename: String,
+    duration_ms: u32,
+    expected_version: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteUiSoundQuery {
+    expected_version: u64,
+}
+
+fn ui_sound_write_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn valid_ui_sound_cue_id(value: &str) -> bool {
+    value
+        .strip_prefix("SND-")
+        .and_then(|digits| {
+            (digits.len() == 3 && digits.chars().all(|value| value.is_ascii_digit()))
+                .then(|| digits.parse::<u8>().ok())
+                .flatten()
+        })
+        .is_some_and(|number| (1..=27).contains(&number))
+}
+
+fn ui_sound_media_type(media_type: &str, filename: &str, body: &[u8]) -> Option<&'static str> {
+    let lowercase = filename.to_ascii_lowercase();
+    let (expected, has_signature) = if lowercase.ends_with(".wav") {
+        (
+            "audio/wav",
+            body.len() >= 12 && &body[..4] == b"RIFF" && &body[8..12] == b"WAVE",
+        )
+    } else if lowercase.ends_with(".mp3") {
+        (
+            "audio/mpeg",
+            body.starts_with(b"ID3")
+                || (body.len() >= 2 && body[0] == 0xff && body[1] & 0xe0 == 0xe0),
+        )
+    } else if lowercase.ends_with(".m4a") {
+        ("audio/mp4", body.len() >= 12 && &body[4..8] == b"ftyp")
+    } else {
+        return None;
+    };
+    let type_matches = media_type == expected
+        || media_type == "application/octet-stream"
+        || (expected == "audio/wav" && media_type == "audio/x-wav")
+        || (expected == "audio/mp4" && media_type == "audio/x-m4a");
+    (type_matches && has_signature).then_some(expected)
+}
+
+fn ui_sound_index_path(organization_id: Uuid) -> String {
+    format!("documents/ui-sounds/{organization_id}/index.json")
+}
+
+fn ui_sound_now() -> String {
+    OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| OffsetDateTime::now_utc().unix_timestamp().to_string())
+}
+
+async fn read_ui_sound_manifest(
+    client: &reqwest::Client,
+    organization_id: Uuid,
+) -> Result<(UiSoundManifest, Option<String>), Response> {
+    let path = ui_sound_index_path(organization_id);
+    let access = workspace_read_blob_access(client, &path)
+        .await
+        .map_err(|_| {
+            realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "UI_SOUND_STORAGE_NOT_CONFIGURED",
+                "private sound storage is not configured",
+            )
+        })?;
+    let mut request = client.get(access.url).header("x-ms-version", "2023-11-03");
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = request.send().await.map_err(|error| {
+        tracing::warn!(target: "mxgenius.ui_sounds", %error, "sound index download failed");
+        realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_UNAVAILABLE",
+            "sound library could not be loaded",
+        )
+    })?;
+    if upstream.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok((UiSoundManifest::default(), None));
+    }
+    if !upstream.status().is_success() {
+        tracing::warn!(target: "mxgenius.ui_sounds", status=%upstream.status(), "sound index download rejected");
+        return Err(realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_UNAVAILABLE",
+            "sound library could not be loaded",
+        ));
+    }
+    let etag = upstream
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let body = upstream.bytes().await.map_err(|_| {
+        realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_INVALID",
+            "sound library index could not be read",
+        )
+    })?;
+    if body.len() > MAX_UI_SOUND_INDEX_BYTES {
+        return Err(realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_INVALID",
+            "sound library index is too large",
+        ));
+    }
+    let manifest: UiSoundManifest = serde_json::from_slice(&body).map_err(|_| {
+        realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_INVALID",
+            "sound library index is invalid",
+        )
+    })?;
+    if manifest.schema_version != 1
+        || manifest.cues.len() > 27
+        || manifest
+            .cues
+            .keys()
+            .any(|cue_id| !valid_ui_sound_cue_id(cue_id))
+    {
+        return Err(realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_INVALID",
+            "sound library index has an unsupported shape",
+        ));
+    }
+    Ok((manifest, etag))
+}
+
+async fn write_ui_sound_manifest(
+    client: &reqwest::Client,
+    organization_id: Uuid,
+    manifest: &UiSoundManifest,
+    etag: Option<&str>,
+) -> Result<(), Response> {
+    let body = serde_json::to_vec(manifest).map_err(|_| {
+        realtime_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "UI_SOUND_INDEX_INVALID",
+            "sound library index could not be created",
+        )
+    })?;
+    let path = ui_sound_index_path(organization_id);
+    let access = parts_blob_access(client, &path).await.map_err(|_| {
+        realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "UI_SOUND_STORAGE_NOT_CONFIGURED",
+            "private sound storage is not configured",
+        )
+    })?;
+    let mut request = client
+        .put(access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body);
+    request = if let Some(value) = etag {
+        request.header(header::IF_MATCH, value)
+    } else {
+        request.header(header::IF_NONE_MATCH, "*")
+    };
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = request.send().await.map_err(|error| {
+        tracing::warn!(target: "mxgenius.ui_sounds", %error, "sound index upload failed");
+        realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_SAVE_FAILED",
+            "sound library index could not be saved",
+        )
+    })?;
+    if upstream.status() == reqwest::StatusCode::PRECONDITION_FAILED {
+        return Err(realtime_error(
+            StatusCode::CONFLICT,
+            "UI_SOUND_VERSION_CONFLICT",
+            "the sound library changed; reload it and try again",
+        ));
+    }
+    if !upstream.status().is_success() {
+        tracing::warn!(target: "mxgenius.ui_sounds", status=%upstream.status(), "sound index upload rejected");
+        return Err(realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_INDEX_SAVE_REJECTED",
+            "private storage rejected the sound library index",
+        ));
+    }
+    Ok(())
+}
+
+fn ui_sound_index_response(manifest: &UiSoundManifest) -> Response {
+    let overrides = manifest
+        .cues
+        .iter()
+        .map(|(cue_id, sound)| {
+            json!({
+                "cue_id": cue_id,
+                "filename": sound.filename,
+                "media_type": sound.media_type,
+                "byte_size": sound.byte_size,
+                "duration_ms": sound.duration_ms,
+                "content_hash": sound.content_hash,
+                "updated_at": sound.updated_at,
+                "content_url": format!("/api/ui-sounds/{cue_id}/content")
+            })
+        })
+        .collect::<Vec<_>>();
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({
+            "schema_version": manifest.schema_version,
+            "version": manifest.version,
+            "updated_at": manifest.updated_at,
+            "overrides": overrides
+        })),
+    )
+        .into_response()
+}
+
+async fn get_ui_sound_index(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match read_ui_sound_manifest(&state.realtime_client, context.organization_id.0).await {
+        Ok((manifest, _)) => ui_sound_index_response(&manifest),
+        Err(response) => response,
+    }
+}
+
+async fn put_ui_sound(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cue_id): Path<String>,
+    Query(input): Query<PutUiSoundQuery>,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !ui_sound_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "UI_SOUND_WRITE_DENIED",
+            "only managers and administrators can change interface sounds",
+        );
+    }
+    if !valid_ui_sound_cue_id(&cue_id) {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_UI_SOUND_CUE",
+            "sound cue is not part of the current interface schema",
+        );
+    }
+    if body.is_empty() || body.len() > MAX_UI_SOUND_BYTES {
+        return realtime_error(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "INVALID_UI_SOUND_SIZE",
+            "sound files must be between 1 byte and 5 MiB",
+        );
+    }
+    if input.duration_ms == 0 || input.duration_ms > MAX_UI_SOUND_DURATION_MS {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_UI_SOUND_DURATION",
+            "interface sounds must be 15 seconds or shorter",
+        );
+    }
+    let Some(filename) = safe_upload_filename(&input.filename) else {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_UI_SOUND_NAME",
+            "sound filename is invalid",
+        );
+    };
+    let supplied_media_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .unwrap_or_default();
+    let Some(media_type) = ui_sound_media_type(supplied_media_type, &filename, &body) else {
+        return realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_UI_SOUND_TYPE",
+            "choose a valid WAV, MP3, or M4A file",
+        );
+    };
+    let (mut manifest, etag) =
+        match read_ui_sound_manifest(&state.realtime_client, context.organization_id.0).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    if manifest.version != input.expected_version {
+        return realtime_error(
+            StatusCode::CONFLICT,
+            "UI_SOUND_VERSION_CONFLICT",
+            "the sound library changed; reload it and try again",
+        );
+    }
+    let storage_key = format!(
+        "documents/ui-sounds/{}/{}/{}-{}",
+        context.organization_id.0,
+        cue_id,
+        Uuid::new_v4(),
+        filename
+    );
+    let access = match parts_blob_access(&state.realtime_client, &storage_key).await {
+        Ok(value) => value,
+        Err(_) => {
+            return realtime_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "UI_SOUND_STORAGE_NOT_CONFIGURED",
+                "private sound storage is not configured",
+            )
+        }
+    };
+    let mut request = state
+        .realtime_client
+        .put(access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, media_type)
+        .body(body.clone());
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.ui_sounds", %error, cue_id, "sound upload failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "UI_SOUND_UPLOAD_FAILED",
+                "sound file could not be stored",
+            );
+        }
+    };
+    if !upstream.status().is_success() {
+        tracing::warn!(target: "mxgenius.ui_sounds", status=%upstream.status(), cue_id, "sound upload rejected");
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "UI_SOUND_UPLOAD_REJECTED",
+            "private storage rejected the sound file",
+        );
+    }
+    let now = ui_sound_now();
+    let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    manifest.version += 1;
+    manifest.updated_at = Some(now.clone());
+    manifest.updated_by = Some(context.user_id.0);
+    manifest.cues.insert(
+        cue_id,
+        UiSoundOverride {
+            filename,
+            media_type: media_type.to_owned(),
+            byte_size: body.len(),
+            duration_ms: input.duration_ms,
+            content_hash,
+            storage_key,
+            updated_at: now,
+        },
+    );
+    if let Err(response) = write_ui_sound_manifest(
+        &state.realtime_client,
+        context.organization_id.0,
+        &manifest,
+        etag.as_deref(),
+    )
+    .await
+    {
+        return response;
+    }
+    ui_sound_index_response(&manifest)
+}
+
+async fn delete_ui_sound(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cue_id): Path<String>,
+    Query(input): Query<DeleteUiSoundQuery>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !ui_sound_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "UI_SOUND_WRITE_DENIED",
+            "only managers and administrators can change interface sounds",
+        );
+    }
+    if !valid_ui_sound_cue_id(&cue_id) {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_UI_SOUND_CUE",
+            "sound cue is not part of the current interface schema",
+        );
+    }
+    let (mut manifest, etag) =
+        match read_ui_sound_manifest(&state.realtime_client, context.organization_id.0).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    if manifest.version != input.expected_version {
+        return realtime_error(
+            StatusCode::CONFLICT,
+            "UI_SOUND_VERSION_CONFLICT",
+            "the sound library changed; reload it and try again",
+        );
+    }
+    if manifest.cues.remove(&cue_id).is_none() {
+        return ui_sound_index_response(&manifest);
+    }
+    manifest.version += 1;
+    manifest.updated_at = Some(ui_sound_now());
+    manifest.updated_by = Some(context.user_id.0);
+    if let Err(response) = write_ui_sound_manifest(
+        &state.realtime_client,
+        context.organization_id.0,
+        &manifest,
+        etag.as_deref(),
+    )
+    .await
+    {
+        return response;
+    }
+    ui_sound_index_response(&manifest)
+}
+
+async fn get_ui_sound_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(cue_id): Path<String>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !valid_ui_sound_cue_id(&cue_id) {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "UI_SOUND_NOT_FOUND",
+            "custom sound was not found",
+        );
+    }
+    let (manifest, _) =
+        match read_ui_sound_manifest(&state.realtime_client, context.organization_id.0).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let Some(sound) = manifest.cues.get(&cue_id) else {
+        return realtime_error(
+            StatusCode::NOT_FOUND,
+            "UI_SOUND_NOT_FOUND",
+            "custom sound was not found",
+        );
+    };
+    let access = match workspace_read_blob_access(&state.realtime_client, &sound.storage_key).await
+    {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let mut request = state
+        .realtime_client
+        .get(access.url)
+        .header("x-ms-version", "2023-11-03");
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.ui_sounds", status=%value.status(), cue_id, "sound download rejected");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "UI_SOUND_UNAVAILABLE",
+                "custom sound could not be retrieved",
+            );
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.ui_sounds", %error, cue_id, "sound download failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "UI_SOUND_UNAVAILABLE",
+                "custom sound could not be retrieved",
+            );
+        }
+    };
+    let content = match upstream.bytes().await {
+        Ok(value) if value.len() <= MAX_UI_SOUND_BYTES => value,
+        _ => {
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "UI_SOUND_INVALID",
+                "custom sound exceeded the delivery limit",
+            )
+        }
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, sound.media_type.as_str())
+        .header(header::CACHE_CONTROL, "private, max-age=300")
+        .header(header::ETAG, format!("\"{}\"", sound.content_hash))
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{}\"", sound.filename),
+        )
+        .body(Body::from(content))
+        .expect("valid UI sound response")
 }
 
 #[derive(Debug, Deserialize)]
@@ -2277,30 +2851,12 @@ async fn create_witness_invitation(
         Err(response) => return response,
     };
     match state.remote_witness.create_invitation(&context, input) {
-        Ok(invitation) => {
-            let qr_data_url = match qr_svg_data_url(&invitation.join_url) {
-                Ok(value) => value,
-                Err(message) => {
-                    return realtime_error(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "WITNESS_QR_FAILED",
-                        message,
-                    )
-                }
-            };
-            let mut response = match serde_json::to_value(invitation) {
-                Ok(Value::Object(value)) => value,
-                _ => {
-                    return realtime_error(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "WITNESS_SERIALIZATION_FAILED",
-                        "remote witness invitation could not be serialized",
-                    )
-                }
-            };
-            response.insert("qrDataUrl".into(), Value::String(qr_data_url));
-            (StatusCode::CREATED, Json(Value::Object(response))).into_response()
-        }
+        Ok(invitation) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(invitation),
+        )
+            .into_response(),
         Err(error) => witness_error(error),
     }
 }
@@ -2318,7 +2874,12 @@ async fn exchange_witness_invitation(
         );
     }
     match state.remote_witness.exchange_invitation(input) {
-        Ok(session) => (StatusCode::OK, Json(session)).into_response(),
+        Ok(session) => (
+            StatusCode::OK,
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(session),
+        )
+            .into_response(),
         Err(error) => witness_error(error),
     }
 }
@@ -2613,10 +3174,10 @@ fn witness_error(error: RemoteWitnessError) -> Response {
     let status = match error {
         RemoteWitnessError::Invalid => StatusCode::BAD_REQUEST,
         RemoteWitnessError::NotFound => StatusCode::NOT_FOUND,
-        RemoteWitnessError::InviteExpired
+        RemoteWitnessError::PinExpired
         | RemoteWitnessError::SessionExpired
         | RemoteWitnessError::Revoked => StatusCode::GONE,
-        RemoteWitnessError::InviteConsumed
+        RemoteWitnessError::PinConsumed
         | RemoteWitnessError::ViewerLimit
         | RemoteWitnessError::ProducerAlreadyConnected => StatusCode::CONFLICT,
         RemoteWitnessError::AccessDenied => StatusCode::FORBIDDEN,
@@ -2631,8 +3192,8 @@ fn witness_error_code(error: &RemoteWitnessError) -> &'static str {
     match error {
         RemoteWitnessError::Invalid => "WITNESS_INVALID",
         RemoteWitnessError::NotFound => "WITNESS_NOT_FOUND",
-        RemoteWitnessError::InviteExpired => "WITNESS_INVITE_EXPIRED",
-        RemoteWitnessError::InviteConsumed => "WITNESS_INVITE_CONSUMED",
+        RemoteWitnessError::PinExpired => "WITNESS_PIN_EXPIRED",
+        RemoteWitnessError::PinConsumed => "WITNESS_PIN_CONSUMED",
         RemoteWitnessError::SessionExpired => "WITNESS_SESSION_EXPIRED",
         RemoteWitnessError::Revoked => "WITNESS_REVOKED",
         RemoteWitnessError::AccessDenied => "WITNESS_ACCESS_DENIED",
@@ -9642,5 +10203,43 @@ mod structured_advisory_tests {
             &json!({"verify_first":[{"text":"Inspect","citations":["M-99"]}]}),
             &allowed
         ));
+    }
+
+    #[test]
+    fn ui_sound_cue_ids_are_limited_to_the_published_schema() {
+        assert!(valid_ui_sound_cue_id("SND-001"));
+        assert!(valid_ui_sound_cue_id("SND-027"));
+        for invalid in ["SND-000", "SND-028", "snd-001", "SND-01", "SND-001.exe"] {
+            assert!(
+                !valid_ui_sound_cue_id(invalid),
+                "{invalid} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_sound_uploads_require_matching_extensions_types_and_signatures() {
+        let mut wav = b"RIFF0000WAVE".to_vec();
+        wav.extend_from_slice(&[0; 8]);
+        assert_eq!(
+            ui_sound_media_type("audio/wav", "press.wav", &wav),
+            Some("audio/wav")
+        );
+        assert_eq!(ui_sound_media_type("audio/mpeg", "press.wav", &wav), None);
+        assert_eq!(ui_sound_media_type("audio/wav", "press.mp3", &wav), None);
+        assert_eq!(ui_sound_media_type("audio/wav", "press.exe", &wav), None);
+
+        assert_eq!(
+            ui_sound_media_type("audio/mpeg", "press.mp3", b"ID3payload"),
+            Some("audio/mpeg")
+        );
+        assert_eq!(
+            ui_sound_media_type("audio/mp4", "press.m4a", b"0000ftyp0000"),
+            Some("audio/mp4")
+        );
+        assert_eq!(
+            ui_sound_media_type("audio/mp4", "press.m4a", b"not audio"),
+            None
+        );
     }
 }

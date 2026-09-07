@@ -29,7 +29,6 @@ pub struct RemoteWitnessConfig {
     pub invite_ttl: Duration,
     pub session_ttl: Duration,
     pub maximum_viewers: usize,
-    pub join_base_url: String,
     pub ice_servers: Vec<Value>,
 }
 
@@ -39,7 +38,6 @@ impl Default for RemoteWitnessConfig {
             invite_ttl: Duration::from_secs(5 * 60),
             session_ttl: Duration::from_secs(60 * 60),
             maximum_viewers: 1,
-            join_base_url: "https://mxgenius.io/witness.html".into(),
             ice_servers: vec![],
         }
     }
@@ -48,10 +46,6 @@ impl Default for RemoteWitnessConfig {
 impl RemoteWitnessConfig {
     pub fn from_env() -> Self {
         let defaults = Self::default();
-        let join_base_url = std::env::var("MXGENIUS_WITNESS_JOIN_URL")
-            .ok()
-            .filter(|value| value.starts_with("https://") && value.len() <= 512)
-            .unwrap_or(defaults.join_base_url);
         let ice_servers = std::env::var("MXGENIUS_WITNESS_ICE_SERVERS_JSON")
             .ok()
             .and_then(|value| serde_json::from_str::<Vec<Value>>(&value).ok())
@@ -71,7 +65,6 @@ impl RemoteWitnessConfig {
                 4 * 60 * 60,
             )),
             maximum_viewers: env_u64("MXGENIUS_WITNESS_MAX_VIEWERS", 1, 1, 4) as usize,
-            join_base_url,
             ice_servers,
         }
     }
@@ -144,10 +137,7 @@ pub struct CreateWitnessInvitation {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExchangeWitnessInvitation {
-    #[serde(default)]
-    pub invitation: Option<String>,
-    #[serde(default)]
-    pub manual_code: Option<String>,
+    pub pin: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -198,9 +188,7 @@ impl Default for WitnessLayers {
 #[serde(rename_all = "camelCase")]
 pub struct WitnessInvitationResponse {
     pub room_id: Uuid,
-    pub invitation: String,
-    pub join_url: String,
-    pub manual_code: String,
+    pub pin: String,
     pub producer_credential: String,
     pub socket_path: &'static str,
     pub invite_expires_at_ms: u64,
@@ -263,7 +251,7 @@ impl WitnessSocketRole {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Producer => "producer",
-            Self::Viewer => "customer-viewer",
+            Self::Viewer => "guest-viewer",
         }
     }
 }
@@ -294,10 +282,10 @@ pub enum RemoteWitnessError {
     Invalid,
     #[error("remote witness room was not found")]
     NotFound,
-    #[error("remote witness invitation expired")]
-    InviteExpired,
-    #[error("remote witness invitation was already used")]
-    InviteConsumed,
+    #[error("remote witness PIN expired")]
+    PinExpired,
+    #[error("remote witness PIN was already used")]
+    PinConsumed,
     #[error("remote witness session expired")]
     SessionExpired,
     #[error("remote witness session was revoked")]
@@ -328,10 +316,9 @@ struct WitnessRoom {
     owner_user_id: Uuid,
     case_id: Option<String>,
     audience: String,
-    invite_hash: [u8; 32],
-    manual_code: String,
+    pin: String,
     invite_expires_at_ms: u64,
-    invite_consumed: bool,
+    pin_consumed: bool,
     expires_at_ms: u64,
     approved: bool,
     paused: bool,
@@ -348,8 +335,7 @@ struct WitnessRoom {
 #[derive(Default)]
 struct RemoteWitnessState {
     rooms: HashMap<Uuid, WitnessRoom>,
-    invitations: HashMap<[u8; 32], Uuid>,
-    manual_codes: HashMap<String, Uuid>,
+    pins: HashMap<String, Uuid>,
     credentials: HashMap<[u8; 32], CredentialRecord>,
 }
 
@@ -391,41 +377,13 @@ impl RemoteWitnessService {
             .map(|value| bounded_token(value, 128))
             .transpose()?;
         let now = (self.now_ms)();
-        let invitation = opaque_token();
-        let invitation_hash = token_hash(&invitation);
         let producer_credential = opaque_token();
         let producer_hash = token_hash(&producer_credential);
         let room_id = Uuid::new_v4();
         let producer_id = Uuid::new_v4();
-        // Twelve hexadecimal characters keep the fallback code typeable while
-        // retaining 48 bits of entropy for a short-lived public exchange route.
-        let manual_code = invitation[..12].to_ascii_uppercase();
         let invite_expires_at_ms = now + self.config.invite_ttl.as_millis() as u64;
         let session_expires_at_ms = now + self.config.session_ttl.as_millis() as u64;
         let (events, _) = broadcast::channel(64);
-        let room = WitnessRoom {
-            room_id,
-            organization_id: context.organization_id.0,
-            owner_user_id: context.user_id.0,
-            case_id,
-            audience,
-            invite_hash: invitation_hash,
-            manual_code: manual_code.clone(),
-            invite_expires_at_ms,
-            invite_consumed: false,
-            expires_at_ms: session_expires_at_ms,
-            approved: false,
-            paused: false,
-            revoked: false,
-            headset_connected: false,
-            layers: input.layers,
-            viewer_connections: HashMap::new(),
-            wearer_recording_consent: false,
-            viewer_recording_consent: false,
-            proposed_observations: vec![],
-            events,
-        };
-        let summary = room_summary(&room, now);
         let mut state = self.state.lock();
         self.cleanup_locked(&mut state, now);
         while state.rooms.len() >= MAX_ROOMS {
@@ -439,8 +397,30 @@ impl RemoteWitnessService {
             };
             remove_room(&mut state, oldest);
         }
-        state.invitations.insert(invitation_hash, room_id);
-        state.manual_codes.insert(manual_code.clone(), room_id);
+        let pin = unused_numeric_pin(&state.pins);
+        let room = WitnessRoom {
+            room_id,
+            organization_id: context.organization_id.0,
+            owner_user_id: context.user_id.0,
+            case_id,
+            audience,
+            pin: pin.clone(),
+            invite_expires_at_ms,
+            pin_consumed: false,
+            expires_at_ms: session_expires_at_ms,
+            approved: false,
+            paused: false,
+            revoked: false,
+            headset_connected: false,
+            layers: input.layers,
+            viewer_connections: HashMap::new(),
+            wearer_recording_consent: false,
+            viewer_recording_consent: false,
+            proposed_observations: vec![],
+            events,
+        };
+        let summary = room_summary(&room, now);
+        state.pins.insert(pin.clone(), room_id);
         state.credentials.insert(
             producer_hash,
             CredentialRecord {
@@ -451,12 +431,9 @@ impl RemoteWitnessService {
             },
         );
         state.rooms.insert(room_id, room);
-        let join_url = format!("{}?invite={invitation}", self.config.join_base_url);
         Ok(WitnessInvitationResponse {
             room_id,
-            invitation,
-            join_url,
-            manual_code,
+            pin,
             producer_credential,
             socket_path: SOCKET_PATH,
             invite_expires_at_ms,
@@ -473,26 +450,15 @@ impl RemoteWitnessService {
         let now = (self.now_ms)();
         let mut state = self.state.lock();
         self.cleanup_locked(&mut state, now);
-        let room_id = if let Some(invitation) = input.invitation.as_deref() {
-            let invitation = bounded_token(invitation, 128)?;
-            state
-                .invitations
-                .get(&token_hash(&invitation))
-                .copied()
-                .ok_or(RemoteWitnessError::NotFound)?
-        } else if let Some(code) = input.manual_code.as_deref() {
-            let code = code.trim().to_ascii_uppercase();
-            if code.len() != 12 || !code.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                return Err(RemoteWitnessError::Invalid);
-            }
-            state
-                .manual_codes
-                .get(&code)
-                .copied()
-                .ok_or(RemoteWitnessError::NotFound)?
-        } else {
+        let pin = input.pin.trim();
+        if pin.len() != 7 || !pin.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(RemoteWitnessError::Invalid);
-        };
+        }
+        let room_id = state
+            .pins
+            .get(pin)
+            .copied()
+            .ok_or(RemoteWitnessError::NotFound)?;
         let participant_id = Uuid::new_v4();
         let credential = opaque_token();
         let credential_hash = token_hash(&credential);
@@ -505,23 +471,23 @@ impl RemoteWitnessService {
                 return Err(RemoteWitnessError::Revoked);
             }
             if now >= room.invite_expires_at_ms {
-                return Err(RemoteWitnessError::InviteExpired);
+                return Err(RemoteWitnessError::PinExpired);
             }
-            if room.invite_consumed {
-                return Err(RemoteWitnessError::InviteConsumed);
+            if room.pin_consumed {
+                return Err(RemoteWitnessError::PinConsumed);
             }
             if room.viewer_connections.len() >= self.config.maximum_viewers {
                 return Err(RemoteWitnessError::ViewerLimit);
             }
-            room.invite_consumed = true;
+            room.pin_consumed = true;
             (
                 room.expires_at_ms,
                 room_summary(room, now),
                 room.events.clone(),
             )
         };
-        // Retain the hash indexes until room expiry so a replay is explicitly
-        // reported as consumed. The raw invitation is never stored.
+        // Retain the PIN index until room expiry so reuse is explicitly
+        // reported as consumed without reopening guest admission.
         state.credentials.insert(
             credential_hash,
             CredentialRecord {
@@ -531,7 +497,7 @@ impl RemoteWitnessService {
                 expires_at_ms,
             },
         );
-        let _ = events.send(room_event("viewer-invitation-exchanged", &summary));
+        let _ = events.send(room_event("viewer-pin-exchanged", &summary));
         Ok(WitnessViewerSession {
             room_id,
             participant_id,
@@ -723,7 +689,7 @@ impl RemoteWitnessService {
                 let observation = ProposedWitnessObservation {
                     observation_id: Uuid::new_v4(),
                     participant_id: identity.participant_id,
-                    source: "remote-witness-customer".into(),
+                    source: "remote-witness-guest".into(),
                     text,
                     observed_at_ms: now,
                 };
@@ -963,8 +929,7 @@ fn room_event(event: &str, summary: &WitnessRoomSummary) -> Value {
 
 fn remove_room(state: &mut RemoteWitnessState, room_id: Uuid) {
     if let Some(room) = state.rooms.remove(&room_id) {
-        state.invitations.remove(&room.invite_hash);
-        state.manual_codes.remove(&room.manual_code);
+        state.pins.remove(&room.pin);
         state
             .credentials
             .retain(|_, credential| credential.room_id != room_id);
@@ -1132,6 +1097,21 @@ fn opaque_token() -> String {
     format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
 
+fn unused_numeric_pin(pins: &HashMap<String, Uuid>) -> String {
+    for _ in 0..32 {
+        let bytes = Uuid::new_v4();
+        let random = u32::from_be_bytes(bytes.as_bytes()[..4].try_into().expect("four UUID bytes"));
+        let pin = format!("{:07}", 1_000_000 + random % 9_000_000);
+        if !pins.contains_key(&pin) {
+            return pin;
+        }
+    }
+    (1_000_000..=9_999_999)
+        .map(|value| value.to_string())
+        .find(|pin| !pins.contains_key(pin))
+        .expect("available witness PIN")
+}
+
 fn token_hash(token: &str) -> [u8; 32] {
     Sha256::digest(token.as_bytes()).into()
 }
@@ -1217,39 +1197,25 @@ mod tests {
     }
 
     #[test]
-    fn invitation_is_opaque_single_use_and_qr_contains_no_context() {
+    fn pin_is_seven_digit_single_use_and_contains_no_context() {
         let now = Arc::new(AtomicU64::new(1_000));
         let service = service(now);
         let context = context(Uuid::new_v4(), Uuid::new_v4());
         let invitation = service.create_invitation(&context, input()).unwrap();
-        assert!(invitation
-            .join_url
-            .ends_with(&format!("?invite={}", invitation.invitation)));
-        for forbidden in [
-            "case-1",
-            "xr-session-1",
-            "Aircraft",
-            "Bearer",
-            "organization",
-        ] {
-            assert!(!invitation.join_url.contains(forbidden));
-        }
-        assert_eq!(invitation.invitation.len(), 64);
-        assert_eq!(invitation.manual_code.len(), 12);
+        assert_eq!(invitation.pin.len(), 7);
+        assert!(invitation.pin.bytes().all(|byte| byte.is_ascii_digit()));
         service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation.clone()),
-                manual_code: None,
+                pin: invitation.pin.clone(),
             })
             .unwrap();
         assert_eq!(
             service
                 .exchange_invitation(ExchangeWitnessInvitation {
-                    invitation: Some(invitation.invitation),
-                    manual_code: None,
+                    pin: invitation.pin,
                 })
                 .unwrap_err(),
-            RemoteWitnessError::InviteConsumed
+            RemoteWitnessError::PinConsumed
         );
     }
 
@@ -1305,8 +1271,7 @@ mod tests {
         let producer = service.connect(&invitation.producer_credential).unwrap();
         let viewer = service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation),
-                manual_code: None,
+                pin: invitation.pin,
             })
             .unwrap();
         let first = service.connect(&viewer.credential).unwrap();
@@ -1368,8 +1333,7 @@ mod tests {
         let producer = service.connect(&invitation.producer_credential).unwrap();
         let viewer = service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation),
-                manual_code: None,
+                pin: invitation.pin,
             })
             .unwrap();
         let viewer_socket = service.connect(&viewer.credential).unwrap();
@@ -1423,8 +1387,7 @@ mod tests {
         let producer = service.connect(&invitation.producer_credential).unwrap();
         let viewer = service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation),
-                manual_code: None,
+                pin: invitation.pin,
             })
             .unwrap();
         let viewer_socket = service.connect(&viewer.credential).unwrap();
@@ -1493,8 +1456,7 @@ mod tests {
         let producer = service.connect(&invitation.producer_credential).unwrap();
         let viewer = service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation),
-                manual_code: None,
+                pin: invitation.pin,
             })
             .unwrap();
         let viewer_socket = service.connect(&viewer.credential).unwrap();
@@ -1623,8 +1585,7 @@ mod tests {
         let invitation = service.create_invitation(&owner, input()).unwrap();
         let viewer = service
             .exchange_invitation(ExchangeWitnessInvitation {
-                invitation: Some(invitation.invitation),
-                manual_code: None,
+                pin: invitation.pin,
             })
             .unwrap();
         let socket = service.connect(&viewer.credential).unwrap();
@@ -1638,7 +1599,7 @@ mod tests {
         assert_eq!(summary.proposed_observations.len(), 1);
         assert_eq!(
             summary.proposed_observations[0].source,
-            "remote-witness-customer"
+            "remote-witness-guest"
         );
         assert_eq!(
             service

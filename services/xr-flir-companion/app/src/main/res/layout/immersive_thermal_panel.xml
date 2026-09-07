@@ -72,7 +72,7 @@
             android:id="@+id/immersive_witness_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CUSTOMER VIEW · ENDED"
+            android:text="GUEST VIEW · ENDED"
             android:textColor="#FBBF24"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -84,28 +84,16 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <ImageView
-                android:id="@+id/immersive_witness_qr"
-                android:layout_width="104dp"
-                android:layout_height="104dp"
-                android:background="#FFFFFF"
-                android:contentDescription="Customer Remote Witness join QR code"
-                android:padding="4dp"
-                android:scaleType="fitCenter"
-                android:visibility="gone" />
-
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
                 android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/immersive_witness_audience"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Audience · Aircraft customer"
+                    android:text="Audience · Guest witness"
                     android:textColor="#F4FBFF"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -116,9 +104,9 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
                     android:fontFamily="monospace"
-                    android:text="JOIN CODE · —"
+                    android:text="SERVICE PIN · —"
                     android:textColor="#67E8F9"
-                    android:textSize="15sp"
+                    android:textSize="20sp"
                     android:textStyle="bold" />
 
                 <TextView

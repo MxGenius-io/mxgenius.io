@@ -7,7 +7,9 @@ Reference pivot: [`MXG-PIVOT-2026-08-14-XR-EDGE-V1`](PIVOT_2026-08-14_XR_EDGE.md
 ```text
 FLIR ONE Pro USB-C -> Quest Android companion -> MXGS/1 thermal frames -> WebXR orb
 Diagnostic tools -> Raspberry Pi collectors -> normalized state/deltas -> WebXR panels + Azure persistence
-Quest viewpoint/service camera -> Remote Witness media room -> HQ/customer viewer
+Quest viewpoint/service camera -> Remote Witness guest room -> public guest viewer
+
+Authenticated technician-to-HQ communication is a separate ACS employee-room path behind the company sign-in gate. The public guest room does not collect identity or contact data and does not grant application access.
 ```
 
 All lanes share an opaque MXG session identifier, but none is a runtime dependency of another. Thermal and video are transient media. Reduced diagnostic state, alerts, consent events, and selected evidence captures are the durable records.
@@ -38,15 +40,17 @@ Use Android Media Projection for the wearer viewpoint including application UI. 
 
 Use one passthrough RGB camera as a clean, monocular service-camera feed. Do not expose the full headset UI, internal cases, unrestricted thermal data, or unrelated surroundings. Add only curated annotations, a work-order title, timestamps, and wearer-approved before/after evidence.
 
-### Transport candidate
+### Transport paths
 
-Azure Communication Services Rooms is the first POC candidate because it supports Android and browser participants, role-based rooms, audio/video, and Android screen sharing through raw media. The Quest build must validate Media Projection capture, hardware encoding, microphone routing, and ACS behavior while WebXR remains at its required frame rate. A transport interface should isolate ACS so a WebRTC SFU can replace it if Quest-specific screen sharing is unreliable.
+The public customer/demo path uses the current short-lived guest room: the authenticated technician creates a single-use PIN, the public browser exchanges it for a memory-only viewer credential, and continuous video travels directly over WebRTC. The core carries only bounded room state plus WebSocket SDP/ICE signaling. It does not depend on ACS, store continuous media, or grant the guest application access. TURN remains a deferred reliability option for networks where direct peer connectivity fails.
+
+Azure Communication Services Rooms remains a separate future candidate for authenticated private-company technician-to-HQ communication behind the company sign-in gate. That path may add employee identity, role-based rooms, audio, and richer collaboration without changing the public guest-room contract. Keep the transport boundary isolated so ACS or a later SFU can be introduced without branching the wearer controls, case context, or evidence model.
 
 ## Performance and storage
 
 - Keep FLIR at its native cadence; do not upsample acquisition to the headset refresh rate.
-- Target Remote Witness at 720p/30 for the POC and reduce dynamically under thermal/WebXR pressure.
-- Persist room lifecycle, consent, participants, selected diagnostic events, and explicit evidence captures.
+- Target Remote Witness at 720p/15 for the first Quest field build and reduce dynamically under thermal/WebXR pressure.
+- Keep guest room lifecycle, consent, and presence short-lived in memory. Persist only selected diagnostic events and explicit case evidence through the existing authenticated evidence path.
 - Do not store continuous video or thermal media by default.
 - Never place database, ACS, FLIR, or Web PubSub service credentials in the browser or APK.
 

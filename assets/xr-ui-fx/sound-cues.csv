@@ -25,3 +25,4 @@ SND-023,system_reconnected.wav,audio/system,A lost capability returns,Single neu
 SND-024,system_permission_needed.wav,audio/system,User action is required to restore a capability,Polite hollow knock with no alarm character,260,no,no,P2,needed
 SND-025,safety_attention.wav,audio/system,A safety-critical condition requires immediate attention,One decisive broadband attention cue with short tail,380,no,no,P0,needed
 SND-026,safety_acknowledged.wav,audio/system,Technician acknowledges a critical alert,Grounded low-mid confirmation tone,280,no,no,P0,needed
+SND-027,Welcome.wav,audio/system,Open Dashboard starts the dashboard arrival sequence,Spoken MXGenius welcome paired with the four-second splash,4000,no,no,P2,active

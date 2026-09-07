@@ -27,6 +27,9 @@ const onboarding = await readFile(new URL('../onboarding.js', import.meta.url), 
 const onboardingStyles = await readFile(new URL('../onboarding.css', import.meta.url), 'utf8');
 const dashboardSplash = await readFile(new URL('../dashboard-splash.js', import.meta.url), 'utf8');
 const dashboardSplashStyles = await readFile(new URL('../dashboard-splash.css', import.meta.url), 'utf8');
+const soundSettings = await readFile(new URL('../sound-settings.js', import.meta.url), 'utf8');
+const soundStorage = await readFile(new URL('../sound-storage.js', import.meta.url), 'utf8');
+const soundCueSchema = await readFile(new URL('../assets/xr-ui-fx/sound-cues.csv', import.meta.url), 'utf8');
 const guidedTooltip = await readFile(new URL('../guided-tooltip.js', import.meta.url), 'utf8');
 const guidedTooltipStyles = await readFile(new URL('../guided-tooltip.css', import.meta.url), 'utf8');
 const partsWorkspace = await readFile(new URL('../parts-workspace.js', import.meta.url), 'utf8');
@@ -76,6 +79,11 @@ test('landing navigation uses the canonical MxGenius logo asset', async () => {
   assert.match(landing, /<img class="brand-logo" src="assets\/mxgenius_logo\.png" alt="MxGenius logo">/);
   assert.doesNotMatch(landing, /class="brand-mark"/);
   await access(new URL('../assets/mxgenius_logo.png', import.meta.url));
+});
+
+test('public landing offers the PIN-based live service entrance', () => {
+  assert.match(landing, /href="witness\.html">Join live service/);
+  assert.doesNotMatch(landing, /witness\.html\?invite=/);
 });
 
 test('every navigation tab resolves to exactly one panel', () => {
@@ -556,8 +564,10 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 });
 
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
-  assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=1'/);
-  assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=1'/);
+  assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=2'/);
+  assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=2'/);
+  assert.match(viewer, /application-client\.js\?v=40[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(globeVr, /application-client\.js\?v=40[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
   assert.match(globeVr, /id="sceneSoundButton"/);
   assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
   assert.match(globeVr, /function emitSceneAction\(/);
@@ -615,7 +625,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=27/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=28/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -816,7 +826,7 @@ test('maintenance case creation binds the explicit submit action to a short-live
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=9"></script>');
-  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=2"></script>');
+  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=9"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
@@ -895,6 +905,19 @@ test('recalled maintenance cases reuse the existing aircraft image path inside t
   assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*(?:image|photo|media)/i);
 });
 
+test('maintenance case images use the existing confirmed case-media path from intake and recalled cases', () => {
+  assert.match(dashboard, /name="caseImage"[\s\S]*accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.match(dashboard, /id="caseImagePreview"/);
+  assert.match(caseWorkspace, /MXApplicationClient\.cases\.attachMedia/);
+  assert.match(caseWorkspace, /Image attached during maintenance case intake/);
+  assert.match(caseWorkspace, /id="caseActiveImage"/);
+  assert.match(caseWorkspace, /await openExistingCase\(result\.caseId\)/);
+  assert.match(caseWorkspace, /MAX_CASE_IMAGE_BYTES = 50 \* 1024 \* 1024/);
+  assert.doesNotMatch(caseWorkspace, /fetch\(['"]\/api\/content\/uploads/);
+  assert.match(globeVr, /MXApplicationClient\.cases\.listMedia\(caseId, requestSession\)/);
+  assert.match(globeVr, /caseMedia: activeCaseState\?\.media \|\| \[\]/);
+});
+
 test('browser media access remains gesture-bound and does not request permissions on dashboard load', () => {
   assert.doesNotMatch(dashboardSplash, /getUserMedia|navigator\.permissions|requestPermission/);
   assert.doesNotMatch(guidedTooltip, /getUserMedia|navigator\.permissions|requestPermission/);
@@ -905,7 +928,7 @@ test('browser media access remains gesture-bound and does not request permission
   assert.doesNotMatch(viewer, /alert\('JS Error|alert\('Promise Rejection/);
 });
 
-test('dashboard arrival splash runs a synchronized four-second welcome sequence', async () => {
+test('dashboard splash is a one-shot sequence triggered only by Open Dashboard', async () => {
   await access(new URL('../assets/xr-ui-fx/audio/system/Welcome.wav', import.meta.url));
   assert.match(dashboard, /id="dashboardSplash"/);
   assert.match(dashboard, /id="dashboardWelcomeAudio"[\s\S]*Welcome\.wav/);
@@ -914,10 +937,54 @@ test('dashboard arrival splash runs a synchronized four-second welcome sequence'
   assert.match(dashboardSplash, /const FADE_MS = 500/);
   assert.match(dashboardSplash, /audio\.play\(\)\.catch/);
   assert.match(dashboardSplash, /mxg:dashboard-splash-complete/);
+  assert.match(dashboardSplash, /getCueUrl\('SND-027'\)/);
   assert.match(dashboardSplash, /auth-state-panel/);
+  assert.match(landing, /dashboardSplashTrigger\.textContent\.trim\(\) !== 'Open Dashboard'/);
+  assert.match(landing, /sessionStorage\.setItem\('mx_dashboard_splash_pending', '1'\)/);
+  assert.match(dashboardSplash, /function consumeStartIntent\(\)/);
+  assert.match(dashboardSplash, /sessionStorage\?\.removeItem\(INTENT_KEY\)/);
+  assert.match(dashboardSplash, /if \(!consumeStartIntent\(\)\) \{[\s\S]*skip\(\)/);
+  assert.doesNotMatch(dashboardSplash, /splash-preview/);
   assert.match(dashboardSplashStyles, /\.dashboard-splash\.is-visible/);
   assert.match(dashboardSplashStyles, /\.dashboard-splash\.is-exiting/);
   assert.match(dashboardSplashStyles, /prefers-reduced-motion: reduce/);
+});
+
+test('Settings exposes the organized UI sound schema as a previewable replacement card', () => {
+  assert.match(dashboard, /id="settingsSoundsCard"/);
+  assert.match(dashboard, /id="settingsSoundFamilies"/);
+  assert.match(dashboard, /id="settingsSoundFileInput"[^>]*accept="\.wav,\.mp3,\.m4a,audio\/wav,audio\/mpeg,audio\/mp4"/);
+  assert.match(dashboard, /id="settingsSoundSave"[^>]*disabled>Save changes/);
+  assert.match(dashboard, /sound-storage\.js\?v=1/);
+  assert.match(dashboard, /sound-settings\.js\?v=2/);
+  assert.equal((soundCueSchema.match(/^SND-\d{3},/gm) || []).length, 27);
+  assert.match(soundCueSchema, /SND-027,Welcome\.wav,audio\/system,Open Dashboard/);
+  for (const family of ['audio/ui', 'audio/spatial', 'audio/system']) assert.match(soundCueSchema, new RegExp(family.replace('/', '\\/')));
+  assert.match(soundSettings, /fetch\(SCHEMA_URL, \{ cache: 'no-store' \}\)/);
+  assert.match(soundSettings, /FAMILY_ORDER = \['audio\/ui', 'audio\/spatial', 'audio\/system'\]/);
+  assert.match(soundSettings, /new Audio\(source\)/);
+  assert.match(soundSettings, /stageReplacement/);
+  assert.match(soundSettings, /MXGeniusSoundStorage/);
+  assert.match(soundSettings, /adapter\.saveIndex/);
+  assert.match(soundSettings, /pendingResets/);
+  assert.match(soundSettings, /current\.byCue/);
+  assert.match(soundStorage, /uiSounds\.getContent/);
+  assert.match(soundStorage, /expectedVersion: current\.version/);
+  assert.match(soundStorage, /URL\.createObjectURL\(blob\)/);
+  assert.match(soundStorage, /MXGENIUS_AUTH\?\.getToken/);
+  assert.match(soundStorage, /forceRefresh: true/);
+  assert.match(soundStorage, /function authenticatedRequest/);
+  assert.match(client, /\/api\/ui-sounds/);
+  assert.match(client, /uiSounds: Object\.freeze/);
+  assert.match(xrUiAudio, /id: 'SND-001'/);
+  assert.match(xrUiAudio, /MXGeniusSoundStorage/);
+  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=40"></script>');
+  const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
+  const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
+  assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
+  assert.match(applicationStyles, /\.settings-sound-family/);
+  assert.match(applicationStyles, /\.settings-sound-cue/);
+  assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
 });
 
 test('context help binds accessible anchored popovers across product surfaces', () => {

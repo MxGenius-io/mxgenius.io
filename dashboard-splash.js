@@ -1,5 +1,6 @@
-// Four-second dashboard arrival sequence, synchronized to the welcome sound.
+// One-shot dashboard entry sequence, synchronized to the welcome sound.
 globalThis.MXDashboardSplash = (() => {
+  const INTENT_KEY = 'mx_dashboard_splash_pending';
   const TOTAL_MS = 4000;
   const FADE_MS = 500;
   const EXIT_AT_MS = TOTAL_MS - FADE_MS;
@@ -56,6 +57,23 @@ globalThis.MXDashboardSplash = (() => {
     return !(touchDevice && coarsePointer);
   }
 
+  async function prepareWelcomeAudio() {
+    const getCueUrl = globalThis.MXGeniusSoundStorage?.getCueUrl;
+    if (!audio || !getCueUrl) return;
+    try {
+      const customUrl = await Promise.race([
+        getCueUrl('SND-027'),
+        new Promise((resolve) => setTimeout(() => resolve(null), 1200))
+      ]);
+      if (customUrl && !started && !finished) {
+        audio.src = customUrl;
+        audio.load();
+      }
+    } catch {
+      // The bundled welcome stays in place when private storage is unavailable.
+    }
+  }
+
   function start() {
     if (started || !root) {
       if (!root) finish();
@@ -89,14 +107,22 @@ globalThis.MXDashboardSplash = (() => {
     return ready;
   }
 
-  const preview = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
-    && new URLSearchParams(location.search).get('splash-preview') === '1';
+  function consumeStartIntent() {
+    try {
+      const requested = globalThis.sessionStorage?.getItem(INTENT_KEY) === '1';
+      globalThis.sessionStorage?.removeItem(INTENT_KEY);
+      return requested;
+    } catch {
+      return false;
+    }
+  }
 
-  if (preview) {
-    requestAnimationFrame(start);
+  if (!consumeStartIntent()) {
+    skip();
   } else {
-    Promise.resolve(globalThis.MXGENIUS_CONFIG?.ready).then(() => {
+    Promise.resolve(globalThis.MXGENIUS_CONFIG?.ready).then(async () => {
       if (document.getElementById('auth-state-panel')) return skip();
+      await prepareWelcomeAudio();
       return requestAnimationFrame(start);
     }).catch(skip);
   }

@@ -225,7 +225,7 @@ Acceptance gate: the headset completes the full flow after a forced socket
 disconnect without duplicate scans, phantom boxes, unintended evidence, or a
 second cloud charge for a replayed frame.
 
-### Wave 6 — Customer QR remote-witness connection
+### Wave 6 — PIN-based guest remote-witness connection
 
 This is a separate release gate after target lock is stable, but it uses the
 same session, target, case, and command contracts.
@@ -235,18 +235,17 @@ same session, target, case, and command contracts.
 The clean line is to extend the existing native Sensor Bridge. Do not add a
 second core, a parallel media archive, ACS Calling, or another room service.
 The authenticated browser remains the room creator; the native service becomes
-the sole headset media producer; the existing customer page remains the sole
-viewer.
+the sole headset media producer; the public guest page remains the sole viewer.
 
 | Seam | Present state | Gap to close |
 | --- | --- | --- |
-| Room and customer admission | Single-use QR/manual code, hashed credentials, one-viewer default, expiry and revocation are implemented in `mxg-core`. | None for the first field test. Preserve the one-viewer cap. |
+| Room and guest admission | A single-use 7-digit PIN, hashed session credentials, one-viewer default, expiry and revocation are implemented in `mxg-core`. | None for the first field test. Preserve the one-viewer cap. |
 | Browser viewer | Read-only viewer, case projection, proposed observations, and WebRTC answer handling are implemented. | Prove interoperability with the Alpha 20 native offer and real Quest compositor track. |
 | Signaling | Authenticated WSS carries bounded JSON SDP/ICE, rejects binary media, admits one producer, and now has a native client with capped reconnects. | Prove disconnect/pause/reconnect behavior on the headset. |
 | Native session handoff | The authenticated Quest-loopback channel transfers a one-time witness bootstrap; credentials stay in memory and out of URLs, storage, and logs. | Prove the browser-to-native handoff against the deployed core. |
 | Native capture | Alpha 20 has an explicit immersive MediaProjection action and consent-scoped compositor capture with teardown on every terminal boundary. | Confirm Horizon supplies real compositor frames and requires fresh consent after stop. |
-| Native media | A pinned ARM64 libwebrtc build owns one hardware-encoder, video-only 1280x720@15fps peer and bounded stats. | Confirm the negotiated Quest encoder is hardware H.264 and the customer browser renders it. |
-| Native controls | Alpha 21 exposes QR/manual invitation details plus START, PAUSE, RESUME, layers, and END in the native immersive panel over the owner-scoped producer WSS credential. | Prove hand/controller reach and deterministic control behavior on the physical Quest. |
+| Native media | A pinned ARM64 libwebrtc build owns one hardware-encoder, video-only 1280x720@15fps peer and bounded stats. | Confirm the negotiated Quest encoder is hardware H.264 and the guest browser renders it. |
+| Native controls | Alpha 21 exposes the guest PIN plus START, PAUSE, RESUME, layers, and END in the native immersive panel over the owner-scoped producer WSS credential. | Prove hand/controller reach and deterministic control behavior on the physical Quest. |
 | Contract spine | The checked-in `remote-witness-session.schema.json` now describes the live bounded `witness.*` bootstrap, room/control, signaling, projection, observation, and error messages. Android-shaped offer/ICE plus bootstrap fixtures exercise the browser/native seam. | Keep the schema and canonical fixtures as the single compatibility boundary when either peer changes. |
 | Network traversal | Both peers already accept an ICE server list; direct WebRTC can run with STUN. | Test direct paths first. Add short-lived TURN credentials only if the external-network matrix proves they are needed. |
 | Service topology | Witness rooms are TTL-bounded and in-process; the current core deployment is one replica. | Keep one replica for this release and verify that invariant before promotion. A shared room store is not required for this build. |
@@ -258,7 +257,7 @@ viewer.
    bootstrap/control messages, validate ICE fields, and enforce one active
    producer socket per room.
 2. **Extend the existing handoff.** After the authenticated browser creates a
-   room, send its room ID, join URL/manual code, producer credential, socket
+   room, send its room ID, guest PIN, producer credential, socket
    path, expiry, and ICE configuration once over the already-authenticated
    `127.0.0.1` thermal channel. The Sensor Bridge keeps the bootstrap in memory
    and clears it on revoke, expiry, service stop, or session replacement.
@@ -272,7 +271,7 @@ viewer.
    Reuse `SensorBridgeService` for lifecycle and status; do not put encoding or
    socket logic in the activity. Begin video-only at a conservative profile;
    microphone remains an independently consented layer.
-5. **Finish the native panel.** Show QR/manual code, invited audience, viewer
+5. **Finish the native panel.** Show the 7-digit PIN, intended audience, viewer
    count, connection state, active layers, expiry, and explicit START, PAUSE,
    RESUME, and END actions. Approval becomes live only after projection consent
    succeeds. Resume after a stopped projection requests consent again.
@@ -293,15 +292,13 @@ storage change is implied by this plan.
 
 1. Mount the authenticated XR session negotiation route and issue
    short-lived, role-scoped connection credentials. Keep producer, wearer,
-   customer-viewer, and support roles distinct.
-2. Add **Invite customer** to the headset session panel. It requests an opaque,
-   high-entropy invitation from the backend and renders an HTTPS join URL as a
-   QR code plus a short manual code.
-3. Put only the opaque invitation in the QR URL. Never encode a bearer token,
-   tenant ID, case ID, bridge credential, storage URL, or customer data in the
-   QR payload.
-4. Exchange the invitation server-side for a short-lived viewer session. An
-   unused invitation expires quickly and is single-use; the resulting viewer
+   public guest-viewer, authenticated employee, and support roles distinct.
+2. Add **Create PIN** to the headset session panel. It requests a random,
+   single-use 7-digit PIN from the backend and renders no credential or join URL.
+3. Keep tenant ID, case ID, bridge credential, storage URL, and guest data out
+   of the PIN and public page.
+4. Exchange the PIN server-side for a short-lived viewer session. An unused PIN
+   expires quickly and is single-use; the resulting viewer
    session can reconnect until the wearer ends it or its session expiry is
    reached.
 5. Require an explicit wearer approval before media becomes live. Show the
@@ -324,10 +321,10 @@ storage change is implied by this plan.
 10. Add expiry, revocation, replay, cross-tenant, reconnect, lost-headset,
     viewer-count, layer-removal, and recording-consent tests.
 
-Acceptance gate: a nontechnical customer scans the QR, opens the browser, waits
-for wearer approval, and joins the permitted live view. Revocation or expiry
-closes media and state access immediately; reusing or forwarding the original
-QR cannot create another viewer session.
+Acceptance gate: a nontechnical guest opens the public page, enters the PIN,
+waits for wearer approval, and joins the permitted live view. Revocation or
+expiry closes media and state access immediately; reusing or forwarding the
+original PIN cannot create another viewer session.
 
 ## Deferred adapters, not blockers for the first target-lock build
 
@@ -401,7 +398,7 @@ maintenance confidence.
    commands render in Quest.
 5. **Resilience build:** reconnect/resync, idempotency, expiry, telemetry, and
    physical acceptance green.
-6. **Customer witness build:** short-lived QR invitation, wearer consent,
+6. **Guest witness build:** short-lived PIN invitation, wearer consent,
    browser viewer, scoped live layers, and immediate revocation green.
 
 Build Point 4 is the first in-headset demonstration milestone. Build Point 6 is

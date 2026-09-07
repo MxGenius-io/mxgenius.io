@@ -22,7 +22,7 @@ public final class RemoteWitnessBootstrapTest {
 
         assertEquals("11111111-1111-4111-8111-111111111111", bootstrap.roomId.toString());
         assertEquals("wss://mxg-core.example.net/api/xr/witness/ws", bootstrap.socketUrl());
-        assertEquals("Aircraft customer", bootstrap.audience);
+        assertEquals("Guest witness", bootstrap.audience);
         assertEquals(1, bootstrap.iceServers.length());
         assertFalse(bootstrap.iceServers.getJSONObject(0).has("username"));
         assertFalse(bootstrap.safeSummary().contains(PRODUCER));
@@ -36,15 +36,13 @@ public final class RemoteWitnessBootstrapTest {
                 () -> RemoteWitnessBootstrap.parse(validBootstrap(), "another-session", NOW));
     }
 
-    @Test public void bootstrapRejectsExpiredOrLeakedProducerCredential() throws Exception {
+    @Test public void bootstrapRejectsExpiredOrInvalidPin() throws Exception {
         JSONObject expired = validBootstrap().put("expiresAtMs", NOW);
         assertThrows(IllegalArgumentException.class,
                 () -> RemoteWitnessBootstrap.parse(expired, "xr-session-contract-1", NOW));
-        JSONObject leaked = validBootstrap().put(
-                "joinUrl",
-                "https://mxgenius.io/witness.html?invite=" + PRODUCER);
+        JSONObject invalidPin = validBootstrap().put("pin", "12A4567");
         assertThrows(IllegalArgumentException.class,
-                () -> RemoteWitnessBootstrap.parse(leaked, "xr-session-contract-1", NOW));
+                () -> RemoteWitnessBootstrap.parse(invalidPin, "xr-session-contract-1", NOW));
     }
 
     @Test public void canonicalBootstrapFixtureIsAcceptedByAndroid() throws Exception {
@@ -62,8 +60,7 @@ public final class RemoteWitnessBootstrapTest {
                 .put("version", 1)
                 .put("sessionId", "xr-session-contract-1")
                 .put("roomId", "11111111-1111-4111-8111-111111111111")
-                .put("joinUrl", "https://mxgenius.io/witness.html?invite=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-                .put("manualCode", "0123456789AB")
+                .put("pin", "7319042")
                 .put("producerCredential", PRODUCER)
                 .put("socketPath", "/api/xr/witness/ws")
                 .put("socketUrl", "wss://mxg-core.example.net/api/xr/witness/ws")

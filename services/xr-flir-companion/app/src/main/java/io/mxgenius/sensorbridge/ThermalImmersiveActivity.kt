@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
@@ -55,9 +54,8 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
     private var relayState = "native spatial"
     private var cameraState = "standby"
     private var commissioningState = "NOT RUN · press RUN FULL DIAGNOSTIC"
-    private var witnessState = "NO ACTIVE INVITATION"
+    private var witnessState = "NO ACTIVE SERVICE PIN"
     private var witnessUiState = RemoteWitnessUiState.EMPTY
-    private var renderedWitnessQr: String? = null
     private var commissioningHandoffStarted = false
 
     private val connection = object : ServiceConnection {
@@ -279,11 +277,11 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             root.findViewById<TextView>(R.id.immersive_commission_status).text =
                 "COMMISSIONING · $commissioningState"
             root.findViewById<TextView>(R.id.immersive_witness_status).text =
-                "CUSTOMER VIEW · ${witnessUiState.phase(System.currentTimeMillis()).name}"
+                "GUEST VIEW · ${witnessUiState.phase(System.currentTimeMillis()).name}"
             root.findViewById<TextView>(R.id.immersive_witness_audience).text =
                 "Audience · ${witnessUiState.audience}"
             root.findViewById<TextView>(R.id.immersive_witness_code).text =
-                "JOIN CODE · ${formatJoinCode(witnessUiState.manualCode)}"
+                "SERVICE PIN · ${formatServicePin(witnessUiState.pin)}"
             root.findViewById<TextView>(R.id.immersive_witness_detail).text =
                 "${witnessUiState.viewerCount} ${if (witnessUiState.viewerCount == 1) "viewer" else "viewers"}" +
                     " · ${witnessUiState.networkState.replace('-', ' ')} · ${formatExpiry(witnessUiState.expiresAtMs)}"
@@ -294,7 +292,6 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
                 text = witnessUiState.error ?: ""
                 visibility = if (witnessUiState.error.isNullOrBlank()) View.GONE else View.VISIBLE
             }
-            renderWitnessQr(root)
             root.findViewById<Button>(R.id.immersive_commission).apply {
                 isEnabled = bridgeService?.canConnectCamera() == true && bridgeService?.commissioningRunning() != true
                 text = if (bridgeService?.commissioningRunning() == true) "DIAGNOSTIC RUNNING…" else "RUN FULL DIAGNOSTIC"
@@ -360,7 +357,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
     private fun requestWitnessProjection(resume: Boolean) {
         val service = bridgeService ?: return
         if (!service.canRequestWitnessCapture() || !service.beginWitnessStart(resume)) {
-            service.recordTrace("W30", "WITNESS", "blocked", "customer view is not ready for compositor consent", "warn")
+            service.recordTrace("W30", "WITNESS", "blocked", "guest view is not ready for compositor consent", "warn")
             renderPanel()
             return
         }
@@ -369,42 +366,9 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         startActivityForResult(manager.createScreenCaptureIntent(), WITNESS_PROJECTION_REQUEST)
     }
 
-    private fun renderWitnessQr(root: View) {
-        val target = root.findViewById<ImageView>(R.id.immersive_witness_qr)
-        val dataUrl = witnessUiState.qrDataUrl
-        if (dataUrl.isNullOrBlank()) {
-            target.visibility = View.GONE
-            target.setImageDrawable(null)
-            renderedWitnessQr = null
-            return
-        }
-        if (renderedWitnessQr == dataUrl) return
-        try {
-            val modules = RemoteWitnessQrCode.decode(dataUrl)
-            val scale = maxOf(2, 480 / modules.size)
-            val bitmap = Bitmap.createBitmap(modules.size * scale, modules.size * scale, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(Color.WHITE)
-            for (y in modules.indices) {
-                for (x in modules[y].indices) {
-                    if (!modules[y][x]) continue
-                    for (dy in 0 until scale) for (dx in 0 until scale) {
-                        bitmap.setPixel(x * scale + dx, y * scale + dy, Color.BLACK)
-                    }
-                }
-            }
-            target.setImageBitmap(bitmap)
-            target.visibility = View.VISIBLE
-            renderedWitnessQr = dataUrl
-        } catch (_: IllegalArgumentException) {
-            target.visibility = View.GONE
-            target.setImageDrawable(null)
-            renderedWitnessQr = null
-        }
-    }
-
-    private fun formatJoinCode(code: String?): String {
-        if (code.isNullOrBlank() || code.length != 12) return "—"
-        return code.chunked(4).joinToString(" ")
+    private fun formatServicePin(pin: String?): String {
+        if (pin.isNullOrBlank() || pin.length != 7) return "—"
+        return "${pin.take(3)} ${pin.drop(3)}"
     }
 
     private fun formatExpiry(expiresAtMs: Long): String {

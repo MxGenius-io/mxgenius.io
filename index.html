@@ -318,6 +318,7 @@
           <p class="lead">One intelligent platform for guided diagnostics, real-time compliance, live remote expertise, and faster parts sourcing - from anywhere in the world.</p>
           <div class="hero-actions">
             <a class="button primary" href="login.html">Open MxGenius <span class="arrow" aria-hidden="true">&#8599;</span></a>
+            <a class="button secondary" href="witness.html">Join live service <span class="arrow" aria-hidden="true">&#8599;</span></a>
             <a class="button secondary" href="#platform">Explore the platform <span class="arrow" aria-hidden="true">&#8595;</span></a>
           </div>
           <div class="hero-note"><span class="signal-dot"></span> Designed with mechanics. Built for the realities of AOG.</div>
@@ -494,6 +495,12 @@
       navLinks.classList.remove('open');
       menuToggle?.setAttribute('aria-expanded', 'false');
     }));
+
+    const dashboardSplashTrigger = document.getElementById('landingAuthLink');
+    dashboardSplashTrigger?.addEventListener('click', () => {
+      if (dashboardSplashTrigger.textContent.trim() !== 'Open Dashboard') return;
+      try { sessionStorage.setItem('mx_dashboard_splash_pending', '1'); } catch { /* Continue without the optional splash. */ }
+    });
 
     const heroCarousel = document.getElementById('heroCarousel');
     const heroSlides = [...document.querySelectorAll('.hero-slide')];

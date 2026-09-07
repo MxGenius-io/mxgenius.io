@@ -213,7 +213,9 @@ const MXApplicationClient = (() => {
     const response = await fetch(`${MCP_BASE}${path}`, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+      // Guest admission is deliberately detached from any browser login or
+      // organization cookie. The one-time PIN is the only public input.
+      credentials: 'omit',
       signal,
       body: body === undefined ? undefined : JSON.stringify(body)
     });
@@ -451,27 +453,24 @@ const MXApplicationClient = (() => {
     });
   }
 
-  function createWitnessInvitation({ xrSessionId, caseId = null, audience = 'Customer', layers = null, session = {} }) {
+  function createWitnessInvitation({ xrSessionId, caseId = null, audience = 'Guest witness', layers = null, session = {} }) {
     return applicationJson('/api/xr/witness/invitations', {
       session,
       method: 'POST',
       body: {
         xrSessionId: String(xrSessionId || '').slice(0, 128),
         caseId: caseId ? String(caseId).slice(0, 128) : null,
-        audience: String(audience || 'Customer').slice(0, 80),
+        audience: String(audience || 'Guest witness').slice(0, 80),
         ...(layers ? { layers } : {})
       }
     });
   }
 
-  function exchangeWitnessInvitation({ invitation = null, manualCode = null, signal } = {}) {
+  function exchangeWitnessInvitation({ pin, signal } = {}) {
     return publicApplicationJson('/api/xr/witness/invitations/exchange', {
       method: 'POST',
       signal,
-      body: {
-        invitation: invitation ? String(invitation).slice(0, 128) : null,
-        manualCode: manualCode ? String(manualCode).replace(/\s+/g, '').slice(0, 16) : null
-      }
+      body: { pin: String(pin || '').replace(/\D/g, '').slice(0, 7) }
     });
   }
 
@@ -497,7 +496,7 @@ const MXApplicationClient = (() => {
     const path = `/api/xr/witness/media/${encodeURIComponent(observationId)}/${encodeURIComponent(mediaIndex)}`;
     const response = await fetch(`${MCP_BASE}${path}`, {
       headers: { Authorization: `Witness ${String(credential || '')}` },
-      credentials: 'include',
+      credentials: 'omit',
       signal
     });
     if (!response.ok) {
@@ -548,6 +547,43 @@ const MXApplicationClient = (() => {
       `/api/project-workspaces/${encodeURIComponent(workspaceKey)}/assets/${encodeURIComponent(assetId)}/content`,
       { session, contentType: null }
     )).blob();
+  }
+
+  function getUiSoundIndex(session = {}) {
+    return applicationJson('/api/ui-sounds', { session });
+  }
+
+  function putUiSound(cueId, file, { durationMs, expectedVersion, session = {} } = {}) {
+    if (!(file instanceof Blob)) throw new TypeError('Interface sound must be a Blob or File');
+    const query = new URLSearchParams({
+      filename: String(file.name || `${cueId}.wav`).slice(0, 180),
+      duration_ms: String(Math.max(1, Math.round(Number(durationMs) || 0))),
+      expected_version: String(Math.max(0, Number(expectedVersion) || 0))
+    });
+    return applicationJson(`/api/ui-sounds/${encodeURIComponent(cueId)}?${query}`, {
+      session,
+      method: 'PUT',
+      body: file,
+      contentType: file.type || 'application/octet-stream'
+    });
+  }
+
+  function deleteUiSound(cueId, { expectedVersion, session = {} } = {}) {
+    const query = new URLSearchParams({
+      expected_version: String(Math.max(0, Number(expectedVersion) || 0))
+    });
+    return applicationJson(`/api/ui-sounds/${encodeURIComponent(cueId)}?${query}`, {
+      session,
+      method: 'DELETE',
+      contentType: null
+    });
+  }
+
+  async function getUiSoundContent(cueId, session = {}) {
+    return (await applicationRequest(`/api/ui-sounds/${encodeURIComponent(cueId)}/content`, {
+      session,
+      contentType: null
+    })).blob();
   }
 
   function submitFeedback(report, session = {}) {
@@ -1528,6 +1564,12 @@ const MXApplicationClient = (() => {
       save: saveProjectWorkspace,
       uploadAsset: uploadProjectWorkspaceAsset,
       getAsset: getProjectWorkspaceAsset
+    }),
+    uiSounds: Object.freeze({
+      list: getUiSoundIndex,
+      put: putUiSound,
+      delete: deleteUiSound,
+      getContent: getUiSoundContent
     }),
     feedback: Object.freeze({
       submit: submitFeedback,
