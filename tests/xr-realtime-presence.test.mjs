@@ -94,6 +94,9 @@ test('sensor scene owns the head-following thermal bridge while the fleet globe 
   assert.match(sensors, /MXGeniusThermalPixels/);
   assert.match(sensors, /toggle-thermal-screen/);
   assert.match(sensors, /pin-thermal-screen/);
+  assert.match(sensors, /FOLLOW HEAD/);
+  assert.doesNotMatch(globe, /FOLLOW HEAD/);
+  assert.doesNotMatch(viewer, /FOLLOW HEAD/);
   assert.match(sensors, /thermal screen pinned in world space/);
   assert.match(sensors, /camera && !this\.screenPinned/);
   assert.match(sensors, /thermal-scale-down/);

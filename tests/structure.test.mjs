@@ -81,6 +81,13 @@ test('landing navigation uses the canonical MxGenius logo asset', async () => {
   await access(new URL('../assets/mxgenius_logo.png', import.meta.url));
 });
 
+test('landing desktop navigation keeps the authenticated dashboard action on one line', () => {
+  assert.match(landing, /\.brand \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/);
+  assert.match(landing, /\.nav-links a \{[^}]*white-space: nowrap;/);
+  assert.match(landing, /\.nav-links \.nav-cta \{[^}]*min-width: 132px;[^}]*display: inline-flex;[^}]*justify-content: center;/);
+  assert.match(landing, /@media \(max-width: 980px\) \{[\s\S]*?\.nav-links \{ gap: 12px; \}/);
+});
+
 test('public landing offers the PIN-based live service entrance', () => {
   assert.match(landing, /href="witness\.html">Join live service/);
   assert.doesNotMatch(landing, /witness\.html\?invite=/);
