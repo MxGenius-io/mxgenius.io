@@ -85,7 +85,10 @@ test('landing desktop navigation keeps the authenticated dashboard action on one
   assert.match(landing, /\.brand \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/);
   assert.match(landing, /\.nav-links a \{[^}]*white-space: nowrap;/);
   assert.match(landing, /\.nav-links \.nav-cta \{[^}]*min-width: 132px;[^}]*display: inline-flex;[^}]*justify-content: center;/);
-  assert.match(landing, /@media \(max-width: 980px\) \{[\s\S]*?\.nav-links \{ gap: 12px; \}/);
+  assert.equal((landing.match(/class="nav-marketing-link"/g) || []).length, 4);
+  assert.match(landing, /@media \(max-width: 980px\) \{[\s\S]*?\.nav-marketing-link \{ display: none; \}/);
+  assert.match(landing, /@media \(max-width: 760px\) \{[\s\S]*?\.nav-links\.open \.nav-marketing-link \{ display: block; \}/);
+  assert.match(landing, /@media \(max-width: 760px\) \{[\s\S]*?\.nav-links \.nav-cta \{[^}]*width: 100%;[^}]*display: flex;/);
 });
 
 test('public landing offers the PIN-based live service entrance', () => {

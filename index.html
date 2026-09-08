@@ -237,6 +237,7 @@
     @media (max-width: 980px) {
       .nav-inner { gap: 16px; }
       .nav-links { gap: 12px; }
+      .nav-marketing-link { display: none; }
       .nav-links .nav-cta { min-width: 126px; padding-inline: 14px; }
       .landing-identity { font-size: .7rem; }
       .section { padding: 85px 0; }
@@ -259,8 +260,9 @@
       .menu-toggle { display: block; }
       .nav-links { display: none; position: absolute; top: 68px; left: 0; right: 0; flex-direction: column; align-items: stretch; gap: 4px; padding: 18px 20px 25px; background: rgba(6,8,27,.98); border-bottom: 1px solid var(--line); }
       .nav-links.open { display: flex; }
+      .nav-links.open .nav-marketing-link { display: block; }
       .nav-links a { display: block; padding: 11px 8px; }
-      .nav-links .nav-cta { text-align: center; margin-top: 7px; }
+      .nav-links .nav-cta { width: 100%; box-sizing: border-box; display: flex; text-align: center; margin-top: 7px; }
       .nav-links .gpt-icon { width: 36px; padding: 0; margin: 5px 8px; }
       .landing-identity { padding: 8px; }
       .hero { padding-top: 112px; }
@@ -303,10 +305,10 @@
       <a class="brand" href="#top" aria-label="MxGenius home"><img class="brand-logo" src="assets/mxgenius_logo.png" alt="MxGenius logo"><span>MxGenius<span class="domain">.io</span></span></a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="navLinks" aria-label="Open navigation">&#9776;</button>
       <ul class="nav-links" id="navLinks">
-        <li><a href="#platform">Platform</a></li>
-        <li><a href="#remote">Remote viewing</a></li>
-        <li><a href="#workflow">How it works</a></li>
-        <li><a href="#operators">Who it's for</a></li>
+        <li class="nav-marketing-link"><a href="#platform">Platform</a></li>
+        <li class="nav-marketing-link"><a href="#remote">Remote viewing</a></li>
+        <li class="nav-marketing-link"><a href="#workflow">How it works</a></li>
+        <li class="nav-marketing-link"><a href="#operators">Who it's for</a></li>
         <li id="signedInAs" class="landing-identity" hidden>Signed in as <strong id="signedInAsName"></strong></li>
         <li><a class="gpt-icon" href="https://chatgpt.com/g/g-6a429ffc124081918858168d19260045-mxgenius" target="_blank" rel="noopener noreferrer" aria-label="Open MxGenius in ChatGPT" title="MxGenius in ChatGPT"><img src="assets/openai-blossom-white.svg" alt="" width="20" height="20"></a></li>
         <li><a id="landingAuthLink" class="nav-cta" href="login.html">Open platform</a></li>
