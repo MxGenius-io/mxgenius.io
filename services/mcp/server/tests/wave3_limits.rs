@@ -45,7 +45,7 @@ fn all_five_weather_tools_remain_not_configured_in_default_registry() {
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 45);
+    assert_eq!(info.tool_count, 46);
     let availability: std::collections::BTreeMap<String, String> = reg
         .list_tools()
         .into_iter()

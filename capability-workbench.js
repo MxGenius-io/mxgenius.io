@@ -3,7 +3,7 @@ const MXCapabilityWorkbench = (() => {
   const FALLBACK_NAMES = [
     'mxg.aircraft.lookup','mxg.aircraft.profile','mxg.aircraft.location_context','mxg.aircraft.utilization_summary','mxg.aircraft.related_entities','mxg.aircraft.history_window',
     'mxg.maintenance_case.create','mxg.maintenance_case.get','mxg.maintenance_case.build_context','mxg.maintenance_case.similar_cases','mxg.maintenance_case.update_status','mxg.maintenance_case.attach_observation',
-    'mxg.parts.resolve','mxg.parts.alternates','mxg.parts.inventory','mxg.parts.rank_options','mxg.parts.attach_certificate',
+    'mxg.parts.resolve','mxg.parts.alternates','mxg.parts.inventory','mxg.parts.rank_options','mxg.parts.order_history','mxg.parts.attach_certificate',
     'mxg.weather.airport_now','mxg.weather.maintenance_window','mxg.weather.ramp_risk','mxg.weather.ferry_assessment','mxg.weather.hazard_overlay',
     'mxg.compliance.applicable_ads','mxg.compliance.saib_search','mxg.compliance.manual_currency','mxg.compliance.record_audit','mxg.compliance.return_to_service_pack',
     'mxg.digital_twin.list_models','mxg.digital_twin.component_state','mxg.digital_twin.highlight_zone','mxg.digital_twin.link_documents','mxg.digital_twin.attach_case_marker',

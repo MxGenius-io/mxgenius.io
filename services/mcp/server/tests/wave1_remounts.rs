@@ -75,7 +75,7 @@ fn tools_list_reports_not_configured_for_pool_backed_parts_and_compliance() {
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 45);
+    assert_eq!(info.tool_count, 46);
 
     let names: std::collections::BTreeMap<String, String> = reg
         .list_tools()
@@ -89,6 +89,7 @@ fn tools_list_reports_not_configured_for_pool_backed_parts_and_compliance() {
         "mxg.parts.alternates",
         "mxg.parts.inventory",
         "mxg.parts.rank_options",
+        "mxg.parts.order_history",
         "mxg.parts.attach_certificate",
         "mxg.compliance.manual_currency",
         "mxg.compliance.record_audit",

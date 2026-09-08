@@ -1,16 +1,20 @@
-//! Parts tool handlers (5): `mxg.parts.*`.
+//! Parts tool handlers (6): `mxg.parts.*`.
 //!
-//! All five tools are remounted on the existing Parts inventory repository
+//! All six tools are remounted on the existing Parts inventory repository
 //! and `parts` catalog when the application Postgres pool is present. When
 //! the pool is absent (local mode) every tool is registered as a typed
 //! `NotConfiguredTool` so `tools/list` reports `availability:
 //! not_configured` and the runtime envelope carries a `NOT_CONFIGURED`
 //! warning. No mock data, no simulated success.
 //!
-//! All five tools (`resolve`, `alternates`, `inventory`, `rank_options`,
-//! `attach_certificate`) write through to `parts`, `part_alternates`,
-//! `stock_units`, `part_source_options`, and `certificate_records` exactly as
-//! the application service expects.
+//! All six tools (`resolve`, `alternates`, `inventory`, `rank_options`,
+//! `order_history`, `attach_certificate`) write through to `parts`,
+//! `part_alternates`, `stock_units`, `part_source_options`, `part_orders`,
+//! and `certificate_records` exactly as the application service expects.
+//!
+//! `order_history` is the one tool here gated on `PartsCostRead` rather than
+//! `PartsRead`: it discloses what was paid and to whom, which is a narrower
+//! audience than what is on the shelf.
 
 use std::sync::Arc;
 
@@ -22,8 +26,10 @@ use mxgenius_shared::application::policy::Action;
 use mxgenius_shared::contracts::{
     CertificateRecordDto, PartsAlternatesRequest, PartsAlternatesResponse,
     PartsAttachCertificateRequest, PartsAttachCertificateResponse, PartsInventoryOption,
-    PartsInventoryRequest, PartsInventoryResponse, PartsRankOption, PartsRankOptionsRequest,
-    PartsRankOptionsResponse, PartsResolveMatch, PartsResolveRequest, PartsResolveResponse,
+    PartsInventoryRequest, PartsInventoryResponse, PartsOrderHistoryCostSummary,
+    PartsOrderHistoryEntry, PartsOrderHistoryPart, PartsOrderHistoryRequest,
+    PartsOrderHistoryResponse, PartsRankOption, PartsRankOptionsRequest, PartsRankOptionsResponse,
+    PartsResolveMatch, PartsResolveRequest, PartsResolveResponse,
 };
 use mxgenius_shared::domain::evidence::ConfidenceBasis;
 use mxgenius_shared::domain::part_alternate::AlternateRelation;
@@ -45,6 +51,7 @@ pub fn register(reg: &mut Registry, pool: Option<sqlx::PgPool>) {
             reg.register_typed_tool(wrap(Arc::new(PartsAlternatesTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsInventoryTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsRankOptionsTool { pool: pool.clone() })));
+            reg.register_typed_tool(wrap(Arc::new(PartsOrderHistoryTool { pool: pool.clone() })));
             reg.register_typed_tool(wrap(Arc::new(PartsAttachCertificateTool { pool })));
         }
         None => {
@@ -97,6 +104,32 @@ pub fn register(reg: &mut Registry, pool: Option<sqlx::PgPool>) {
                 |_input| PartsRankOptionsResponse {
                     ranked: vec![],
                     advisory: true,
+                },
+            )));
+            reg.register_typed_tool(wrap(not_configured::<
+                PartsOrderHistoryRequest,
+                PartsOrderHistoryResponse,
+                _,
+            >(
+                "mxg.parts.order_history",
+                "Part Order History",
+                "Return recorded purchase history and recorded-cost figures for a part.",
+                Action::PartsCostRead,
+                |_input| PartsOrderHistoryResponse {
+                    // Without a pool there is no procurement record to read.
+                    // `ever_ordered: false` here means "not known", which the
+                    // NOT_CONFIGURED warning on the envelope states plainly;
+                    // no caller should read it as "never ordered".
+                    ever_ordered: false,
+                    parts: vec![],
+                    currency: "USD".into(),
+                    counted_statuses: vec![],
+                    order_count: 0,
+                    excluded_draft_count: 0,
+                    excluded_cancelled_count: 0,
+                    cost_summary: vec![],
+                    orders: vec![],
+                    orders_truncated: false,
                 },
             )));
             reg.register_typed_tool(wrap(not_configured_mutating::<
@@ -814,5 +847,327 @@ fn parts_db_error(context: &'static str, error: sqlx::Error) -> EnvelopeError {
         severity: "error".into(),
         message: format!("{context} failed: {error}"),
         retryable: true,
+    }
+}
+
+// --- order_history --------------------------------------------------------
+
+/// Order statuses that represent a purchase actually placed.
+///
+/// A `draft` was never sent and a `cancelled` order was withdrawn. Counting
+/// either as "we have ordered this" would answer the buyer's question wrongly,
+/// and letting either into an average would quote a price nobody paid. Both are
+/// still reported as counts so the exclusion is visible rather than silent.
+const COUNTED_ORDER_STATUSES: [&str; 2] = ["placed", "confirmed"];
+
+const ORDER_HISTORY_DETAIL_LIMIT: i64 = 50;
+
+pub struct PartsOrderHistoryTool {
+    pool: Arc<sqlx::PgPool>,
+}
+
+#[async_trait]
+impl Tool for PartsOrderHistoryTool {
+    type Request = PartsOrderHistoryRequest;
+    type Response = PartsOrderHistoryResponse;
+
+    fn spec(&self) -> crate::tool::ToolSpec {
+        spec::<Self::Request, Self::Response>(
+            "mxg.parts.order_history",
+            "Part Order History",
+            "Return this organization's own recorded purchase history for a part: whether it has \
+             ever been ordered, the orders placed, and recorded-cost figures grouped by type of \
+             buy. Costs are what this organization recorded paying, never a market or supplier \
+             quote. Recorded costs are reported verbatim and are not divided into unit prices.",
+            Action::PartsCostRead,
+            false,
+        )
+    }
+
+    async fn invoke(
+        &self,
+        ctx: &ExecutionContext,
+        input: PartsOrderHistoryRequest,
+    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
+        let part_number = input
+            .part_number
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty());
+        let part_id = input.part_id.map(|id| id.0);
+        if part_number.is_none() && part_id.is_none() {
+            return Err(EnvelopeError {
+                code: StableErrorCode::InvalidInput,
+                severity: "error".into(),
+                message: "part_number or part_id is required".into(),
+                retryable: false,
+            });
+        }
+        let ordered_since = input.ordered_since.map(OffsetDateTime::from);
+
+        // The catalog is shared rather than tenant-scoped, and a part number is
+        // unique only per manufacturer, so an exact number can name several
+        // rows. Match exactly: a LIKE here would silently fold a different
+        // part's spend into this answer.
+        let part_rows: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
+            r#"SELECT id, part_number, description, manufacturer
+               FROM parts
+               WHERE ($1::uuid IS NULL OR id = $1)
+                 AND ($2::text IS NULL OR lower(part_number) = lower($2))
+               ORDER BY part_number, manufacturer NULLS FIRST
+               LIMIT 50"#,
+        )
+        .bind(part_id)
+        .bind(part_number)
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_err(|e| parts_db_error("parts order history catalog lookup", e))?;
+
+        let parts: Vec<PartsOrderHistoryPart> = part_rows
+            .iter()
+            .map(|row| PartsOrderHistoryPart {
+                part_id: mxgenius_shared::domain::ids::PartId(row.0),
+                part_number: row.1.clone(),
+                description: row.2.clone(),
+                manufacturer: row.3.clone(),
+            })
+            .collect();
+        let part_ids: Vec<Uuid> = part_rows.iter().map(|row| row.0).collect();
+
+        let counted: Vec<String> = COUNTED_ORDER_STATUSES
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+
+        if part_ids.is_empty() {
+            let mut env = CapabilityEnvelope::new(
+                ctx.request_id.0,
+                PartsOrderHistoryResponse {
+                    ever_ordered: false,
+                    parts,
+                    currency: "USD".into(),
+                    counted_statuses: counted,
+                    order_count: 0,
+                    excluded_draft_count: 0,
+                    excluded_cancelled_count: 0,
+                    cost_summary: vec![],
+                    orders: vec![],
+                    orders_truncated: false,
+                },
+            );
+            env.status = EnvelopeStatus::Partial;
+            env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+            env.confidence.score = 0.0;
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "warn".into(),
+                // "No such part" and "never ordered" are different answers and
+                // must not be collapsed: one is a catalog miss, the other is a
+                // procurement fact.
+                message: "no catalog part matched the supplied identifier; this is not a \
+                          statement that the part was never ordered"
+                    .into(),
+                retryable: false,
+            });
+            return Ok(env);
+        }
+
+        // Tenant scope is applied to both sides of the join. `part_requirements`
+        // carries its own organization_id precisely so procurement can scope
+        // without reaching through the case.
+        let status_rows: Vec<(String, i64)> = sqlx::query_as(
+            r#"SELECT o.status, count(*)
+               FROM part_orders o
+               JOIN part_requirements r
+                 ON r.id = o.part_requirement_id
+                AND r.organization_id = o.organization_id
+               WHERE o.organization_id = $1
+                 AND r.part_id = ANY($2)
+                 AND o.archived_at IS NULL
+                 AND ($3::timestamptz IS NULL OR o.ordered_at >= $3)
+               GROUP BY o.status"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(&part_ids)
+        .bind(ordered_since)
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_err(|e| parts_db_error("parts order history status counts", e))?;
+
+        let count_for = |status: &str| -> i64 {
+            status_rows
+                .iter()
+                .find(|(value, _)| value == status)
+                .map(|(_, count)| *count)
+                .unwrap_or(0)
+        };
+        let order_count: i64 = COUNTED_ORDER_STATUSES.iter().map(|s| count_for(s)).sum();
+
+        let summary_rows: Vec<(String, i64, i64, Option<f64>, Option<f64>, Option<f64>)> =
+            sqlx::query_as(
+                r#"SELECT o.type_of_buy,
+                          count(*),
+                          count(o.purchase_cost_usd),
+                          avg(o.purchase_cost_usd)::float8,
+                          min(o.purchase_cost_usd)::float8,
+                          max(o.purchase_cost_usd)::float8
+                   FROM part_orders o
+                   JOIN part_requirements r
+                     ON r.id = o.part_requirement_id
+                    AND r.organization_id = o.organization_id
+                   WHERE o.organization_id = $1
+                     AND r.part_id = ANY($2)
+                     AND o.archived_at IS NULL
+                     AND o.status = ANY($3)
+                     AND ($4::timestamptz IS NULL OR o.ordered_at >= $4)
+                   GROUP BY o.type_of_buy
+                   ORDER BY o.type_of_buy"#,
+            )
+            .bind(ctx.organization_id.0)
+            .bind(&part_ids)
+            .bind(&COUNTED_ORDER_STATUSES[..])
+            .bind(ordered_since)
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| parts_db_error("parts order history cost summary", e))?;
+
+        // Most recent per buy type comes from its own query rather than from the
+        // bounded detail list below, which could cut off before reaching an
+        // older buy type's latest order.
+        let recent_rows: Vec<(String, Option<OffsetDateTime>, Option<f64>)> = sqlx::query_as(
+            r#"SELECT DISTINCT ON (o.type_of_buy)
+                      o.type_of_buy, o.ordered_at, o.purchase_cost_usd::float8
+               FROM part_orders o
+               JOIN part_requirements r
+                 ON r.id = o.part_requirement_id
+                AND r.organization_id = o.organization_id
+               WHERE o.organization_id = $1
+                 AND r.part_id = ANY($2)
+                 AND o.archived_at IS NULL
+                 AND o.status = ANY($3)
+                 AND ($4::timestamptz IS NULL OR o.ordered_at >= $4)
+               ORDER BY o.type_of_buy, o.ordered_at DESC NULLS LAST"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(&part_ids)
+        .bind(&COUNTED_ORDER_STATUSES[..])
+        .bind(ordered_since)
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_err(|e| parts_db_error("parts order history most recent", e))?;
+
+        let cost_summary: Vec<PartsOrderHistoryCostSummary> = summary_rows
+            .into_iter()
+            .map(|(type_of_buy, orders, priced, average, minimum, maximum)| {
+                let recent = recent_rows.iter().find(|(kind, _, _)| kind == &type_of_buy);
+                PartsOrderHistoryCostSummary {
+                    // An average over zero priced orders is not zero, it is
+                    // absent; SQL already returns NULL there and it stays None.
+                    average_recorded_cost_usd: average,
+                    minimum_recorded_cost_usd: minimum,
+                    maximum_recorded_cost_usd: maximum,
+                    most_recent_recorded_cost_usd: recent.and_then(|(_, _, cost)| *cost),
+                    most_recent_ordered_at: recent
+                        .and_then(|(_, at, _)| *at)
+                        .map(mxgenius_shared::domain::datetime::UtcDateTime::from),
+                    type_of_buy,
+                    order_count: orders,
+                    priced_order_count: priced,
+                }
+            })
+            .collect();
+
+        #[allow(clippy::type_complexity)]
+        let detail_rows: Vec<(
+            Uuid,
+            Option<String>,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<OffsetDateTime>,
+            String,
+            i32,
+            Option<f64>,
+            Option<f64>,
+            bool,
+        )> = sqlx::query_as(
+            r#"SELECT o.id, o.order_number, o.order_kind, o.type_of_buy,
+                      coalesce(s.name, o.supplier_name), o.buyer_name,
+                      o.ordered_at, o.status, r.quantity,
+                      o.purchase_cost_usd::float8, o.invoice_amount_usd::float8,
+                      o.backordered
+               FROM part_orders o
+               JOIN part_requirements r
+                 ON r.id = o.part_requirement_id
+                AND r.organization_id = o.organization_id
+               LEFT JOIN suppliers s ON s.id = o.supplier_id
+               WHERE o.organization_id = $1
+                 AND r.part_id = ANY($2)
+                 AND o.archived_at IS NULL
+                 AND o.status = ANY($3)
+                 AND ($4::timestamptz IS NULL OR o.ordered_at >= $4)
+               ORDER BY o.ordered_at DESC NULLS LAST, o.created_at DESC
+               LIMIT $5"#,
+        )
+        .bind(ctx.organization_id.0)
+        .bind(&part_ids)
+        .bind(&COUNTED_ORDER_STATUSES[..])
+        .bind(ordered_since)
+        .bind(ORDER_HISTORY_DETAIL_LIMIT)
+        .fetch_all(self.pool.as_ref())
+        .await
+        .map_err(|e| parts_db_error("parts order history detail", e))?;
+
+        let orders: Vec<PartsOrderHistoryEntry> = detail_rows
+            .into_iter()
+            .map(|row| PartsOrderHistoryEntry {
+                order_id: row.0.to_string(),
+                order_number: row.1,
+                order_kind: row.2,
+                type_of_buy: row.3,
+                supplier_name: row.4,
+                buyer_name: row.5,
+                ordered_at: row
+                    .6
+                    .map(mxgenius_shared::domain::datetime::UtcDateTime::from),
+                status: row.7,
+                requirement_quantity: row.8,
+                recorded_cost_usd: row.9,
+                invoice_amount_usd: row.10,
+                backordered: row.11,
+            })
+            .collect();
+        let orders_truncated = order_count > orders.len() as i64;
+
+        let mut env = CapabilityEnvelope::new(
+            ctx.request_id.0,
+            PartsOrderHistoryResponse {
+                ever_ordered: order_count > 0,
+                parts,
+                currency: "USD".into(),
+                counted_statuses: counted,
+                order_count,
+                excluded_draft_count: count_for("draft"),
+                excluded_cancelled_count: count_for("cancelled"),
+                cost_summary,
+                orders,
+                orders_truncated,
+            },
+        );
+        env.confidence.basis = ConfidenceBasis::DeterministicLookup;
+        env.confidence.explanation =
+            "this organization's own recorded purchase orders; no supplier or market source".into();
+        if env.output.order_count == 0 {
+            // A definite "never ordered" is a real answer, not a partial one:
+            // the catalog part resolved and the procurement record is empty.
+            env.warnings.push(EnvelopeError {
+                code: StableErrorCode::EntityNotFound,
+                severity: "info".into(),
+                message: "no placed or confirmed orders recorded for this part".into(),
+                retryable: false,
+            });
+        }
+        Ok(env)
     }
 }
