@@ -49,16 +49,60 @@ const MXCapabilityWorkbench = (() => {
     meta: { availability: 'degraded', callable: false }
   }));
 
+  const CATALOG_RETRY_DELAYS_MS = [1_500, 5_000, 15_000];
   const state = { tools: [], selected: null, caseContext: null, rawDirty: false, showPlanned: false };
+  let catalogLoadId = 0;
+  let catalogRetryTimer = null;
   const byId = (id) => document.getElementById(id);
 
-  function session() {
+  async function session({ forceRefresh = false } = {}) {
+    await Promise.resolve(globalThis.MXGENIUS_CONFIG?.ready);
+    const refreshedAccessToken = globalThis.MXGENIUS_AUTH?.getToken
+      ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
+      : '';
     const value = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+    const accessToken = refreshedAccessToken || value.accessToken;
+    if (!accessToken && !globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
+      const error = new Error('Your sign-in needs to be renewed.');
+      error.code = 'AUTH_REQUIRED';
+      throw error;
+    }
     return {
-      accessToken: value.accessToken,
+      accessToken,
       organizationId: value.organizationId,
-      correlationId: globalThis.crypto?.randomUUID?.()
+      correlationId: globalThis.crypto?.randomUUID?.(),
+      confirmationGrant: value.confirmationGrant
     };
+  }
+
+  function authenticationError(error) {
+    return ['AUTH_REQUIRED', 'ACCESS_DENIED'].includes(String(error?.code || ''))
+      || error?.status === 401;
+  }
+
+  function retryableConnectionError(error) {
+    const code = String(error?.code || '');
+    return ['MCP_TRANSPORT_FAILED', 'MCP_REQUEST_TIMEOUT', 'MCP_REQUEST_FAILED'].includes(code)
+      || error?.status === 429
+      || error?.status >= 500;
+  }
+
+  function clearCatalogRetry() {
+    if (catalogRetryTimer === null) return;
+    globalThis.clearTimeout(catalogRetryTimer);
+    catalogRetryTimer = null;
+  }
+
+  async function authenticatedRequest(operation) {
+    let requestSession = await session();
+    try {
+      return await operation(requestSession);
+    } catch (error) {
+      if (!authenticationError(error) || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+      MXApplicationClient.capabilities.disconnect(requestSession);
+      requestSession = await session({ forceRefresh: true });
+      return operation(requestSession);
+    }
   }
 
   function escapeHtml(value) {
@@ -308,7 +352,9 @@ const MXCapabilityWorkbench = (() => {
     try {
       const args = state.rawDirty ? JSON.parse(byId('capabilityArguments').value || '{}') : collectFields();
       byId('capabilityArguments').value = JSON.stringify(args, null, 2);
-      const envelope = await MXApplicationClient.capabilities.call(state.selected.name, args, session());
+      const envelope = await authenticatedRequest((requestSession) => (
+        MXApplicationClient.capabilities.call(state.selected.name, args, requestSession)
+      ));
       renderEnvelope(envelope);
     } catch (error) {
       renderEnvelope({ code: error.code || 'OPERATION_FAILED', message: error.message, details: error.details || null }, true);
@@ -318,11 +364,17 @@ const MXCapabilityWorkbench = (() => {
     }
   }
 
-  async function load() {
+  async function load(options = {}) {
+    const attempt = Number.isInteger(options?.attempt) ? options.attempt : 0;
+    if (attempt === 0) clearCatalogRetry();
+    const loadId = ++catalogLoadId;
     const status = byId('capabilityStatus');
     status.textContent = 'Connecting operational services…';
     try {
-      const response = await MXApplicationClient.capabilities.list(session());
+      const response = await authenticatedRequest((requestSession) => (
+        MXApplicationClient.capabilities.list(requestSession)
+      ));
+      if (loadId !== catalogLoadId) return;
       state.tools = response?.tools || [];
       const counts = readinessCounts(state.tools);
       const summary = [
@@ -335,9 +387,26 @@ const MXCapabilityWorkbench = (() => {
       status.textContent = summary.join(' · ') || 'No operations reported';
       status.dataset.state = state.tools.length ? 'ready' : 'empty';
     } catch (error) {
+      if (loadId !== catalogLoadId) return;
       state.tools = FALLBACK_TOOLS;
-      status.textContent = `${state.tools.length} operations listed · service reconnecting`;
-      status.dataset.state = 'empty';
+      if (authenticationError(error)) {
+        status.textContent = `${state.tools.length} operations listed · sign-in required`;
+        status.dataset.state = 'auth';
+      } else if (globalThis.navigator?.onLine === false) {
+        status.textContent = `${state.tools.length} operations listed · waiting for network`;
+        status.dataset.state = 'empty';
+      } else if (retryableConnectionError(error) && attempt < CATALOG_RETRY_DELAYS_MS.length) {
+        const delay = CATALOG_RETRY_DELAYS_MS[attempt];
+        status.textContent = `${state.tools.length} operations listed · connection interrupted, retrying`;
+        status.dataset.state = 'empty';
+        catalogRetryTimer = globalThis.setTimeout(() => {
+          catalogRetryTimer = null;
+          load({ attempt: attempt + 1 });
+        }, delay);
+      } else {
+        status.textContent = `${state.tools.length} operations listed · service temporarily unavailable`;
+        status.dataset.state = 'empty';
+      }
     }
     renderCatalog(byId('capabilitySearch').value);
   }
@@ -366,6 +435,7 @@ const MXCapabilityWorkbench = (() => {
         syncRawRequest();
       }
     });
+    globalThis.addEventListener('online', load);
     load();
   }
 
