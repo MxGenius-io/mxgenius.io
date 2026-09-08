@@ -670,6 +670,13 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                         setWitnessUiState(witnessUiState.withMedia(state, detail));
                     }
 
+                    @Override public void onAudioState(String state, String detail) {
+                        String level = "customer-audio-live".equals(state) ? "success"
+                                : state.endsWith("failed") || state.contains("no-playout") ? "error" : "info";
+                        trace("W33", "WITNESS-AUDIO", state, detail, level);
+                        setWitnessUiState(witnessUiState.withAudio(state, detail));
+                    }
+
                     @Override public void onCaptureStopped(String reason) {
                         mediaProjectionForegroundReady = false;
                         witnessStartRequested = false;

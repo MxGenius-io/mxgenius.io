@@ -76,27 +76,27 @@ test('production XR negotiation remains explicitly unmounted and runtime config 
   assert.doesNotMatch(runtimeConfig, /sensorBridgeUrl\s*:/);
 });
 
-test('Quest companion config distinguishes the uploaded Alpha from the next local build', () => {
-  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-alpha\.22'/);
+test('Quest companion config matches the published Alpha build', () => {
+  assert.match(runtimeConfig, /sensorCompanionVersion: '0\.1\.0-alpha\.23'/);
   assert.match(runtimeConfig, /sensorCompanionEntitlementUrl:/);
   assert.doesNotMatch(runtimeConfig, /sensorCompanionDownloadUrl:/);
   assert.match(runtimeConfig, new RegExp(metaRelease.releaseChannel.installUrl.replaceAll('/', '\\/')));
   assert.doesNotMatch(metaRelease.releaseChannel.installUrl, /[?&](?:is_email_click|utm_)/);
-  assert.equal(metaRelease.publishedBuild.versionCode, 22);
-  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-alpha.22');
+  assert.equal(metaRelease.publishedBuild.versionCode, 23);
+  assert.equal(metaRelease.publishedBuild.versionName, '0.1.0-alpha.23');
   assert.equal(metaRelease.publishedBuild.status, 'Published');
-  assert.equal(metaRelease.uploadedBuild.versionCode, 22);
-  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-alpha.22');
+  assert.equal(metaRelease.uploadedBuild.versionCode, 23);
+  assert.equal(metaRelease.uploadedBuild.versionName, '0.1.0-alpha.23');
   assert.equal(metaRelease.uploadedBuild.status, 'Published');
-  assert.equal(metaRelease.build.versionCode, 22);
-  assert.equal(metaRelease.build.versionName, '0.1.0-alpha.22');
+  assert.equal(metaRelease.build.versionCode, 23);
+  assert.equal(metaRelease.build.versionName, '0.1.0-alpha.23');
   assert.equal(metaRelease.build.metaTestStatus, 'LocalVerificationPassed');
   assert.equal(metaRelease.metadata.storeAssetsManifest, 'store-assets/manifest.json');
   assert.match(companionManifest, /com\.oculus\.intent\.category\.2D/);
   assert.match(companionManifest, /com\.oculus\.vrshell\.panel_activity/);
   assert.match(companionManifest, /@mipmap\/mxgenius_launcher/);
-  assert.match(companionGradle, /versionCode = 22/);
-  assert.match(companionGradle, /versionName = "0\.1\.0-alpha\.22"/);
+  assert.match(companionGradle, /versionCode = 23/);
+  assert.match(companionGradle, /versionName = "0\.1\.0-alpha\.23"/);
   const canonicalCover = storeAssetManifest.assets.find((asset) => asset.canonicalUpload);
   assert.equal(canonicalCover.metaDashboardField, 'Cover art > Landscape');
   assert.equal(canonicalCover.width, 2560);

@@ -62,6 +62,7 @@ foreach ($requiredManifestToken in @(
     'ThermalImmersiveActivity',
     'libossdk.oculus.so',
     'android.permission.CAMERA',
+    'android.permission.MODIFY_AUDIO_SETTINGS',
     'android.hardware.camera',
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
@@ -156,6 +157,23 @@ foreach ($requiredWitnessMediaToken in @(
 )) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredWitnessMediaToken)) "native witness media path is missing $requiredWitnessMediaToken"
 }
+foreach ($requiredWitnessAudioToken in @(
+    'RemoteWitnessAudioController',
+    'JavaAudioDeviceModule',
+    'setAudioDeviceModule',
+    'setAudioTrackStateCallback',
+    'setAudioTrackErrorCallback',
+    'MODE_IN_COMMUNICATION',
+    'requestAudioFocus',
+    'setCommunicationDevice',
+    'inbound-rtp',
+    'packetsReceived',
+    'bytesReceived',
+    'customer-audio-live',
+    'customer-audio-received-no-playout'
+)) {
+    Assert-ReleaseRequirement ($companionSources.Contains($requiredWitnessAudioToken)) "native witness audio path is missing $requiredWitnessAudioToken"
+}
 foreach ($requiredWitnessControlToken in @(
     'RemoteWitnessUiState',
     'beginWitnessStart',
@@ -170,7 +188,7 @@ foreach ($requiredWitnessControlToken in @(
 foreach ($forbiddenWitnessCredentialSink in @('putString("producerCredential"', 'putExtra("producerCredential"', 'Log.d("producerCredential"')) {
     Assert-ReleaseRequirement (-not $companionSources.Contains($forbiddenWitnessCredentialSink)) "native witness credential reached a forbidden sink: $forbiddenWitnessCredentialSink"
 }
-Assert-ReleaseRequirement (-not $manifestSource.Contains('android.permission.RECORD_AUDIO')) 'Remote Witness must remain video-only until microphone consent is implemented'
+Assert-ReleaseRequirement (-not $manifestSource.Contains('android.permission.RECORD_AUDIO')) 'The Quest receives customer audio and must not capture the wearer microphone'
 $appBuildSource = Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'app\build.gradle.kts')
 Assert-ReleaseRequirement ($appBuildSource.Contains('io.github.webrtc-sdk:android:150.7871.01')) 'libwebrtc dependency is not pinned to the audited build'
 $webrtcAuditPath = Join-Path (Split-Path $projectRoot -Parent) '..\docs\design\remote-witness-webrtc-dependency.md'
@@ -271,6 +289,7 @@ foreach ($requiredPackagedToken in @(
     'horizonos.permission.HEADSET_CAMERA',
     'android.permission.FOREGROUND_SERVICE_CAMERA',
     'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+    'android.permission.MODIFY_AUDIO_SETTINGS',
     'android.hardware.usb.host'
 )) {
     Assert-ReleaseRequirement ($manifestTree.Contains($requiredPackagedToken)) "packaged Android manifest is missing $requiredPackagedToken"

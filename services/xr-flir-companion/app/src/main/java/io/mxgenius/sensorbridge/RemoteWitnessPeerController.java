@@ -28,6 +28,7 @@ import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
 import org.webrtc.VideoCodecInfo;
 import org.webrtc.VideoTrack;
+import org.webrtc.audio.JavaAudioDeviceModule;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,6 +51,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
 
     interface Listener {
         void onState(String state, String detail);
+        void onAudioState(String state, String detail);
         void onCaptureStopped(String reason);
     }
 
@@ -67,6 +69,8 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     private final EglBase eglBase;
     private final HardwareVideoEncoderFactory encoderFactory;
     private final PeerConnectionFactory factory;
+    private final JavaAudioDeviceModule audioDeviceModule;
+    private final RemoteWitnessAudioController audio;
     private final RemoteWitnessCaptureController capture;
     private PeerConnection peer;
     private UUID viewerId;
@@ -88,7 +92,31 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         initializeWebRtc(context.getApplicationContext());
         eglBase = EglBase.create();
         encoderFactory = new HardwareVideoEncoderFactory(eglBase.getEglBaseContext(), true, false);
+        audio = new RemoteWitnessAudioController(context.getApplicationContext(), listener::onAudioState);
+        audioDeviceModule = JavaAudioDeviceModule.builder(context.getApplicationContext())
+                .setAudioAttributes(RemoteWitnessAudioController.communicationAttributes())
+                .setAudioTrackStateCallback(new JavaAudioDeviceModule.AudioTrackStateCallback() {
+                    @Override public void onWebRtcAudioTrackStart() { audio.onPlayoutStarted(); }
+                    @Override public void onWebRtcAudioTrackStop() { audio.onPlayoutStopped(); }
+                })
+                .setAudioTrackErrorCallback(new JavaAudioDeviceModule.AudioTrackErrorCallback() {
+                    @Override public void onWebRtcAudioTrackInitError(String error) {
+                        audio.onPlayoutError("initialization: " + bounded(error, 120));
+                    }
+
+                    @Override public void onWebRtcAudioTrackStartError(
+                            JavaAudioDeviceModule.AudioTrackStartErrorCode code,
+                            String error) {
+                        audio.onPlayoutError("start " + code + ": " + bounded(error, 120));
+                    }
+
+                    @Override public void onWebRtcAudioTrackError(String error) {
+                        audio.onPlayoutError("runtime: " + bounded(error, 120));
+                    }
+                })
+                .createAudioDeviceModule();
         factory = PeerConnectionFactory.builder()
+                .setAudioDeviceModule(audioDeviceModule)
                 .setVideoEncoderFactory(encoderFactory)
                 .setVideoDecoderFactory(new DefaultVideoDecoderFactory(eglBase.getEglBaseContext()))
                 .createPeerConnectionFactory();
@@ -186,6 +214,8 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         capture.close();
         statsWorker.shutdownNow();
         factory.dispose();
+        audioDeviceModule.release();
+        audio.close();
         eglBase.release();
     }
 
@@ -210,12 +240,14 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     }
 
     private void createPeer(UUID participantId) {
+        audio.start();
         PeerConnection.RTCConfiguration configuration = new PeerConnection.RTCConfiguration(iceServers());
         configuration.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
         configuration.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
         configuration.iceConnectionReceivingTimeout = 12_000;
         peer = factory.createPeerConnection(configuration, new PeerObserver());
         if (peer == null) {
+            audio.close();
             listener.onState("peer-failed", "native peer creation failed");
             return;
         }
@@ -310,25 +342,38 @@ final class RemoteWitnessPeerController implements AutoCloseable {
                 current = peer;
                 if (closed || current == null) return;
             }
-            current.getStats(this::reportStats);
+            current.getStats(report -> reportStats(current, report));
         }, STATS_INTERVAL_SECONDS, STATS_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
-    private void reportStats(RTCStatsReport report) {
+    private void reportStats(PeerConnection source, RTCStatsReport report) {
+        synchronized (this) {
+            if (closed || source != peer) return;
+        }
         String codec = "unknown";
+        String audioCodec = "unknown audio";
         long bytesSent = 0L;
         long framesEncoded = capture.capturedFrames();
+        long audioPacketsReceived = 0L;
+        long audioBytesReceived = 0L;
         Map<String, RTCStats> stats = report.getStatsMap();
         Set<String> codecIds = new HashSet<>();
+        Set<String> audioCodecIds = new HashSet<>();
         for (RTCStats stat : stats.values()) {
-            if (!"outbound-rtp".equals(stat.getType())) continue;
             Object mediaType = stat.getMembers().get("kind");
             if (mediaType == null) mediaType = stat.getMembers().get("mediaType");
-            if (!"video".equals(String.valueOf(mediaType))) continue;
-            bytesSent = longValue(stat.getMembers().get("bytesSent"), bytesSent);
-            framesEncoded = longValue(stat.getMembers().get("framesEncoded"), framesEncoded);
-            Object codecId = stat.getMembers().get("codecId");
-            if (codecId != null) codecIds.add(String.valueOf(codecId));
+            if ("outbound-rtp".equals(stat.getType()) && "video".equals(String.valueOf(mediaType))) {
+                bytesSent = longValue(stat.getMembers().get("bytesSent"), bytesSent);
+                framesEncoded = longValue(stat.getMembers().get("framesEncoded"), framesEncoded);
+                Object codecId = stat.getMembers().get("codecId");
+                if (codecId != null) codecIds.add(String.valueOf(codecId));
+            }
+            if ("inbound-rtp".equals(stat.getType()) && "audio".equals(String.valueOf(mediaType))) {
+                audioPacketsReceived = longValue(stat.getMembers().get("packetsReceived"), audioPacketsReceived);
+                audioBytesReceived = longValue(stat.getMembers().get("bytesReceived"), audioBytesReceived);
+                Object codecId = stat.getMembers().get("codecId");
+                if (codecId != null) audioCodecIds.add(String.valueOf(codecId));
+            }
         }
         for (String codecId : codecIds) {
             RTCStats stat = stats.get(codecId);
@@ -337,11 +382,20 @@ final class RemoteWitnessPeerController implements AutoCloseable {
                 if (mime != null) codec = String.valueOf(mime);
             }
         }
+        for (String codecId : audioCodecIds) {
+            RTCStats stat = stats.get(codecId);
+            if (stat != null && "codec".equals(stat.getType())) {
+                Object mime = stat.getMembers().get("mimeType");
+                if (mime != null) audioCodec = String.valueOf(mime);
+            }
+        }
+        audio.onInboundAudio(audioPacketsReceived, audioBytesReceived, audioCodec);
         listener.onState("live", codec + " · " + framesEncoded + " frames · " + bytesSent + " bytes");
     }
 
     private synchronized void closePeer(String reason) {
         capture.setEnabled(false);
+        audio.close();
         videoSender = null;
         viewerId = null;
         PeerConnection current = peer;
@@ -444,7 +498,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] mediaStreams) {
             if (receiver.track() instanceof AudioTrack) {
                 receiver.track().setEnabled(true);
-                listener.onState("customer-audio-live", "customer microphone connected");
+                audio.onTrackNegotiated();
             }
         }
     }

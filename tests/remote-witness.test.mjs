@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
-const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource] = await Promise.all([
+const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource, nativeAudioSource, nativeManifestSource] = await Promise.all([
   readFile(new URL('application-client.js', root), 'utf8'),
   readFile(new URL('xr-remote-witness.js', root), 'utf8'),
   readFile(new URL('witness.js', root), 'utf8'),
@@ -21,7 +21,9 @@ const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, 
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/SensorBridgeService.java', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/ThermalImmersiveActivity.kt', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/res/layout/immersive_thermal_panel.xml', root), 'utf8'),
-  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessUiState.java', root), 'utf8')
+  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessUiState.java', root), 'utf8'),
+  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessAudioController.java', root), 'utf8'),
+  readFile(new URL('services/xr-flir-companion/app/src/main/AndroidManifest.xml', root), 'utf8')
 ]);
 
 test('public PIN exchange does not require or emit an application bearer', async () => {
@@ -151,6 +153,19 @@ test('customer microphone is explicit, permission-scoped, and uses the existing 
   assert.match(nativePeerSource, /setAudioPlayout\(true\)/);
   assert.match(nativePeerSource, /OfferToReceiveAudio", "true"/);
   assert.match(nativePeerSource, /instanceof AudioTrack/);
+  assert.match(nativePeerSource, /JavaAudioDeviceModule\.builder/);
+  assert.match(nativePeerSource, /setAudioTrackStateCallback/);
+  assert.match(nativePeerSource, /setAudioTrackErrorCallback/);
+  assert.match(nativePeerSource, /"inbound-rtp"/);
+  assert.match(nativePeerSource, /"packetsReceived"/);
+  assert.match(nativePeerSource, /"bytesReceived"/);
+  assert.match(nativeAudioSource, /MODE_IN_COMMUNICATION/);
+  assert.match(nativeAudioSource, /requestAudioFocus/);
+  assert.match(nativeAudioSource, /setCommunicationDevice/);
+  assert.match(nativeAudioSource, /customer-audio-received-no-playout/);
+  assert.match(nativeAudioSource, /playoutStarted \? "customer-audio-live"/);
+  assert.match(nativeManifestSource, /android\.permission\.MODIFY_AUDIO_SETTINGS/);
+  assert.doesNotMatch(nativeManifestSource, /android\.permission\.RECORD_AUDIO/);
 });
 
 test('case and target context use the existing case gallery and target registry seams', () => {

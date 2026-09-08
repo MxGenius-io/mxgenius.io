@@ -284,7 +284,8 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
                 "SERVICE PIN · ${formatServicePin(witnessUiState.pin)}"
             root.findViewById<TextView>(R.id.immersive_witness_detail).text =
                 "${witnessUiState.viewerCount} ${if (witnessUiState.viewerCount == 1) "viewer" else "viewers"}" +
-                    " · ${witnessUiState.networkState.replace('-', ' ')} · ${formatExpiry(witnessUiState.expiresAtMs)}"
+                    " · ${witnessUiState.networkState.replace('-', ' ')} · ${formatExpiry(witnessUiState.expiresAtMs)}" +
+                    "\n${witnessUiState.audioSummary()}"
             root.findViewById<TextView>(R.id.immersive_witness_layers).text = witnessUiState.layersSummary()
             root.findViewById<TextView>(R.id.immersive_witness_recording).text =
                 "RECORDING · ${witnessUiState.recordingState.uppercase()}"

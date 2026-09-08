@@ -45,6 +45,21 @@ public final class RemoteWitnessUiStateTest {
         assertEquals("Guest witness", state.audience);
     }
 
+    @Test public void customerAudioIsReportedSeparatelyFromVideoLiveness() throws Exception {
+        RemoteWitnessUiState state = RemoteWitnessUiState.from(bootstrap())
+                .withNetwork("connected")
+                .withRoom(room("live", true, 1))
+                .withMedia("live", "H264 · 120 frames")
+                .withAudio("customer-audio-received-no-playout", "audio/opus · 12 packets");
+
+        assertEquals(RemoteWitnessUiState.Phase.LIVE, state.phase(NOW));
+        assertTrue(state.audioSummary().contains("RECEIVED NO PLAYOUT"));
+        assertTrue(state.audioSummary().contains("12 packets"));
+
+        state = state.withAudio("customer-audio-live", "audio/opus · 20 packets");
+        assertTrue(state.audioSummary().contains("CUSTOMER AUDIO · LIVE"));
+    }
+
     private static RemoteWitnessBootstrap bootstrap() throws Exception {
         JSONObject payload = new JSONObject()
                 .put("type", "witness.bootstrap")

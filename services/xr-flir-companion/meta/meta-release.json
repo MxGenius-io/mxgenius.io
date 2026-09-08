@@ -6,34 +6,34 @@
     "package": "io.mxgenius.sensorbridge"
   },
   "publishedBuild": {
-    "versionCode": 22,
-    "versionName": "0.1.0-alpha.22",
+    "versionCode": 23,
+    "versionName": "0.1.0-alpha.23",
     "channel": "Alpha",
     "status": "Published",
-    "publishedAt": "2026-09-07T20:06:13-04:00"
+    "publishedAt": "2026-09-08T11:58:55-04:00"
   },
   "uploadedBuild": {
-    "versionCode": 22,
-    "versionName": "0.1.0-alpha.22",
+    "versionCode": 23,
+    "versionName": "0.1.0-alpha.23",
     "channel": "Alpha",
     "status": "Published",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
-      "sizeBytes": 176492150,
-      "sha256": "12d5c255e4b8e8110e0e90a1c18ef1ec447b9be395e22ffefd1d9f32b1ccb95a",
-      "builtAt": "2026-09-07T20:03:28-04:00"
+      "sizeBytes": 176508570,
+      "sha256": "8bcb1725abfaceb49f53ca5079b5b102d0044eeb200f08fb6b8bb9e11c7d508a",
+      "builtAt": "2026-09-08T11:35:29-04:00"
     }
   },
   "build": {
-    "versionCode": 22,
-    "versionName": "0.1.0-alpha.22",
+    "versionCode": 23,
+    "versionName": "0.1.0-alpha.23",
     "channel": "Alpha",
     "metaTestStatus": "LocalVerificationPassed",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
-      "sizeBytes": 176492150,
-      "sha256": "12d5c255e4b8e8110e0e90a1c18ef1ec447b9be395e22ffefd1d9f32b1ccb95a",
-      "builtAt": "2026-09-07T20:03:28-04:00"
+      "sizeBytes": 176508570,
+      "sha256": "8bcb1725abfaceb49f53ca5079b5b102d0044eeb200f08fb6b8bb9e11c7d508a",
+      "builtAt": "2026-09-08T11:35:29-04:00"
     }
   },
   "releaseChannel": {

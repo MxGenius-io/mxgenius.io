@@ -11,7 +11,7 @@ public final class RemoteWitnessUiState {
 
     static final RemoteWitnessUiState EMPTY = new RemoteWitnessUiState(
             null, "Guest witness", "none", false, 0, 0L,
-            null, "offline", "idle", null,
+            null, "offline", "idle", "off", null, null,
             true, false, true, false, false, false, "off");
 
     final String roomId;
@@ -23,6 +23,8 @@ public final class RemoteWitnessUiState {
     final String pin;
     final String networkState;
     final String mediaState;
+    final String audioState;
+    final String audioDetail;
     final String error;
     final boolean pov;
     final boolean thermal;
@@ -42,6 +44,8 @@ public final class RemoteWitnessUiState {
             String pin,
             String networkState,
             String mediaState,
+            String audioState,
+            String audioDetail,
             String error,
             boolean pov,
             boolean thermal,
@@ -59,6 +63,8 @@ public final class RemoteWitnessUiState {
         this.pin = pin;
         this.networkState = bounded(networkState, "offline", 48);
         this.mediaState = bounded(mediaState, "idle", 48);
+        this.audioState = bounded(audioState, "off", 48);
+        this.audioDetail = audioDetail == null ? null : bounded(audioDetail, "", 200);
         this.error = error == null ? null : bounded(error, "Witness unavailable", 160);
         this.pov = pov;
         this.thermal = thermal;
@@ -74,7 +80,7 @@ public final class RemoteWitnessUiState {
         return new RemoteWitnessUiState(
                 bootstrap.roomId.toString(), bootstrap.audience, "headset-offline", false, 0,
                 bootstrap.expiresAtMs, bootstrap.pin,
-                "connecting", "idle", null,
+                "connecting", "idle", "off", null, null,
                 true, false, true, true, false, false, "off");
     }
 
@@ -90,6 +96,8 @@ public final class RemoteWitnessUiState {
                 room.optLong("expiresAtMs", expiresAtMs),
                 networkState,
                 mediaState,
+                audioState,
+                audioDetail,
                 null,
                 layers == null ? pov : layers.optBoolean("pov", pov),
                 layers == null ? thermal : layers.optBoolean("thermal", thermal),
@@ -105,7 +113,8 @@ public final class RemoteWitnessUiState {
                 ? state.substring("server-error:".length()).replace('-', ' ')
                 : error;
         return copy(audience, roomStatus, approved, viewerCount, expiresAtMs,
-                state, mediaState, nextError, pov, thermal, target, caseSummary, caseMedia, microphone,
+                state, mediaState, audioState, audioDetail, nextError,
+                pov, thermal, target, caseSummary, caseMedia, microphone,
                 recordingState);
     }
 
@@ -113,14 +122,21 @@ public final class RemoteWitnessUiState {
         boolean failed = state != null && (state.contains("failed") || state.contains("rejected")
                 || state.contains("consent-required"));
         return copy(audience, roomStatus, approved, viewerCount, expiresAtMs,
-                networkState, state, failed ? bounded(detail, "Witness media failed", 160) : null,
+                networkState, state, audioState, audioDetail,
+                failed ? bounded(detail, "Witness media failed", 160) : null,
+                pov, thermal, target, caseSummary, caseMedia, microphone, recordingState);
+    }
+
+    RemoteWitnessUiState withAudio(String state, String detail) {
+        return copy(audience, roomStatus, approved, viewerCount, expiresAtMs,
+                networkState, mediaState, state, detail, error,
                 pov, thermal, target, caseSummary, caseMedia, microphone, recordingState);
     }
 
     RemoteWitnessUiState ended(String reason) {
         return new RemoteWitnessUiState(
                 null, audience, "ended", approved, 0, expiresAtMs,
-                null, "closed", "stopped",
+                null, "closed", "stopped", "off", null,
                 bounded(reason, "Session ended", 160),
                 pov, thermal, target, caseSummary, caseMedia, microphone, "off");
     }
@@ -185,6 +201,11 @@ public final class RemoteWitnessUiState {
                 + (viewerCount == 1 ? "" : "s") + " · " + networkState.toUpperCase(Locale.US);
     }
 
+    String audioSummary() {
+        String state = audioState.replace("customer-audio-", "").replace('-', ' ').toUpperCase(Locale.US);
+        return "CUSTOMER AUDIO · " + state + (audioDetail == null || audioDetail.isBlank() ? "" : " · " + audioDetail);
+    }
+
     private RemoteWitnessUiState copy(
             String audience,
             String roomStatus,
@@ -193,6 +214,8 @@ public final class RemoteWitnessUiState {
             long expiresAtMs,
             String networkState,
             String mediaState,
+            String audioState,
+            String audioDetail,
             String error,
             boolean pov,
             boolean thermal,
@@ -202,7 +225,7 @@ public final class RemoteWitnessUiState {
             boolean microphone,
             String recordingState) {
         return new RemoteWitnessUiState(roomId, audience, roomStatus, approved, viewerCount, expiresAtMs,
-                pin, networkState, mediaState, error,
+                pin, networkState, mediaState, audioState, audioDetail, error,
                 pov, thermal, target, caseSummary, caseMedia, microphone, recordingState);
     }
 
