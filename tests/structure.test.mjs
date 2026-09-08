@@ -700,6 +700,11 @@ test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.match(viewer, /nativeButton\.click\(\)/);
 });
 
+test('feature catalog records the Alpha 22 guest microphone field failure', () => {
+  assert.match(featureCatalog, /Known Alpha 22 issue:[\s\S]*customer-to-technician audio was not confirmed/);
+  assert.match(featureCatalog, /Treat guest voice as unavailable until end-to-end audio negotiation and playback pass/);
+});
+
 test('XR animation scrubber drives authored clips from controller or fingertip position', () => {
   assert.match(viewer, /import \{ XRAnimationScrubber \}/);
   assert.match(viewer, /xrAnimationScrubber\.scrubAtWorldPoint/);

@@ -390,6 +390,10 @@ Wave 6C local build verification: **GREEN; IMPLEMENTATION COMPLETE — 2026-09-0
 - [ ] `STL-099` Run and record the physical Quest/FLIR acceptance matrix.
   - [ ] Same LAN: PIN exchange, approval, video, target/case projection, comment,
     pause, resume, revoke, and original-PIN replay rejection.
+  - [!] Known Alpha 22 bug: the guest browser grants microphone access and
+    reports its track active, but customer-to-technician audio was not heard in
+    the live test. Verify outbound audio negotiation, wearer-side track
+    subscription, and playback before clearing the microphone gate.
   - [ ] External path: Quest on Wi-Fi with the viewer on cellular or another home
     network.
   - [ ] Restricted path: guest/hangar or corporate network, recording the ICE

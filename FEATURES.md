@@ -261,6 +261,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
 - `[x]` Anonymous Remote Witness guest room with wearer-generated 7-digit service PIN, single-use exchange, memory-only viewer credential, approval, pause, layer controls, presence count, expiry, and revoke.
 - `[x]` Public guest witness page with no account or contact-data collection, peer-to-peer WebRTC, shared target/case projection, existing case-gallery media, sourced proposed observations, and separate recording consent.
+- `[!]` Known Alpha 22 issue: the guest can enable browser microphone access and the room reports the microphone track active, but customer-to-technician audio was not confirmed in the live device test. Treat guest voice as unavailable until end-to-end audio negotiation and playback pass on the physical Quest.
 - `[ ]` Authenticated ACS employee rooms for private-company technician-to-HQ communications remain a separate transport and identity path.
 - `[~]` Physical Quest composite/passthrough capture and production TURN fallback need a headset/network acceptance pass; no continuous video traverses or persists in MCP.
 - `[x]` Contextual sensor-bridge guide.
