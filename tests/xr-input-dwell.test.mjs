@@ -33,7 +33,15 @@ test('WebXR routes controller and hand input through the bounded spatial control
     scene.indexOf('const uiHit =', scene.indexOf('const uiTargets = ['))
   );
 
-  assert.ok(controllerTargets.indexOf('spatialHud?.interactiveObjects()') < controllerTargets.indexOf('xrBrowser.interactiveObjects()'));
+  const orderedTargets = [
+    'xrSpatialShell.interactiveObjects()',
+    'spatialHud?.interactiveObjects()',
+    'xrWitness?.interactiveObjects()',
+    'xrVoice.interactiveObjects()',
+    'xrSensors?.interactiveObjects()'
+  ].map((target) => controllerTargets.indexOf(target));
+  assert.ok(orderedTargets.every((index) => index >= 0));
+  assert.deepEqual(orderedTargets, [...orderedTargets].sort((left, right) => left - right));
   assert.match(scene, /new XRInputDwellGate\(\{ dwellMs: 180 \}\)/);
   assert.match(scene, /spatialFingerDwell\.update\(handIndex, spatialTarget, time\)/);
   assert.match(scene, /spatialFingerDwell\.clear\(\)/);
