@@ -200,7 +200,7 @@ await check('Browser CORS contract', 'security', async () => {
 
 if (!ACCESS_TOKEN) {
   for (const [name, detail] of [
-    ['MCP registry', 'Set MXGENIUS_ACCESS_TOKEN to verify the authenticated 45-tool registry.'],
+    ['MCP registry', 'Set MXGENIUS_ACCESS_TOKEN to verify the authenticated 46-tool registry.'],
     ['Authenticated fleet source', 'Set MXGENIUS_ACCESS_TOKEN to verify JetNet through the protected fleet proxy.'],
     ['FAA candidate retrieval', 'Set MXGENIUS_ACCESS_TOKEN to resolve a fleet aircraft and verify the live FAA adapter.'],
     ['Structured chat', 'Set MXGENIUS_ACCESS_TOKEN to create a probe thread and call the selected model.'],
@@ -236,13 +236,13 @@ if (!ACCESS_TOKEN) {
     await mcp('notifications/initialized', {}, { notification: true });
     const listed = await mcp('tools/list');
     requireCondition(Array.isArray(listed?.tools), 'MCP tools/list returned no tools');
-    requireCondition(listed.tools.length === 45, `Expected 45 MCP tools; received ${listed.tools.length}`);
+    requireCondition(listed.tools.length === 46, `Expected 46 MCP tools; received ${listed.tools.length}`);
     const counts = listed.tools.reduce((summary, tool) => {
       const availability = String(tool.meta?.availability || 'unknown');
       summary[availability] = (summary[availability] || 0) + 1;
       return summary;
     }, {});
-    return { detail: `Authenticated MCP returned all 45 typed tools: ${Object.entries(counts).map(([key, value]) => `${key} ${value}`).join(', ')}.` };
+    return { detail: `Authenticated MCP returned all 46 typed tools: ${Object.entries(counts).map(([key, value]) => `${key} ${value}`).join(', ')}.` };
   });
 
   await check('FAA candidate retrieval', 'authenticated', async () => {

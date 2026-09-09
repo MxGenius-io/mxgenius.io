@@ -30,7 +30,7 @@ application.
   Operations a read-only identity preview.
 - [x] `SWC-003` Make the frontend MCP catalog wait for authentication, recover
   from token expiry and bounded connection failures, and validate the canonical
-  45-tool registry.
+  46-tool registry.
 - [ ] `SWC-004` Capture current desktop and physical-headset behavior for the two
   retained entry paths before removing legacy launchers.
 - [ ] `SWC-005` Define one typed spatial-context envelope for tenant, aircraft,
@@ -41,9 +41,9 @@ versioned, and no scene consolidation begins with an unknown data dependency.
 
 ### Wave 1 — build the shared shell
 
-- [ ] `SWC-010` Create one world-anchored tray with Operations and Maintenance
+- [x] `SWC-010` Create one world-anchored tray with Operations and Maintenance
   mode controls.
-- [ ] `SWC-011` Add shared recenter, close, and return behavior without attaching
+- [~] `SWC-011` Add shared recenter, close, and return behavior without attaching
   controls to the headset.
 - [ ] `SWC-012` Enforce one active panel or tool at a time with deliberate open,
   close, and mode-transition animation.
@@ -86,23 +86,23 @@ attention without entering Maintenance or seeing transaction-heavy controls.
 
 ### Wave 3 — Maintenance mode
 
-- [ ] `SWC-030` Move active aircraft and maintenance-case context into
+- [~] `SWC-030` Move active aircraft and maintenance-case context into
   Maintenance.
-- [ ] `SWC-031` Mount the full 3D viewer with move, rotate, scale, focus, component
+- [x] `SWC-031` Mount the full 3D viewer with move, rotate, scale, focus, component
   selection, and mesh selection.
 - [ ] `SWC-032` Retain component mapping, validation, highlights, target boxes,
   annotations, and case markers.
 - [ ] `SWC-033` Retain authored animations, exploded views, and component-linked
   procedure video.
-- [ ] `SWC-034` Merge the current sensor destination into Maintenance as FLIR,
+- [~] `SWC-034` Merge the current sensor destination into Maintenance as FLIR,
   optional Pi status, and attached-sensor capabilities.
-- [ ] `SWC-035` Preserve thermal capture, photographs, video, and other explicit
+- [~] `SWC-035` Preserve thermal capture, photographs, video, and other explicit
   case-evidence paths.
 - [ ] `SWC-036` Reframe the maintenance HUD as **Observe → Identify → Verify →
   Record**, revealing only the next one or two useful actions.
 - [ ] `SWC-037` Retain grounded maintenance guidance with manuals, FAA sources,
   warnings, conflicts, and citations.
-- [ ] `SWC-038` Retain Remote Witness, technician-to-HQ support, voice, and
+- [~] `SWC-038` Retain Remote Witness, technician-to-HQ support, voice, and
   hands-free capture without exposing operational mutations to guests.
 - [ ] `SWC-039` Add **Need part** using the shared cross-mode handoff instead of a
   second procurement surface.
@@ -113,18 +113,19 @@ or administrative controls.
 
 ### Wave 4 — placement and legacy cleanup
 
-- [ ] `SWC-040` Remove camera-follow behavior from Remote Witness.
-- [ ] `SWC-041` Remove the generic browser panel and its camera-follow behavior.
-- [ ] `SWC-042` Replace Realtime fallback camera placement with a shell anchor or
+- [x] `SWC-040` Remove camera-follow behavior from Remote Witness.
+- [x] `SWC-041` Remove the generic browser panel and its camera-follow behavior.
+- [x] `SWC-042` Replace Realtime fallback camera placement with a shell anchor or
   explicit user placement.
-- [ ] `SWC-043` Remove spatial target HUD camera-follow behavior while preserving
+- [x] `SWC-043` Remove spatial target HUD camera-follow behavior while preserving
   target alignment.
-- [ ] `SWC-044` Retain FLIR as the only surface with an explicit **Follow Head /
+- [x] `SWC-044` Retain FLIR as the only surface with an explicit **Follow Head /
   Pin Here** choice.
-- [ ] `SWC-045` Remove wrist-following fleet detail, scattered VR/AR launchers,
+- [~] `SWC-045` Remove wrist-following fleet detail, scattered VR/AR launchers,
   persistent action belts, redundant help icons, and default-visible logs.
-- [ ] `SWC-046` Remove the separate sensor scene from user navigation after its
-  capabilities pass inside Maintenance.
+- [~] `SWC-046` Remove the separate sensor scene from user navigation after its
+  capabilities pass inside Maintenance. The launcher is retired; the legacy URL
+  remains as a fallback until the physical Quest acceptance run passes.
 - [ ] `SWC-047` Keep native iOS AR capability-gated without treating it as a
   separate product mode.
 

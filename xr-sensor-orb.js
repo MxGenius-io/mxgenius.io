@@ -76,7 +76,7 @@ function configuredDiagnosticsSchemas() {
     || DEFAULT_SCHEMA_URL;
   const urls = [configured];
   if (['localhost', '127.0.0.1'].includes(location.hostname) && configured === DEFAULT_SCHEMA_URL) {
-    urls.push('services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json');
+    urls.push('/services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json');
   }
   return urls;
 }
@@ -98,6 +98,8 @@ export class XRSensorOrb {
     remoteWitnessUrl = '',
     surface = 'fleet-globe',
     presentation = 'wrist-orb',
+    initialActive = null,
+    showControls = true,
     screenScale = 1,
     headOffset = { x: 0, y: 0.16, z: -1.12 },
     bridgeHandoff = false,
@@ -124,7 +126,8 @@ export class XRSensorOrb {
     this.presenting = false;
     this.preflighting = false;
     this.disposed = false;
-    this.active = this.presentation === 'head-screen';
+    this.active = initialActive === null ? this.presentation === 'head-screen' : Boolean(initialActive);
+    this.showControls = Boolean(showControls);
     this.screenReveal = this.active ? 1 : 0;
     this.screenPinned = false;
     this.state = 'unconfigured';
@@ -258,7 +261,7 @@ export class XRSensorOrb {
 
     this.screenControls = new THREE.Group();
     this.screenControls.name = 'MXGeniusThermalControls';
-    this.screenControls.visible = this.presentation === 'head-screen';
+    this.screenControls.visible = this.presentation === 'head-screen' && this.showControls;
     this.group.add(this.screenControls);
     this.screenToggle = this.createScreenButton('MXGeniusThermalToggle', 'toggle-thermal-screen', 0.27);
     this.screenPin = this.createScreenButton('MXGeniusThermalPin', 'pin-thermal-screen', 0.2);
@@ -382,7 +385,7 @@ export class XRSensorOrb {
 
   interactiveObjects() {
     return this.presentation === 'head-screen'
-      ? [this.screenToggle, this.screenPin, this.screenScaleDown, this.screenScaleUp]
+      ? this.showControls ? [this.screenToggle, this.screenPin, this.screenScaleDown, this.screenScaleUp] : []
       : [this.hitTarget];
   }
 
@@ -1098,7 +1101,7 @@ export class XRSensorOrb {
         this.group.position.lerp(this.headTargetPosition, 1 - Math.exp(-delta * 18));
         this.group.quaternion.slerp(this.cameraQuaternion, 1 - Math.exp(-delta * 18));
       }
-      const diagnosticsTarget = 0.9;
+      const diagnosticsTarget = this.active ? 0.9 : 0.001;
       const diagnosticsScale = THREE.MathUtils.lerp(this.panel.scale.x, diagnosticsTarget, 1 - Math.exp(-delta * 11));
       this.panel.scale.setScalar(Math.max(0.001, diagnosticsScale));
       this.screenReveal = THREE.MathUtils.lerp(this.screenReveal, this.active ? 1 : 0, 1 - Math.exp(-delta * 12));

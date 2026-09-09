@@ -1433,7 +1433,16 @@
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=2';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=7';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=10';
+        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=5';
+        import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=3';
+        import {
+            applicationSession,
+            resolveXRSensorRuntime,
+            snapshotFile,
+            withRenewedApplicationSession
+        } from '../xr-maintenance-runtime.js?v=1';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -1490,12 +1499,32 @@
         let selectedHighlightMaterial = null;
         let pendingRemoteSelector = null;
         let pointerDownPosition = null;
-        let viewerContext = {};
+        let viewerContext = (() => {
+            try {
+                const shared = JSON.parse(sessionStorage.getItem('mxg_spatial_context_v1') || 'null');
+                if (!shared || shared.version !== 1) return {};
+                return {
+                    caseId: shared.caseId || null,
+                    aircraftId: shared.aircraftId || null,
+                    componentId: shared.componentId || null,
+                    location: shared.location || null,
+                    spatialSource: shared.source || null
+                };
+            } catch {
+                return {};
+            }
+        })();
         let xrMediaPanel = null;
         let xrAnimationScrubber = null;
         let xrMaintenanceHUD = null;
         let xrUIAudio = null;
         let xrVoice = null;
+        let xrSensors = null;
+        let xrWitness = null;
+        let xrSpatialShell = null;
+        let activeCaseState = null;
+        let witnessGuestAudio = null;
+        const sensorRuntime = resolveXRSensorRuntime();
         const xrControllers = [];
         const xrHands = [];
         const xrFingerTargets = new Map();
@@ -1544,6 +1573,54 @@
                 // Cross-origin parents cannot provide a session. The application client will reject protected calls.
             }
             return localSession;
+        }
+
+        async function restoreViewerCaseEvidence() {
+            const caseId = viewerContext?.caseId || localStorage.getItem('mxg_active_case_id');
+            if (!caseId) {
+                activeCaseState = null;
+                xrVoice?.setEvidenceContext();
+                return null;
+            }
+            try {
+                activeCaseState = await withRenewedApplicationSession(async (session) => {
+                    const [current, gallery] = await Promise.all([
+                        globalThis.MXApplicationClient.cases.get(caseId, session),
+                        globalThis.MXApplicationClient.cases.listMedia(caseId, session)
+                    ]);
+                    return { caseId, case: current.case, media: gallery.media || [] };
+                });
+                xrVoice?.setEvidenceContext({
+                    caseId,
+                    aircraftId: activeCaseState.case?.aircraft_id,
+                    count: activeCaseState.media.length
+                });
+                xrWitness?.publishProjection();
+                return activeCaseState;
+            } catch (error) {
+                activeCaseState = null;
+                xrVoice?.setEvidenceContext();
+                console.warn('[3D Viewer] Active case evidence is unavailable', error);
+                return null;
+            }
+        }
+
+        async function saveViewerSnapshot(snapshot) {
+            const current = activeCaseState || await restoreViewerCaseEvidence();
+            if (!current?.caseId) throw new Error('Open a maintenance case before capturing evidence');
+            const result = await withRenewedApplicationSession((session) => globalThis.MXApplicationClient.cases.attachMedia({
+                caseId: current.caseId,
+                media: snapshotFile(snapshot),
+                note: `Quest maintenance capture · ${snapshot.eye || 'headset'} camera`,
+                session
+            }));
+            await restoreViewerCaseEvidence();
+            return {
+                caseId: current.caseId,
+                aircraftId: activeCaseState?.case?.aircraft_id,
+                count: activeCaseState?.media?.length || 0,
+                observationId: result.observation?.observation_id
+            };
         }
 
         function formatModelBytes(bytes) {
@@ -1747,12 +1824,121 @@
                 onSound: (cue, options) => void xrUIAudio?.play(cue, options)
             });
             xrMaintenanceHUD.objects().forEach((object) => scene.add(object));
+            xrSensors = new XRSensorOrb({
+                sessionId: sensorRuntime.sessionId,
+                bridgeUrl: sensorRuntime.thermalBridgeUrl,
+                bridgeToken: sensorRuntime.localToken,
+                diagnosticsBridgeUrl: sensorRuntime.piDiagnosticsBridgeUrl,
+                remoteWitnessUrl: sensorRuntime.remoteWitnessUrl,
+                surface: 'maintenance-viewer',
+                presentation: 'head-screen',
+                initialActive: false,
+                showControls: false,
+                bridgeHandoff: Boolean(sensorRuntime.handoff),
+                onAction: (action, input, target) => {
+                    if (action === 'toggle-thermal-screen') {
+                        xrSpatialShell?.setToolState('thermal', { active: Boolean(target?.active) });
+                    }
+                    emitXRAction(action, input, target);
+                },
+                onStatus: ({ thermalTransport, thermalSource }) => {
+                    xrSpatialShell?.setToolState('thermal', {
+                        active: Boolean(xrSensors?.active),
+                        status: `${thermalTransport || 'offline'}/${thermalSource || 'standby'}`
+                    });
+                }
+            });
+            scene.add(xrSensors.group);
             xrVoice = new XRRealtimePresence({
-                contextProvider: () => viewerContext?.caseId ? { caseId: viewerContext.caseId } : null,
-                onSnapshotRequest: requestViewerSnapshot,
+                sessionProvider: viewerSession,
+                contextProvider: () => ({
+                    surface: 'maintenance-viewer',
+                    caseId: activeCaseState?.caseId || viewerContext?.caseId || null,
+                    aircraftId: activeCaseState?.case?.aircraft_id || viewerContext?.aircraftId || null,
+                    componentId: selectedMesh?.name || viewerContext?.componentId || null
+                }),
+                launcherVisible: false,
+                onSnapshotRequest: requestMaintenanceSnapshot,
+                onSnapshotCaptured: saveViewerSnapshot,
                 onAction: emitXRAction
             });
             scene.add(xrVoice.group);
+            xrWitness = new XRRemoteWitnessPanel({
+                xrSessionId: sensorRuntime.sessionId,
+                sessionProvider: applicationSession,
+                caseProvider: () => activeCaseState,
+                projectionProvider: () => ({
+                    target: selectedMesh ? {
+                        meshName: selectedMesh.name || null,
+                        path: getObjectPath(selectedMesh)
+                    } : null,
+                    caseSummary: activeCaseState ? {
+                        caseId: activeCaseState.caseId,
+                        aircraftId: activeCaseState.case?.aircraft_id || null,
+                        discrepancy: activeCaseState.case?.raw_discrepancy || activeCaseState.case?.discrepancy || null,
+                        status: activeCaseState.case?.status || null
+                    } : null,
+                    caseMedia: activeCaseState?.media || []
+                }),
+                launcherVisible: false,
+                mediaStreamProvider: async () => {
+                    if (typeof renderer.domElement.captureStream !== 'function') {
+                        throw new Error('This browser cannot share the rendered maintenance view');
+                    }
+                    return renderer.domElement.captureStream(30);
+                },
+                nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+                remoteStreamConsumer: (stream) => {
+                    if (!witnessGuestAudio) {
+                        witnessGuestAudio = document.createElement('audio');
+                        witnessGuestAudio.autoplay = true;
+                        witnessGuestAudio.playsInline = true;
+                        witnessGuestAudio.hidden = true;
+                        document.body.appendChild(witnessGuestAudio);
+                    }
+                    witnessGuestAudio.srcObject = stream || null;
+                    if (stream) void witnessGuestAudio.play().catch(() => {});
+                    else witnessGuestAudio.pause();
+                },
+                onAction: (action, input, target) => {
+                    if (action === 'witness-panel-toggle') {
+                        xrSpatialShell?.setToolState('witness', { active: Boolean(target?.open) });
+                    }
+                    emitXRAction(action, input, target);
+                }
+            });
+            scene.add(xrWitness.group);
+            xrSpatialShell = new XRSpatialShell({
+                mode: 'maintenance',
+                tools: [
+                    { id: 'thermal' },
+                    { id: 'witness' },
+                    { id: 'voice' },
+                    { id: 'capture', enabled: Boolean(viewerContext?.caseId || localStorage.getItem('mxg_active_case_id')) }
+                ],
+                onModeChange: (mode) => {
+                    if (mode !== 'operations') return;
+                    sessionStorage.setItem('mxg_spatial_context_v1', JSON.stringify({
+                        version: 1,
+                        source: 'maintenance-viewer',
+                        caseId: viewerContext?.caseId || null,
+                        aircraftId: viewerContext?.aircraftId || null,
+                        componentId: selectedMesh?.name || null
+                    }));
+                    window.top.location.assign('../globe-vr.html?v=19');
+                },
+                onRecenter: () => {
+                    xrVoice?.requestPlacement('spatial-shell');
+                    xrWitness?.requestPlacement();
+                    xrMaintenanceHUD?.setPresenting(true, camera);
+                },
+                onToolAction: handleMaintenanceTool,
+                onAction: emitXRAction
+            });
+            scene.add(xrSpatialShell.group);
+            void restoreViewerCaseEvidence().then((current) => {
+                xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
+            });
             
             container.appendChild(renderer.domElement);
             setupXRButton();
@@ -2542,14 +2728,20 @@
                 xrMaintenanceHUD?.setContext(viewerContext);
                 xrMaintenanceHUD?.setPresenting(true, camera);
                 ensureMaintenanceHUDTarget();
+                xrSensors?.setPresenting(true);
                 xrVoice?.setPresenting(true);
+                xrWitness?.setPresenting(true);
+                xrSpatialShell?.setPresenting(true, camera);
             });
             renderer.xr.addEventListener('sessionend', () => {
                 setHeadsetAvailable(headsetAvailable);
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
                 xrMaintenanceHUD?.setPresenting(false, camera);
+                xrSensors?.setPresenting(false);
                 xrVoice?.setPresenting(false);
+                xrWitness?.setPresenting(false);
+                xrSpatialShell?.setPresenting(false, camera);
                 xrUIAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
                 xrUIAudio?.stopCue('system_relocalizing_loop', { fadeMs: 70 });
                 restoreSceneFromXR();
@@ -2602,6 +2794,25 @@
             }
         }
 
+        async function handleMaintenanceTool(toolId, { input = 'xr' } = {}) {
+            void xrUIAudio?.unlock();
+            if (toolId === 'thermal') {
+                xrSensors?.setActive(!xrSensors.active, input);
+                return;
+            }
+            if (toolId === 'witness') {
+                xrWitness?.setOpen(!xrWitness.open, input);
+                return;
+            }
+            if (toolId === 'voice') {
+                await xrVoice?.toggle(input);
+                const active = Boolean(xrVoice?.session) && !['disconnected', 'failed'].includes(xrVoice?.state);
+                xrSpatialShell?.setToolState('voice', { active });
+                return;
+            }
+            if (toolId === 'capture') await xrVoice?.captureSnapshot(input);
+        }
+
         function activateXRPart(mesh, input) {
             if (!mesh?.isMesh) return;
             selectPart(mesh);
@@ -2614,8 +2825,11 @@
             raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
             raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
             const targets = [
+                ...(xrSpatialShell?.interactiveObjects() || []),
                 ...(currentModel ? [currentModel] : []),
+                ...(xrSensors?.interactiveObjects() || []),
                 ...(xrVoice?.interactiveObjects() || []),
+                ...(xrWitness?.interactiveObjects() || []),
                 ...(xrMaintenanceHUD?.interactiveObjects() || []),
                 ...(xrMediaPanel?.interactiveObjects() || []),
                 ...(xrAnimationScrubber?.group.visible ? [xrAnimationScrubber.group] : [])
@@ -2623,7 +2837,10 @@
             const hit = raycaster.intersectObjects(targets, true).find((item) => item.object?.isMesh);
             if (!hit) return;
             const input = `controller-${index}`;
+            if (xrSpatialShell?.handleObject(hit.object, input)) return;
+            if (xrSensors?.handleObject(hit.object, input)) return;
             if (xrVoice?.handleObject(hit.object, input)) return;
+            if (xrWitness?.handleObject(hit.object, input)) return;
             if (xrMaintenanceHUD?.handleObject(hit.object, input)) return;
             if (xrMediaPanel?.handleObject(hit.object, input)) return;
             if (xrAnimationScrubber?.owns(hit.object)) {
@@ -2778,6 +2995,11 @@
             };
         }
 
+        async function requestMaintenanceSnapshot(options = {}) {
+            if (xrSensors?.state === 'connected') return xrSensors.acquireHeadsetFrame(options);
+            return requestViewerSnapshot(options);
+        }
+
         function configureProcedureMedia(tutorial) {
             const ready = xrMediaPanel?.configure(tutorial) || false;
             const button = document.getElementById('procedure-media-button');
@@ -2801,12 +3023,33 @@
         }
 
         function updateXRFingerInteractions(time) {
-            if (!renderer.xr.isPresenting || !currentModel || time - xrLastFingerCheck < 100) return;
+            if (!renderer.xr.isPresenting || time - xrLastFingerCheck < 100) return;
             xrLastFingerCheck = time;
             xrHands.forEach((hand, index) => {
                 const tip = hand.joints?.['index-finger-tip'];
                 if (!tip?.visible) return;
                 tip.getWorldPosition(xrFingerPoint);
+                const shellTarget = xrSpatialShell?.fingerTargetAt(xrFingerPoint);
+                if (shellTarget) {
+                    const previousShell = xrFingerTargets.get(index) || null;
+                    if (shellTarget !== previousShell) xrSpatialShell.handleObject(shellTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, shellTarget);
+                    return;
+                }
+                const sensorTarget = xrSensors?.fingerTargetAt(xrFingerPoint);
+                if (sensorTarget) {
+                    const previousSensor = xrFingerTargets.get(index) || null;
+                    if (sensorTarget !== previousSensor) xrSensors.handleObject(sensorTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, sensorTarget);
+                    return;
+                }
+                const witnessTarget = xrWitness?.fingerTargetAt(xrFingerPoint);
+                if (witnessTarget) {
+                    const previousWitness = xrFingerTargets.get(index) || null;
+                    if (witnessTarget !== previousWitness) xrWitness.handleObject(witnessTarget, `finger-${index}`);
+                    xrFingerTargets.set(index, witnessTarget);
+                    return;
+                }
                 const hudTarget = xrMaintenanceHUD?.fingerTargetAt(xrFingerPoint);
                 if (hudTarget) {
                     const previousHud = xrFingerTargets.get(index) || null;
@@ -2835,7 +3078,7 @@
                     return;
                 }
                 let hitMesh = null;
-                currentModel.traverse((node) => {
+                currentModel?.traverse((node) => {
                     if (hitMesh || !node.isMesh || !node.visible) return;
                     xrFingerBounds.setFromObject(node).expandByScalar(0.015);
                     if (xrFingerBounds.containsPoint(xrFingerPoint)) hitMesh = node;
@@ -3323,6 +3566,9 @@
                         : {};
                     xrMaintenanceHUD?.setContext(viewerContext);
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
+                    void restoreViewerCaseEvidence().then((current) => {
+                        xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
+                    });
                 } else if (message.type === 'mxgenius.viewer.highlight-part') {
                     const selector = message.selector || {};
                     const requestedModelId = selector.modelId || selector.model_id;
@@ -3472,6 +3718,13 @@
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape' && !document.getElementById('model-library-drawer').hidden) closeModelLibrary();
             });
+
+            window.addEventListener('pagehide', () => {
+                xrSensors?.dispose();
+                xrWitness?.dispose();
+                xrVoice?.dispose();
+                xrSpatialShell?.dispose();
+            }, { once: true });
             document.getElementById('model-upload-input').addEventListener('change', async (event) => {
                 const input = event.currentTarget;
                 const file = input.files?.[0];
@@ -3683,6 +3936,9 @@
             xrVoice?.update(delta, time, {
                 camera
             });
+            xrSensors?.update(delta, time, { camera });
+            xrWitness?.update(delta, { camera });
+            xrSpatialShell?.update(delta, { camera });
             
             if (renderer.xr.isPresenting) {
                 renderer.render(scene, camera);

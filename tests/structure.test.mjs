@@ -507,7 +507,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=32/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=34/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -585,7 +585,9 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
   assert.match(viewer, /new XRUIAudio\(\{ camera, onStateChange: updateXRAudioStatus \}\)/);
   assert.match(viewer, /xrVoice\?\.toggle\(input\)/);
   assert.match(viewer, /xrVoice\?\.captureSnapshot\(input\)/);
-  assert.match(viewer, /onSnapshotRequest: requestViewerSnapshot/);
+  assert.match(viewer, /onSnapshotRequest: requestMaintenanceSnapshot/);
+  assert.match(viewer, /xrSensors\?\.state === 'connected'/);
+  assert.match(viewer, /return requestViewerSnapshot\(options\)/);
   assert.match(viewer, /renderer\.readRenderTargetPixels/);
   assert.match(viewer, /action === 'clear'\) clearPartSelection\(\)/);
   assert.match(viewer, /updateHUDPointerFocus/);
@@ -662,7 +664,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=32/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=34/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -789,7 +791,7 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(application, /function openGlobeInVR\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=10/);
+  assert.match(application, /globe-vr\.html\?v=19/);
   assert.match(globeVr, /three@0\.184\.0/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
@@ -814,9 +816,9 @@ test('fleet globe opens a direct current-Three passthrough route with cached coo
   assert.match(fleetProxy, /evo-assets-3wl\.s3\.us-west-2\.amazonaws\.com/);
   assert.match(fleetProxy, /Cross-Origin-Resource-Policy/);
   assert.match(globeVr, /JETNET AIRCRAFT/);
-  assert.match(globeVr, /panelMode = 'wrist'/);
-  assert.match(globeVr, /FOLLOW WRIST/);
-  assert.match(globeVr, /leftHand\?\.joints\?\.wrist/);
+  assert.doesNotMatch(globeVr, /panelMode = 'wrist'/);
+  assert.doesNotMatch(globeVr, /FOLLOW WRIST/);
+  assert.doesNotMatch(globeVr, /leftHand\?\.joints\?\.wrist/);
   assert.match(globeVr, /renderer\.xr\.getControllerGrip/);
   assert.match(globeVr, /function captureGlobeGesture/);
   assert.match(globeVr, /mode: 'scale'/);
@@ -872,13 +874,13 @@ test('maintenance case creation binds the explicit submit action to a short-live
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=9"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=9"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=10"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
   assert.match(dashboard, /guided-tooltip\.css\?v=5/);
-  assert.match(dashboard, /onboarding\.css\?v=5/);
+  assert.match(dashboard, /onboarding\.css\?v=6/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
   assert.match(onboarding, /MXDashboardSplash\?\.ready/);
@@ -897,8 +899,9 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /FAA references, and QR label/);
   assert.doesNotMatch(onboarding, /data-tab="operations"/);
   assert.match(onboarding, /target: '#globeVrButton'/);
-  assert.match(onboarding, /target: '#sensorSceneTab'/);
+  assert.match(onboarding, /target: '\.nav-tab\[data-tab="3d-viewer"\]'/);
   assert.match(onboarding, /guideId: 'sensor-diagnostics'/);
+  assert.match(onboarding, /familiar wrench tray/);
   assert.match(onboarding, /native Quest Browser/);
   assert.match(onboarding, /controller selection and fingertip contact/);
   assert.match(onboarding, /MXGuidedTooltip\?\.mount/);
@@ -911,6 +914,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboardingStyles, /max-height: 100%/);
   assert.match(onboardingStyles, /overflow-y: auto/);
   assert.match(onboardingStyles, /align-items: flex-start/);
+  assert.match(onboardingStyles, /width: min\(480px, 92vw\)/);
   assert.match(guidedTooltip, /document\.createElement\('video'\)/);
   assert.match(guidedTooltip, /document\.createElement\('audio'\)/);
   assert.match(guidedTooltip, /track\.kind = 'captions'/);

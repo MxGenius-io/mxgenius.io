@@ -37,7 +37,7 @@ function makeHitTarget(name, action, x, width) {
   return target;
 }
 
-/** Head-locked, renderer-independent view over the shared target registry. */
+/** World-anchored, renderer-independent view over the shared target registry. */
 export class XRSpatialTargetHUD {
   constructor({ registry, onAction = () => {}, distance = 1.55 } = {}) {
     if (!registry?.snapshot || !registry?.subscribe || !registry?.lock) {
@@ -55,6 +55,7 @@ export class XRSpatialTargetHUD {
     this.lastExpiryCheck = 0;
     this.lastDrawKey = '';
     this.highlightRequest = 0;
+    this.placementPending = true;
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
     this.forwardOffset = new THREE.Vector3();
@@ -100,7 +101,22 @@ export class XRSpatialTargetHUD {
 
   setPresenting(value) {
     this.presenting = Boolean(value);
+    if (this.presenting) this.placementPending = true;
     this.syncVisibility();
+  }
+
+  placeForView(camera = null) {
+    if (!this.placementPending || !camera) return;
+    camera.getWorldPosition(this.cameraPosition);
+    camera.getWorldQuaternion(this.cameraQuaternion);
+    this.forwardOffset.set(0, 0, -this.distance).applyQuaternion(this.cameraQuaternion);
+    this.group.position.copy(this.cameraPosition).add(this.forwardOffset);
+    this.group.quaternion.copy(this.cameraQuaternion);
+    this.placementPending = false;
+  }
+
+  requestPlacement() {
+    this.placementPending = true;
   }
 
   refresh(snapshot = this.registry.snapshot(), reason = 'registry-refresh') {
@@ -358,13 +374,7 @@ export class XRSpatialTargetHUD {
     const targetVisibility = this.presenting && hasTarget ? 1 : 0;
     this.visibility = THREE.MathUtils.lerp(this.visibility, targetVisibility, 1 - Math.exp(-Math.max(0, delta) * 10));
     if (hasTarget) this.revealProgress = Math.min(1, this.revealProgress + Math.max(0, delta) / 1.05);
-    if (camera && this.presenting) {
-      camera.getWorldPosition(this.cameraPosition);
-      camera.getWorldQuaternion(this.cameraQuaternion);
-      this.forwardOffset.set(0, 0, -this.distance).applyQuaternion(this.cameraQuaternion);
-      this.group.position.copy(this.cameraPosition).add(this.forwardOffset);
-      this.group.quaternion.copy(this.cameraQuaternion);
-    }
+    if (this.presenting) this.placeForView(camera);
     this.syncVisibility();
     const drawKey = `${this.selectedTargetId}|${this.selectedTarget()?.state}|${this.targets.length}|${this.revealProgress.toFixed(3)}|${this.visibility.toFixed(3)}`;
     if (drawKey !== this.lastDrawKey) {

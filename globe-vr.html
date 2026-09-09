@@ -101,9 +101,9 @@
   <script type="module">
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=8';
-    import { XRBrowserPanel } from './xr-browser-panel.js?v=1';
-    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=3';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=10';
+    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=5';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=3';
     import { XRUIAudio } from './xr-ui-audio.js?v=2';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -111,17 +111,21 @@
       SimulatedSpatialScanAnalyzer,
       applySpatialScanResult
     } from './spatial-scan-analyzer.js?v=2';
-    import { XRSpatialTargetHUD } from './xr-spatial-target-hud.js?v=2';
+    import { XRSpatialTargetHUD } from './xr-spatial-target-hud.js?v=3';
     import { XRInputDwellGate } from './xr-input-dwell.js?v=1';
     import {
       buildSensorCompanionIntentUrl,
       buildSensorCompanionLaunchUrl,
-      buildSensorLocalBridgeUrl,
-      createSensorLocalToken,
       deriveSensorActivationState,
-      deriveSensorSourceState,
-      parseSensorHandoffFragment
+      deriveSensorSourceState
     } from './xr-session-client.js?v=4';
+    import {
+      applicationSession as sharedApplicationSession,
+      createOpaqueXrId,
+      resolveXRSensorRuntime,
+      snapshotFile as sharedSnapshotFile,
+      withRenewedApplicationSession
+    } from './xr-maintenance-runtime.js?v=1';
 
     const status = document.getElementById('fleetStatus');
     const sceneTitle = document.getElementById('sceneTitle');
@@ -141,28 +145,9 @@
     const spatialPreviewLock = document.getElementById('spatialPreviewLock');
     const spatialPreviewClear = document.getElementById('spatialPreviewClear');
     const pageQuery = new URLSearchParams(location.search);
-    let sensorHandoff = null;
-    try {
-      sensorHandoff = parseSensorHandoffFragment(location.hash);
-    } catch (error) {
-      console.warn('Rejected invalid sensor bridge handoff', error);
-    }
-    if (sensorHandoff) {
-      sessionStorage.setItem('mxg_xr_session_id', sensorHandoff.sessionId);
-      sessionStorage.setItem('mxg_thermal_local_token', sensorHandoff.localToken);
-      history.replaceState(null, '', `${location.pathname}${location.search}`);
-    }
-    function createOpaqueXrId(prefix = 'xr') {
-      if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-      const bytes = new Uint8Array(16);
-      if (globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(bytes);
-        return `${prefix}-${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
-      }
-      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
-    }
-    const xrSessionId = sensorHandoff?.sessionId || sessionStorage.getItem('mxg_xr_session_id') || createOpaqueXrId();
-    sessionStorage.setItem('mxg_xr_session_id', xrSessionId);
+    const sensorRuntime = resolveXRSensorRuntime();
+    const sensorHandoff = sensorRuntime.handoff;
+    const xrSessionId = sensorRuntime.sessionId;
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
     const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const localPreviewHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)
@@ -175,33 +160,17 @@
     const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
     sensorSetup.hidden = !sensorOnlyScene;
     let SensorOrbClass = null;
-    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=11'));
+    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=13'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
     sceneHelpButton.dataset.guideId = sensorOnlyScene ? 'sensor-bridge-flow' : 'fleet-globe-controls';
     sceneHelpButton.setAttribute('aria-label', sensorOnlyScene ? 'Explain the sensor bridge flow' : 'Explain the fleet globe controls');
-    let sensorLocalToken = sessionStorage.getItem('mxg_thermal_local_token') || '';
-    if (!/^[A-Za-z0-9_-]{32,128}$/.test(sensorLocalToken)) {
-      sensorLocalToken = createSensorLocalToken();
-      sessionStorage.setItem('mxg_thermal_local_token', sensorLocalToken);
-    }
-    const configuredThermalBridgeUrl = pageQuery.get('thermalBridge')
-      || globalThis.MXGENIUS_CONFIG?.thermalBridgeUrl
-      || localStorage.getItem('mxg_thermal_bridge_url')
-      || '';
-    const thermalLocalEnabled = pageQuery.get('thermal') !== 'off';
-    const thermalBridgeUrl = configuredThermalBridgeUrl || (thermalLocalEnabled ? buildSensorLocalBridgeUrl({
-      sessionId: xrSessionId,
-      localToken: sensorLocalToken
-    }) : '');
-    const piDiagnosticsBridgeUrl = pageQuery.get('piDiagnosticsBridge')
-      || globalThis.MXGENIUS_CONFIG?.piDiagnosticsBridgeUrl
-      || localStorage.getItem('mxg_pi_diagnostics_bridge_url')
-      || '';
-    const remoteWitnessUrl = pageQuery.get('remoteWitnessBridge')
-      || globalThis.MXGENIUS_CONFIG?.remoteWitnessBridgeUrl
-      || '';
+    const sensorLocalToken = sensorRuntime.localToken;
+    const thermalLocalEnabled = sensorRuntime.thermalLocalEnabled;
+    const thermalBridgeUrl = sensorRuntime.thermalBridgeUrl;
+    const piDiagnosticsBridgeUrl = sensorRuntime.piDiagnosticsBridgeUrl;
+    const remoteWitnessUrl = sensorRuntime.remoteWitnessUrl;
     const allowInsecurePilot = globalThis.MXGENIUS_CONFIG?.allowInsecurePilot === true
       || (location.protocol === 'http:' && (pageQuery.get('insecurePilot') === '1' || ['localhost', '127.0.0.1'].includes(location.hostname)));
     const sensorCompanionBridgeUrl = pageQuery.get('thermalIngest') || pageQuery.get('sensorIngest') || '';
@@ -309,7 +278,7 @@
     let fleetHud = null;
     let xrSensors = null;
     let xrVoice = null;
-    let xrBrowser = null;
+    let xrSpatialShell = null;
     let xrWitness = null;
     let witnessGuestAudio = null;
     let spatialHud = null;
@@ -333,41 +302,9 @@
           })
         : null;
 
-    async function sensorApplicationSession({ forceRefresh = false } = {}) {
-      await globalThis.MXGENIUS_CONFIG?.ready;
-      const refreshed = globalThis.MXGENIUS_AUTH?.getToken
-        ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
-        : '';
-      const configured = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
-      return {
-        accessToken: refreshed || configured.accessToken,
-        organizationId: configured.organizationId,
-        correlationId: createOpaqueXrId('request')
-      };
-    }
-
-    async function withRenewedSensorSession(operation) {
-      let requestSession = await sensorApplicationSession();
-      try {
-        return await operation(requestSession);
-      } catch (error) {
-        if (error?.status !== 401 || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
-        MXApplicationClient.capabilities.disconnect(requestSession);
-        requestSession = await sensorApplicationSession({ forceRefresh: true });
-        return operation(requestSession);
-      }
-    }
-
-    function snapshotFile(snapshot) {
-      const encoded = String(snapshot?.dataUrl || '').split(',', 2)[1] || '';
-      const binary = atob(encoded);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const blob = new Blob([bytes], { type: 'image/jpeg' });
-      Object.defineProperty(blob, 'name', { value: `quest-passthrough-${timestamp}.jpg` });
-      return blob;
-    }
+    const sensorApplicationSession = sharedApplicationSession;
+    const withRenewedSensorSession = withRenewedApplicationSession;
+    const snapshotFile = sharedSnapshotFile;
 
     async function restoreActiveCase() {
       if (!sensorOnlyScene) return null;
@@ -586,11 +523,34 @@
     });
     if (xrSensors) xrVoice.setDockTarget(xrSensors.voiceDock);
     scene.add(xrVoice.group);
-    xrBrowser = new XRBrowserPanel({
-      links: globalThis.MXGENIUS_CONFIG?.xrQuickLinks,
-      onAction: (action, input, target) => emitSceneAction(action, input, target, xrBrowser.group)
+    xrSpatialShell = new XRSpatialShell({
+      mode: sensorOnlyScene ? 'maintenance' : 'operations',
+      onModeChange: (mode) => {
+        if (mode === 'operations') {
+          window.location.assign('globe-vr.html?v=19');
+          return;
+        }
+        sessionStorage.setItem('mxg_spatial_context_v1', JSON.stringify({
+          version: 1,
+          source: sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe',
+          caseId: activeCaseState?.caseId || null,
+          aircraftId: activeCaseState?.case?.aircraft_id || null,
+          location: selectedCluster ? {
+            icao: selectedCluster.icao || null,
+            city: selectedCluster.city || null,
+            country: selectedCluster.country || null
+          } : null
+        }));
+        window.location.assign('3d-viewer/index.html?v=34&spatial=1');
+      },
+      onRecenter: () => {
+        xrVoice?.requestPlacement('spatial-shell');
+        xrWitness?.requestPlacement();
+        spatialHud?.requestPlacement();
+      },
+      onAction: (action, input, target) => emitSceneAction(action, input, target, xrSpatialShell.group)
     });
-    scene.add(xrBrowser.group);
+    scene.add(xrSpatialShell.group);
     if (sensorOnlyScene) {
       xrWitness = new XRRemoteWitnessPanel({
         xrSessionId,
@@ -885,7 +845,6 @@
 
     let detailsTarget = 0;
     let selectedClusterIndex = -1;
-    let panelMode = 'wrist';
     let panelView = 'location';
     let listPage = 0;
     let detailPage = 0;
@@ -893,8 +852,6 @@
     let detailModel = null;
     let panelHitRegions = [];
     let imageGridGeneration = 0;
-    let leftHand = null;
-    let leftController = null;
     let rightHand = null;
     let rightController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
@@ -931,16 +888,6 @@
         detailsContext.font = '25px system-ui, sans-serif';
         detailsContext.fillText(fitText(subtitle, 58), 44, 102);
       }
-      detailsContext.fillStyle = '#123047';
-      detailsContext.fillRect(754, 24, 226, 64);
-      detailsContext.strokeStyle = '#2d6077';
-      detailsContext.strokeRect(754, 24, 226, 64);
-      detailsContext.fillStyle = '#dff7ff';
-      detailsContext.font = '600 25px system-ui, sans-serif';
-      detailsContext.textAlign = 'center';
-      detailsContext.fillText(panelMode === 'wrist' ? 'PIN IN WORLD' : 'FOLLOW WRIST', 867, 65);
-      detailsContext.textAlign = 'left';
-      addHitRegion(754, 24, 226, 64, { type: 'toggle-panel-mode' });
     }
 
     function drawButton(x, y, width, label, action) {
@@ -1180,18 +1127,8 @@
       }
     }
 
-    function setPanelMode(mode) {
-      panelMode = mode === 'world' ? 'world' : 'wrist';
-      if (panelMode === 'world') {
-        scene.attach(detailsPanel);
-      }
-      if (panelView === 'aircraft') drawAircraftDetails();
-      else if (selectedCluster) drawLocationDetails(selectedCluster);
-    }
-
     function handlePanelAction(action) {
       if (!action) return;
-      if (action.type === 'toggle-panel-mode') return setPanelMode(panelMode === 'wrist' ? 'world' : 'wrist');
       if (action.type === 'open-aircraft') return openAircraftDetails(action.aircraft);
       if (action.type === 'back-to-location') {
         clearDetailImageGrid();
@@ -1239,19 +1176,7 @@
       detailsTarget = 1;
     }
 
-    function updatePanelAnchor() {
-      if (panelMode !== 'wrist' || !renderer.xr.isPresenting) return;
-      const wrist = leftHand?.joints?.wrist;
-      const anchor = wrist?.visible ? wrist : leftController;
-      if (!anchor) return;
-      if (detailsPanel.parent !== anchor) anchor.attach(detailsPanel);
-      detailsPanel.position.set(0.12, 0.11, -0.08);
-      camera.getWorldPosition(panelCameraPosition);
-      detailsPanel.lookAt(panelCameraPosition);
-    }
-
     function updateDetailsPresentation(delta) {
-      updatePanelAnchor();
       const blend = 1 - Math.exp(-12 * Math.max(0, delta));
       const nextScale = THREE.MathUtils.lerp(detailsPanel.scale.x, detailsTarget, blend);
       detailsPanel.scale.setScalar(Math.max(0.001, nextScale));
@@ -1334,7 +1259,6 @@
     const panelFingerTargets = new Map();
     const hudFingerTargets = new Map();
     const backFingerTargets = new Map();
-    const browserFingerTargets = new Map();
     const spatialFingerDwell = new XRInputDwellGate({ dwellMs: 180 });
 
     function activateCluster(index, input) {
@@ -1374,7 +1298,6 @@
       controller.addEventListener('connected', (event) => {
         controller.userData.handedness = event.data?.handedness || '';
         grip.userData.handedness = controller.userData.handedness;
-        if (controller.userData.handedness === 'left') leftController = grip;
         if (controller.userData.handedness === 'right') {
           rightController = grip;
           xrSensors?.setAnchors({ rightController });
@@ -1384,18 +1307,18 @@
         void xrAudio?.unlock();
         xrRaycaster.setFromXRController(controller);
         const uiTargets = [
+          ...xrSpatialShell.interactiveObjects(),
           ...(spatialHud?.interactiveObjects() || []),
           ...(xrWitness?.interactiveObjects() || []),
-          ...xrBrowser.interactiveObjects(),
           ...xrVoice.interactiveObjects(),
           ...(xrSensors?.interactiveObjects() || []),
           backButton
         ];
         if (!sensorOnlyScene) uiTargets.push(detailsSurface, ...fleetHud.interactiveObjects());
         const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
+        if (uiHit && xrSpatialShell.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && spatialHud?.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrWitness?.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit && xrBrowser.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrSensors?.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
         if (uiHit?.object === backButton) return returnToDashboard(`controller-${index}`);
@@ -1423,7 +1346,6 @@
       const hand = renderer.xr.getHand(index);
       hand.addEventListener('connected', (event) => {
         hand.userData.handedness = event.data?.handedness || '';
-        if (hand.userData.handedness === 'left') leftHand = hand;
         if (hand.userData.handedness === 'right') {
           rightHand = hand;
           xrSensors?.setAnchors({ rightHand });
@@ -1491,13 +1413,13 @@
         if (!tip?.visible) return;
         tip.getWorldPosition(fingerPoint);
 
-        const browserTarget = xrBrowser.fingerTargetAt(fingerPoint);
-        const previousBrowserTarget = browserFingerTargets.get(handIndex) || null;
-        if (browserTarget && browserTarget !== previousBrowserTarget) {
-          xrBrowser.handleObject(browserTarget, `finger-${handIndex}`);
+        const shellTarget = xrSpatialShell.fingerTargetAt(fingerPoint);
+        const previousShellTarget = hand.userData.shellFingerTarget || null;
+        if (shellTarget && shellTarget !== previousShellTarget) {
+          xrSpatialShell.handleObject(shellTarget, `finger-${handIndex}`);
         }
-        browserFingerTargets.set(handIndex, browserTarget);
-        if (browserTarget) return;
+        hand.userData.shellFingerTarget = shellTarget;
+        if (shellTarget) return;
 
         const witnessTarget = xrWitness?.fingerTargetAt(fingerPoint) || null;
         const previousWitnessTarget = hand.userData.witnessFingerTarget || null;
@@ -1603,7 +1525,7 @@
       camera.getWorldPosition(panelCameraPosition);
       backButton.lookAt(panelCameraPosition);
       xrVoice.setPresenting(true);
-      xrBrowser.setPresenting(true);
+      xrSpatialShell.setPresenting(true, camera);
       xrWitness?.setPresenting(true);
       spatialHud?.setPresenting(true);
       xrSensors?.setPresenting(true);
@@ -1615,7 +1537,7 @@
       detailsTarget = 0;
       backButton.visible = false;
       xrVoice.setPresenting(false);
-      xrBrowser.setPresenting(false);
+      xrSpatialShell.setPresenting(false, camera);
       xrWitness?.setPresenting(false);
       spatialHud?.setPresenting(false);
       xrSensors?.setPresenting(false);
@@ -1632,7 +1554,7 @@
 
     if (sensorPreviewMode) {
       xrVoice.setPresenting(true);
-      xrBrowser.setPresenting(true);
+      xrSpatialShell.setPresenting(true, camera);
       xrWitness?.setPresenting(true);
       if (localPreviewHost && pageQuery.get('witnessPreview') === '1') {
         xrWitness?.setOpen(true, 'desktop-preview');
@@ -1655,7 +1577,7 @@
       updateFingerCollisions(time);
       xrSensors?.update(delta, time, { camera });
       xrVoice.update(delta, time, { camera });
-      xrBrowser.update(delta, { camera });
+      xrSpatialShell.update(delta, { camera });
       xrWitness?.update(delta, { camera });
       spatialHud?.update(delta, time, { camera });
       renderer.render(scene, camera);
@@ -1668,7 +1590,7 @@
       renderer.setAnimationLoop(null);
       xrSensors?.dispose();
       xrVoice.dispose?.();
-      xrBrowser.dispose?.();
+      xrSpatialShell.dispose?.();
       xrWitness?.dispose?.();
       spatialHud?.dispose?.();
       spatialFingerDwell.clear();

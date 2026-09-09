@@ -35,11 +35,12 @@ export class XRBrowserPanel {
     this.panelTarget = 0;
     this.status = 'Select a configured destination to open it.';
     this.disposed = false;
+    this.placementPending = true;
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
     this.targetPosition = new THREE.Vector3();
     this.localPoint = new THREE.Vector3();
-    this.headOffset = new THREE.Vector3(0.43, 0.27, -0.84);
+    this.placementOffset = new THREE.Vector3(0.43, 0.27, -0.84);
 
     this.group = new THREE.Group();
     this.group.name = 'MXGeniusXRBrowser';
@@ -182,6 +183,7 @@ export class XRBrowserPanel {
   setPresenting(presenting) {
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
+    if (this.presenting) this.placementPending = true;
     if (!this.presenting) {
       this.open = false;
       this.panelTarget = 0;
@@ -189,6 +191,16 @@ export class XRBrowserPanel {
       this.panelRoot.scale.setScalar(0.001);
       this.drawButton();
     }
+  }
+
+  placeForView(camera = null) {
+    if (!this.placementPending || !camera) return;
+    camera.getWorldPosition(this.cameraPosition);
+    camera.getWorldQuaternion(this.cameraQuaternion);
+    this.targetPosition.copy(this.placementOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
+    this.group.position.copy(this.targetPosition);
+    this.group.quaternion.copy(this.cameraQuaternion);
+    this.placementPending = false;
   }
 
   drawButton() {
@@ -274,13 +286,8 @@ export class XRBrowserPanel {
   }
 
   update(delta, { camera = null } = {}) {
-    if (this.disposed || !this.presenting || !camera) return;
-    camera.getWorldPosition(this.cameraPosition);
-    camera.getWorldQuaternion(this.cameraQuaternion);
-    this.targetPosition.copy(this.headOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
-    const followBlend = 1 - Math.exp(-Math.max(0, delta) * 14);
-    this.group.position.lerp(this.targetPosition, followBlend);
-    this.group.quaternion.slerp(this.cameraQuaternion, followBlend);
+    if (this.disposed || !this.presenting) return;
+    this.placeForView(camera);
     const revealBlend = 1 - Math.exp(-Math.max(0, delta) * 12);
     const scale = THREE.MathUtils.lerp(this.panelRoot.scale.x, this.panelTarget, revealBlend);
     this.panelRoot.scale.setScalar(Math.max(0.001, scale));

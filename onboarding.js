@@ -98,12 +98,12 @@ const MXOnboarding = (() => {
         onEnter: () => switchTabSafe('parts')
       },
       {
-        target: '#sensorSceneTab',
-        title: 'FLIR Sensor Diagnostics',
+        target: '.nav-tab[data-tab="3d-viewer"]',
+        title: 'Maintenance Workspace',
         guideId: 'sensor-diagnostics',
-        body: 'Open the isolated sensor scene to connect the native Quest bridge, FLIR source, Pi diagnostics, and realtime evidence capture without loading fleet context.',
-        position: 'bottom-left',
-        onEnter: () => switchTabSafe('dashboard')
+        body: 'Open one maintenance scene for the 3D model, FLIR and Pi diagnostics, voice, remote witness, and case evidence. In VR, the familiar wrench tray keeps those tools together.',
+        position: 'bottom',
+        onEnter: () => switchTabSafe('3d-viewer')
       }
     ],
     fleet: [

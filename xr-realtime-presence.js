@@ -46,6 +46,7 @@ export class XRRealtimePresence {
     onSnapshotCaptured = null,
     onScanFrame = null,
     spatialCommands = null,
+    launcherVisible = true,
     onAction = () => {}
   } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
@@ -54,13 +55,14 @@ export class XRRealtimePresence {
     this.onSnapshotCaptured = typeof onSnapshotCaptured === 'function' ? onSnapshotCaptured : null;
     this.onScanFrame = typeof onScanFrame === 'function' ? onScanFrame : null;
     this.spatialCommands = spatialCommands;
+    this.launcherVisible = Boolean(launcherVisible);
     this.onAction = onAction;
     this.state = 'disconnected';
     this.userText = '';
     this.assistantText = '';
     this.toolText = '';
     this.presenting = false;
-    this.pinned = false;
+    this.placementPending = true;
     this.panelTarget = 0;
     this.session = null;
     this.applicationSession = null;
@@ -113,9 +115,9 @@ export class XRRealtimePresence {
       new THREE.OctahedronGeometry(0.035, 0),
       new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.9, toneMapped: false })
     );
-    this.pinTarget.name = 'MXGeniusRealtimePin';
+    this.pinTarget.name = 'MXGeniusRealtimeRecenter';
     this.pinTarget.position.set(-0.19, 0.13, 0);
-    this.pinTarget.userData.xrVoiceAction = 'toggle-pin';
+    this.pinTarget.userData.xrVoiceAction = 'recenter';
     this.group.add(this.pinTarget);
 
     this.canvas = document.createElement('canvas');
@@ -198,6 +200,16 @@ export class XRRealtimePresence {
     this.evidenceTray.position.set(0.34, -0.33, 0.01);
     this.evidenceTray.visible = false;
     this.group.add(this.evidenceTray);
+    if (!this.launcherVisible) {
+      this.orb.visible = false;
+      this.hitTarget.visible = false;
+      this.ring.visible = false;
+      this.pinTarget.visible = false;
+      this.micButton.visible = false;
+      this.snapshotButton.visible = false;
+      this.scanButton.visible = false;
+      this.evidenceTray.visible = false;
+    }
     this.drawPanel();
     this.drawMicButton();
     this.drawSnapshotButton();
@@ -246,17 +258,18 @@ export class XRRealtimePresence {
   }
 
   interactiveObjects() {
+    if (!this.launcherVisible) return [];
     return [this.dockTarget ? this.micButton : this.hitTarget, this.snapshotButton, this.scanButton, this.pinTarget]
       .filter((object) => object.visible);
   }
 
   setDockTarget(target = null) {
     this.dockTarget = target;
-    this.micButton.visible = Boolean(target);
-    this.snapshotButton.visible = Boolean(target && this.onSnapshotRequest);
-    this.scanButton.visible = Boolean(target && this.onSnapshotRequest);
-    this.evidenceTray.visible = Boolean(target);
-    this.hitTarget.visible = !target;
+    this.micButton.visible = Boolean(this.launcherVisible && target);
+    this.snapshotButton.visible = Boolean(this.launcherVisible && target && this.onSnapshotRequest);
+    this.scanButton.visible = Boolean(this.launcherVisible && target && this.onSnapshotRequest);
+    this.evidenceTray.visible = Boolean(this.launcherVisible && target);
+    this.hitTarget.visible = Boolean(this.launcherVisible && !target);
     if (target) {
       this.panel.position.set(0.58, 0.27, 0);
       this.pinTarget.position.set(0.96, 0.44, 0.012);
@@ -268,8 +281,8 @@ export class XRRealtimePresence {
 
   controlInstruction() {
     return this.dockTarget
-      ? 'Tap mic: voice | SCAN: inspect | CAPTURE: case evidence | diamond: pin'
-      : 'Tap cloud: voice | tap diamond: pin';
+      ? 'Tap mic: voice | SCAN: inspect | CAPTURE: case evidence | diamond: recenter'
+      : 'Tap cloud: voice | tap diamond: recenter';
   }
 
   owns(object) {
@@ -285,8 +298,8 @@ export class XRRealtimePresence {
     if (!this.owns(object)) return false;
     let target = object;
     while (target && !target.userData?.xrVoiceAction) target = target.parent;
-    if (target?.userData?.xrVoiceAction === 'toggle-pin') {
-      this.setPinned(!this.pinned, input);
+    if (target?.userData?.xrVoiceAction === 'recenter') {
+      this.requestPlacement(input);
       return true;
     }
     if (target?.userData?.xrVoiceAction === 'capture-snapshot') {
@@ -301,12 +314,31 @@ export class XRRealtimePresence {
     return true;
   }
 
-  setPinned(pinned, input = 'xr') {
-    this.pinned = Boolean(pinned);
-    this.pinTarget.material.color.setHex(this.pinned ? 0xfbbf24 : 0x94a3b8);
-    this.toolText = this.pinned ? 'Voice workspace pinned in place' : 'Voice workspace returned to floating dock';
-    this.onAction('realtime-pin', input, { pinned: this.pinned });
+  requestPlacement(input = 'xr') {
+    this.placementPending = true;
+    this.pinTarget.material.color.setHex(0xfbbf24);
+    this.toolText = 'Voice workspace recentered and anchored';
+    this.onAction('realtime-recenter', input, { anchored: true });
     this.drawPanel();
+  }
+
+  placeForView(camera = null) {
+    if (!this.placementPending) return;
+    if (this.dockTarget) {
+      this.dockTarget.getWorldPosition(this.dockTargetPosition);
+      this.dockTarget.getWorldQuaternion(this.dockTargetQuaternion);
+      this.group.position.copy(this.dockTargetPosition);
+      this.group.quaternion.copy(this.dockTargetQuaternion);
+    } else if (camera) {
+      camera.getWorldPosition(this.cameraPosition);
+      camera.getWorldQuaternion(this.cameraQuaternion);
+      this.group.position.copy(this.dockOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
+      this.group.quaternion.copy(this.cameraQuaternion);
+    } else {
+      return;
+    }
+    this.placementPending = false;
+    this.pinTarget.material.color.setHex(0x94a3b8);
   }
 
   fingerTargetAt(point) {
@@ -336,12 +368,12 @@ export class XRRealtimePresence {
     if (this.disposed) return;
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
+    if (this.presenting) this.placementPending = true;
     if (this.presenting && !this.toolText) {
       this.toolText = this.controlInstruction();
       this.drawPanel();
     }
     if (!this.presenting) {
-      this.pinned = false;
       this.pinTarget.material.color.setHex(0x94a3b8);
       this.disconnect();
     }
@@ -762,9 +794,9 @@ export class XRRealtimePresence {
     ctx.fillStyle = '#dff7ff';
     ctx.font = '600 27px system-ui, sans-serif';
     ctx.fillText(cleanText(this.state, 'disconnected').toUpperCase(), 46, 108);
-    ctx.fillStyle = this.pinned ? '#fbbf24' : '#94a3b8';
+    ctx.fillStyle = '#94a3b8';
     ctx.font = '700 21px ui-monospace, monospace';
-    ctx.fillText(this.pinned ? 'PINNED' : 'FLOATING', 790, 106);
+    ctx.fillText('WORLD ANCHORED', 790, 106);
     if (this.toolText) {
       ctx.fillStyle = '#9cb5c9';
       ctx.font = '24px system-ui, sans-serif';
@@ -883,21 +915,7 @@ export class XRRealtimePresence {
 
   update(delta, time, { camera = null } = {}) {
     if (this.disposed || !this.presenting) return;
-    if (!this.pinned && this.dockTarget) {
-      this.dockTarget.getWorldPosition(this.dockTargetPosition);
-      this.dockTarget.getWorldQuaternion(this.dockTargetQuaternion);
-      this.group.position.lerp(this.dockTargetPosition, 1 - Math.exp(-delta * 16));
-      this.group.quaternion.slerp(this.dockTargetQuaternion, 1 - Math.exp(-delta * 16));
-    } else if (!this.pinned && camera) {
-      camera.getWorldPosition(this.cameraPosition);
-      camera.getWorldQuaternion(this.cameraQuaternion);
-      const desired = this.dockOffset.clone().applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
-      this.group.position.lerp(desired, 1 - Math.exp(-delta * 14));
-    }
-    if (camera && !this.dockTarget) {
-      camera.getWorldPosition(this.cameraPosition);
-      this.group.lookAt(this.cameraPosition);
-    }
+    this.placeForView(camera);
     const level = this.audioLevel(time);
     const position = this.orb.geometry.getAttribute('position');
     for (let index = 0; index < position.count; index += 1) {

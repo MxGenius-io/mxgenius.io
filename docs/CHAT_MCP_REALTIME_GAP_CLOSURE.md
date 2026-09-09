@@ -180,7 +180,7 @@ Reference:
 
 - [x] Add machine-readable capability availability to the authenticated backend catalog.
 - [ ] Distinguish `available`, `degraded`, `not_configured`, and `unauthorized`.
-- [ ] Keep all 45 active tools visible in the human operations workbench with honest availability.
+- [ ] Keep all 46 active tools visible in the human operations workbench with honest availability.
 - [ ] Give the model only tools relevant to the active case, user intent, role, and configured adapters.
 - [ ] Exclude mutations until an active case and confirmation UI are available.
 - [x] Keep tool names and input schemas canonical; use transport aliases only at the Realtime boundary.

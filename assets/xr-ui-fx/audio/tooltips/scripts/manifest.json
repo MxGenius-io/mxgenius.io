@@ -230,7 +230,7 @@
       "voiceover": "../voiceover/sensor-diagnostics.wav",
       "captions": "../captions/sensor-diagnostics.vtt",
       "surface": "sensor-bridge",
-      "touchpoints": ["#sensorSceneTab", "#fleetStatus", "snapshot evidence control", "realtime witness"],
+      "touchpoints": [".nav-tab[data-tab='3d-viewer']", "maintenance VR tray", "snapshot evidence control", "realtime witness"],
       "beats": [
         "Open the isolated sensor diagnostics scene.",
         "Confirm the native bridge and FLIR source state.",

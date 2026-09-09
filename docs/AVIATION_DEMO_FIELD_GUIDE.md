@@ -30,7 +30,7 @@ Aircraft
 | SAIB | Special Airworthiness Information Bulletin | FAA advisory information; generally not the same legal status as an AD | DRS adapter | Live metadata search; results remain advisory candidates. |
 | Authoritative manual corpus | Indexed maintenance-manual text and linked figures | Evidence retrieval for the case brief | Azure AI Search, embeddings, authoritative filter, controlled Blob assets | Adapter and versioned index are built and were live-smoked. Deployment health is not currently exposed accurately enough to claim it in a live demo without a preflight query. Revision, currency, and applicability remain unknown when the source cannot prove them. |
 | Maintenance Case | The operational record joining the whole job | Discrepancy, timeline, observations, evidence, status, approvals, and closure | Postgres plus the MCP case service | Postgres core is ready. The full aircraft-to-case slice is presently blocked by the pilot organization/canonical-aircraft join. |
-| MCP | Model Context Protocol capability service | Gives UI and AI the same 45 typed operations and safety rules | Rust service, Postgres, trusted application context | **Live and discoverable:** exactly 45 tools. A tool being listed does not mean its external adapter is configured. |
+| MCP | Model Context Protocol capability service | Gives UI and AI the same 46 typed operations and safety rules | Rust service, Postgres, trusted application context | **Live and discoverable after the September 2026 core promotion:** exactly 46 tools. A tool being listed does not mean its external adapter is configured. |
 | Evidence envelope | Standard result wrapper | Carries source, hash, time, confidence, warnings, partial state, and trace ID with every capability result | Built into every MCP tool | Live contract behavior. Unavailable sources return `partial` / `NOT_CONFIGURED`, not invented records. |
 | Weather adapter | Aviation weather normalized for maintenance planning | METAR, TAF, ramp risk, outdoor work windows, ferry constraints, and globe hazards | Operational aviation-weather source | Contract complete; **not configured**. A live `KATL` request correctly returns `partial` with `NOT_CONFIGURED`. |
 | Parts adapters | Typed parts and supplier information | Resolve part numbers, alternates/supersessions, stock, ETA, condition, and certificate presence | Inventory and supplier sources | Contract complete; not configured. |
@@ -252,7 +252,7 @@ Say:
 | --- | --- |
 | Rust core health | `200 OK` |
 | Rust readiness | Production mode, Postgres ready |
-| MCP catalog | 45 tools returned from deployed `tools/list` |
+| MCP catalog | 46 tools returned from deployed `tools/list` |
 | Fleet proxy | Healthy; JetNet-backed dashboard/globe path live |
 | OpenAI text chat | `200 OK`, model `gpt-5.6-sol` |
 | FAA DRS SAIB query | `ok`, evidence-backed result returned |

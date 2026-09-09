@@ -166,7 +166,8 @@ software and should not be modeled from a best guess in code.
 The MRO facility directory was removed on 2026-08-20. Its five `mxg.mro.*`
 tools, `MroDirectoryAdapter`, `MROFacility`/`FacilityCapability` domain types,
 the `MroRead` policy action, and the `FacilitySlice` stub in case
-`build_context` are all gone; the locked registry is now 45 tools and 15
+`build_context` are all gone. That retirement left 45 tools; the later bounded
+purchase-history read capability brings the locked registry to 46 tools and 15
 resources.
 
 The database was deliberately left in place: `0008` and `0016` are already

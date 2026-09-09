@@ -30,7 +30,7 @@
 }
 
 .onboarding-welcome {
-  width: min(680px, 92vw);
+  width: min(480px, 92vw);
   max-height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -38,8 +38,8 @@
   -webkit-overflow-scrolling: touch;
   background: linear-gradient(145deg, rgba(22, 28, 48, 0.95), rgba(14, 18, 36, 0.98));
   border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: 20px;
-  padding: 40px 36px 32px;
+  border-radius: 16px;
+  padding: 20px 20px 16px;
   text-align: center;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(59, 130, 246, 0.08);
   animation: onb-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -51,14 +51,14 @@
 }
 
 .onboarding-welcome__logo {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 12px;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 8px;
   color: var(--accent-cyan, #22d3ee);
 }
 
 .onboarding-welcome h1 {
-  font-size: 1.6rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #f0f4ff;
   margin: 0 0 6px;
@@ -66,25 +66,25 @@
 }
 
 .onboarding-welcome p {
-  font-size: 0.88rem;
+  font-size: 0.76rem;
   color: rgba(200, 210, 230, 0.72);
-  margin: 0 0 28px;
-  line-height: 1.5;
+  margin: 0 0 14px;
+  line-height: 1.4;
 }
 
 /* ── Role Selector ────────────────────────────────────────────────── */
 .onboarding-roles {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
 .onboarding-role {
   background: rgba(30, 38, 62, 0.7);
   border: 2px solid rgba(100, 116, 160, 0.18);
-  border-radius: 14px;
-  padding: 20px 14px 16px;
+  border-radius: 11px;
+  padding: 10px 8px 8px;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s, transform 0.15s;
   text-align: center;
@@ -103,9 +103,9 @@
 }
 
 .onboarding-role__icon {
-  width: 32px;
-  height: 32px;
-  margin: 0 auto 10px;
+  width: 22px;
+  height: 22px;
+  margin: 0 auto 6px;
   color: var(--accent-cyan, #22d3ee);
   opacity: 0.7;
   transition: opacity 0.2s;
@@ -116,14 +116,14 @@
 }
 
 .onboarding-role__title {
-  font-size: 0.82rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #e0e6f0;
   margin: 0 0 4px;
 }
 
 .onboarding-role__desc {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   color: rgba(180, 192, 216, 0.65);
   line-height: 1.4;
   margin: 0;
@@ -136,10 +136,10 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 14px 24px;
+  padding: 10px 18px;
   background: linear-gradient(135deg, #3b82f6, #22d3ee);
   color: #fff;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
   font-weight: 600;
   border: none;
   border-radius: 12px;
@@ -161,8 +161,8 @@
 
 .onboarding-skip {
   display: inline-block;
-  margin-top: 14px;
-  font-size: 0.76rem;
+  margin-top: 8px;
+  font-size: 0.68rem;
   color: rgba(160, 175, 210, 0.6);
   background: none;
   border: none;
@@ -350,14 +350,14 @@
 
   .onboarding-roles {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 7px;
   }
 
   .onboarding-role {
-    padding: 14px 16px;
+    padding: 9px 12px;
     display: grid;
-    grid-template-columns: 32px 1fr;
-    gap: 0 12px;
+    grid-template-columns: 24px 1fr;
+    gap: 0 9px;
     text-align: left;
   }
 
@@ -369,11 +369,11 @@
 
   .onboarding-welcome {
     width: 100%;
-    padding: 28px 20px 24px;
+    padding: 16px 14px 12px;
   }
 
   .onboarding-welcome h1 {
-    font-size: 1.3rem;
+    font-size: 1.05rem;
   }
 
   .onboarding-tooltip {

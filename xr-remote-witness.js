@@ -34,6 +34,7 @@ export class XRRemoteWitnessPanel {
     projectionProvider = () => ({}),
     mediaStreamProvider,
     nativeBootstrapProvider,
+    launcherVisible = true,
     remoteStreamConsumer = () => {},
     onAction = () => {},
     onStatus = () => {}
@@ -47,6 +48,7 @@ export class XRRemoteWitnessPanel {
     this.projectionProvider = projectionProvider;
     this.mediaStreamProvider = mediaStreamProvider;
     this.nativeBootstrapProvider = nativeBootstrapProvider;
+    this.launcherVisible = Boolean(launcherVisible);
     this.remoteStreamConsumer = remoteStreamConsumer;
     this.onAction = onAction;
     this.onStatus = onStatus;
@@ -65,11 +67,12 @@ export class XRRemoteWitnessPanel {
     this.busy = false;
     this.message = 'Create a service PIN when the customer is ready.';
     this.disposed = false;
+    this.placementPending = true;
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
     this.targetPosition = new THREE.Vector3();
     this.localPoint = new THREE.Vector3();
-    this.headOffset = new THREE.Vector3(-0.47, 0.28, -0.86);
+    this.placementOffset = new THREE.Vector3(-0.47, 0.28, -0.86);
 
     this.group = new THREE.Group();
     this.group.name = 'MXGeniusRemoteWitness';
@@ -82,6 +85,7 @@ export class XRRemoteWitnessPanel {
     this.buttonTexture = new THREE.CanvasTexture(this.buttonCanvas);
     this.buttonTexture.colorSpace = THREE.SRGBColorSpace;
     this.button = this.makeSurface('MXGeniusWitnessButton', 0.105, 0.105, this.buttonTexture, 'toggle');
+    this.button.visible = this.launcherVisible;
     this.group.add(this.button);
 
     this.panelRoot = new THREE.Group();
@@ -139,7 +143,8 @@ export class XRRemoteWitnessPanel {
 
   interactiveObjects() {
     if (!this.presenting || !this.group.visible) return [];
-    return this.open ? [this.button, this.closeButton, ...this.actionTargets] : [this.button];
+    const launcher = this.launcherVisible ? [this.button] : [];
+    return this.open ? [...launcher, this.closeButton, ...this.actionTargets] : launcher;
   }
 
   owns(object) {
@@ -474,6 +479,7 @@ export class XRRemoteWitnessPanel {
   setPresenting(presenting) {
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
+    if (this.presenting) this.placementPending = true;
     if (!this.presenting) {
       this.open = false;
       this.panelTarget = 0;
@@ -481,6 +487,20 @@ export class XRRemoteWitnessPanel {
       this.panelRoot.scale.setScalar(0.001);
     }
     this.drawButton();
+  }
+
+  placeForView(camera = null) {
+    if (!this.placementPending || !camera) return;
+    camera.getWorldPosition(this.cameraPosition);
+    camera.getWorldQuaternion(this.cameraQuaternion);
+    this.targetPosition.copy(this.placementOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
+    this.group.position.copy(this.targetPosition);
+    this.group.quaternion.copy(this.cameraQuaternion);
+    this.placementPending = false;
+  }
+
+  requestPlacement() {
+    this.placementPending = true;
   }
 
   drawButton() {
@@ -593,13 +613,8 @@ export class XRRemoteWitnessPanel {
   }
 
   update(delta, { camera = null } = {}) {
-    if (this.disposed || !this.presenting || !camera) return;
-    camera.getWorldPosition(this.cameraPosition);
-    camera.getWorldQuaternion(this.cameraQuaternion);
-    this.targetPosition.copy(this.headOffset).applyQuaternion(this.cameraQuaternion).add(this.cameraPosition);
-    const follow = 1 - Math.exp(-Math.max(0, delta) * 14);
-    this.group.position.lerp(this.targetPosition, follow);
-    this.group.quaternion.slerp(this.cameraQuaternion, follow);
+    if (this.disposed || !this.presenting) return;
+    this.placeForView(camera);
     const reveal = 1 - Math.exp(-Math.max(0, delta) * 12);
     const scale = THREE.MathUtils.lerp(this.panelRoot.scale.x, this.panelTarget, reveal);
     this.panelRoot.scale.setScalar(Math.max(0.001, scale));

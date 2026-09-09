@@ -1,5 +1,39 @@
 # MXGenius Azure Deployment Plan
 
+## Spatial Maintenance Shell + Parts Order History Delta — 2026-09-08
+
+### Scope and deployment path
+
+- Publish the consolidated Operations/Maintenance spatial shell and compact
+  onboarding through the existing GitHub Pages workflow on shared `main`.
+- Promote the same committed source state to the existing `mxg-core` Container
+  App because it adds the bounded read-only `mxg.parts.order_history`
+  capability and advances the canonical registry from 45 to 46 tools.
+- Reuse `Azure subscription 1`, Central US resource group `mxg-rg-50106`, ACR
+  `mxgacr50106`, Container App `mxg-core`, its existing identity, secrets,
+  environment settings, Single revision mode, and one-replica room-owner
+  invariant.
+- No resource, database migration, role assignment, secret, SKU, region,
+  ingress, scale, or topology change is included.
+
+### Validation and promotion gates
+
+- [ ] Commit and push the complete frontend and 46-tool contract to shared
+  `main` with a clean synchronized working tree.
+- [ ] Run the complete frontend suite and locked Rust formatting, workspace
+  tests, strict Clippy, and optimized release build.
+- [ ] Build one immutable ACR image from the exact committed `services/mcp`
+  context and create one Healthy/latest-ready `mxg-core` revision.
+- [ ] Verify Pages, `/healthz`, `/readyz`, `/adapterz`, fail-closed anonymous
+  behavior, and the authenticated 46-tool registry after promotion.
+
+### Rollback
+
+- Preserve the current `mxg-core--uisounds5c95104` revision and
+  `mxg-core:ui-sounds-5c95104-20260907` image. If build, readiness,
+  authentication, registry, or live smoke checks fail, restore that revision's
+  traffic without deleting images, revisions, resources, secrets, or data.
+
 Status: Deployed — commit `5c95104` promoted and live checks passed on 2026-09-07
 
 ## UI Sound Hot Swap Delta — 2026-09-07

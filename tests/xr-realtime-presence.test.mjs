@@ -10,6 +10,8 @@ const headsetFrame = await readFile(new URL('../xr-headset-frame.js', import.met
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const xrAudio = await readFile(new URL('../xr-ui-audio.js', import.meta.url), 'utf8');
 const xrBrowser = await readFile(new URL('../xr-browser-panel.js', import.meta.url), 'utf8');
+const spatialShell = await readFile(new URL('../xr-spatial-shell.js', import.meta.url), 'utf8');
+const maintenanceRuntime = await readFile(new URL('../xr-maintenance-runtime.js', import.meta.url), 'utf8');
 const spatialHud = await readFile(new URL('../xr-spatial-target-hud.js', import.meta.url), 'utf8');
 const spatialAnalyzer = await readFile(new URL('../spatial-scan-analyzer.js', import.meta.url), 'utf8');
 const spatialCommands = await readFile(new URL('../spatial-commands.js', import.meta.url), 'utf8');
@@ -21,11 +23,11 @@ const traceHelpers = sensors.slice(
 );
 const traceSafe = Function(`${traceHelpers}; return traceSafe;`)();
 
-test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and pin controls', () => {
+test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and world placement controls', () => {
   assert.match(presence, /new THREE\.Points\(/);
   assert.match(presence, /new THREE\.CanvasTexture\(/);
-  assert.match(presence, /toggle-pin/);
-  assert.match(presence, /FLOATING/);
+  assert.match(presence, /xrVoiceAction = 'recenter'/);
+  assert.match(presence, /WORLD ANCHORED/);
   assert.match(globe, /pointCount: sensorOnlyScene \? 1800 : 720/);
   assert.match(globe, /pointSize: sensorOnlyScene \? 0\.0007 : 0\.0012/);
   assert.match(presence, /MXGeniusRealtimeMic/);
@@ -53,13 +55,10 @@ test('fleet globe mounts the shared voice presence as an accessible floating con
   assert.match(globe, /xrVoice\.setPresenting\(true\)/);
 });
 
-test('VR scenes expose an animated browser panel with guarded quick-link slots', () => {
-  assert.match(globe, /XRBrowserPanel/);
-  assert.match(globe, /\.\.\.xrBrowser\.interactiveObjects\(\)/);
-  assert.match(globe, /xrBrowser\.handleObject/);
-  assert.match(globe, /xrBrowser\.fingerTargetAt/);
-  assert.match(globe, /xrBrowser\.setPresenting\(true\)/);
-  assert.match(globe, /xrBrowser\.update\(delta, \{ camera \}\)/);
+test('legacy floating browser implementation remains unmounted from primary VR scenes', () => {
+  assert.doesNotMatch(globe, /XRBrowserPanel/);
+  assert.doesNotMatch(globe, /xrBrowser/);
+  assert.doesNotMatch(viewer, /XRBrowserPanel/);
   assert.match(xrBrowser, /MXGeniusXRBrowserButton/);
   assert.match(xrBrowser, /MXGeniusXRBrowserPanel/);
   assert.match(xrBrowser, /PARTS & SOURCING/);
@@ -67,7 +66,25 @@ test('VR scenes expose an animated browser panel with guarded quick-link slots',
   assert.match(xrBrowser, /TECHNICAL REFERENCES/);
   assert.match(xrBrowser, /URL PENDING/);
   assert.match(xrBrowser, /Math\.exp\(-Math\.max\(0, delta\) \* 12\)/);
+  assert.match(xrBrowser, /placeForView\(camera = null\)/);
+  assert.doesNotMatch(xrBrowser, /this\.group\.position\.lerp/);
   assert.match(xrAudio, /case 'browser-panel-toggle'/);
+});
+
+test('globe and viewer share one world-anchored two-mode spatial tray', () => {
+  assert.match(globe, /import \{ XRSpatialShell \}/);
+  assert.match(viewer, /import \{ XRSpatialShell \}/);
+  assert.match(globe, /new XRSpatialShell\(/);
+  assert.match(viewer, /new XRSpatialShell\(/);
+  assert.match(spatialShell, /operations: \{ label: 'OPERATIONS'/);
+  assert.match(spatialShell, /maintenance: \{ label: 'MAINTENANCE'/);
+  assert.match(spatialShell, /ACTIVE · TAP TO RECENTER/);
+  assert.match(spatialShell, /this\.placementPending = true/);
+  assert.match(spatialShell, /placeForView\(camera = null\)/);
+  assert.match(spatialShell, /if \(!this\.placementPending \|\| !camera\) return/);
+  assert.doesNotMatch(spatialShell, /position\.lerp|quaternion\.slerp/);
+  assert.match(globe, /sessionStorage\.setItem\('mxg_spatial_context_v1'/);
+  assert.match(viewer, /sessionStorage\.getItem\('mxg_spatial_context_v1'/);
 });
 
 test('3D viewer mounts the same voice presence and forwards active case context', () => {
@@ -154,10 +171,9 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
   assert.equal(traceSafe(`digest ${'a'.repeat(64)}`), 'digest [redacted]');
 });
 
-test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet data', () => {
-  assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=17"/);
-  assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
+test('legacy isolated sensor route remains available without a separate dashboard launcher', () => {
+  assert.doesNotMatch(dashboard, /id="sensorSceneTab"/);
+  assert.doesNotMatch(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);
   assert.match(globe, /globeGroup\.visible = !sensorOnlyScene/);
@@ -167,9 +183,34 @@ test('dashboard opens an isolated FLIR and Pi scene without cached JetNet fleet 
 });
 
 test('sensor scene cache-busts the commissioning browser client', () => {
-  assert.match(globe, /xr-sensor-orb\.js\?v=11/);
+  assert.match(globe, /xr-sensor-orb\.js\?v=13/);
   assert.match(sensors, /commissioning\.browser_ack/);
   assert.match(sensors, /W14 PASS/);
+});
+
+test('maintenance viewer reuses the sensor, witness, voice, and evidence cores behind one familiar tray', () => {
+  assert.match(viewer, /new XRSensorOrb\(/);
+  assert.match(viewer, /new XRRemoteWitnessPanel\(/);
+  assert.match(viewer, /tools: \[[\s\S]*id: 'thermal'[\s\S]*id: 'witness'[\s\S]*id: 'voice'[\s\S]*id: 'capture'/);
+  assert.match(viewer, /launcherVisible: false/);
+  assert.match(viewer, /onSnapshotCaptured: saveViewerSnapshot/);
+  assert.match(viewer, /nativeBootstrapProvider: \(invitation, projection\) => xrSensors\.sendWitnessBootstrap/);
+  assert.match(spatialShell, /TOOL_DEFAULTS/);
+  assert.match(spatialShell, /spatial-tool-/);
+  assert.match(maintenanceRuntime, /resolveXRSensorRuntime/);
+  assert.match(globe, /const sensorRuntime = resolveXRSensorRuntime\(\)/);
+});
+
+test('FLIR is the only runtime with continuous headset-follow placement', () => {
+  assert.match(sensors, /camera && !this\.screenPinned/);
+  assert.match(sensors, /this\.group\.position\.lerp\(this\.headTargetPosition/);
+  assert.match(presence, /this\.placementPending = true/);
+  assert.match(presence, /placeForView\(camera = null\)/);
+  assert.doesNotMatch(presence, /this\.group\.position\.lerp/);
+  assert.match(spatialHud, /World-anchored/);
+  assert.match(spatialHud, /placeForView\(camera = null\)/);
+  assert.doesNotMatch(spatialHud, /this\.group\.position\.lerp/);
+  assert.match(globe, /xrWitness\?\.requestPlacement\(\)/);
 });
 
 test('sensor scene mounts simulated and authenticated bounded target analyzers', () => {
