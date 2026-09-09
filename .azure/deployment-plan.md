@@ -18,14 +18,38 @@
 
 ### Validation and promotion gates
 
-- [ ] Commit and push the complete frontend and 46-tool contract to shared
+- [x] Commit and push the complete frontend and 46-tool contract to shared
   `main` with a clean synchronized working tree.
-- [ ] Run the complete frontend suite and locked Rust formatting, workspace
+- [x] Run the complete frontend suite and locked Rust formatting, workspace
   tests, strict Clippy, and optimized release build.
-- [ ] Build one immutable ACR image from the exact committed `services/mcp`
+- [x] Build one immutable ACR image from the exact committed `services/mcp`
   context and create one Healthy/latest-ready `mxg-core` revision.
-- [ ] Verify Pages, `/healthz`, `/readyz`, `/adapterz`, fail-closed anonymous
-  behavior, and the authenticated 46-tool registry after promotion.
+- [x] Verify Pages, `/healthz`, `/readyz`, `/adapterz`, and fail-closed anonymous
+  behavior after promotion.
+- [ ] Verify the 46-tool catalog through an authenticated browser session; the
+  release host does not expose a reusable application token to Azure CLI.
+
+### Deployment proof
+
+- Application commit `3eacbb07442423c5f89e537a8afe1df9b486c89d` and test-only
+  closure commit `fc264a925f904cbbb19a9610a317b4ad30318d5a` were pushed to
+  `MxGenius-io/mxgenius.io` shared `main` using the repository-approved
+  environment credential. GitHub Pages run `34299305013` passed validation,
+  assembly, artifact upload, and deployment.
+- The complete frontend suite passed 394 tests. Rust formatting, the locked
+  workspace suite, strict all-target Clippy, and the optimized locked release
+  build passed.
+- ACR run `cj24` published
+  `mxg-core:spatial-shell-3eacbb0-20260908` with digest
+  `sha256:2d0ac717199fb105497effd058d5fd23d7dfe0eac0c33ff4246b6f965dc40640`.
+- Revision `mxg-core--spatialshell3eacbb0` is Healthy, latest-ready, and serves
+  100% traffic with min 1/max 1 replicas. The previous
+  `mxg-core--uisounds5c95104` revision remains preserved, Healthy, stopped, and
+  available for rollback.
+- Live `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. Anonymous
+  `tools/list` returned the typed `AUTH_REQUIRED` boundary. The published site
+  serves Viewer v34, onboarding v10, the shared maintenance runtime and spatial
+  shell, and no legacy sensor dashboard tab.
 
 ### Rollback
 
