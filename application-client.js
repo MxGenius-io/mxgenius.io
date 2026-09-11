@@ -419,6 +419,25 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function listEdgeDevices(session = {}) {
+    return applicationJson('/api/edge/devices', { session });
+  }
+
+  function registerEdgeDevice({ displayName, hardwareId, session = {} }) {
+    return applicationJson('/api/edge/devices', {
+      session,
+      method: 'POST',
+      body: { displayName, hardwareId }
+    });
+  }
+
+  function issueEdgeEnrollmentCode(deviceId, session = {}) {
+    return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}/enrollment-code`, {
+      session,
+      method: 'POST'
+    });
+  }
+
   function uploadContent(file, session = {}) {
     if (!(file instanceof Blob)) throw new TypeError('Content upload must be a Blob or File');
     const filename = String(file.name || 'uploaded-content').slice(0, 180);
@@ -1634,6 +1653,11 @@ const MXApplicationClient = (() => {
       list: listBetaAccess,
       add: addBetaAccess,
       delete: deleteBetaAccess
+    }),
+    edgeDevices: Object.freeze({
+      list: listEdgeDevices,
+      register: registerEdgeDevice,
+      issueEnrollmentCode: issueEdgeEnrollmentCode
     }),
     companyDetail,
     companyList,

@@ -466,6 +466,178 @@ main {
 
 .settings-row:last-child { border-bottom: none; }
 
+.device-registry-body {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 14px;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.device-registry-form,
+.device-registry-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.device-registry-fields {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+}
+
+.device-registry-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.device-registry-fields .search-input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.device-registry-hardware-id,
+.device-registry-item code,
+.device-enrollment-key strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.device-registry-status {
+  margin: 0;
+}
+
+.device-registry-status[data-state="success"] { color: #6ee7b7; }
+.device-registry-status[data-state="error"] { color: #fca5a5; }
+
+.device-enrollment-key {
+  align-items: center;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.device-enrollment-key[hidden] { display: none; }
+
+.device-enrollment-key > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.device-enrollment-key__label {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.device-enrollment-key strong {
+  color: var(--text-primary);
+  font-size: clamp(0.9rem, 3vw, 1.15rem);
+  overflow-wrap: anywhere;
+}
+
+.device-registry-list-header,
+.device-registry-item,
+.device-registry-item__heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.device-registry-list-header {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.device-registry-refresh,
+.device-registry-item__key {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 6px 9px;
+}
+
+.device-registry-refresh:disabled,
+.device-registry-item__key:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.device-registry-list {
+  border-top: 1px solid var(--border);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.device-registry-item {
+  gap: 12px;
+  padding: 12px 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.device-registry-item__summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.device-registry-item__heading {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.device-registry-item__heading strong {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.device-registry-item__status {
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  font-size: 0.62rem;
+  padding: 2px 7px;
+  text-transform: capitalize;
+}
+
+.device-registry-item__status[data-state="active"] {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+.device-registry-item__status[data-state="revoked"] {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.device-registry-item code {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  overflow-wrap: anywhere;
+}
+
+.device-registry-empty {
+  margin: 0;
+  padding: 14px 2px 2px;
+}
+
+@media (max-width: 640px) {
+  .device-registry-fields { grid-template-columns: 1fr; }
+  .device-enrollment-key { align-items: stretch; flex-direction: column; }
+  .device-registry-item { align-items: flex-start; }
+}
+
 .settings-label {
   display: flex;
   flex-direction: column;
@@ -3854,14 +4026,16 @@ body.live-mode .api-status.connected .status-dot {
 
 /* ── Collapsible Settings Cards ── */
 .settings-card-title {
-  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
   user-select: none;
   position: relative;
 }
-.settings-card-title::after {
+.settings-card--collapsible .settings-card-title {
+  cursor: pointer;
+}
+.settings-card--collapsible .settings-card-title::after {
   content: '';
   display: inline-block;
   width: 8px;
@@ -3873,7 +4047,7 @@ body.live-mode .api-status.connected .status-dot {
   transition: transform 0.3s ease;
   flex-shrink: 0;
 }
-.settings-card.collapsed .settings-card-title::after {
+.settings-card--collapsible.collapsed .settings-card-title::after {
   transform: rotate(-45deg);
 }
 .settings-card .settings-row {

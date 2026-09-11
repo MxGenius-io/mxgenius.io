@@ -72,6 +72,8 @@ class KioskUiContractTests(unittest.TestCase):
     def test_equipment_pack_status_is_compact_and_enrollment_stays_advanced(self):
         for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', '<details class="pack-enrollment">'):
             self.assertIn(marker, HTML)
+        self.assertIn('id="packHardwareIdState">checking drive', HTML)
+        self.assertIn('id="packHardwareId" maxlength="180" placeholder="Baked device ID" readonly', HTML)
         for marker in ('/api/v1/equipment-pack/status', '/api/v1/equipment-pack/enroll', '/api/v1/equipment-pack/reconcile'):
             self.assertIn(marker, JS)
         self.assertNotIn("status.credential", JS)

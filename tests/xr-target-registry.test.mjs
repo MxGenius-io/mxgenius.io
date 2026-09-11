@@ -221,6 +221,6 @@ test('dashboard loads the registry before the compatibility facade and applicati
   const registryIndex = dashboard.indexOf('<script src="xr-target-registry.js?v=1"></script>');
   const contextIndex = dashboard.indexOf('<script src="xr-target-context.js?v=2"></script>');
   const commandsIndex = dashboard.indexOf('<script src="spatial-commands.js?v=1"></script>');
-  const appIndex = dashboard.indexOf('<script src="app.js?v=56"></script>');
+  const appIndex = dashboard.indexOf('<script src="app.js?v=57"></script>');
   assert.ok(registryIndex >= 0 && registryIndex < contextIndex && contextIndex < commandsIndex && commandsIndex < appIndex);
 });

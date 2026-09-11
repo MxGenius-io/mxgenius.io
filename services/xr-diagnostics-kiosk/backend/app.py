@@ -217,6 +217,7 @@ except EquipmentPackError as error:
         enabled=True,
         core_url="",
         state_dir=Path(os.getenv("MXG_EDGE_STATE_DIR", "/var/lib/mxg-diagnostics-kiosk")),
+        hardware_id=None,
     )
     equipment_pack_config_error = error
 equipment_pack_agent = EquipmentPackAgent(equipment_pack_config)

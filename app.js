@@ -867,11 +867,21 @@ function setupCollapsibleSettings() {
   document.querySelectorAll('.settings-card').forEach(card => {
     const rows = card.querySelectorAll('.settings-row');
     if (rows.length <= 1) return;
-    card.classList.add('collapsed');
+    card.classList.add('settings-card--collapsible', 'collapsed');
     const title = card.querySelector('.settings-card-title');
     if (title) {
-      title.addEventListener('click', () => {
+      title.setAttribute('role', 'button');
+      title.setAttribute('tabindex', '0');
+      title.setAttribute('aria-expanded', 'false');
+      const toggleCard = () => {
         card.classList.toggle('collapsed');
+        title.setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
+      };
+      title.addEventListener('click', toggleCard);
+      title.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleCard();
       });
     }
   });
@@ -2931,6 +2941,17 @@ function initSettings() {
   const textModelSelect = document.getElementById('settingsTextModel');
   const workspaceSelect = document.getElementById('settingsWorkspaceSelect');
   const workspaceOpen = document.getElementById('settingsWorkspaceOpen');
+  const deviceForm = document.getElementById('settingsDeviceForm');
+  const deviceNameInput = document.getElementById('settingsDeviceName');
+  const hardwareIdInput = document.getElementById('settingsHardwareId');
+  const deviceRegisterButton = document.getElementById('settingsDeviceRegister');
+  const deviceRefreshButton = document.getElementById('settingsDeviceRefresh');
+  const deviceStatus = document.getElementById('settingsDeviceStatus');
+  const deviceList = document.getElementById('settingsDeviceList');
+  const deviceKeyPanel = document.getElementById('settingsDeviceKeyPanel');
+  const deviceKey = document.getElementById('settingsDeviceKey');
+  const deviceKeyExpiry = document.getElementById('settingsDeviceKeyExpiry');
+  const deviceKeyCopy = document.getElementById('settingsDeviceKeyCopy');
   let profileImageObjectUrl = null;
 
   async function settingsSession({ forceRefresh = false } = {}) {
@@ -2967,6 +2988,159 @@ function initSettings() {
       return operation(requestSession);
     }
   }
+
+  const setDeviceStatus = (message, state = '') => {
+    if (!deviceStatus) return;
+    deviceStatus.textContent = message;
+    deviceStatus.dataset.state = state;
+  };
+
+  const formatDeviceDate = (value, fallback) => {
+    if (!value) return fallback;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString();
+  };
+
+  const showEnrollmentKey = (enrollment, displayName) => {
+    if (!deviceKeyPanel || !deviceKey || !deviceKeyExpiry) return;
+    deviceKey.textContent = String(enrollment?.code || '');
+    deviceKeyExpiry.textContent = `${displayName} · expires ${formatDeviceDate(enrollment?.expiresAt, 'soon')}`;
+    deviceKeyPanel.hidden = false;
+    deviceKeyCopy?.focus();
+  };
+
+  const clearEnrollmentKey = () => {
+    if (deviceKey) deviceKey.textContent = '';
+    if (deviceKeyExpiry) deviceKeyExpiry.textContent = '';
+    if (deviceKeyPanel) deviceKeyPanel.hidden = true;
+  };
+
+  const issueDeviceKey = async (device, button) => {
+    if (!device?.id) return;
+    clearEnrollmentKey();
+    if (button) button.disabled = true;
+    setDeviceStatus(`Generating a key for ${device.displayName}…`);
+    try {
+      const enrollment = await withSettingsSession((requestSession) =>
+        MXApplicationClient.edgeDevices.issueEnrollmentCode(device.id, requestSession)
+      );
+      showEnrollmentKey(enrollment, device.displayName);
+      setDeviceStatus('Key generated. It is shown once and expires in 10 minutes.', 'success');
+    } catch (error) {
+      setDeviceStatus(error.message || 'Unable to generate a device key.', 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  };
+
+  const renderEdgeDevices = (devices) => {
+    if (!deviceList) return;
+    deviceList.replaceChildren();
+    if (!devices.length) {
+      const empty = document.createElement('p');
+      empty.className = 'settings-hint device-registry-empty';
+      empty.textContent = 'No devices registered yet.';
+      deviceList.appendChild(empty);
+      return;
+    }
+
+    devices.forEach((device) => {
+      const row = document.createElement('article');
+      row.className = 'device-registry-item';
+
+      const summary = document.createElement('div');
+      summary.className = 'device-registry-item__summary';
+      const heading = document.createElement('div');
+      heading.className = 'device-registry-item__heading';
+      const name = document.createElement('strong');
+      name.textContent = device.displayName || 'Unnamed device';
+      const status = document.createElement('span');
+      status.className = 'device-registry-item__status';
+      status.dataset.state = device.status || 'registered';
+      status.textContent = device.status || 'registered';
+      heading.append(name, status);
+
+      const hardwareId = document.createElement('code');
+      hardwareId.textContent = device.hardwareId || 'Hardware ID pending';
+      const lastSeen = document.createElement('span');
+      lastSeen.className = 'settings-hint';
+      lastSeen.textContent = `Last connected: ${formatDeviceDate(device.lastSeenAt, 'never')}`;
+      summary.append(heading, hardwareId, lastSeen);
+      row.appendChild(summary);
+
+      if (device.status !== 'revoked') {
+        const keyButton = document.createElement('button');
+        keyButton.className = 'device-registry-item__key';
+        keyButton.type = 'button';
+        keyButton.textContent = 'New key';
+        keyButton.addEventListener('click', () => issueDeviceKey(device, keyButton));
+        row.appendChild(keyButton);
+      }
+      deviceList.appendChild(row);
+    });
+  };
+
+  const loadEdgeDevices = async () => {
+    if (!deviceList || !MXApplicationClient.edgeDevices) return;
+    if (deviceRefreshButton) deviceRefreshButton.disabled = true;
+    setDeviceStatus('Loading registered devices…');
+    try {
+      const payload = await withSettingsSession((requestSession) =>
+        MXApplicationClient.edgeDevices.list(requestSession)
+      );
+      const devices = Array.isArray(payload?.devices) ? payload.devices : [];
+      renderEdgeDevices(devices);
+      setDeviceStatus(`${devices.length} registered device${devices.length === 1 ? '' : 's'}.`, 'success');
+    } catch (error) {
+      renderEdgeDevices([]);
+      setDeviceStatus(error.message || 'Unable to load registered devices.', 'error');
+    } finally {
+      if (deviceRefreshButton) deviceRefreshButton.disabled = false;
+    }
+  };
+
+  deviceForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const displayName = deviceNameInput?.value.trim() || '';
+    const hardwareId = hardwareIdInput?.value.trim() || '';
+    if (!displayName || !hardwareId) {
+      setDeviceStatus('Enter the device name and the hardware ID stored on its drive.', 'error');
+      return;
+    }
+    if (deviceRegisterButton) deviceRegisterButton.disabled = true;
+    clearEnrollmentKey();
+    setDeviceStatus(`Registering ${displayName}…`);
+    try {
+      const payload = await withSettingsSession((requestSession) =>
+        MXApplicationClient.edgeDevices.register({ displayName, hardwareId, session: requestSession })
+      );
+      const device = payload?.device;
+      if (!device?.id) throw new Error('The device registered, but its identifier was not returned.');
+      if (deviceNameInput) deviceNameInput.value = '';
+      if (hardwareIdInput) hardwareIdInput.value = '';
+      await loadEdgeDevices();
+      await issueDeviceKey(device);
+    } catch (error) {
+      setDeviceStatus(error.message || 'Unable to register the device.', 'error');
+    } finally {
+      if (deviceRegisterButton) deviceRegisterButton.disabled = false;
+    }
+  });
+
+  deviceRefreshButton?.addEventListener('click', loadEdgeDevices);
+  deviceKeyCopy?.addEventListener('click', async () => {
+    const value = deviceKey?.textContent || '';
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      deviceKeyCopy.textContent = 'Copied';
+      window.setTimeout(() => { deviceKeyCopy.textContent = 'Copy'; }, 1500);
+    } catch {
+      setDeviceStatus('Copy was blocked. Select the key and copy it manually.', 'error');
+    }
+  });
+
+  if (acct || window.MXGENIUS_CONFIG?.allowInsecurePilot) void loadEdgeDevices();
 
   workspaceOpen?.addEventListener('click', () => {
     const destination = workspaceSelect?.value;
@@ -3121,7 +3295,8 @@ function initSettings() {
   });
 
   let profileSaveTimer = null;
-  const scheduleServerProfileSave = () => {
+  const scheduleServerProfileSave = (event) => {
+    if (event?.target?.closest?.('#settingsDevicesCard')) return;
     if (!acct && !window.MXGENIUS_CONFIG?.allowInsecurePilot) return;
     clearTimeout(profileSaveTimer);
     profileSaveTimer = setTimeout(() => {

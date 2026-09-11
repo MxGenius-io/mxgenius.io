@@ -475,7 +475,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=56/);
+  assert.match(dashboard, /app\.js\?v=57/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -620,8 +620,8 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
   assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=2'/);
   assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=2'/);
-  assert.match(viewer, /application-client\.js\?v=42[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
-  assert.match(globeVr, /application-client\.js\?v=42[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(viewer, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(globeVr, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
   assert.match(globeVr, /id="sceneSoundButton"/);
   assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
   assert.match(globeVr, /function emitSceneAction\(/);
@@ -1049,7 +1049,7 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(client, /uiSounds: Object\.freeze/);
   assert.match(xrUiAudio, /id: 'SND-001'/);
   assert.match(xrUiAudio, /MXGeniusSoundStorage/);
-  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=42"></script>');
+  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=43"></script>');
   const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
@@ -1058,6 +1058,33 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(applicationStyles, /\.settings-sound-families\s*\{[\s\S]*max-height: min\(58vh, 560px\);[\s\S]*overflow-y: auto;/);
   assert.match(applicationStyles, /\.settings-sound-families:focus-visible/);
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
+});
+
+test('Settings registers edge devices and exposes one-time enrollment keys without browser persistence', () => {
+  for (const id of [
+    'settingsDevicesCard',
+    'settingsDeviceForm',
+    'settingsDeviceName',
+    'settingsHardwareId',
+    'settingsDeviceRegister',
+    'settingsDeviceKeyPanel',
+    'settingsDeviceKey',
+    'settingsDeviceKeyCopy',
+    'settingsDeviceRefresh',
+    'settingsDeviceList'
+  ]) assert.match(dashboard, new RegExp(`id="${id}"`));
+
+  assert.match(dashboard, /Register &amp; generate key/);
+  assert.match(client, /function listEdgeDevices/);
+  assert.match(client, /function registerEdgeDevice/);
+  assert.match(client, /function issueEdgeEnrollmentCode/);
+  assert.match(client, /edgeDevices: Object\.freeze/);
+  assert.match(application, /MXApplicationClient\.edgeDevices\.list/);
+  assert.match(application, /MXApplicationClient\.edgeDevices\.register/);
+  assert.match(application, /MXApplicationClient\.edgeDevices\.issueEnrollmentCode/);
+  assert.match(application, /navigator\.clipboard\.writeText/);
+  assert.doesNotMatch(application, /localStorage\.setItem\([^\n]*DeviceKey/i);
+  assert.match(applicationStyles, /\.device-registry-list\s*\{[^}]*max-height: 280px;[^}]*overflow-y: auto;/s);
 });
 
 test('Settings profile and image persistence use the current shared auth session', () => {

@@ -537,6 +537,38 @@ test('beta access rules use the authenticated server boundary instead of browser
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
+test('edge device enrollment uses the tenant-authenticated application boundary', async () => {
+  const { client, requests } = harness({});
+  const session = {
+    accessToken: 'oidc-token',
+    organizationId: 'org-1',
+    correlationId: 'correlation-1'
+  };
+
+  await client.edgeDevices.list(session);
+  await client.edgeDevices.register({
+    displayName: 'MXG Pi 01',
+    hardwareId: 'mxg-pi-0123456789abcdef0123456789abcdef',
+    session
+  });
+  await client.edgeDevices.issueEnrollmentCode('device/1', session);
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [url, options.method]),
+    [
+      ['/api/edge/devices', 'GET'],
+      ['/api/edge/devices', 'POST'],
+      ['/api/edge/devices/device%2F1/enrollment-code', 'POST']
+    ]
+  );
+  assert.deepEqual(requests[1].request, {
+    displayName: 'MXG Pi 01',
+    hardwareId: 'mxg-pi-0123456789abcdef0123456789abcdef'
+  });
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
+  assert.ok(requests.every(({ options }) => options.headers['X-MXG-Organization-ID'] === 'org-1'));
+});
+
 test('chat sends only bounded relevant fleet context instead of the full compatibility dataset', async () => {
   const { client, requests } = harness({});
   const fleetSignals = Array.from({ length: 4437 }, (_, index) => ({

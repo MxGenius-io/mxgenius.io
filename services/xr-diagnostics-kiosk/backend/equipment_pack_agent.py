@@ -25,6 +25,7 @@ MAX_JSON_BYTES = 1024 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 ENROLLMENT_CODE = re.compile(r"^[0-9A-F]{24}$")
+HARDWARE_ID = re.compile(r"^mxg-pi-[0-9a-f]{32}$")
 FAT_RESERVED = {"CON", "PRN", "AUX", "NUL"}
 
 
@@ -43,6 +44,7 @@ class AgentConfig:
     core_url: str
     state_dir: Path
     poll_seconds: float = 60.0
+    hardware_id: str | None = None
 
     @classmethod
     def from_environment(cls) -> "AgentConfig":
@@ -53,12 +55,39 @@ class AgentConfig:
             poll_seconds = max(15.0, min(float(os.getenv("MXG_EDGE_POLL_SECONDS", "60")), 900.0))
         except ValueError:
             poll_seconds = 60.0
+        hardware_id_path = Path(
+            os.getenv("MXG_EDGE_HARDWARE_ID_FILE", "/boot/firmware/mxg-device-identity.json")
+        )
+        hardware_id = None
+        if hardware_id_path.is_file():
+            try:
+                raw_identity = hardware_id_path.read_bytes()
+                if len(raw_identity) > 16 * 1024:
+                    raise ValueError("identity document is too large")
+                identity_document = json.loads(raw_identity)
+                if not isinstance(identity_document, dict):
+                    raise ValueError("identity document must be an object")
+                candidate = str(identity_document.get("hardwareId") or "").strip()
+                if identity_document.get("schemaVersion") != 1 or not HARDWARE_ID.fullmatch(candidate):
+                    raise ValueError("identity document is invalid")
+                hardware_id = candidate
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                raise EquipmentPackError(
+                    "INVALID_HARDWARE_ID_FILE",
+                    "the baked device identity is invalid",
+                ) from error
         if core_url:
             parsed = urllib.parse.urlsplit(core_url)
             local_http = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
             if parsed.scheme != "https" and not local_http:
                 raise EquipmentPackError("INVALID_CORE_URL", "the Equipment Pack core URL must use HTTPS")
-        return cls(enabled=enabled, core_url=core_url, state_dir=state_dir, poll_seconds=poll_seconds)
+        return cls(
+            enabled=enabled,
+            core_url=core_url,
+            state_dir=state_dir,
+            poll_seconds=poll_seconds,
+            hardware_id=hardware_id,
+        )
 
 
 @dataclass(frozen=True)
@@ -536,6 +565,7 @@ class EquipmentPackAgent:
             "enrolled": self.identity is not None,
             "deviceId": self.identity.device_id if self.identity else None,
             "displayName": self.identity.display_name if self.identity else None,
+            "hardwareId": self.config.hardware_id,
             "phase": self.phase,
             "detail": self.detail,
             "activeGeneration": self.runtime.active_generation,
@@ -551,7 +581,7 @@ class EquipmentPackAgent:
         normalized = "".join(character for character in code.upper() if character not in {"-", " "})
         if not ENROLLMENT_CODE.fullmatch(normalized):
             raise EquipmentPackError("INVALID_ENROLLMENT_CODE", "enter the complete one-time enrollment code")
-        normalized_hardware_id = None if hardware_id is None else str(hardware_id).strip()
+        normalized_hardware_id = self.config.hardware_id if hardware_id is None else str(hardware_id).strip()
         if normalized_hardware_id is not None and (not normalized_hardware_id or len(normalized_hardware_id) > 180):
             raise EquipmentPackError("INVALID_HARDWARE_ID", "the hardware identifier is invalid")
         identity = await asyncio.to_thread(self.client.enroll, normalized, normalized_hardware_id)

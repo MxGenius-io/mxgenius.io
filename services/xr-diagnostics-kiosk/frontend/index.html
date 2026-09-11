@@ -159,7 +159,7 @@
             <summary>Node setup</summary>
             <form id="packEnrollForm" class="pack-enroll-form" autocomplete="off">
               <label>One-time code<input id="packEnrollCode" maxlength="29" inputmode="text" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></label>
-              <label>Hardware ID <span>optional</span><input id="packHardwareId" maxlength="180" placeholder="Pi serial or asset tag"></label>
+              <label>Hardware ID <span id="packHardwareIdState">checking drive</span><input id="packHardwareId" maxlength="180" placeholder="Baked device ID" readonly></label>
               <button class="primary-button" type="submit">Enroll node</button>
             </form>
             <p>Enrollment credentials stay on this Pi and are never shown here.</p>

@@ -10,6 +10,7 @@ import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from equipment_pack_agent import (
     AgentConfig,
@@ -31,6 +32,7 @@ IDENTITY = EdgeIdentity(
     display_name="Hangar node 1",
     credential=f"mxgd.{DEVICE_ID}." + "a" * 64,
 )
+HARDWARE_ID = "mxg-pi-0123456789abcdef0123456789abcdef"
 
 
 def digest(payload: bytes) -> str:
@@ -91,6 +93,25 @@ class FakeCore:
 
 
 class IdentityAndStateTests(unittest.IsolatedAsyncioTestCase):
+    def test_configuration_loads_the_baked_boot_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            identity_path = Path(temporary) / "mxg-device-identity.json"
+            identity_path.write_text(
+                '{"schemaVersion":1,"hardwareId":"' + HARDWARE_ID + '"}',
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "MXG_EDGE_PACKS_ENABLED": "1",
+                    "MXG_EDGE_CORE_URL": "https://core.example",
+                    "MXG_EDGE_STATE_DIR": temporary,
+                    "MXG_EDGE_HARDWARE_ID_FILE": str(identity_path),
+                },
+            ):
+                config = AgentConfig.from_environment()
+            self.assertEqual(config.hardware_id, HARDWARE_ID)
+
     async def test_enrollment_persists_without_disclosing_the_credential(self):
         payload, desired = package({"manuals/overview.txt": b"ready"})
         with tempfile.TemporaryDirectory() as temporary:
@@ -108,6 +129,21 @@ class IdentityAndStateTests(unittest.IsolatedAsyncioTestCase):
             if os.name != "nt":
                 self.assertEqual(stat.S_IMODE((root / "identity.json").stat().st_mode), 0o600)
                 self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
+
+    async def test_enrollment_uses_the_baked_hardware_id_by_default(self):
+        payload, desired = package({"manuals/overview.txt": b"ready"})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            core = FakeCore(payload, desired)
+            agent = EquipmentPackAgent(
+                AgentConfig(True, "https://core.example", root, hardware_id=HARDWARE_ID),
+                core,
+            )
+            await agent.enroll("ABCD-EF12-3456-7890-ABCD-EF12")
+            await agent.stop()
+
+            self.assertEqual(core.enrollments, [("ABCDEF1234567890ABCDEF12", HARDWARE_ID)])
+            self.assertEqual(agent.public_status()["hardwareId"], HARDWARE_ID)
 
     async def test_identity_and_staged_state_survive_restart(self):
         payload, desired = package({"manual.pdf": b"test data"})

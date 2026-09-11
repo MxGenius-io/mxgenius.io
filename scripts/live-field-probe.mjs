@@ -112,9 +112,9 @@ await check('Dashboard release assets', 'frontend', async () => {
   requireCondition(response.status === 200, `Dashboard returned ${response.status}`);
   deployedDashboard = await response.text();
   for (const marker of [
-    'application-client.js?v=42',
+    'application-client.js?v=43',
     'realtime-client.js?v=4',
-    'app.js?v=56',
+    'app.js?v=57',
     'id="chatAttachBtn"',
     'value="gpt-5.5"'
   ]) {
@@ -124,7 +124,7 @@ await check('Dashboard release assets', 'frontend', async () => {
 });
 
 await check('Realtime companion bundle', 'frontend', async () => {
-  const response = await request(`${SITE}/app.js?v=56&probe=${encodeURIComponent(runId)}`);
+  const response = await request(`${SITE}/app.js?v=57&probe=${encodeURIComponent(runId)}`);
   requireCondition(response.status === 200, `app.js returned ${response.status}`);
   const source = await response.text();
   for (const marker of [

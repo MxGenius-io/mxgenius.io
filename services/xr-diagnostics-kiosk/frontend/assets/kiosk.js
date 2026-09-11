@@ -403,6 +403,8 @@ function renderEquipmentPack(status) {
   $('packPhase').dataset.state = phase;
   $('packDetail').textContent = status.detail || 'No Equipment Pack status is available.';
   $('packNode').textContent = status.displayName || (status.enrolled ? status.deviceId : 'Not enrolled');
+  $('packHardwareId').value = status.hardwareId || '';
+  $('packHardwareIdState').textContent = status.hardwareId ? 'baked into drive' : 'not found';
   $('packAssigned').textContent = status.pendingGeneration
     ? `Generation ${status.pendingGeneration} · slot ${status.pendingSlot || '—'}`
     : 'No pending pack';
@@ -704,7 +706,7 @@ $('packEnrollForm').addEventListener('submit', async (event) => {
   try {
     const status = await controlRequest('/api/v1/equipment-pack/enroll', {
       code: $('packEnrollCode').value,
-      hardwareId: $('packHardwareId').value || null,
+      hardwareId: equipmentPackStatus?.hardwareId || null,
     });
     $('packEnrollCode').value = '';
     renderEquipmentPack(status);

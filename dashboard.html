@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=11">
+  <link rel="stylesheet" href="app-styles.css?v=12">
   <link rel="stylesheet" href="case-workspace.css?v=12">
   <link rel="stylesheet" href="parts-workspace.css?v=19">
   <link rel="stylesheet" href="realtime.css">
@@ -486,6 +486,45 @@
           </div>
         </div>
 
+        <!-- Edge Device Enrollment -->
+        <div class="settings-card device-registry-card" id="settingsDevicesCard">
+          <h3 class="settings-card-title">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M5 2a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2H5zm1 3h8v6H6V5zm1 9h2v2H7v-2zm4 0h2v2h-2v-2z"/></svg>
+            Edge Devices
+          </h3>
+          <div class="settings-row device-registry-body">
+            <form id="settingsDeviceForm" class="device-registry-form">
+              <div class="device-registry-fields">
+                <label>
+                  <span>Device name</span>
+                  <input id="settingsDeviceName" class="search-input" type="text" maxlength="120" autocomplete="off" placeholder="MXG Pi 01" required>
+                </label>
+                <label>
+                  <span>Hardware ID</span>
+                  <input id="settingsHardwareId" class="search-input device-registry-hardware-id" type="text" maxlength="180" autocomplete="off" spellcheck="false" placeholder="mxg-pi-…" required>
+                </label>
+              </div>
+              <button id="settingsDeviceRegister" class="btn-primary" type="submit">Register &amp; generate key</button>
+            </form>
+            <p id="settingsDeviceStatus" class="settings-hint device-registry-status" role="status" aria-live="polite">Loading registered devices…</p>
+            <section id="settingsDeviceKeyPanel" class="device-enrollment-key" aria-live="polite" hidden>
+              <div>
+                <span class="device-enrollment-key__label">Single-use enrollment key</span>
+                <strong id="settingsDeviceKey"></strong>
+                <span id="settingsDeviceKeyExpiry" class="settings-hint"></span>
+              </div>
+              <button id="settingsDeviceKeyCopy" class="btn-primary" type="button">Copy</button>
+            </section>
+          </div>
+          <div class="settings-row device-registry-body">
+            <div class="device-registry-list-header">
+              <span>Registered devices</span>
+              <button id="settingsDeviceRefresh" class="device-registry-refresh" type="button">Refresh</button>
+            </div>
+            <div id="settingsDeviceList" class="device-registry-list" aria-live="polite"></div>
+          </div>
+        </div>
+
         <!-- Operations -->
         <div class="settings-card capability-workbench" id="settingsOperationsCard">
           <h3 class="settings-card-title">
@@ -807,7 +846,7 @@
   <script src="auth.js?v=12"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=42"></script>
+<script src="application-client.js?v=43"></script>
   <script src="sound-storage.js?v=1"></script>
   <script src="xr-target-registry.js?v=1"></script>
   <script src="xr-target-context.js?v=2"></script>
@@ -822,7 +861,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
   <div id="onboardingRoot"></div>
 </body>
 

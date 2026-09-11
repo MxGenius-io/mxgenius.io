@@ -72,8 +72,14 @@ openssl passwd -6
 With the newly flashed `bootfs` partition mounted as `E:`:
 
 ```powershell
+.\scripts\provision-device-identity.ps1 -Drive E: -DisplayName 'MXG Pi 01'
 .\deploy-to-sd.ps1 -Drive E: -UserName mxgenius -PasswordHash '$6$...' -EnableSsh -EnableUsbGadget
 ```
+
+The identity command creates `mxg-device-identity.json` once and preserves the
+same hardware ID on later runs. The ID is an inventory identifier, not a
+credential. The local enrollment form reads it from the boot partition and
+sends it only when exchanging the short-lived enrollment key.
 
 `-EnableUsbGadget` adds the Raspberry Pi 5 USB-C peripheral-mode overlay used
 by the read-only capability probe. It does not activate a mass-storage gadget
