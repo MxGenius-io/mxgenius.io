@@ -115,29 +115,19 @@ if ($EnableSsh) {
 $cmdline = (Get-Content -Raw -LiteralPath $cmdlinePath).Trim()
 $cmdline = $cmdline -replace '\s+systemd\.run=\S+', ''
 $cmdline = $cmdline -replace '\s+systemd\.run_success_action=\S+', ''
-[System.IO.File]::WriteAllText($cmdlinePath, "$($cmdline.Trim())`n", [System.Text.UTF8Encoding]::new($false))
+$cmdline = "$($cmdline.Trim()) systemd.run=/boot/firmware/mxg-firstboot.sh systemd.run_success_action=reboot"
+[System.IO.File]::WriteAllText($cmdlinePath, "$cmdline`n", [System.Text.UTF8Encoding]::new($false))
 
-# Re-seed the existing Raspberry Pi Imager NoCloud datasource. Unlike the
-# systemd debug-generator command-line hook, runcmd is a supported
-# once-per-instance installer path and leaves explicit status evidence behind.
+# Do not rely on cloud-init to update an already-provisioned appliance. Its
+# once-per-instance stages may already be complete, so remove any previous MXG
+# runcmd block and use the one-shot systemd boot hook above instead.
 $userData = [System.IO.File]::ReadAllText($userDataPath)
 $userData = [regex]::Replace(
   $userData,
   '(?ms)^# BEGIN MXGENIUS FIRST BOOT\r?\n.*?^# END MXGENIUS FIRST BOOT\r?\n?',
   ''
 ).TrimEnd()
-if ($userData -match '(?m)^runcmd:\s*$') {
-  throw 'The cloud-init seed already defines runcmd outside the MXGenius managed block.'
-}
-$firstBootBlock = @"
-
-
-# BEGIN MXGENIUS FIRST BOOT
-runcmd:
-  - [bash, /boot/firmware/mxg-firstboot.sh]
-# END MXGENIUS FIRST BOOT
-"@
-[System.IO.File]::WriteAllText($userDataPath, "$userData$firstBootBlock`n", [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($userDataPath, "$userData`n", [System.Text.UTF8Encoding]::new($false))
 
 $metaData = [System.IO.File]::ReadAllText($metaDataPath)
 $instanceId = "mxg-release-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
@@ -202,7 +192,7 @@ $release = [PSCustomObject]@{
 )
 
 Write-Output "Staged MXG diagnostics kiosk at $destination"
-Write-Output "Activated cloud-init installer: /boot/firmware/mxg-firstboot.sh"
+Write-Output "Activated one-shot systemd installer: /boot/firmware/mxg-firstboot.sh"
 if ($UserName) { Write-Output "Provisioned initial user: $UserName" }
 if ($EnableSsh) { Write-Output 'Enabled SSH on first boot' }
 if ($EnableUsbGadget) { Write-Output 'Enabled Raspberry Pi 5 USB-C peripheral mode for the gadget capability test' }

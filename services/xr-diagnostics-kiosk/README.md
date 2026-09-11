@@ -84,9 +84,10 @@ sends it only when exchanging the short-lived enrollment key.
 `-EnableUsbGadget` adds the Raspberry Pi 5 USB-C peripheral-mode overlay used
 by the read-only capability probe. It does not activate a mass-storage gadget
 or expose a folder by itself. The staging command also normalizes packaged
-shell scripts to LF, assigns a fresh NoCloud instance ID, and adds the installer
-to cloud-init's once-per-instance `runcmd` stage. Successful installation leaves
-`mxg-firstboot.status` on `bootfs` and removes the installer script.
+shell scripts to LF, assigns a fresh NoCloud instance ID, and activates the installer
+through a one-shot systemd kernel-command-line hook. This works for both newly imaged
+and already-provisioned appliances. Successful installation leaves
+`mxg-firstboot.status` on `bootfs`, removes the hook, and removes the installer script.
 
 The command validates the target as a Raspberry Pi boot partition, writes the initial user configuration, stages a whitelisted kiosk payload and release manifest, and activates the one-time systemd boot hook. `mxg-firstboot.status` on `bootfs` records `starting`, `installing`, `installed`, or `failed` for cold-start diagnosis.
 
