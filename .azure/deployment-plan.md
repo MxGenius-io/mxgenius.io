@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-10
 
-> **Status:** Validated
+> **Status:** Deployed
 
 ### 1. Project Overview
 
@@ -228,10 +228,10 @@ replica, ingress, or cost-bearing resource change is planned.
 
 #### Phase 4: Deployment
 
-- [ ] Invoke `azure-deploy`
-- [ ] Deploy only after validation and explicit release direction
-- [ ] Report endpoints and rollback target
-- [ ] Set plan status to `Deployed`
+- [x] Invoke `azure-deploy`
+- [x] Deploy only after validation and explicit release direction
+- [x] Report endpoints and rollback target
+- [x] Set plan status to `Deployed`
 
 ### 8. Validation Proof
 
@@ -254,6 +254,27 @@ replica, ingress, or cost-bearing resource change is planned.
 | Managed identity RBAC | `az role assignment list` for the `mxg-core` principal | ✅ Storage Blob Data Contributor scoped to `mxgstorage50106/documents` | 2026-09-10 |
 | Linux container build | `az acr build --no-push ...` | ✅ ACR run `cj26`; Dockerfile completed; no image published | 2026-09-10 |
 | Current live baseline | `/healthz`, `/readyz`, current revision and flag inspection | ✅ Both HTTP 200; `mxg-core--spatialshell3eacbb0` unchanged; feature flag absent/off | 2026-09-10 |
+
+### 8.1 Deployment Proof
+
+- Git commit `3d2d39808ab1c2c9bf5bc788939fad0bd3403482` was pushed to
+  `MxGenius-io/mxgenius.io` shared `main`; Pages run `34545985481`
+  completed successfully.
+- ACR run `cj27` published
+  `mxg-core:equipment-pack-3d2d398-20260910` with digest
+  `sha256:8a7eeedda5678e0ca4be1c8bb526ce4f6ef8655e6123ad3421d1fd2c3a1c5086`.
+- Revision `mxg-core--eqpon3d2d398` is Healthy, latest-ready, and serves
+  100% traffic with `MXGENIUS_EQUIPMENT_PACKS_ENABLED=true`.
+- Live `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. Anonymous
+  human Equipment Pack reads and device desired-state reads returned HTTP 401;
+  a structurally valid but unknown enrollment code also returned HTTP 401.
+- The Azure CLI identity cannot mint this application's delegated user token,
+  so the final authenticated tenant read remains a browser-session smoke test.
+- Rollback is non-destructive: use the feature-off
+  `mxg-core--equip3d2d398` revision first, or the prior
+  `mxg-core--spatialshell3eacbb0` revision and image if a full code rollback is
+  required. No revisions, images, migrations, Blobs, roles, or secrets were
+  deleted.
 
 ### 9. Files to Generate or Modify
 
