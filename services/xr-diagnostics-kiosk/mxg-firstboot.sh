@@ -37,7 +37,7 @@ else
   bash "$PAYLOAD/install.sh" "$PAYLOAD"
 fi
 
-sed -i 's| systemd.run=/boot/firmware/mxg-firstboot.sh||g; s| systemd.run=/boot/mxg-firstboot.sh||g; s| systemd.run_success_action=reboot||g' "$BOOT_DIR/cmdline.txt"
+sed -i 's| systemd.run=/boot/firmware/mxg-firstboot.sh||g; s| systemd.run=/boot/mxg-firstboot.sh||g; s| systemd.run_success_action=reboot||g; s| systemd.unit=kernel-command-line.target||g' "$BOOT_DIR/cmdline.txt"
 rm -f "$BOOT_DIR/mxg-firstboot.sh"
 trap - ERR
 write_status installed

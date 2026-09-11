@@ -115,7 +115,8 @@ if ($EnableSsh) {
 $cmdline = (Get-Content -Raw -LiteralPath $cmdlinePath).Trim()
 $cmdline = $cmdline -replace '\s+systemd\.run=\S+', ''
 $cmdline = $cmdline -replace '\s+systemd\.run_success_action=\S+', ''
-$cmdline = "$($cmdline.Trim()) systemd.run=/boot/firmware/mxg-firstboot.sh systemd.run_success_action=reboot"
+$cmdline = $cmdline -replace '\s+systemd\.unit=kernel-command-line\.target', ''
+$cmdline = "$($cmdline.Trim()) systemd.run=/boot/firmware/mxg-firstboot.sh systemd.run_success_action=reboot systemd.unit=kernel-command-line.target"
 [System.IO.File]::WriteAllText($cmdlinePath, "$cmdline`n", [System.Text.UTF8Encoding]::new($false))
 
 # Do not rely on cloud-init to update an already-provisioned appliance. Its
