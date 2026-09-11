@@ -303,8 +303,16 @@ async def control_session(request: Request) -> dict[str, Any]:
     host = request.client.host if request.client else ""
     if host not in LOCAL_CLIENTS:
         raise HTTPException(status_code=403, detail="appliance controls are local-only")
-    status = await _control("status")
-    return {"token": CONTROL_NONCE, "scope": "local-appliance", "version": 1, "capabilities": status.get("capabilities", [])}
+    capabilities: list[str] = []
+    try:
+        status = await asyncio.wait_for(request_control("status"), timeout=3.0)
+        if status.get("ok"):
+            capabilities = status.get("capabilities", [])
+    except (ControlUnavailable, asyncio.TimeoutError):
+        # Enrollment and other unprivileged local workflows still need the
+        # loopback nonce when the separate root control broker is unavailable.
+        pass
+    return {"token": CONTROL_NONCE, "scope": "local-appliance", "version": 1, "capabilities": capabilities}
 
 
 @app.get("/api/v1/equipment-pack/status")

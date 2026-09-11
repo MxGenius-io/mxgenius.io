@@ -383,17 +383,27 @@ async function initializeControls() {
   }
 }
 
-async function controlRequest(path, payload = {}) {
+async function controlRequest(path, payload = {}, timeoutMs = 50000) {
   if (!controlToken) await initializeControls();
   if (!controlToken) throw new Error('Local control service is unavailable');
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-MXG-Control-Token': controlToken },
-    body: JSON.stringify(payload),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
-  return result;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-MXG-Control-Token': controlToken },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+    return result;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('The local control request timed out');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function renderEquipmentPack(status) {
@@ -703,11 +713,12 @@ $('packEnrollForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true;
+  setControlNotice('Enrolling this node…');
   try {
     const status = await controlRequest('/api/v1/equipment-pack/enroll', {
       code: $('packEnrollCode').value,
       hardwareId: equipmentPackStatus?.hardwareId || null,
-    });
+    }, 30000);
     $('packEnrollCode').value = '';
     renderEquipmentPack(status);
     setControlNotice(`${status.displayName || 'Node'} enrolled`, 'success');

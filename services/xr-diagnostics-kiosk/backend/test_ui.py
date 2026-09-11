@@ -76,7 +76,22 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn('id="packHardwareId" maxlength="180" placeholder="Baked device ID" readonly', HTML)
         for marker in ('/api/v1/equipment-pack/status', '/api/v1/equipment-pack/enroll', '/api/v1/equipment-pack/reconcile'):
             self.assertIn(marker, JS)
+        self.assertIn("setControlNotice('Enrolling this node…')", JS)
+        self.assertIn('new AbortController()', JS)
+        self.assertIn("}, 30000);", JS)
         self.assertNotIn("status.credential", JS)
+
+    def test_equipment_pack_cloud_is_preconfigured_for_appliance_enrollment(self):
+        self.assertIn('MXG_EDGE_PACKS_ENABLED=1', INSTALL)
+        self.assertIn(
+            'MXG_EDGE_CORE_URL=https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io',
+            INSTALL,
+        )
+
+    def test_local_control_session_does_not_block_enrollment_on_the_root_broker(self):
+        app_source = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+        self.assertIn('asyncio.wait_for(request_control("status"), timeout=3.0)', app_source)
+        self.assertIn('except (ControlUnavailable, asyncio.TimeoutError):', app_source)
 
     def test_privileged_control_plane_is_allow_listed_and_separate(self):
         self.assertIn("User=root", CONTROL_SERVICE)
