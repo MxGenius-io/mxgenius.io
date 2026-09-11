@@ -15,10 +15,6 @@ write_status() {
 trap 'write_status failed' ERR
 write_status starting
 
-if [ ! -x "$PAYLOAD/install.sh" ]; then
-  chmod +x "$PAYLOAD/install.sh"
-fi
-
 for attempt in $(seq 1 60); do
   if getent passwd 1000 >/dev/null 2>&1; then break; fi
   sleep 1
@@ -33,8 +29,13 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-write_status installing
-"$PAYLOAD/install.sh" "$PAYLOAD"
+if [ -d /opt/mxg-diagnostics-kiosk/venv ]; then
+  write_status updating
+  bash "$PAYLOAD/update.sh" "$PAYLOAD"
+else
+  write_status installing
+  bash "$PAYLOAD/install.sh" "$PAYLOAD"
+fi
 
 sed -i 's| systemd.run=/boot/firmware/mxg-firstboot.sh||g; s| systemd.run=/boot/mxg-firstboot.sh||g; s| systemd.run_success_action=reboot||g' "$BOOT_DIR/cmdline.txt"
 rm -f "$BOOT_DIR/mxg-firstboot.sh"

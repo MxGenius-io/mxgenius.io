@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import shutil
 import socketserver
 import subprocess
 import threading
@@ -15,6 +17,8 @@ from typing import Any
 SOCKET_PATH = Path(os.getenv("MXG_CONTROL_SOCKET", "/run/mxg-edge-control/control.sock"))
 MAC_ADDRESS = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 MAX_REQUEST_BYTES = 16 * 1024
+CONFIGFS_GADGET_ROOT = Path("/sys/kernel/config/usb_gadget")
+UDC_ROOT = Path("/sys/class/udc")
 
 
 def _run(command: list[str], timeout: int = 40) -> subprocess.CompletedProcess[str]:
@@ -79,9 +83,60 @@ def wifi_connect(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("hidden") is True:
         command.extend(["hidden", "yes"])
     result = _run(command, timeout=45)
+    error = result.stderr.strip() or result.stdout.strip() or "Wi-Fi connection failed"
+    if result.returncode and password and "key-mgmt" in error.lower() and "missing" in error.lower():
+        return _repair_wifi_key_management(ssid, password, payload.get("hidden") is True)
     if result.returncode:
-        return {"ok": False, "error": result.stderr.strip() or "Wi-Fi connection failed"}
+        return {"ok": False, "error": error}
     return {"ok": True, "ssid": ssid, "message": "Wi-Fi connection activated"}
+
+
+def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[str, Any]:
+    profiles = _run([
+        "nmcli", "--terse", "--escape", "yes", "--fields", "NAME,TYPE",
+        "connection", "show",
+    ], timeout=10)
+    if profiles.returncode:
+        return {"ok": False, "error": "NetworkManager could not inspect the saved Wi-Fi profile"}
+
+    profile_name = ""
+    for line in profiles.stdout.splitlines():
+        fields = _split_escaped(line)
+        if len(fields) < 2 or fields[1] not in {"wifi", "802-11-wireless"}:
+            continue
+        candidate = fields[0]
+        observed = _run([
+            "nmcli", "--get-values", "802-11-wireless.ssid", "connection", "show", candidate,
+        ], timeout=8)
+        if not observed.returncode and observed.stdout.strip() == ssid:
+            profile_name = candidate
+            break
+
+    if not profile_name:
+        profile_name = f"mxg-wifi-{hashlib.sha256(ssid.encode('utf-8')).hexdigest()[:10]}"
+        created = _run([
+            "nmcli", "connection", "add", "type", "wifi", "ifname", "*",
+            "con-name", profile_name, "ssid", ssid,
+        ], timeout=15)
+        if created.returncode:
+            return {"ok": False, "error": created.stderr.strip() or "Wi-Fi profile repair failed"}
+
+    modification = [
+        "nmcli", "connection", "modify", profile_name,
+        "802-11-wireless-security.key-mgmt", "wpa-psk",
+        "802-11-wireless-security.psk", password,
+        "connection.autoconnect", "yes",
+    ]
+    if hidden:
+        modification.extend(["802-11-wireless.hidden", "yes"])
+    repaired = _run(modification, timeout=15)
+    if repaired.returncode:
+        return {"ok": False, "error": repaired.stderr.strip() or "Wi-Fi security profile repair failed"}
+
+    activated = _run(["nmcli", "--wait", "35", "connection", "up", profile_name], timeout=45)
+    if activated.returncode:
+        return {"ok": False, "error": activated.stderr.strip() or "Wi-Fi profile could not be activated"}
+    return {"ok": True, "ssid": ssid, "message": "Wi-Fi security profile repaired and activated"}
 
 
 def _bluetooth_info(address: str, name: str) -> dict[str, Any]:
@@ -140,10 +195,38 @@ def bluetooth_action(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "address": address, "operation": operation}
 
 
+def usb_gadget_status(
+    gadget_root: Path = CONFIGFS_GADGET_ROOT,
+    udc_root: Path = UDC_ROOT,
+) -> dict[str, Any]:
+    def directory_names(root: Path) -> list[str]:
+        try:
+            return sorted(path.name for path in root.iterdir()) if root.is_dir() else []
+        except OSError:
+            return []
+
+    udcs = directory_names(udc_root)
+    gadgets = directory_names(gadget_root)
+    tools = {
+        "mkfs.vfat": shutil.which("mkfs.vfat") is not None,
+        "mount": shutil.which("mount") is not None,
+        "umount": shutil.which("umount") is not None,
+    }
+    return {
+        "ok": True,
+        "supported": bool(udcs) and gadget_root.is_dir(),
+        "configfs": gadget_root.is_dir(),
+        "udcs": udcs,
+        "gadgets": gadgets,
+        "tools": tools,
+        "activationReady": bool(udcs) and gadget_root.is_dir() and all(tools.values()),
+    }
+
+
 def handle_action(payload: dict[str, Any]) -> dict[str, Any]:
     action = payload.get("action")
     if action == "status":
-        return {"ok": True, "capabilities": ["wifi", "bluetooth", "poweroff"]}
+        return {"ok": True, "capabilities": ["wifi", "bluetooth", "poweroff", "usb-gadget-status"]}
     if action == "wifi.scan":
         return wifi_scan()
     if action == "wifi.connect":
@@ -152,6 +235,8 @@ def handle_action(payload: dict[str, Any]) -> dict[str, Any]:
         return bluetooth_scan()
     if action == "bluetooth.action":
         return bluetooth_action(payload)
+    if action == "usb.gadget.status":
+        return usb_gadget_status()
     if action == "poweroff":
         threading.Timer(1.0, lambda: subprocess.Popen(["systemctl", "poweroff"])).start()
         return {"ok": True, "message": "Power off requested"}

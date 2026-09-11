@@ -22,6 +22,21 @@ class DiagnosticsTests(unittest.TestCase):
         with patch.dict(os.environ, {"MXG_DIAGNOSTIC_PORTS": "not-json"}):
             self.assertEqual(_configured_probes(), [])
 
+    def test_performance_history_is_bounded_and_uses_device_uptime(self):
+        bridge = Bridge()
+        for index in range(725):
+            bridge.record_performance({
+                "timestampMs": 1_000 + index,
+                "host": {"uptimeSeconds": index * 5.0},
+                "cpu": {"usedPercent": 10.0 + index % 20, "temperatureC": 48.0},
+                "memory": {"usedPercent": 22.0},
+            })
+        history = bridge.performance_snapshot()
+        self.assertEqual(history["type"], "diagnostics.performance-history")
+        self.assertLessEqual(len(history["samples"]), 720)
+        self.assertGreaterEqual(history["sampleIntervalSeconds"], 10.0)
+        self.assertIn("uptimeSeconds", history["samples"][-1])
+
     def test_remote_summary_reduces_raw_diagnostics(self):
         bridge = Bridge()
         bridge.latest = {

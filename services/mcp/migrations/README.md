@@ -37,3 +37,4 @@ release gates.
 | `0024_part_reporting_indexes.sql`        | date-ranged timeline indexes over the parts journals, orders, and shipments so historical reports keyset-scan instead of sequential-scan |
 | `0025_part_alternates.sql`               | catalog interchangeability: alternates and supersessions with the authority each claim rests on |
 | `0026_receiving_inspection.sql`          | receiving inspection evidence, non-conforming holds, suspected-unapproved flag, and discrepancy reports |
+| `0027_equipment_packs.sql`               | immutable equipment-folder packs, resumable upload blocks, edge-device enrollment, desired generations, and activation history |

@@ -72,8 +72,15 @@ openssl passwd -6
 With the newly flashed `bootfs` partition mounted as `E:`:
 
 ```powershell
-.\deploy-to-sd.ps1 -Drive E: -UserName mxgenius -PasswordHash '$6$...' -EnableSsh
+.\deploy-to-sd.ps1 -Drive E: -UserName mxgenius -PasswordHash '$6$...' -EnableSsh -EnableUsbGadget
 ```
+
+`-EnableUsbGadget` adds the Raspberry Pi 5 USB-C peripheral-mode overlay used
+by the read-only capability probe. It does not activate a mass-storage gadget
+or expose a folder by itself. The staging command also normalizes packaged
+shell scripts to LF, assigns a fresh NoCloud instance ID, and adds the installer
+to cloud-init's once-per-instance `runcmd` stage. Successful installation leaves
+`mxg-firstboot.status` on `bootfs` and removes the installer script.
 
 The command validates the target as a Raspberry Pi boot partition, writes the initial user configuration, stages a whitelisted kiosk payload and release manifest, and activates the one-time systemd boot hook. `mxg-firstboot.status` on `bootfs` records `starting`, `installing`, `installed`, or `failed` for cold-start diagnosis.
 
@@ -94,6 +101,10 @@ The cold installer needs network access for Debian and Python packages. After a 
 - `POST /api/v1/control/wifi/scan` and `/connect` — local NetworkManager discovery and connection actions
 - `POST /api/v1/control/bluetooth/scan` and `/action` — local BlueZ discovery, pair, connect, disconnect, and forget actions
 - `POST /api/v1/control/poweroff` — guarded local safe-shutdown action
+- `POST /api/v1/control/usb-gadget/status` — read-only ConfigFS, UDC, and required-tool capability probe
+- `GET /api/v1/equipment-pack/status` — non-secret local node, assignment, slot, and synchronization state
+- `POST /api/v1/equipment-pack/enroll` — local-control exchange of a one-time node enrollment code
+- `POST /api/v1/equipment-pack/reconcile` — local-control request for an immediate durable assignment check
 - `WS /ws/xr?token=...` — Quest/browser consumer stream
 - `WS /ws/ingest?token=...` — local simulator and alternate high-bandwidth producer test path
 - Bluetooth Classic RFCOMM channel `8` — reduced diagnostics for the Quest native companion
@@ -103,6 +114,16 @@ The installer enables BlueZ's deprecated compatibility interface only to registe
 Loopback clients do not need the token. LAN clients use the token generated in `/etc/mxg-diagnostics-kiosk.env` during installation.
 
 Radio and power actions are more restrictive than the read-only diagnostics API. They require a per-process nonce available only to a loopback browser and are forwarded over a group-restricted Unix socket to a separate root-owned allow-list service. The FastAPI diagnostics bridge remains unprivileged and cannot execute arbitrary commands. Wi-Fi passwords are never added to the commissioning log and the form clears them after each connection attempt.
+
+Equipment Pack synchronization is disabled by default. Set
+`MXG_EDGE_PACKS_ENABLED=1` and `MXG_EDGE_CORE_URL=https://...` only after the
+cloud migration and authenticated API smoke test pass. Enrollment stores the
+node UUID and device credential in the systemd-managed state directory with
+mode `0600`. The Pi checks durable desired state at startup and every 60
+seconds; packages download to a resumable `.part` file and are hash-verified
+before safe extraction into the inactive local A/B slot. Until the physical
+USB gadget capability probe and activation helper pass, the agent stops at
+`staged` and never claims that the package is active.
 
 The kiosk Overview includes explicit readiness cards for the FLIR ONE Pro headset lane and the Honeywell Xenon XP 1950g, Zebra DS3608, and Socket Mobile S740 Pi scanner lanes. Its Live log view retains a bounded device-local commissioning trace, filters warnings and errors, and exports JSONL for first-run diagnosis. Scanner log entries record only profile, transport, and sequence; raw scanned values are not persisted in the log.
 

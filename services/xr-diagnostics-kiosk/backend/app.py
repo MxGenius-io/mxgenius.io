@@ -11,6 +11,7 @@ import secrets
 import socket
 import struct
 import time
+from collections import deque
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from bluetooth_stream import BluetoothDiagnosticsServer
 from control import ControlUnavailable, request_control
 from diagnostics import DiagnosticsCollector
 from edge_schema import StateDeltaEncoder
+from equipment_pack_agent import AgentConfig, EquipmentPackAgent, EquipmentPackError
 from integration_fixtures import simulated_integrations
 from scanner import normalize_scan_observation
 
@@ -39,6 +41,8 @@ BRIDGE_TOKEN = os.getenv("MXG_BRIDGE_TOKEN", "").strip()
 SESSION_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 CONTROL_NONCE = secrets.token_urlsafe(32)
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+PERFORMANCE_HISTORY_LIMIT = 720
+PERFORMANCE_HISTORY_INTERVAL_SECONDS = 5.0
 
 
 class Bridge:
@@ -57,6 +61,8 @@ class Bridge:
         self.node_count = 0
         self.nodes: dict[str, dict[str, Any]] = {}
         self.session_id: str | None = None
+        self.performance_history: deque[dict[str, float | int | None]] = deque(maxlen=PERFORMANCE_HISTORY_LIMIT)
+        self.performance_history_interval_seconds = PERFORMANCE_HISTORY_INTERVAL_SECONDS
         self._task: asyncio.Task[None] | None = None
         self.bluetooth = BluetoothDiagnosticsServer(
             provider=self.bluetooth_payload,
@@ -79,11 +85,42 @@ class Bridge:
         while True:
             self.latest = await self.collector.collect()
             self.latest["bridge"] = self.summary()
+            self.record_performance(self.latest)
             live_message = self.edge_encoder.update(self.latest, self.session_id)
             self.edge_state = self.edge_encoder.state or {}
             await self._send_json(self.detailed_consumers, self.latest)
             await self.broadcast_json(live_message)
             await asyncio.sleep(1)
+
+    def record_performance(self, snapshot: dict[str, Any]) -> None:
+        uptime = snapshot.get("host", {}).get("uptimeSeconds")
+        if not isinstance(uptime, (int, float)):
+            return
+        if self.performance_history:
+            elapsed = float(uptime) - float(self.performance_history[-1]["uptimeSeconds"])
+            if elapsed < self.performance_history_interval_seconds:
+                return
+        if len(self.performance_history) == self.performance_history.maxlen:
+            self.performance_history = deque(
+                list(self.performance_history)[::2],
+                maxlen=PERFORMANCE_HISTORY_LIMIT,
+            )
+            self.performance_history_interval_seconds *= 2
+        self.performance_history.append({
+            "timestampMs": int(snapshot.get("timestampMs") or time.time() * 1000),
+            "uptimeSeconds": round(float(uptime), 1),
+            "cpuPercent": snapshot.get("cpu", {}).get("usedPercent"),
+            "memoryPercent": snapshot.get("memory", {}).get("usedPercent"),
+            "temperatureC": snapshot.get("cpu", {}).get("temperatureC"),
+        })
+
+    def performance_snapshot(self) -> dict[str, Any]:
+        return {
+            "type": "diagnostics.performance-history",
+            "version": 1,
+            "sampleIntervalSeconds": self.performance_history_interval_seconds,
+            "samples": list(self.performance_history),
+        }
 
     def bluetooth_payload(self) -> dict[str, Any]:
         return self.edge_state or self.compact_summary()
@@ -171,6 +208,21 @@ class Bridge:
 
 
 bridge = Bridge()
+try:
+    equipment_pack_config = AgentConfig.from_environment()
+    equipment_pack_config_error: EquipmentPackError | None = None
+except EquipmentPackError as error:
+    # A bad optional edge setting must not take down the diagnostics kiosk.
+    equipment_pack_config = AgentConfig(
+        enabled=True,
+        core_url="",
+        state_dir=Path(os.getenv("MXG_EDGE_STATE_DIR", "/var/lib/mxg-diagnostics-kiosk")),
+    )
+    equipment_pack_config_error = error
+equipment_pack_agent = EquipmentPackAgent(equipment_pack_config)
+if equipment_pack_config_error is not None:
+    equipment_pack_agent.phase = "failed"
+    equipment_pack_agent.detail = equipment_pack_config_error.detail
 
 
 def _is_authorized(websocket: WebSocket, token: str | None) -> bool:
@@ -223,7 +275,10 @@ def _validate_frame(frame: bytes) -> dict[str, int]:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await bridge.start()
+    if equipment_pack_config_error is None:
+        await equipment_pack_agent.start()
     yield
+    await equipment_pack_agent.stop()
     await bridge.stop()
 
 
@@ -249,6 +304,38 @@ async def control_session(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=403, detail="appliance controls are local-only")
     status = await _control("status")
     return {"token": CONTROL_NONCE, "scope": "local-appliance", "version": 1, "capabilities": status.get("capabilities", [])}
+
+
+@app.get("/api/v1/equipment-pack/status")
+async def equipment_pack_status(request: Request) -> dict[str, Any]:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="Equipment Pack status is local-only")
+    return equipment_pack_agent.public_status()
+
+
+@app.post("/api/v1/equipment-pack/enroll")
+async def equipment_pack_enroll(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    payload = await request.json()
+    try:
+        return await equipment_pack_agent.enroll(
+            code=str(payload.get("code") or ""),
+            hardware_id=payload.get("hardwareId"),
+        )
+    except EquipmentPackError as error:
+        status = 503 if error.code == "AGENT_DISABLED" else 400
+        raise HTTPException(status_code=status, detail=error.detail) from error
+
+
+@app.post("/api/v1/equipment-pack/reconcile")
+async def equipment_pack_reconcile(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    try:
+        return await equipment_pack_agent.reconcile_once()
+    except EquipmentPackError as error:
+        status = 503 if error.code == "AGENT_DISABLED" else 409
+        raise HTTPException(status_code=status, detail=error.detail) from error
 
 
 @app.post("/api/v1/control/wifi/scan")
@@ -290,6 +377,12 @@ async def control_bluetooth_action(request: Request) -> dict[str, Any]:
 async def control_poweroff(request: Request) -> dict[str, Any]:
     _require_local_control(request)
     return await _control("poweroff")
+
+
+@app.post("/api/v1/control/usb-gadget/status")
+async def control_usb_gadget_status(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    return await _control("usb.gadget.status")
 
 
 @app.get("/api/v1/diagnostics")
@@ -352,6 +445,8 @@ async def xr_socket(websocket: WebSocket, token: str | None = Query(default=None
     })
     if bridge.latest:
         await websocket.send_json(bridge.latest if is_local else (bridge.edge_state or bridge.compact_summary()))
+    if is_local:
+        await websocket.send_json(bridge.performance_snapshot())
     node_id: str | None = None
     try:
         while True:

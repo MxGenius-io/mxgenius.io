@@ -3154,6 +3154,7 @@ function initSettings() {
 
   if (signOutBtn) {
     signOutBtn.addEventListener('click', () => {
+      MXApplicationClient.capabilities.disconnect(window.MXGENIUS_CONFIG?.getSession?.() || {});
       if (window.MXGENIUS_AUTH?.signOut) {
         window.MXGENIUS_AUTH.signOut();
       } else {
@@ -4084,7 +4085,8 @@ async function showAircraftDetail(id) {
 
 
         <div class="detail-section full-width" id="acDetailADs">
-          <div class="detail-section-title">FAA Airworthiness Directives <span id="acDetailADStatus" class="source-readiness" data-state="checking">Checking</span></div>
+          <div class="detail-section-title">FAA AD candidates <span id="acDetailADStatus" class="source-readiness" data-state="checking">Checking</span></div>
+          <div class="compliance-qualifier">Candidate matches from FAA DRS. Qualified review is required to determine serial/effectivity applicability and compliance status.</div>
           <div id="acDetailADList" style="font-size:0.82rem;color:var(--text-secondary);">Retrieving candidate ADs through the compliance capability...</div>
         </div>
       </div>
@@ -4119,6 +4121,36 @@ async function showAircraftDetail(id) {
         if (!adStatus) return;
         adStatus.dataset.state = state;
         adStatus.textContent = label;
+      };
+      const aircraftLabel = [ident.make, ident.model].filter(Boolean).join(' ') || ident.regnbr || 'this aircraft';
+      const formatDate = (value, includeTime = false) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return new Intl.DateTimeFormat(undefined, includeTime
+          ? { dateStyle: 'medium', timeStyle: 'short' }
+          : { dateStyle: 'medium' }).format(date);
+      };
+      const faaSourceUrl = (value) => {
+        try {
+          const url = new URL(String(value || ''));
+          return url.protocol === 'https:' && (url.hostname === 'faa.gov' || url.hostname.endsWith('.faa.gov'))
+            ? url.href
+            : '';
+        } catch (_) {
+          return '';
+        }
+      };
+      const renderSummary = (envelope, count) => {
+        const evidence = Array.isArray(envelope?.evidence) ? envelope.evidence : [];
+        const retrievedAt = evidence.find((item) => item?.retrieved_at)?.retrieved_at || envelope?.completed_at;
+        const checked = formatDate(retrievedAt, true);
+        const summary = document.createElement('div');
+        summary.className = 'compliance-summary';
+        const countLabel = `${count} candidate${count === 1 ? '' : 's'} for ${aircraftLabel}`;
+        const shownLabel = count > 15 ? `Showing 15 of ${count}` : '';
+        summary.textContent = [countLabel, shownLabel, checked ? `Checked ${checked}` : ''].filter(Boolean).join(' · ');
+        return summary;
       };
       // Refresh token before compliance call
       if (window.MXGENIUS_AUTH?.getToken) {
@@ -4158,23 +4190,45 @@ async function showAircraftDetail(id) {
         if (!ads.length) {
           const partial = ['partial', 'not_configured'].includes(String(envelope.status || '').toLowerCase());
           setAdState(partial ? 'limited' : 'live', partial ? 'Limited' : 'Live');
-          adContainer.textContent = envelope.warnings?.[0]?.message
+          const message = document.createElement('div');
+          message.className = 'compliance-empty';
+          message.textContent = envelope.warnings?.[0]?.message
             || 'FAA source checked successfully. No candidate ADs matched this aircraft profile.';
+          adContainer.replaceChildren(renderSummary(envelope, 0), message);
           return;
         }
-        setAdState('live', 'Live');
-        adContainer.replaceChildren(...ads.slice(0, 15).map((ad) => {
+        const partial = ['partial', 'not_configured'].includes(String(envelope.status || '').toLowerCase());
+        setAdState(partial ? 'limited' : 'live', partial ? 'Limited' : 'Live');
+        const rows = ads.slice(0, 15).map((ad) => {
           const row = document.createElement('div');
           row.className = 'compliance-result';
           const heading = document.createElement('strong');
           heading.textContent = ad.ad_number || 'AD';
+          const body = document.createElement('span');
+          body.className = 'compliance-result__body';
           const title = document.createElement('span');
+          title.className = 'compliance-result__title';
           title.textContent = ad.title || 'Untitled directive';
-          const state = document.createElement('small');
-          state.textContent = `Applicability: ${String(ad.applicability || 'unknown').replaceAll('_', ' ')}`;
-          row.append(heading, title, state);
+          const details = document.createElement('small');
+          const effective = formatDate(ad.effective_at);
+          details.textContent = [
+            `Review state: ${String(ad.applicability || 'candidate').replaceAll('_', ' ')}`,
+            effective ? `Effective ${effective}` : ''
+          ].filter(Boolean).join(' · ');
+          body.append(title, details);
+          const sourceUrl = faaSourceUrl(ad.source_reference);
+          const source = sourceUrl ? document.createElement('a') : document.createElement('span');
+          source.className = 'compliance-result__source';
+          source.textContent = sourceUrl ? 'Open in FAA DRS' : 'FAA source unavailable';
+          if (sourceUrl) {
+            source.href = sourceUrl;
+            source.target = '_blank';
+            source.rel = 'noopener noreferrer';
+          }
+          row.append(heading, body, source);
           return row;
-        }));
+        });
+        adContainer.replaceChildren(renderSummary(envelope, ads.length), ...rows);
       } catch (error) {
         setAdState('degraded', 'Degraded');
         const friendly = error.code === 'TENANT_MISMATCH'

@@ -244,9 +244,48 @@ summary:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 
+.compliance-qualifier {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.compliance-summary {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.compliance-empty {
+  padding: 9px 0;
+}
+
+.compliance-result__body {
+  display: grid;
+  gap: 4px;
+}
+
+.compliance-result__title {
+  color: var(--text-secondary);
+}
+
+.compliance-result__source {
+  color: var(--accent-cyan, #00d4ff);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
 .compliance-result small {
   color: var(--text-muted);
   text-transform: capitalize;
+}
+
+@media (max-width: 720px) {
+  .compliance-result {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
 }
 
 .chat-panel {

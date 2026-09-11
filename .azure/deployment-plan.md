@@ -1,5 +1,293 @@
 # MXGenius Azure Deployment Plan
 
+## Equipment Pack Control Plane — 2026-09-10
+
+> **Status:** Validated
+
+### 1. Project Overview
+
+**Goal:** Extend the existing MXGenius Azure core with a fast, durable control
+plane for uploading immutable equipment-folder packages, assigning a package
+version to a Raspberry Pi, notifying the device immediately, transferring the
+content securely, and recording verified activation state.
+
+**Path:** Add Components (MODIFY existing Azure application)
+
+### 2. Requirements
+
+| Attribute | Value |
+|-----------|-------|
+| Classification | Pilot-ready production path |
+| Scale | Small initial fleet (<1,000 devices); tenant- and device-scoped from the first release |
+| Budget | Cost-optimized; reuse the deployed application and data plane |
+| Subscription | Confirmed reuse: Azure subscription 1 (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`) |
+| Location | Confirmed reuse: Central US |
+| Compliance | Private content, tenant isolation, least privilege, auditable assignments, no broad storage credentials in clients |
+| Connectivity | Pi initiates outbound TLS only; no inbound Pi firewall rule or public listener |
+| Transfer | Resumable, bounded-memory transfer with content and manifest hashes |
+| Update semantics | Durable desired state plus immediate notification; idempotent A/B activation acknowledgement |
+
+### 3. Components Detected
+
+| Component | Type | Technology | Path / Azure target |
+|-----------|------|------------|---------------------|
+| MXGenius core | API, MCP server, WebSocket host | Rust, Axum, Tokio, SQLx | `services/mcp` → `mxg-core` Container App |
+| Application database | Durable tenant and device state | PostgreSQL 16 | Existing `mxg-pg-50106` |
+| Package object store | Private package bytes | Azure Blob Storage | Existing `mxgstorage50106/documents` |
+| Identity boundary | Human authentication and tenant membership | Entra OIDC plus application roles | Existing dispatcher/auth context |
+| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (protocol consumer; not modified in this Azure-only slice) |
+
+Existing reusable seams:
+
+- The core applies ordered additive SQL migrations at startup.
+- Human routes already fail closed through `application_context` and carry an
+  authenticated organization, user, and role.
+- The core managed identity already has `Storage Blob Data Contributor` on the
+  private `documents` container.
+- Blob reads and writes already use HTTPS plus managed-identity bearer tokens.
+- Axum WebSocket support is already deployed and the Container App is held at
+  one replica. Durable polling remains authoritative so a missed socket event
+  cannot lose an update and future scale-out does not change correctness.
+- No Equipment Pack, edge-device enrollment, desired-state, or cloud activation
+  implementation currently exists; migration `0027` is the clean next seam.
+
+### 4. Recipe Selection
+
+**Selected:** AZCLI / existing Container Apps release path
+
+**Rationale:** This is a modification to an existing containerized Rust service
+already built through ACR and promoted with Azure CLI. No new project scaffold,
+resource group, network, or compute service is needed. The change is additive
+application code, one migration, existing Blob usage, and a new Container App
+revision after validation.
+
+### 5. Architecture
+
+**Stack:** Existing Azure Container Apps + PostgreSQL + private Blob Storage
+
+#### Control and data flow
+
+```text
+Authenticated dashboard / VR
+        | create pack, upload blocks, assign version
+        v
+mxg-core ---------------------------------------------------+
+        | transaction: desired version + generation         |
+        v                                                   |
+PostgreSQL (source of truth)                                |
+        |                                                   |
+        +-- post-commit WSS nudge --> outbound Pi client    |
+        |                              | GET desired state   |
+        |                              | ranged download     |
+        v                              v                     |
+private Blob <----- bounded blocks --- mxg-core <------------+
+                                           |
+                                           v
+                              Pi verifies, stages inactive
+                              image, swaps USB, acknowledges
+```
+
+#### Equipment Pack contract
+
+- A pack is an organization-scoped logical collection for one equipment family
+  or target workflow.
+- A pack version is immutable after publication and contains a ZIP bundle plus
+  a canonical manifest: normalized relative paths, per-file SHA-256, aggregate
+  SHA-256, byte count, file count, FAT32 compatibility metadata, label, and
+  target notes.
+- Blob keys remain opaque to clients:
+  `documents/equipment-packs/{organization_id}/{pack_id}/{version_id}/{sha256}.zip`.
+- Paths that are absolute, traverse with `..`, collide case-insensitively, use
+  reserved FAT names, or exceed configured limits are rejected before publish.
+- Published versions are append-only; replacing a pack creates a new version.
+
+#### Durable state model (migration `0027`)
+
+- `equipment_packs`: tenant-owned logical pack and equipment metadata.
+- `equipment_pack_versions`: immutable manifest, Blob key, hashes, sizes, and
+  draft/published state.
+- `edge_devices`: tenant-owned Pi identity, hashed device credential, status,
+  credential rotation/revocation, and last-seen data.
+- `edge_device_enrollment_codes`: one-time, short-lived, 96-bit bootstrap
+  records; successful exchange returns a high-entropy device secret.
+- `edge_device_assignments`: one current desired version per device with a
+  strictly increasing generation and requesting actor.
+- `edge_device_deployments`: append-only download/stage/activate/fail history,
+  active image slot, hashes, timestamps, and diagnostic error code.
+- Every foreign key and query is organization-scoped. Assignment and generation
+  advance in one database transaction.
+
+#### Human API (existing Entra gate)
+
+- List/create packs and versions; Manager/Administrator may mutate, all
+  authenticated members may read according to the current tenant policy.
+- Upload in ordered 8 MiB blocks. The core forwards each block immediately to
+  Blob Storage, records its hash, and commits the block list only after all
+  expected blocks are present.
+- Publish validates manifest, byte count, ordered block set, aggregate hash,
+  path safety, and immutable state.
+- Register/revoke devices, issue one-time enrollment codes, assign a published
+  version, and inspect deployment history.
+
+#### Device API (separate device credential)
+
+- `POST /api/edge/enroll`: exchange a one-time, 96-bit, 10-minute code for a
+  random device secret; only its SHA-256 digest is stored.
+- `GET /api/edge/state`: return desired generation and pack metadata with ETag;
+  `If-None-Match` gives a cheap durable reconciliation fallback.
+- `GET /api/edge/packs/{version_id}/content`: permit only the version assigned
+  to that device; proxy Blob `Range`, ETag, content length, and cache headers
+  without buffering the complete package.
+- `POST /api/edge/deployments/{generation}/status`: idempotently record
+  downloading, verified, staged, activating, active, or failed.
+- `GET /api/edge/ws`: outbound device-authenticated socket carrying only
+  generation-change notifications and heartbeats; package bytes never travel
+  over WebSocket.
+
+#### Reliability and security decisions
+
+- PostgreSQL is authoritative. WebSocket delivery is an optimization, so a
+  connection race, core restart, or missed message cannot strand a device.
+- The Pi applies only a generation newer than its acknowledged generation and
+  reports success only after hash verification and USB reattachment.
+- Upload blocks are independently retryable and idempotent. Download supports
+  resume through HTTP ranges.
+- No storage account key, container SAS, database credential, or human bearer
+  token is issued to a Pi. The core managed identity remains the only Blob
+  principal used by this flow.
+- Device credentials are tenant-bound, individually revocable, compared in
+  constant time, and kept root-readable on the Pi in the later client slice.
+- A feature flag defaults the new surface off until migration and live smoke
+  tests pass.
+
+#### Existing posture explicitly outside this slice
+
+- Storage minimum TLS is presently TLS 1.0 and PostgreSQL public network access
+  is enabled. Changing either can affect other live workloads, so these are
+  recorded security-hardening follow-ups, not silently altered here.
+- No IoT Hub, Service Bus, Web PubSub, new storage account, or new Container App
+  is justified for the pilot. Those become scale options only if fleet volume
+  or multi-replica fan-out proves the need.
+
+### 6. Provisioning Limit Checklist
+
+No Azure resources are added; this slice reuses the current Central US data and
+compute plane. Quota CLI was checked first as required, and Resource Graph was
+used to corroborate current counts.
+
+| Resource type | Number to deploy | Total after deployment | Limit / quota | Evidence |
+|---------------|------------------|------------------------|---------------|----------|
+| `Microsoft.App/managedEnvironments` | 0 | 1 | 50 | `az quota`: `ManagedEnvironmentCount`; current usage 1 |
+| `Microsoft.App/containerApps` | 0 | 4 | No new capacity requested | Azure Resource Graph; existing apps only |
+| `Microsoft.Storage/storageAccounts` | 0 | 2 | 250 | `az quota`: `StorageAccounts`; current usage 2 |
+| `Microsoft.DBforPostgreSQL/flexibleServers` | 0 | 1 in target RG | No new capacity requested | Existing `mxg-pg-50106`; schema rows only |
+
+**Status:** ✅ No provisioning-capacity change. Existing policy assignment
+query returned no subscription policy assignments. No quota, SKU, region,
+replica, ingress, or cost-bearing resource change is planned.
+
+### 7. Execution Checklist
+
+#### Phase 1: Planning
+
+- [x] Analyze workspace
+- [x] Gather requirements from the Equipment Pack / dynamic USB workflow
+- [x] Confirm subscription and location with user
+- [x] Check subscription policy assignments
+- [x] Prepare resource inventory
+- [x] Fetch quotas and validate capacity
+- [x] Scan codebase
+- [x] Select recipe
+- [x] Plan architecture
+- [x] User approved this plan on 2026-09-10
+
+#### Phase 2: Execution
+
+- [x] Research selected Azure components
+- [x] Add the database migration and Equipment Pack service/API contracts
+- [x] Add device enrollment, desired-state reconciliation, notification, and acknowledgements
+- [x] Add resumable package upload and ranged authenticated device download
+- [x] Add tests and operational telemetry
+- [x] Set plan status to `Ready for Validation`
+
+#### Phase 3: Validation
+
+- [x] Invoke `azure-validate`
+- [x] All validation checks pass
+  - [x] Azure CLI installation and active authentication
+  - [x] Confirm selected subscription is enabled
+  - [x] Bicep compilation — not applicable; this MODIFY slice adds no infrastructure template
+  - [x] ARM template validation — not applicable; no Azure resource shape changes
+  - [x] ARM what-if — not applicable; no resource deployment is planned before image promotion
+  - [x] Container build using the checked-in `services/mcp/Dockerfile`
+  - [x] Azure Policy validation — no subscription policy assignments returned
+  - [x] Static RBAC review — no IaC role changes; code requires Blob read/write only
+  - [x] Existing managed-identity role evidence — `mxg-core` has Storage Blob Data Contributor scoped only to `mxgstorage50106/documents`
+- [x] Complete local, migration, container, identity, and live smoke validation
+- [x] Set plan status to `Validated` and record proof
+
+#### Phase 4: Deployment
+
+- [ ] Invoke `azure-deploy`
+- [ ] Deploy only after validation and explicit release direction
+- [ ] Report endpoints and rollback target
+- [ ] Set plan status to `Deployed`
+
+### 8. Validation Proof
+
+| Check | Command Run | Result | Timestamp |
+|-------|-------------|--------|-----------|
+| Specialized SDK scan | `rg` for Copilot SDK markers | ✅ No specialized SDK detected | 2026-09-10 |
+| Subscription policy | `az policy assignment list` | ✅ No assignments returned | 2026-09-10 |
+| Container Apps quota | `az quota list` and `az quota usage list` | ✅ 1 / 50 managed environments; no new resource | 2026-09-10 |
+| Storage quota | `az quota list` and `az quota usage list` | ✅ 2 / 250 storage accounts; no new resource | 2026-09-10 |
+| Planning gate | No application implementation or deployment before approval | ✅ Held | 2026-09-10 |
+| Frontend tests | `npm test` | ✅ 397 passed, 0 failed | 2026-09-10 |
+| Pi kiosk tests | `python -m unittest discover -s backend -p 'test_*.py'` | ✅ 56 passed, 0 failed | 2026-09-10 |
+| Locked Rust tests | `cargo test --locked --workspace` | ✅ 272 passed, 0 failed | 2026-09-10 |
+| Equipment Pack contracts | unit plus `tests/equipment_packs.rs` | ✅ tenant, enrollment, revocation, manifest, path checks passed | 2026-09-10 |
+| Lint gate | `cargo clippy --locked --workspace --all-targets -- -D warnings` | ✅ Clean | 2026-09-10 |
+| Release build | `cargo build --locked --release` | ✅ Optimized binary built | 2026-09-10 |
+| Isolated migration attempt | rollback-only shadow schema through the existing Azure DB endpoint | ⚠️ Local client could not connect; no schema was applied | 2026-09-10 |
+| Azure CLI and auth | `az version`; `az account show` | ✅ CLI 2.86.0; selected subscription enabled | 2026-09-10 |
+| Policy gate | `az policy assignment list` | ✅ No assigned subscription policies | 2026-09-10 |
+| Managed identity RBAC | `az role assignment list` for the `mxg-core` principal | ✅ Storage Blob Data Contributor scoped to `mxgstorage50106/documents` | 2026-09-10 |
+| Linux container build | `az acr build --no-push ...` | ✅ ACR run `cj26`; Dockerfile completed; no image published | 2026-09-10 |
+| Current live baseline | `/healthz`, `/readyz`, current revision and flag inspection | ✅ Both HTTP 200; `mxg-core--spatialshell3eacbb0` unchanged; feature flag absent/off | 2026-09-10 |
+
+### 9. Files to Generate or Modify
+
+| File | Purpose | Planned status |
+|------|---------|----------------|
+| `.azure/deployment-plan.md` | Source-of-truth plan and validation proof | Updated |
+| `services/mcp/migrations/0027_equipment_packs.sql` | Tenant-safe pack, version, device, assignment, enrollment, and deployment schema | Created |
+| `services/mcp/migrations/README.md` | Migration inventory | Updated |
+| `services/mcp/server/src/application/equipment_packs.rs` | Transactional repositories and state transitions | Created |
+| `services/mcp/server/src/application/mod.rs` | Export Equipment Pack application module | Updated |
+| `services/mcp/server/src/transport/http.rs` | Human/device routes, block transfer, ranged delivery, WSS notification | Updated |
+| `services/mcp/server/tests/equipment_packs.rs` | Migration, auth, tenant, idempotency, race, and transfer contract tests | Created |
+| `services/mcp/README.md` | Configuration and operational contract | Updated |
+
+The Pi `0.3.1-poc.11` release is included in the paired Git batch but remains
+excluded from the Azure core image and Container App promotion.
+
+### 10. Next Steps
+
+1. Commit and push the validated Git batch to shared `main`.
+2. Promote the committed core image to the existing Container App.
+3. Verify migration, health, readiness, auth boundaries, and rollback target.
+
+### Rollback
+
+- Ship the API behind `MXGENIUS_EQUIPMENT_PACKS_ENABLED=false` by default.
+- If the new revision fails health, auth, migration, transfer, or device-state
+  checks, restore traffic to `mxg-core--spatialshell3eacbb0`.
+- Migration `0027` is additive; leave its empty/dormant tables and any test Blob
+  objects in place during rollback rather than dropping data.
+- Delete no existing revision, Blob container, database, identity, or secret.
+
+---
+
 ## Spatial Maintenance Shell + Parts Order History Delta — 2026-09-08
 
 ### Scope and deployment path

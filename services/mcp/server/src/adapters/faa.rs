@@ -493,6 +493,50 @@ fn required_env(name: &str) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn adapter_with_response(
+        status: StatusCode,
+        body: &'static str,
+        delay: Duration,
+        timeout: Duration,
+        max_pages: usize,
+    ) -> FaaDrsHttpAdapter {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test DRS server");
+        let address = listener.local_addr().expect("test DRS address");
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accept DRS request");
+            let mut request = [0_u8; 8_192];
+            let _ = stream.read(&mut request).await;
+            tokio::time::sleep(delay).await;
+            let reason = status.canonical_reason().unwrap_or("Test");
+            let response = format!(
+                "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                status.as_u16(),
+                reason,
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(response.as_bytes()).await;
+        });
+        FaaDrsHttpAdapter {
+            client: Client::builder()
+                .connect_timeout(Duration::from_secs(1))
+                .timeout(timeout)
+                .build()
+                .expect("test DRS client"),
+            base_url: format!("http://{address}/api/drs/")
+                .parse()
+                .expect("test DRS URL"),
+            api_key_header: "x-api-key".into(),
+            api_key: "test-only".into(),
+            ad_document_types: vec!["ADFRAWD".into()],
+            saib_document_type: "SAIB".into(),
+            max_pages,
+        }
+    }
 
     #[test]
     fn rejects_non_faa_source_links() {
@@ -554,5 +598,70 @@ mod tests {
             payload["documentFilters"]["drs:adfreadModel"],
             json!(["Model 42"])
         );
+    }
+
+    #[tokio::test]
+    async fn classifies_drs_authentication_and_rate_limit_failures() {
+        for (status, expected) in [
+            (StatusCode::UNAUTHORIZED, "not licensed"),
+            (StatusCode::FORBIDDEN, "not licensed"),
+            (StatusCode::TOO_MANY_REQUESTS, "rate-limited"),
+        ] {
+            let adapter =
+                adapter_with_response(status, "{}", Duration::ZERO, Duration::from_secs(1), 1)
+                    .await;
+            let error = adapter
+                .retrieve_documents("ADFRAWD", Map::new())
+                .await
+                .expect_err("DRS failure must stay typed");
+            assert!(error.to_string().contains(expected), "{error}");
+        }
+    }
+
+    #[tokio::test]
+    async fn classifies_drs_timeout_and_malformed_json() {
+        let timeout = adapter_with_response(
+            StatusCode::OK,
+            "{}",
+            Duration::from_millis(100),
+            Duration::from_millis(10),
+            1,
+        )
+        .await
+        .retrieve_documents("ADFRAWD", Map::new())
+        .await
+        .expect_err("slow DRS response must time out");
+        assert!(matches!(timeout, AdapterError::Timeout(_)));
+
+        let malformed = adapter_with_response(
+            StatusCode::OK,
+            "not-json",
+            Duration::ZERO,
+            Duration::from_secs(1),
+            1,
+        )
+        .await
+        .retrieve_documents("ADFRAWD", Map::new())
+        .await
+        .expect_err("malformed DRS response must fail closed");
+        assert!(matches!(malformed, AdapterError::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn enforces_the_configured_drs_page_ceiling() {
+        let adapter = adapter_with_response(
+            StatusCode::OK,
+            r#"{"documents":[],"summary":{"hasMoreItems":true}}"#,
+            Duration::ZERO,
+            Duration::from_secs(1),
+            1,
+        )
+        .await;
+        let error = adapter
+            .retrieve_documents("ADFRAWD", Map::new())
+            .await
+            .expect_err("unbounded DRS pagination must fail closed");
+        assert!(matches!(error, AdapterError::Internal(_)));
+        assert!(error.to_string().contains("page safety limit"));
     }
 }

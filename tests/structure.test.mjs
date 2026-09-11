@@ -266,6 +266,21 @@ test('technical evidence stays behind case and chat boundaries instead of a dead
   assert.match(client, /mxg\.compliance\.applicable_ads/);
 });
 
+test('FAA aircraft detail remains an evidence-backed candidate review instead of a compliance claim', () => {
+  assert.match(application, /FAA AD candidates/);
+  assert.match(application, /Candidate matches from FAA DRS/);
+  assert.match(application, /Qualified review is required to determine serial\/effectivity applicability and compliance status/);
+  assert.match(application, /ad\.effective_at/);
+  assert.match(application, /ad\.source_reference/);
+  assert.match(application, /Open in FAA DRS/);
+  assert.match(application, /retrieved_at/);
+  assert.match(application, /Showing 15 of/);
+  assert.match(application, /FAA source checked successfully\. No candidate ADs matched this aircraft profile/);
+  assert.match(application, /Identity needed/);
+  assert.match(application, /setAdState\('degraded', 'Degraded'\)/);
+  assert.doesNotMatch(application, /FAA applicable directives/);
+});
+
 test('all mounted typed capabilities are surfaced through the settings operations workbench', () => {
   assert.match(dashboard, /id="settingsOperationsCard"/);
   assert.match(dashboard, /id="capabilityCatalog"/);
@@ -460,7 +475,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=55/);
+  assert.match(dashboard, /app\.js\?v=56/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -605,8 +620,8 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
   assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=2'/);
   assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=2'/);
-  assert.match(viewer, /application-client\.js\?v=41[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
-  assert.match(globeVr, /application-client\.js\?v=41[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(viewer, /application-client\.js\?v=42[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(globeVr, /application-client\.js\?v=42[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
   assert.match(globeVr, /id="sceneSoundButton"/);
   assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
   assert.match(globeVr, /function emitSceneAction\(/);
@@ -1034,7 +1049,7 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(client, /uiSounds: Object\.freeze/);
   assert.match(xrUiAudio, /id: 'SND-001'/);
   assert.match(xrUiAudio, /MXGeniusSoundStorage/);
-  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=41"></script>');
+  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=42"></script>');
   const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);

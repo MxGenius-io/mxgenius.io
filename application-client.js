@@ -11,6 +11,7 @@ const MXApplicationClient = (() => {
   const runtimeConfig = globalThis.MXGENIUS_CONFIG || {};
   const MCP_BASE = String(runtimeConfig.mcpBase || '').replace(/\/$/, '');
   const FLEET_API_BASE = String(runtimeConfig.fleetBase || '').replace(/\/$/, '');
+  const FAA_AD_CACHE_TTL_MS = 15 * 60 * 1000;
   let rpcSequence = 0;
 
   function compatibilitySession() {
@@ -781,6 +782,9 @@ const MXApplicationClient = (() => {
   }
 
   const capabilityConnections = new Map();
+  const applicableAdCache = new Map();
+  const applicableAdRequests = new Map();
+  let applicableAdOrganization = null;
 
   function capabilityConnectionKey(options = {}) {
     return [
@@ -828,6 +832,9 @@ const MXApplicationClient = (() => {
 
   function disconnectCapabilities(options = {}) {
     capabilityConnections.delete(capabilityConnectionKey(options));
+    applicableAdCache.clear();
+    applicableAdRequests.clear();
+    applicableAdOrganization = null;
   }
 
   async function listCapabilities(options = {}) {
@@ -1017,10 +1024,37 @@ const MXApplicationClient = (() => {
   }
 
   function applicableAds({ aircraftId, caseId, session = {} }) {
-    return callCapability('mxg.compliance.applicable_ads', {
-      aircraft_id: String(aircraftId),
+    const organizationId = String(session.organizationId || 'local');
+    const normalizedAircraftId = String(aircraftId);
+    if (applicableAdOrganization !== null && applicableAdOrganization !== organizationId) {
+      applicableAdCache.clear();
+      applicableAdRequests.clear();
+    }
+    applicableAdOrganization = organizationId;
+    const key = `${organizationId}|${normalizedAircraftId}`;
+    const cached = applicableAdCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.envelope);
+    if (cached) applicableAdCache.delete(key);
+    if (applicableAdRequests.has(key)) return applicableAdRequests.get(key);
+
+    const request = callCapability('mxg.compliance.applicable_ads', {
+      aircraft_id: normalizedAircraftId,
       case_id: caseId || null
-    }, { ...session, confirmationGrant: undefined });
+    }, { ...session, confirmationGrant: undefined })
+      .then((envelope) => {
+        const status = String(envelope?.status || '').toLowerCase();
+        const hasErrors = Array.isArray(envelope?.errors) && envelope.errors.length > 0;
+        if (!hasErrors && (status === 'ok' || status === 'success')) {
+          applicableAdCache.set(key, {
+            envelope,
+            expiresAt: Date.now() + FAA_AD_CACHE_TTL_MS
+          });
+        }
+        return envelope;
+      })
+      .finally(() => applicableAdRequests.delete(key));
+    applicableAdRequests.set(key, request);
+    return request;
   }
 
   function lookupAircraft({ registration, serial, sourceId, session = {} }) {

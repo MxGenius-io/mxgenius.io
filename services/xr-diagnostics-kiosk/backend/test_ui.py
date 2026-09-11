@@ -22,6 +22,19 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertGreater(logo.stat().st_size, 1000)
         self.assertIn("/assets/mxgenius-logo.png", HTML)
 
+    def test_boot_splash_matches_the_web_brand_language_without_losing_live_state(self):
+        for marker in ("boot-ambient", "boot-brand", "MXGenius<span>.</span>", "bootProgressBar"):
+            self.assertIn(marker, HTML)
+        for marker in ("--boot-progress", "boot-orbit", "boot-frame"):
+            self.assertIn(marker, (ROOT / "frontend" / "assets" / "kiosk.css").read_text(encoding="utf-8"))
+        self.assertIn("setBootStage('bootReady'", JS)
+
+    def test_temperature_gauge_and_uptime_history_are_visible(self):
+        for marker in ('id="temperatureGauge"', 'id="performanceCanvas"', 'PERFORMANCE OVER UPTIME'):
+            self.assertIn(marker, HTML)
+        for marker in ('diagnostics.performance-history', 'recordPerformance(snapshot)', 'drawPerformanceGraph'):
+            self.assertIn(marker, JS)
+
     def test_peripheral_readiness_profiles_are_visible(self):
         for profile in ("FLIR ONE Pro", "Honeywell Xenon XP 1950g", "Zebra DS3608", "Socket Mobile S740"):
             self.assertIn(profile, HTML)
@@ -55,6 +68,13 @@ class KioskUiContractTests(unittest.TestCase):
             self.assertIn(marker, HTML)
         self.assertIn("X-MXG-Control-Token", JS)
         self.assertNotIn("wifiPassword').value, error", JS)
+
+    def test_equipment_pack_status_is_compact_and_enrollment_stays_advanced(self):
+        for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', '<details class="pack-enrollment">'):
+            self.assertIn(marker, HTML)
+        for marker in ('/api/v1/equipment-pack/status', '/api/v1/equipment-pack/enroll', '/api/v1/equipment-pack/reconcile'):
+            self.assertIn(marker, JS)
+        self.assertNotIn("status.credential", JS)
 
     def test_privileged_control_plane_is_allow_listed_and_separate(self):
         self.assertIn("User=root", CONTROL_SERVICE)

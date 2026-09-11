@@ -7,10 +7,9 @@ const formatBytes = (value = 0) => {
   return `${amount.toFixed(index > 2 ? 1 : 0)} ${units[index]}`;
 };
 
-const thermalCanvas = $('thermalCanvas');
-const thermalContext = thermalCanvas.getContext('2d');
+const performanceCanvas = $('performanceCanvas');
+const performanceContext = performanceCanvas.getContext('2d');
 const holdSplash = new URLSearchParams(location.search).get('splash') === 'hold';
-let lastFrameAt = 0;
 let firstSnapshotReceived = false;
 const recentScans = [];
 const connectedNodes = new Map();
@@ -24,6 +23,9 @@ let lastThermalMilestone = 0;
 let integrationFixtures = [];
 let eventLog = [];
 let controlToken = '';
+let equipmentPackStatus = null;
+let performanceHistory = [];
+let performanceIntervalSeconds = 5;
 
 try {
   const stored = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || '[]');
@@ -104,12 +106,17 @@ function setView(view) {
     button.setAttribute('aria-selected', String(active));
   });
   if (showLogs) renderLog();
-  if (showConnections && !controlToken) initializeControls();
+  if (showConnections) {
+    loadEquipmentPackStatus();
+    loadUsbGadgetStatus();
+  }
+  if (!showLogs && !showConnections) requestAnimationFrame(drawPerformanceGraph);
 }
 
 function setBootStage(stage, title, detail) {
   const stages = ['bootSurface', 'bootBridge', 'bootDiagnostics', 'bootReady'];
   const activeIndex = stages.indexOf(stage);
+  $('bootSplash').style.setProperty('--boot-progress', String((activeIndex + 1) / stages.length));
   stages.forEach((id, index) => {
     const item = $(id);
     item.classList.toggle('complete', index < activeIndex);
@@ -124,23 +131,132 @@ function finishBoot() {
   if (!holdSplash) window.setTimeout(() => $('bootSplash').classList.add('complete'), 650);
 }
 
-function drawStandby() {
-  if (Date.now() - lastFrameAt < 2500) return;
-  const width = thermalCanvas.width;
-  const height = thermalCanvas.height;
-  const gradient = thermalContext.createRadialGradient(width * .5, height * .45, 5, width * .5, height * .5, width * .6);
-  gradient.addColorStop(0, '#123f51');
-  gradient.addColorStop(.55, '#071925');
-  gradient.addColorStop(1, '#020711');
-  thermalContext.fillStyle = gradient;
-  thermalContext.fillRect(0, 0, width, height);
-  thermalContext.strokeStyle = 'rgba(65,215,231,.12)';
-  for (let x = 0; x < width; x += 32) { thermalContext.beginPath(); thermalContext.moveTo(x, 0); thermalContext.lineTo(x, height); thermalContext.stroke(); }
-  for (let y = 0; y < height; y += 24) { thermalContext.beginPath(); thermalContext.moveTo(0, y); thermalContext.lineTo(width, y); thermalContext.stroke(); }
-  thermalContext.fillStyle = '#7fb4c3';
-  thermalContext.font = '700 14px ui-monospace, monospace';
-  thermalContext.textAlign = 'center';
-  thermalContext.fillText('THERMAL SOURCE STANDBY', width / 2, height / 2);
+function formatUptime(value) {
+  const seconds = Math.max(0, Number(value) || 0);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function normalizePerformanceSample(sample) {
+  const uptimeSeconds = Number(sample?.uptimeSeconds);
+  if (!Number.isFinite(uptimeSeconds)) return null;
+  const numberOrNull = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+  return {
+    uptimeSeconds,
+    timestampMs: numberOrNull(sample.timestampMs),
+    cpuPercent: numberOrNull(sample.cpuPercent),
+    memoryPercent: numberOrNull(sample.memoryPercent),
+    temperatureC: numberOrNull(sample.temperatureC),
+  };
+}
+
+function mergePerformanceHistory(samples) {
+  const merged = new Map(performanceHistory.map((sample) => [sample.uptimeSeconds.toFixed(1), sample]));
+  for (const raw of samples || []) {
+    const sample = normalizePerformanceSample(raw);
+    if (sample) merged.set(sample.uptimeSeconds.toFixed(1), sample);
+  }
+  performanceHistory = [...merged.values()].sort((left, right) => left.uptimeSeconds - right.uptimeSeconds);
+  while (performanceHistory.length > 720) {
+    performanceHistory = performanceHistory.filter((_, index) => index % 2 === 0 || index === performanceHistory.length - 1);
+    performanceIntervalSeconds *= 2;
+  }
+  drawPerformanceGraph();
+}
+
+function recordPerformance(snapshot) {
+  mergePerformanceHistory([{
+    timestampMs: snapshot.timestampMs,
+    uptimeSeconds: snapshot.host?.uptimeSeconds,
+    cpuPercent: snapshot.cpu?.usedPercent,
+    memoryPercent: snapshot.memory?.usedPercent,
+    temperatureC: snapshot.cpu?.temperatureC,
+  }]);
+}
+
+function drawPerformanceGraph() {
+  const bounds = performanceCanvas.getBoundingClientRect();
+  if (bounds.width < 20 || bounds.height < 20) return;
+  const ratio = Math.max(1, window.devicePixelRatio || 1);
+  const width = Math.round(bounds.width);
+  const height = Math.round(bounds.height);
+  if (performanceCanvas.width !== Math.round(width * ratio) || performanceCanvas.height !== Math.round(height * ratio)) {
+    performanceCanvas.width = Math.round(width * ratio);
+    performanceCanvas.height = Math.round(height * ratio);
+  }
+  performanceContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+  performanceContext.clearRect(0, 0, width, height);
+  const plot = { left: 44, right: width - 46, top: 18, bottom: height - 31 };
+  const plotWidth = Math.max(1, plot.right - plot.left);
+  const plotHeight = Math.max(1, plot.bottom - plot.top);
+
+  performanceContext.font = '9px ui-monospace, monospace';
+  performanceContext.lineWidth = 1;
+  performanceContext.textBaseline = 'middle';
+  for (let value = 0; value <= 100; value += 25) {
+    const y = plot.bottom - (value / 100) * plotHeight;
+    performanceContext.strokeStyle = 'rgba(105, 171, 190, .12)';
+    performanceContext.beginPath();
+    performanceContext.moveTo(plot.left, y);
+    performanceContext.lineTo(plot.right, y);
+    performanceContext.stroke();
+    performanceContext.fillStyle = '#668596';
+    performanceContext.textAlign = 'right';
+    performanceContext.fillText(`${value}%`, plot.left - 7, y);
+    const temperature = Math.round(20 + (value / 100) * 70);
+    performanceContext.textAlign = 'left';
+    performanceContext.fillText(`${temperature}°`, plot.right + 7, y);
+  }
+
+  if (!performanceHistory.length) {
+    performanceContext.fillStyle = '#668596';
+    performanceContext.textAlign = 'center';
+    performanceContext.font = '700 11px ui-monospace, monospace';
+    performanceContext.fillText('WAITING FOR PERFORMANCE SAMPLES', width / 2, height / 2);
+    return;
+  }
+
+  const firstUptime = performanceHistory[0].uptimeSeconds;
+  const lastUptime = performanceHistory[performanceHistory.length - 1].uptimeSeconds;
+  const uptimeSpan = Math.max(1, lastUptime - firstUptime);
+  const xFor = (sample) => plot.left + ((sample.uptimeSeconds - firstUptime) / uptimeSpan) * plotWidth;
+  const series = [
+    { key: 'cpuPercent', color: '#41d7e7', y: (value) => plot.bottom - Math.max(0, Math.min(100, value)) / 100 * plotHeight },
+    { key: 'memoryPercent', color: '#4ade80', y: (value) => plot.bottom - Math.max(0, Math.min(100, value)) / 100 * plotHeight },
+    { key: 'temperatureC', color: '#f5b942', y: (value) => plot.bottom - Math.max(0, Math.min(1, (value - 20) / 70)) * plotHeight },
+  ];
+  for (const line of series) {
+    performanceContext.beginPath();
+    let started = false;
+    for (const sample of performanceHistory) {
+      const value = sample[line.key];
+      if (value == null) continue;
+      const x = xFor(sample);
+      const y = line.y(value);
+      if (!started) performanceContext.moveTo(x, y);
+      else performanceContext.lineTo(x, y);
+      started = true;
+    }
+    performanceContext.strokeStyle = line.color;
+    performanceContext.lineWidth = 2;
+    performanceContext.lineJoin = 'round';
+    performanceContext.lineCap = 'round';
+    performanceContext.stroke();
+  }
+
+  performanceContext.fillStyle = '#668596';
+  performanceContext.font = '9px ui-monospace, monospace';
+  performanceContext.textBaseline = 'bottom';
+  performanceContext.textAlign = 'left';
+  performanceContext.fillText(formatUptime(firstUptime), plot.left, height - 7);
+  performanceContext.textAlign = 'right';
+  performanceContext.fillText(formatUptime(lastUptime), plot.right, height - 7);
+  $('performanceWindow').textContent = `${formatUptime(firstUptime)} → ${formatUptime(lastUptime)} device uptime · ${performanceHistory.length} samples`;
+  $('performanceResolution').textContent = `Current history resolution: ${Math.round(performanceIntervalSeconds)}s · older samples compress automatically to preserve the full window.`;
 }
 
 function rows(target, items, empty) {
@@ -280,6 +396,44 @@ async function controlRequest(path, payload = {}) {
   return result;
 }
 
+function renderEquipmentPack(status) {
+  equipmentPackStatus = status;
+  const phase = String(status.phase || (status.enabled ? 'checking' : 'disabled'));
+  $('packPhase').textContent = phase.toUpperCase();
+  $('packPhase').dataset.state = phase;
+  $('packDetail').textContent = status.detail || 'No Equipment Pack status is available.';
+  $('packNode').textContent = status.displayName || (status.enrolled ? status.deviceId : 'Not enrolled');
+  $('packAssigned').textContent = status.pendingGeneration
+    ? `Generation ${status.pendingGeneration} · slot ${status.pendingSlot || '—'}`
+    : 'No pending pack';
+  $('packActive').textContent = status.activeGeneration
+    ? `Generation ${status.activeGeneration} · slot ${status.activeSlot || '—'}`
+    : 'None';
+  $('packRetry').disabled = !status.enabled || !status.enrolled;
+  $('packEnrollForm').querySelector('button').disabled = !status.enabled;
+}
+
+async function loadEquipmentPackStatus() {
+  try {
+    const response = await fetch('/api/v1/equipment-pack/status', { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderEquipmentPack(await response.json());
+  } catch (error) {
+    renderEquipmentPack({ enabled: false, enrolled: false, phase: 'failed', detail: 'Local Equipment Pack status is unavailable.' });
+    logEvent('warning', 'equipment-pack', 'Equipment Pack status unavailable', { error: error.message });
+  }
+}
+
+async function loadUsbGadgetStatus() {
+  try {
+    const status = await controlRequest('/api/v1/control/usb-gadget/status');
+    $('packUsb').textContent = status.activationReady ? 'Ready' : status.supported ? 'Needs tools' : 'Not detected';
+    $('packUsb').title = (status.udcs || []).join(', ') || 'No USB device controller detected';
+  } catch {
+    $('packUsb').textContent = 'Unavailable';
+  }
+}
+
 function renderWifiNetworks(networks) {
   const target = $('wifiNetworks');
   target.replaceChildren();
@@ -417,7 +571,16 @@ function update(snapshot) {
   }
   const temperature = snapshot.cpu?.temperatureC;
   $('temperatureValue').textContent = temperature == null ? 'N/A' : `${temperature.toFixed(1)}°C`;
-  $('temperatureMeter').value = temperature || 20;
+  const thermalMetric = $('thermalMetric');
+  const temperatureGauge = $('temperatureGauge');
+  const temperatureState = temperature == null ? 'unknown' : temperature >= 80 ? 'critical' : temperature >= 70 ? 'warm' : temperature >= 55 ? 'nominal' : 'cool';
+  const temperatureLabel = temperature == null ? 'Sensor unavailable' : temperature >= 80 ? 'Critical · throttling risk' : temperature >= 70 ? 'Hot · watch cooling' : temperature >= 55 ? 'Normal operating range' : 'Running cool';
+  thermalMetric.dataset.state = temperatureState;
+  thermalMetric.style.setProperty('--temperature-level', `${temperature == null ? 0 : Math.max(0, Math.min(100, ((temperature - 20) / 70) * 100))}%`);
+  $('temperatureState').textContent = temperatureLabel;
+  temperatureGauge.setAttribute('aria-valuenow', temperature == null ? '' : String(temperature));
+  temperatureGauge.setAttribute('aria-valuetext', temperature == null ? temperatureLabel : `${temperature.toFixed(1)} degrees Celsius, ${temperatureLabel}`);
+  recordPerformance(snapshot);
 
   const probes = snapshot.portProbes || [];
   $('portSummary').textContent = probes.length ? `${probes.filter((item) => item.status === 'open').length}/${probes.length} OPEN` : 'NO PROBES';
@@ -463,28 +626,6 @@ function updateScan(event) {
   });
 }
 
-async function drawFrame(buffer) {
-  const view = new DataView(buffer);
-  if (buffer.byteLength < 24 || view.getUint32(0, false) !== 0x4d584753) return;
-  const format = view.getUint8(6);
-  const width = view.getUint16(8, true);
-  const height = view.getUint16(10, true);
-  const metadataLength = view.getUint32(20, true);
-  const payload = buffer.slice(24 + metadataLength);
-  if (format === 1) {
-    const bitmap = await createImageBitmap(new Blob([payload], { type: 'image/jpeg' }));
-    thermalCanvas.width = width;
-    thermalCanvas.height = height;
-    thermalContext.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close();
-  } else if (format === 2 && payload.byteLength >= width * height * 4) {
-    thermalCanvas.width = width;
-    thermalCanvas.height = height;
-    thermalContext.putImageData(new ImageData(new Uint8ClampedArray(payload, 0, width * height * 4), width, height), 0, 0);
-  }
-  lastFrameAt = Date.now();
-}
-
 function connect() {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   logEvent('info', 'bridge', 'Opening local realtime channel', { transport: scheme.toUpperCase(), endpoint: '/ws/xr' });
@@ -511,6 +652,10 @@ function connect() {
         return;
       }
       if (message.type === 'diagnostics.snapshot') update(message);
+      if (message.type === 'diagnostics.performance-history') {
+        performanceIntervalSeconds = Math.max(1, Number(message.sampleIntervalSeconds) || 5);
+        mergePerformanceHistory(message.samples);
+      }
       if (message.type === 'scan.observed') updateScan(message);
       if (message.type === 'bridge.hello') logEvent('info', 'bridge', 'Bridge handshake accepted', { version: message.version, role: message.role });
       if (message.type === 'bridge.error') logEvent('error', 'bridge', message.detail || 'Bridge rejected a request', { code: message.code || 'UNKNOWN' });
@@ -522,7 +667,7 @@ function connect() {
       }
       return;
     }
-    drawFrame(event.data).catch((error) => logEvent('error', 'thermal', 'Thermal frame rejected by renderer', { error: error.message }));
+    // Thermal frames remain available to XR clients; the local kiosk no longer renders a decorative preview.
   });
   socket.addEventListener('error', () => logEvent('error', 'bridge', 'Realtime channel reported a transport error'));
   socket.addEventListener('close', () => {
@@ -539,6 +684,40 @@ function connect() {
 document.querySelectorAll('.view-tab').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
 $('wifiScan').addEventListener('click', scanWifi);
 $('bluetoothScan').addEventListener('click', scanBluetooth);
+$('packRetry').addEventListener('click', async () => {
+  $('packRetry').disabled = true;
+  try {
+    const status = await controlRequest('/api/v1/equipment-pack/reconcile');
+    renderEquipmentPack(status);
+    logEvent('info', 'equipment-pack', 'Equipment Pack assignment checked', { phase: status.phase });
+  } catch (error) {
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'equipment-pack', 'Equipment Pack check failed', { error: error.message });
+  } finally {
+    if (equipmentPackStatus?.enabled && equipmentPackStatus?.enrolled) $('packRetry').disabled = false;
+  }
+});
+$('packEnrollForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const status = await controlRequest('/api/v1/equipment-pack/enroll', {
+      code: $('packEnrollCode').value,
+      hardwareId: $('packHardwareId').value || null,
+    });
+    $('packEnrollCode').value = '';
+    renderEquipmentPack(status);
+    setControlNotice(`${status.displayName || 'Node'} enrolled`, 'success');
+    logEvent('info', 'equipment-pack', 'Equipment Pack node enrolled', { deviceId: status.deviceId });
+  } catch (error) {
+    $('packEnrollCode').value = '';
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'equipment-pack', 'Equipment Pack enrollment failed', { error: error.message });
+  } finally {
+    button.disabled = equipmentPackStatus?.enabled === false;
+  }
+});
 $('wifiForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
@@ -601,12 +780,13 @@ $('exportLogs').addEventListener('click', () => {
 });
 window.addEventListener('error', (event) => logEvent('error', 'browser', 'Unhandled browser error', { message: event.message || 'unknown' }));
 window.addEventListener('unhandledrejection', (event) => logEvent('error', 'browser', 'Unhandled asynchronous error', { reason: String(event.reason || 'unknown') }));
+window.addEventListener('resize', drawPerformanceGraph);
 
-drawStandby();
 setView('overview');
 renderLog();
 logEvent('info', 'ui', 'Kiosk surface initialized', { mode: new URLSearchParams(location.search).has('preview') ? 'release-preview' : 'device' });
 loadIntegrationFixtures();
+loadEquipmentPackStatus();
 setBootStage('bootBridge', 'Starting diagnostics bridge', 'Opening the local realtime channel');
-setInterval(drawStandby, 1000);
+setInterval(loadEquipmentPackStatus, 15000);
 connect();

@@ -5,10 +5,14 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 
-function harness(outputs, orchestration = null) {
+function harness(outputs, orchestration = null, { now = 1_800_000_000_000 } = {}) {
   const requests = [];
+  const clock = { now };
+  class HarnessDate extends Date {
+    static now() { return clock.now; }
+  }
   const context = {
-    Date,
+    Date: HarnessDate,
     Object,
     String,
     TypeError,
@@ -121,7 +125,29 @@ function harness(outputs, orchestration = null) {
           json: async () => payload
         };
       }
-      const output = outputs[request.params?.name] || {};
+      let output = outputs[request.params?.name] || {};
+      if (typeof output === 'function') output = await output(request);
+      if (output?.__httpError) {
+        return {
+          ok: false,
+          status: output.__httpError.status || 503,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            error: {
+              code: output.__httpError.code || 'UPSTREAM_UNAVAILABLE',
+              message: output.__httpError.message || 'Upstream unavailable'
+            }
+          })
+        };
+      }
+      const result = output?.__envelope || {
+        status: 'success',
+        output,
+        errors: [],
+        warnings: [],
+        trace_id: `trace-${requests.length}`,
+        request_id: `request-${requests.length}`
+      };
       return {
         ok: true,
         status: 200,
@@ -129,21 +155,14 @@ function harness(outputs, orchestration = null) {
         json: async () => ({
           jsonrpc: '2.0',
           id: request.id,
-          result: {
-            status: 'success',
-            output,
-            errors: [],
-            warnings: [],
-            trace_id: `trace-${requests.length}`,
-            request_id: `request-${requests.length}`
-          }
+          result
         })
       };
     }
   };
   context.globalThis = context;
   vm.runInNewContext(`${source}\n;globalThis.client = MXApplicationClient;`, context);
-  return { client: context.client, requests };
+  return { client: context.client, requests, clock };
 }
 
 test('first case slice uses one authenticated backend orchestration request', async () => {
@@ -668,6 +687,76 @@ test('FAA candidate AD flow resolves a canonical aircraft before the compliance 
   assert.equal(calls[1].request.params.arguments.case_id, 'case-1');
   assert.equal(calls[1].options.headers.Authorization, 'Bearer oidc-token');
   assert.equal(calls[1].options.headers['X-MXG-Confirmation-Grant'], undefined);
+});
+
+test('FAA candidate AD flow coalesces requests and caches only successful tenant-scoped results', async () => {
+  let attempts = 0;
+  const { client, requests, clock } = harness({
+    'mxg.compliance.applicable_ads': async () => {
+      attempts += 1;
+      await Promise.resolve();
+      return { ads: [{ ad_number: `AD-${attempts}` }] };
+    }
+  });
+  const aircraftId = '11111111-1111-1111-1111-111111111111';
+  const orgOne = { accessToken: 'token-one', organizationId: 'org-1' };
+  const orgTwo = { accessToken: 'token-two', organizationId: 'org-2' };
+
+  const [first, concurrent] = await Promise.all([
+    client.compliance.applicableAds({ aircraftId, caseId: 'case-1', session: orgOne }),
+    client.compliance.applicableAds({ aircraftId, caseId: 'case-2', session: orgOne })
+  ]);
+  const cached = await client.compliance.applicableAds({ aircraftId, session: orgOne });
+
+  assert.equal(attempts, 1);
+  assert.equal(first, concurrent);
+  assert.equal(first, cached);
+
+  await client.compliance.applicableAds({ aircraftId, session: orgTwo });
+  assert.equal(attempts, 2, 'a different organization must not reuse the first tenant cache');
+
+  clock.now += (15 * 60 * 1000) + 1;
+  await client.compliance.applicableAds({ aircraftId, session: orgTwo });
+  assert.equal(attempts, 3, 'an expired result must be refreshed');
+
+  client.capabilities.disconnect(orgTwo);
+  await client.compliance.applicableAds({ aircraftId, session: orgTwo });
+  assert.equal(attempts, 4, 'disconnect/sign-out must clear FAA candidate results');
+
+  const faaCalls = requests.filter(({ request }) => (
+    request.method === 'tools/call' && request.params.name === 'mxg.compliance.applicable_ads'
+  ));
+  assert.equal(faaCalls.length, 4);
+});
+
+test('FAA candidate AD flow never caches failed or partial envelopes', async () => {
+  let attempts = 0;
+  const { client } = harness({
+    'mxg.compliance.applicable_ads': () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return { __httpError: { status: 503, message: 'FAA unavailable' } };
+      }
+      if (attempts === 2) {
+        return { __envelope: { status: 'partial', output: { ads: [] }, errors: [], warnings: [] } };
+      }
+      return { ads: [{ ad_number: 'AD-live' }] };
+    }
+  });
+  const input = {
+    aircraftId: '22222222-2222-2222-2222-222222222222',
+    session: { accessToken: 'token', organizationId: 'org-1' }
+  };
+
+  await assert.rejects(client.compliance.applicableAds(input), /FAA unavailable/);
+  const partial = await client.compliance.applicableAds(input);
+  const live = await client.compliance.applicableAds(input);
+  const cachedLive = await client.compliance.applicableAds(input);
+
+  assert.equal(partial.status, 'partial');
+  assert.equal(live.output.ads[0].ad_number, 'AD-live');
+  assert.equal(live, cachedLive);
+  assert.equal(attempts, 3);
 });
 
 test('capability calls complete one MCP initialization lifecycle per application session', async () => {

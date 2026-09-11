@@ -26,6 +26,7 @@ use serde_json::{json, Value};
 use sha2::Digest;
 use sqlx::FromRow;
 use time::OffsetDateTime;
+use tokio::sync::broadcast;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
@@ -33,6 +34,11 @@ use uuid::Uuid;
 use crate::application::cannibalizations::{
     CannibalizationQuery, CannibalizationRepository, DecideCannibalizationInput,
     ProposeCannibalizationInput,
+};
+use crate::application::equipment_packs::{
+    AssignEquipmentPackInput, CreateEquipmentPackInput, CreateEquipmentPackVersionInput,
+    DeviceIdentity, EdgeDeploymentStatusInput, EdgeEnrollmentInput, EquipmentPackError,
+    EquipmentPackRepository, RegisterEdgeDeviceInput, EQUIPMENT_PACK_BLOCK_BYTES,
 };
 use crate::application::part_imports::{ImportRequestQuery, PartImportRepository};
 use crate::application::part_procurement::{
@@ -110,8 +116,18 @@ struct AppState {
     confirmation_issuer: Option<Arc<PostgresConfirmationGrantIssuer>>,
     manual: Arc<dyn ManualCorpusAdapter>,
     parts_enabled: bool,
+    equipment_packs_enabled: bool,
+    edge_events: broadcast::Sender<EdgeAssignmentSignal>,
     spatial_scan: Arc<SpatialScanService>,
     remote_witness: Arc<RemoteWitnessService>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EdgeAssignmentSignal {
+    organization_id: Uuid,
+    device_id: Uuid,
+    generation: i64,
 }
 
 #[derive(Clone)]
@@ -180,6 +196,7 @@ pub fn router_with_health_and_manual(
     };
     let spatial_scan_service = Arc::new(SpatialScanService::from_env(realtime_client.clone()));
     let remote_witness_service = Arc::new(RemoteWitnessService::from_env());
+    let (edge_events, _) = broadcast::channel(256);
     let state = AppState {
         dispatcher,
         health,
@@ -194,6 +211,15 @@ pub fn router_with_health_and_manual(
                 )
             })
             .unwrap_or(false),
+        equipment_packs_enabled: std::env::var("MXGENIUS_EQUIPMENT_PACKS_ENABLED")
+            .map(|value| {
+                matches!(
+                    value.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes"
+                )
+            })
+            .unwrap_or(false),
+        edge_events,
         spatial_scan: spatial_scan_service,
         remote_witness: remote_witness_service,
     };
@@ -205,6 +231,54 @@ pub fn router_with_health_and_manual(
         .route("/chat", post(chat))
         .route("/api/chat/models", get(list_chat_models))
         .route("/api/content/uploads", post(upload_content))
+        .route(
+            "/api/equipment-packs",
+            get(list_equipment_packs).post(create_equipment_pack),
+        )
+        .route(
+            "/api/equipment-packs/:pack_id/versions",
+            get(list_equipment_pack_versions).post(create_equipment_pack_version),
+        )
+        .route(
+            "/api/equipment-pack-versions/:version_id/blocks/:block_index",
+            axum::routing::put(put_equipment_pack_block)
+                .layer(DefaultBodyLimit::max(EQUIPMENT_PACK_BLOCK_BYTES)),
+        )
+        .route(
+            "/api/equipment-pack-versions/:version_id/publish",
+            post(publish_equipment_pack_version),
+        )
+        .route(
+            "/api/edge/devices",
+            get(list_edge_devices).post(register_edge_device),
+        )
+        .route(
+            "/api/edge/devices/:device_id/enrollment-code",
+            post(issue_edge_enrollment_code),
+        )
+        .route(
+            "/api/edge/devices/:device_id",
+            axum::routing::delete(revoke_edge_device),
+        )
+        .route(
+            "/api/edge/devices/:device_id/deployments",
+            get(list_edge_deployments),
+        )
+        .route(
+            "/api/edge/devices/:device_id/assignment",
+            axum::routing::put(assign_equipment_pack),
+        )
+        .route("/api/edge/enroll", post(enroll_edge_device))
+        .route("/api/edge/state", get(get_edge_desired_state))
+        .route(
+            "/api/edge/packs/:version_id/content",
+            get(get_edge_pack_content),
+        )
+        .route(
+            "/api/edge/deployments/:generation/status",
+            post(record_edge_deployment_status),
+        )
+        .route("/api/edge/ws", get(edge_device_socket))
         .route("/api/ui-sounds", get(get_ui_sound_index))
         .route(
             "/api/ui-sounds/:cue_id",
@@ -785,6 +859,983 @@ async fn upload_content(
         })),
     )
         .into_response()
+}
+
+fn equipment_pack_repository(state: &AppState) -> Result<EquipmentPackRepository, Response> {
+    if !state.equipment_packs_enabled {
+        return Err(realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "EQUIPMENT_PACKS_DISABLED",
+            "equipment pack control plane is not enabled",
+        ));
+    }
+    postgres_pool(state)
+        .map(EquipmentPackRepository::new)
+        .ok_or_else(persistence_not_configured)
+}
+
+fn equipment_pack_write_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn equipment_pack_error(error: EquipmentPackError) -> Response {
+    match error {
+        EquipmentPackError::NotFound => realtime_error(
+            StatusCode::NOT_FOUND,
+            "EQUIPMENT_PACK_NOT_FOUND",
+            "equipment pack record was not found",
+        ),
+        EquipmentPackError::Conflict => realtime_error(
+            StatusCode::CONFLICT,
+            "EQUIPMENT_PACK_CONFLICT",
+            "equipment pack state changed or conflicts with this request",
+        ),
+        EquipmentPackError::Invalid(message) => {
+            realtime_error(StatusCode::BAD_REQUEST, "INVALID_EQUIPMENT_PACK", message)
+        }
+        EquipmentPackError::Unauthorized => realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "DEVICE_AUTH_REQUIRED",
+            "a valid edge-device credential is required",
+        ),
+        EquipmentPackError::EnrollmentGone => realtime_error(
+            StatusCode::GONE,
+            "ENROLLMENT_CODE_GONE",
+            "the enrollment code expired or was already used",
+        ),
+        EquipmentPackError::Persistence(error) => persistence_error("equipment_pack", error),
+    }
+}
+
+fn sha256_prefixed(bytes: &[u8]) -> String {
+    format!("sha256:{}", hex::encode(sha2::Sha256::digest(bytes)))
+}
+
+fn random_device_token(device_id: Uuid) -> String {
+    let mut entropy = [0_u8; 32];
+    entropy[..16].copy_from_slice(Uuid::new_v4().as_bytes());
+    entropy[16..].copy_from_slice(Uuid::new_v4().as_bytes());
+    format!(
+        "mxgd.{device_id}.{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(entropy)
+    )
+}
+
+fn random_enrollment_code() -> String {
+    let hex = Uuid::new_v4().simple().to_string().to_ascii_uppercase();
+    let short = &hex[..24];
+    format!(
+        "{}-{}-{}-{}",
+        &short[..6],
+        &short[6..12],
+        &short[12..18],
+        &short[18..24]
+    )
+}
+
+fn normalize_enrollment_code(value: &str) -> Option<String> {
+    let code: String = value
+        .chars()
+        .filter(|character| !character.is_ascii_whitespace() && *character != '-')
+        .map(|character| character.to_ascii_uppercase())
+        .collect();
+    (code.len() == 24 && code.bytes().all(|byte| byte.is_ascii_hexdigit())).then_some(code)
+}
+
+fn parse_device_bearer(headers: &HeaderMap) -> Option<(Uuid, String)> {
+    let token = headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")?
+        .trim();
+    let mut segments = token.split('.');
+    if segments.next()? != "mxgd" {
+        return None;
+    }
+    let device_id = Uuid::parse_str(segments.next()?).ok()?;
+    let secret = segments.next()?;
+    if segments.next().is_some() || secret.len() < 40 || secret.len() > 100 {
+        return None;
+    }
+    Some((device_id, token.to_owned()))
+}
+
+async fn edge_device_identity(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(EquipmentPackRepository, DeviceIdentity), Response> {
+    let repository = equipment_pack_repository(state)?;
+    let (device_id, token) = parse_device_bearer(headers).ok_or_else(|| {
+        realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "DEVICE_AUTH_REQUIRED",
+            "a valid edge-device bearer credential is required",
+        )
+    })?;
+    let identity = repository
+        .authenticate_device(device_id, &sha256_prefixed(token.as_bytes()))
+        .await
+        .map_err(equipment_pack_error)?;
+    Ok((repository, identity))
+}
+
+async fn list_equipment_packs(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.list_packs(&context).await {
+        Ok(packs) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "packs": packs })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn create_equipment_pack(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateEquipmentPackInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can create equipment packs",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.create_pack(&context, &input).await {
+        Ok(pack) => (StatusCode::CREATED, Json(json!({ "pack": pack }))).into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn create_equipment_pack_version(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(pack_id): Path<Uuid>,
+    Json(input): Json<CreateEquipmentPackVersionInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can version equipment packs",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.create_version(&context, pack_id, &input).await {
+        Ok(version) => {
+            let version_id = version.id;
+            let block_count = (version.byte_size + EQUIPMENT_PACK_BLOCK_BYTES as i64 - 1)
+                / EQUIPMENT_PACK_BLOCK_BYTES as i64;
+            (
+                StatusCode::CREATED,
+                [(header::CACHE_CONTROL, "no-store")],
+                Json(json!({
+                    "version": version,
+                    "upload": {
+                        "blockSize": EQUIPMENT_PACK_BLOCK_BYTES,
+                        "blockCount": block_count,
+                        "blockUrlTemplate": format!("/api/equipment-pack-versions/{version_id}/blocks/{{blockIndex}}"),
+                        "publishUrl": format!("/api/equipment-pack-versions/{version_id}/publish")
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn list_equipment_pack_versions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(pack_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.list_versions(&context, pack_id).await {
+        Ok(versions) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "packId": pack_id, "versions": versions })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+fn blob_query_url(url: &str, query: &str) -> String {
+    format!("{url}{}{query}", if url.contains('?') { '&' } else { '?' })
+}
+
+fn equipment_pack_block_id(block_index: i32) -> (String, String) {
+    let block_id = base64::engine::general_purpose::STANDARD.encode(format!("{block_index:08}"));
+    let encoded = block_id
+        .replace('+', "%2B")
+        .replace('/', "%2F")
+        .replace('=', "%3D");
+    (block_id, encoded)
+}
+
+async fn put_equipment_pack_block(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((version_id, block_index)): Path<(Uuid, i32)>,
+    body: Bytes,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can upload equipment packs",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let version = match repository
+        .version_for_upload(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    if version.status != "uploading" {
+        return equipment_pack_error(EquipmentPackError::Conflict);
+    }
+    let block_count = (version.byte_size + EQUIPMENT_PACK_BLOCK_BYTES as i64 - 1)
+        / EQUIPMENT_PACK_BLOCK_BYTES as i64;
+    if block_index < 0 || block_index as i64 >= block_count {
+        return equipment_pack_error(EquipmentPackError::Invalid(
+            "block index is outside the package",
+        ));
+    }
+    let expected_size = if block_index as i64 == block_count - 1 {
+        version.byte_size - (block_count - 1) * EQUIPMENT_PACK_BLOCK_BYTES as i64
+    } else {
+        EQUIPMENT_PACK_BLOCK_BYTES as i64
+    };
+    if body.len() as i64 != expected_size {
+        return equipment_pack_error(EquipmentPackError::Invalid(
+            "block size does not match the package",
+        ));
+    }
+    if block_index == 0 && !body.starts_with(b"PK\x03\x04") {
+        return equipment_pack_error(EquipmentPackError::Invalid(
+            "package must be a non-empty ZIP archive",
+        ));
+    }
+    let (block_id, encoded_block_id) = equipment_pack_block_id(block_index);
+    let access =
+        match workspace_read_blob_access(&state.realtime_client, &version.storage_key).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let url = blob_query_url(
+        &access.url,
+        &format!("comp=block&blockid={encoded_block_id}"),
+    );
+    let mut request = state
+        .realtime_client
+        .put(url)
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .body(body.clone());
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", status=%value.status(), %version_id, block_index, "Blob rejected equipment pack block");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_STORAGE_REJECTED",
+                "package storage rejected the upload block",
+            );
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", %error, %version_id, block_index, "equipment pack block upload failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_STORAGE_FAILED",
+                "package upload block could not be stored",
+            );
+        }
+    };
+    drop(upstream);
+    let content_hash = sha256_prefixed(&body);
+    match repository
+        .record_upload_block(
+            context.organization_id.0,
+            version_id,
+            block_index,
+            &block_id,
+            body.len() as i32,
+            &content_hash,
+        )
+        .await
+    {
+        Ok(()) => Json(json!({
+            "versionId": version_id,
+            "blockIndex": block_index,
+            "byteSize": body.len(),
+            "contentHash": content_hash,
+            "status": "stored"
+        }))
+        .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn commit_equipment_pack_blocks(
+    state: &AppState,
+    storage_key: &str,
+    blocks: &[crate::application::equipment_packs::UploadBlockRow],
+) -> Result<(), Response> {
+    let block_list = blocks
+        .iter()
+        .map(|block| format!("<Latest>{}</Latest>", block.block_id))
+        .collect::<String>();
+    let xml =
+        format!("<?xml version=\"1.0\" encoding=\"utf-8\"?><BlockList>{block_list}</BlockList>");
+    let access = workspace_read_blob_access(&state.realtime_client, storage_key).await?;
+    let url = blob_query_url(&access.url, "comp=blocklist");
+    let mut request = state
+        .realtime_client
+        .put(url)
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, "application/xml")
+        .body(xml);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    match request.send().await {
+        Ok(value) if value.status().is_success() => Ok(()),
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", status=%value.status(), "Blob rejected equipment pack block list");
+            Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_COMMIT_REJECTED",
+                "package storage rejected the completed upload",
+            ))
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", %error, "equipment pack block list commit failed");
+            Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_COMMIT_FAILED",
+                "package upload could not be completed",
+            ))
+        }
+    }
+}
+
+async fn equipment_pack_blob_digest(
+    state: &AppState,
+    storage_key: &str,
+    maximum_bytes: i64,
+) -> Result<(String, i64), Response> {
+    let access = workspace_read_blob_access(&state.realtime_client, storage_key).await?;
+    let mut request = state.realtime_client.get(access.url);
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", status=%value.status(), "Blob rejected equipment pack verification read");
+            return Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_VERIFY_REJECTED",
+                "stored package could not be verified",
+            ));
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", %error, "equipment pack verification read failed");
+            return Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_VERIFY_FAILED",
+                "stored package could not be verified",
+            ));
+        }
+    };
+    let mut digest = sha2::Sha256::new();
+    let mut byte_size = 0_i64;
+    let mut stream = upstream.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| {
+            tracing::warn!(target: "mxgenius.equipment_pack", %error, "equipment pack verification stream failed");
+            realtime_error(StatusCode::BAD_GATEWAY, "EQUIPMENT_PACK_VERIFY_FAILED", "stored package could not be verified")
+        })?;
+        byte_size += chunk.len() as i64;
+        if byte_size > maximum_bytes {
+            return Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_VERIFY_INVALID",
+                "stored package exceeded its declared size",
+            ));
+        }
+        digest.update(&chunk);
+    }
+    Ok((
+        format!("sha256:{}", hex::encode(digest.finalize())),
+        byte_size,
+    ))
+}
+
+async fn publish_equipment_pack_version(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(version_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can publish equipment packs",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let version = match repository
+        .version_for_upload(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(value) if value.status == "uploading" => value,
+        Ok(_) => return equipment_pack_error(EquipmentPackError::Conflict),
+        Err(error) => return equipment_pack_error(error),
+    };
+    let blocks = match repository
+        .upload_blocks(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    let expected_count = ((version.byte_size + EQUIPMENT_PACK_BLOCK_BYTES as i64 - 1)
+        / EQUIPMENT_PACK_BLOCK_BYTES as i64) as usize;
+    let contiguous = blocks
+        .iter()
+        .enumerate()
+        .all(|(index, block)| block.block_index == index as i32);
+    let uploaded_bytes: i64 = blocks.iter().map(|block| block.byte_size as i64).sum();
+    if blocks.len() != expected_count || !contiguous || uploaded_bytes != version.byte_size {
+        return equipment_pack_error(EquipmentPackError::Conflict);
+    }
+    if let Err(response) = commit_equipment_pack_blocks(&state, &version.storage_key, &blocks).await
+    {
+        return response;
+    }
+    let (observed_hash, observed_size) =
+        match equipment_pack_blob_digest(&state, &version.storage_key, version.byte_size).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    if observed_size != version.byte_size || observed_hash != version.content_hash {
+        repository
+            .mark_version_failed(context.organization_id.0, version_id)
+            .await;
+        return realtime_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "EQUIPMENT_PACK_HASH_MISMATCH",
+            "stored package did not match its declared size and SHA-256",
+        );
+    }
+    match repository
+        .publish_version(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(version) => (
+            StatusCode::OK,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "version": version })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn list_edge_devices(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.list_devices(&context).await {
+        Ok(devices) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "devices": devices })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn register_edge_device(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<RegisterEdgeDeviceInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EDGE_DEVICE_WRITE_DENIED",
+            "only managers and administrators can register edge devices",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.register_device(&context, &input).await {
+        Ok(device) => (StatusCode::CREATED, Json(json!({ "device": device }))).into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn issue_edge_enrollment_code(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(device_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EDGE_DEVICE_WRITE_DENIED",
+            "only managers and administrators can enroll edge devices",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let code = random_enrollment_code();
+    let normalized = normalize_enrollment_code(&code).expect("generated enrollment code is valid");
+    match repository
+        .issue_enrollment_code(&context, device_id, &sha256_prefixed(normalized.as_bytes()))
+        .await
+    {
+        Ok(expires_at) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "deviceId": device_id, "code": code, "expiresAt": expires_at })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn revoke_edge_device(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(device_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EDGE_DEVICE_WRITE_DENIED",
+            "only managers and administrators can revoke edge devices",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.revoke_device(&context, device_id).await {
+        Ok(device) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "device": device })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn list_edge_deployments(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(device_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.deployment_history(&context, device_id).await {
+        Ok(deployments) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "deviceId": device_id, "deployments": deployments })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn enroll_edge_device(
+    State(state): State<AppState>,
+    Json(input): Json<EdgeEnrollmentInput>,
+) -> Response {
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(code) = normalize_enrollment_code(&input.code) else {
+        return equipment_pack_error(EquipmentPackError::Unauthorized);
+    };
+    if input
+        .hardware_id
+        .as_ref()
+        .is_some_and(|value| value.trim().is_empty() || value.len() > 180)
+    {
+        return equipment_pack_error(EquipmentPackError::Invalid("hardware id is invalid"));
+    }
+    let code_hash = sha256_prefixed(code.as_bytes());
+    let device_id = match repository.enrollment_device_id(&code_hash).await {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    let token = random_device_token(device_id);
+    match repository
+        .enroll_device(
+            &code_hash,
+            &sha256_prefixed(token.as_bytes()),
+            input.hardware_id.as_deref(),
+        )
+        .await
+    {
+        Ok(identity) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({
+                "device": { "id": identity.device_id, "displayName": identity.display_name },
+                "credential": token,
+                "stateUrl": "/api/edge/state",
+                "socketUrl": "/api/edge/ws"
+            })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn assign_equipment_pack(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(device_id): Path<Uuid>,
+    Json(input): Json<AssignEquipmentPackInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EDGE_DEVICE_WRITE_DENIED",
+            "only managers and administrators can assign equipment packs",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .assign_version(&context, device_id, input.version_id)
+        .await
+    {
+        Ok(generation) => {
+            let _ = state.edge_events.send(EdgeAssignmentSignal {
+                organization_id: context.organization_id.0,
+                device_id,
+                generation,
+            });
+            Json(json!({ "deviceId": device_id, "versionId": input.version_id, "generation": generation, "status": "desired" })).into_response()
+        }
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn get_edge_desired_state(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let (repository, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let desired = match repository.desired_state(&identity).await {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    let generation = desired.as_ref().map_or(0, |value| value.generation);
+    let etag = format!("\"edge-{}-{generation}\"", identity.device_id);
+    if headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value == etag)
+    {
+        return Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .header(header::ETAG, etag)
+            .header(header::CACHE_CONTROL, "no-store")
+            .body(Body::empty())
+            .expect("valid desired state response");
+    }
+    (
+        [
+            (header::ETAG, etag),
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+        ],
+        Json(json!({
+            "device": { "id": identity.device_id, "displayName": identity.display_name },
+            "desired": desired
+        })),
+    )
+        .into_response()
+}
+
+async fn get_edge_pack_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(version_id): Path<Uuid>,
+) -> Response {
+    let (repository, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let desired = match repository.assigned_version(&identity, version_id).await {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    let access =
+        match workspace_read_blob_access(&state.realtime_client, &desired.storage_key).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let mut request = state.realtime_client.get(access.url);
+    if let Some(range) = headers.get(header::RANGE) {
+        request = request.header(header::RANGE, range.clone());
+    }
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let upstream = match request.send().await {
+        Ok(value) if value.status().is_success() => value,
+        Ok(value) if value.status() == reqwest::StatusCode::PARTIAL_CONTENT => value,
+        Ok(value) if value.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE => {
+            return realtime_error(
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "INVALID_PACKAGE_RANGE",
+                "requested package range is invalid",
+            )
+        }
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.edge", status=%value.status(), %version_id, device_id=%identity.device_id, "Blob rejected assigned package read");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EDGE_PACKAGE_UNAVAILABLE",
+                "assigned package could not be retrieved",
+            );
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.edge", %error, %version_id, device_id=%identity.device_id, "assigned package read failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EDGE_PACKAGE_UNAVAILABLE",
+                "assigned package could not be retrieved",
+            );
+        }
+    };
+    let status =
+        StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let upstream_headers = upstream.headers().clone();
+    let mut response = Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(header::CACHE_CONTROL, "private, no-store")
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(
+            header::ETAG,
+            format!("\"{}\"", desired.content_hash.trim_start_matches("sha256:")),
+        )
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!(
+                "attachment; filename=\"mxg-pack-v{}.zip\"",
+                desired.version_number
+            ),
+        );
+    for name in [header::CONTENT_LENGTH, header::CONTENT_RANGE] {
+        if let Some(value) = upstream_headers.get(&name) {
+            response = response.header(name, value);
+        }
+    }
+    response
+        .body(Body::from_stream(upstream.bytes_stream()))
+        .expect("valid edge package stream")
+}
+
+async fn record_edge_deployment_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(generation): Path<i64>,
+    Json(input): Json<EdgeDeploymentStatusInput>,
+) -> Response {
+    let (repository, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .record_deployment(&identity, generation, &input)
+        .await
+    {
+        Ok(()) => {
+            Json(json!({ "generation": generation, "state": input.state, "status": "recorded" }))
+                .into_response()
+        }
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn edge_device_socket(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    let (repository, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    upgrade
+        .on_upgrade(move |socket| edge_device_socket_loop(socket, state, repository, identity))
+        .into_response()
+}
+
+async fn edge_device_socket_loop(
+    socket: WebSocket,
+    state: AppState,
+    repository: EquipmentPackRepository,
+    identity: DeviceIdentity,
+) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut events = state.edge_events.subscribe();
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(25));
+    let desired = repository.desired_state(&identity).await.ok().flatten();
+    let initial = json!({
+        "type": "edge.hello",
+        "version": 1,
+        "deviceId": identity.device_id,
+        "generation": desired.as_ref().map_or(0, |value| value.generation)
+    });
+    if sender
+        .send(WebSocketMessage::Text(initial.to_string()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    loop {
+        tokio::select! {
+            event = events.recv() => match event {
+                Ok(event) if event.organization_id == identity.organization_id && event.device_id == identity.device_id => {
+                    let payload = json!({ "type": "edge.desired.changed", "version": 1, "generation": event.generation });
+                    if sender.send(WebSocketMessage::Text(payload.to_string())).await.is_err() { break; }
+                }
+                Ok(_) => {}
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    let payload = json!({ "type": "edge.reconcile.required", "version": 1 });
+                    if sender.send(WebSocketMessage::Text(payload.to_string())).await.is_err() { break; }
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            },
+            _ = heartbeat.tick() => {
+                let payload = json!({ "type": "edge.heartbeat", "version": 1, "timestamp": OffsetDateTime::now_utc() });
+                if sender.send(WebSocketMessage::Text(payload.to_string())).await.is_err() { break; }
+            }
+            incoming = receiver.next() => match incoming {
+                Some(Ok(WebSocketMessage::Ping(value))) => {
+                    if sender.send(WebSocketMessage::Pong(value)).await.is_err() { break; }
+                }
+                Some(Ok(WebSocketMessage::Text(text))) if text.len() <= 1024 => {
+                    let reconcile_requested = serde_json::from_str::<Value>(&text)
+                        .ok()
+                        .and_then(|value| value.get("type").and_then(Value::as_str).map(str::to_owned))
+                        .is_some_and(|message_type| message_type == "edge.reconcile");
+                    if reconcile_requested {
+                        let generation = repository.desired_state(&identity).await.ok().flatten().map_or(0, |value| value.generation);
+                        let payload = json!({ "type": "edge.desired.changed", "version": 1, "generation": generation });
+                        if sender.send(WebSocketMessage::Text(payload.to_string())).await.is_err() { break; }
+                    }
+                }
+                Some(Ok(WebSocketMessage::Pong(_))) => {}
+                Some(Ok(WebSocketMessage::Close(_))) | None | Some(Err(_)) => break,
+                Some(Ok(_)) => {
+                    let _ = sender.send(WebSocketMessage::Close(None)).await;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

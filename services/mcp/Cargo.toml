@@ -45,7 +45,7 @@ axum = { version = "0.7", features = ["http1", "json", "macros", "ws"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.5", features = ["trace", "cors", "limit"] }
 hyper = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
 jsonwebtoken = { version = "9", default-features = false }
 
 # Database (optional; needed for full Postgres impl)

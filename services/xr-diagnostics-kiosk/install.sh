@@ -16,7 +16,7 @@ if [ -z "$KIOSK_USER" ]; then
 fi
 
 apt-get update
-apt-get install -y python3 python3-venv python3-pip chromium openssl bluez network-manager imagemagick
+apt-get install -y python3 python3-venv python3-pip chromium openssl bluez network-manager imagemagick dosfstools
 if apt-cache show rpi-splash-screen-support >/dev/null 2>&1; then
   apt-get install -y rpi-splash-screen-support
 fi
@@ -45,6 +45,10 @@ MXG_BRIDGE_TOKEN=$TOKEN
 MXG_DIAGNOSTIC_PORTS='[{"label":"MXG API","host":"127.0.0.1","port":8844}]'
 MXG_BLUETOOTH_ENABLED=1
 MXG_BLUETOOTH_CHANNEL=8
+MXG_EDGE_PACKS_ENABLED=0
+MXG_EDGE_CORE_URL=
+MXG_EDGE_STATE_DIR=/var/lib/mxg-diagnostics-kiosk
+MXG_EDGE_POLL_SECONDS=60
 EOF
 fi
 

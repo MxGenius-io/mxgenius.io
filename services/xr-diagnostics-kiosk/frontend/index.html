@@ -4,20 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.5">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.11">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
-    <div class="boot-mark">
-      <img src="/assets/mxgenius-logo.png" alt="MxGenius">
-      <div><b>MxGenius</b><span>EDGE DIAGNOSTICS</span></div>
+    <div class="boot-ambient" aria-hidden="true"></div>
+    <div class="boot-content">
+      <div class="boot-mark">
+        <img src="/assets/mxgenius-logo.png" alt="">
+      </div>
+      <p class="boot-eyebrow">Edge diagnostics</p>
+      <p class="boot-brand">MXGenius<span>.</span></p>
+      <p class="boot-message" id="bootTitle">Initializing edge node</p>
+      <small class="boot-detail" id="bootDetail">Loading the local diagnostics surface</small>
+      <div class="boot-progress" aria-hidden="true"><span id="bootProgressBar"></span></div>
     </div>
-    <div class="boot-copy">
-      <p>STANDALONE NODE</p>
-      <h1 id="bootTitle">Initializing edge node</h1>
-      <small id="bootDetail">Loading the local diagnostics surface</small>
-    </div>
-    <ol class="boot-stages">
+    <ol class="boot-stages" aria-label="Startup stages">
       <li id="bootSurface" class="active"><i></i><span>Surface</span></li>
       <li id="bootBridge"><i></i><span>Bridge</span></li>
       <li id="bootDiagnostics"><i></i><span>Diagnostics</span></li>
@@ -50,7 +52,6 @@
         <strong id="systemPosture">INITIALIZING</strong>
         <p id="hostLine">Reading Raspberry Pi sensors…</p>
       </div>
-      <div class="orb-wrap"><canvas id="thermalCanvas" width="320" height="240" aria-label="Thermal feed preview"></canvas><div class="orb-glass"></div></div>
       <div class="hero-stats">
         <span>XR CLIENTS<b id="clientCount">0</b></span>
         <span>SOURCES<b id="sourceCount">0</b></span>
@@ -63,7 +64,23 @@
       <article class="card metric"><p>CPU</p><b id="cpuValue">—</b><meter id="cpuMeter" min="0" max="100" value="0"></meter><small id="cpuDetail">Waiting for sample</small></article>
       <article class="card metric"><p>MEMORY</p><b id="memoryValue">—</b><meter id="memoryMeter" min="0" max="100" value="0"></meter><small id="memoryDetail">Waiting for sample</small></article>
       <article class="card metric"><p>STORAGE</p><b id="storageValue">—</b><meter id="storageMeter" min="0" max="100" value="0"></meter><small id="storageDetail">Waiting for sample</small></article>
-      <article class="card metric"><p>THERMAL</p><b id="temperatureValue">—</b><meter id="temperatureMeter" min="20" max="90" value="20"></meter><small>Pi SoC temperature</small></article>
+      <article id="thermalMetric" class="card metric thermal-metric" data-state="unknown">
+        <div class="thermal-copy"><p>PI TEMPERATURE</p><b id="temperatureValue">—</b><small id="temperatureState">Waiting for sensor</small></div>
+        <div id="temperatureGauge" class="thermometer" role="meter" aria-label="Raspberry Pi temperature" aria-valuemin="20" aria-valuemax="90" aria-valuetext="Waiting for sensor">
+          <span class="thermometer-scale" aria-hidden="true"><i>90°</i><i>70°</i><i>50°</i><i>20°</i></span>
+          <span class="thermometer-tube" aria-hidden="true"><i id="temperatureFill"></i></span>
+          <span class="thermometer-bulb" aria-hidden="true"></span>
+        </div>
+      </article>
+    </section>
+
+    <section class="performance-card card" aria-labelledby="performanceTitle">
+      <div class="performance-heading">
+        <div><p class="label">PERFORMANCE OVER UPTIME</p><h2 id="performanceTitle">Pi health history</h2><p id="performanceWindow">Waiting for the first sample</p></div>
+        <div class="performance-legend" aria-label="Graph legend"><span class="cpu">CPU</span><span class="memory">Memory</span><span class="temperature">Temperature</span></div>
+      </div>
+      <div class="performance-chart"><canvas id="performanceCanvas" width="1200" height="260" aria-label="CPU, memory, and temperature history over Raspberry Pi uptime"></canvas></div>
+      <p id="performanceResolution" class="performance-resolution">History stays on this Pi and automatically compresses older samples.</p>
     </section>
 
     <section class="peripheral-section card" aria-labelledby="peripheralTitle">
@@ -121,6 +138,34 @@
         <button id="powerButton" class="power-button" type="button"><span>POWER</span> Shut down safely</button>
       </div>
       <div id="controlNotice" class="control-notice" role="status" aria-live="polite">Controls are initializing…</div>
+      <article class="card equipment-pack-card" aria-labelledby="equipmentPackTitle">
+        <div class="equipment-pack-heading">
+          <div>
+            <p class="label">EQUIPMENT PACK</p>
+            <h3 id="equipmentPackTitle">Local reference set</h3>
+            <p id="packDetail">Checking this node’s assignment…</p>
+          </div>
+          <span id="packPhase" class="pack-phase" data-state="checking">CHECKING</span>
+        </div>
+        <div class="pack-facts">
+          <span><small>NODE</small><b id="packNode">Not enrolled</b></span>
+          <span><small>ASSIGNED</small><b id="packAssigned">—</b></span>
+          <span><small>ACTIVE</small><b id="packActive">—</b></span>
+          <span><small>USB MODE</small><b id="packUsb">Checking</b></span>
+        </div>
+        <div class="pack-actions">
+          <button id="packRetry" class="scan-button" type="button">Check for update</button>
+          <details class="pack-enrollment">
+            <summary>Node setup</summary>
+            <form id="packEnrollForm" class="pack-enroll-form" autocomplete="off">
+              <label>One-time code<input id="packEnrollCode" maxlength="29" inputmode="text" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></label>
+              <label>Hardware ID <span>optional</span><input id="packHardwareId" maxlength="180" placeholder="Pi serial or asset tag"></label>
+              <button class="primary-button" type="submit">Enroll node</button>
+            </form>
+            <p>Enrollment credentials stay on this Pi and are never shown here.</p>
+          </details>
+        </div>
+      </article>
       <div class="connection-grid">
         <article class="card connection-card">
           <div class="connection-title"><div><p class="label">NETWORK</p><h3>Wi-Fi</h3></div><button id="wifiScan" class="scan-button" type="button">Search networks</button></div>
@@ -183,6 +228,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.5"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.11"></script>
 </body>
 </html>

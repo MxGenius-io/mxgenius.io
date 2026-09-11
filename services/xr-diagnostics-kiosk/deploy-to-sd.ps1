@@ -8,7 +8,9 @@ param(
 
   [string]$PasswordHash = '',
 
-  [switch]$EnableSsh
+  [switch]$EnableSsh,
+
+  [switch]$EnableUsbGadget
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +22,8 @@ if ($root -ne $expectedRoot) {
 
 $issuePath = Join-Path $root 'issue.txt'
 $cmdlinePath = Join-Path $root 'cmdline.txt'
+$userDataPath = Join-Path $root 'user-data'
+$metaDataPath = Join-Path $root 'meta-data'
 if (-not (Test-Path -LiteralPath $issuePath) -or -not (Test-Path -LiteralPath $cmdlinePath)) {
   throw "The target does not look like a Raspberry Pi boot partition."
 }
@@ -28,6 +32,9 @@ if ((Get-Content -Raw -LiteralPath $issuePath) -notmatch 'Raspberry Pi') {
 }
 if ((Get-Content -Raw -LiteralPath $cmdlinePath) -notmatch 'root=PARTUUID=') {
   throw "The target cmdline.txt does not contain a Raspberry Pi root partition."
+}
+if (-not (Test-Path -LiteralPath $userDataPath) -or -not (Test-Path -LiteralPath $metaDataPath)) {
+  throw 'The target is missing Raspberry Pi Imager cloud-init seed files.'
 }
 if ([bool]$UserName -ne [bool]$PasswordHash) {
   throw 'UserName and PasswordHash must be provided together.'
@@ -42,6 +49,7 @@ $destination = Join-Path $root 'mxg-diagnostics-kiosk'
 $legacy = Join-Path $root 'eve-kiosk'
 $legacyInstaller = Join-Path $root 'firstrun.sh'
 $firstBoot = Join-Path $root 'mxg-firstboot.sh'
+$firstBootStatus = Join-Path $root 'mxg-firstboot.status'
 
 foreach ($target in @($destination, $legacy)) {
   if (Test-Path -LiteralPath $target) {
@@ -67,6 +75,21 @@ foreach ($item in $payloadItems) {
   Copy-Item -LiteralPath $sourceItem -Destination $destinationItem -Recurse -Force
 }
 Copy-Item -LiteralPath (Join-Path $source 'mxg-firstboot.sh') -Destination $firstBoot -Force
+
+# Git checkouts on Windows may materialize executable shell files with CRLF.
+# A direct systemd.run launch then resolves the shebang as /usr/bin/env bash\r
+# and silently falls through to the previously installed kiosk. Normalize every
+# packaged shell entry before the card leaves Windows.
+$shellFiles = @($firstBoot) + @(Get-ChildItem -LiteralPath $destination -File -Filter '*.sh' -Recurse | Select-Object -ExpandProperty FullName)
+foreach ($shellFile in $shellFiles) {
+  $content = [System.IO.File]::ReadAllText($shellFile)
+  $content = $content.Replace("`r`n", "`n").Replace("`r", "`n")
+  [System.IO.File]::WriteAllText($shellFile, $content, [System.Text.UTF8Encoding]::new($false))
+  $prefix = [System.IO.File]::ReadAllBytes($shellFile)
+  if ($prefix.Length -lt 3 -or $prefix[0] -ne 0x23 -or $prefix[1] -ne 0x21 -or $prefix[2] -ne 0x2f) {
+    throw "Packaged shell file has an invalid executable shebang: $shellFile"
+  }
+}
 Get-ChildItem -LiteralPath $destination -Directory -Filter '__pycache__' -Recurse | ForEach-Object {
   $cachePath = [System.IO.Path]::GetFullPath($_.FullName)
   if (-not $cachePath.StartsWith($destination, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -92,8 +115,63 @@ if ($EnableSsh) {
 $cmdline = (Get-Content -Raw -LiteralPath $cmdlinePath).Trim()
 $cmdline = $cmdline -replace '\s+systemd\.run=\S+', ''
 $cmdline = $cmdline -replace '\s+systemd\.run_success_action=\S+', ''
-$cmdline = "$($cmdline.Trim()) systemd.run=/boot/firmware/mxg-firstboot.sh systemd.run_success_action=reboot"
-[System.IO.File]::WriteAllText($cmdlinePath, "$cmdline`n", [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($cmdlinePath, "$($cmdline.Trim())`n", [System.Text.UTF8Encoding]::new($false))
+
+# Re-seed the existing Raspberry Pi Imager NoCloud datasource. Unlike the
+# systemd debug-generator command-line hook, runcmd is a supported
+# once-per-instance installer path and leaves explicit status evidence behind.
+$userData = [System.IO.File]::ReadAllText($userDataPath)
+$userData = [regex]::Replace(
+  $userData,
+  '(?ms)^# BEGIN MXGENIUS FIRST BOOT\r?\n.*?^# END MXGENIUS FIRST BOOT\r?\n?',
+  ''
+).TrimEnd()
+if ($userData -match '(?m)^runcmd:\s*$') {
+  throw 'The cloud-init seed already defines runcmd outside the MXGenius managed block.'
+}
+$firstBootBlock = @"
+
+
+# BEGIN MXGENIUS FIRST BOOT
+runcmd:
+  - [bash, /boot/firmware/mxg-firstboot.sh]
+# END MXGENIUS FIRST BOOT
+"@
+[System.IO.File]::WriteAllText($userDataPath, "$userData$firstBootBlock`n", [System.Text.UTF8Encoding]::new($false))
+
+$metaData = [System.IO.File]::ReadAllText($metaDataPath)
+$instanceId = "mxg-release-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+if ($metaData -match '(?m)^instance-id:\s*.*$') {
+  $metaData = [regex]::Replace($metaData, '(?m)^instance-id:\s*.*$', "instance-id: $instanceId")
+} else {
+  $metaData = "instance-id: $instanceId`n$metaData"
+}
+$metaData = $metaData.Replace("`r`n", "`n").Replace("`r", "`n").TrimEnd()
+[System.IO.File]::WriteAllText($metaDataPath, "$metaData`n", [System.Text.UTF8Encoding]::new($false))
+
+if (Test-Path -LiteralPath $firstBootStatus) {
+  Remove-Item -LiteralPath $firstBootStatus -Force
+}
+
+if ($EnableUsbGadget) {
+  $configPath = Join-Path $root 'config.txt'
+  $config = [System.IO.File]::ReadAllText($configPath)
+  $config = [regex]::Replace(
+    $config,
+    '(?ms)^# BEGIN MXGENIUS USB GADGET\r?\n.*?^# END MXGENIUS USB GADGET\r?\n?',
+    ''
+  ).TrimEnd()
+  $gadgetBlock = @"
+
+
+# BEGIN MXGENIUS USB GADGET
+[pi5]
+dtoverlay=dwc2,dr_mode=peripheral
+[all]
+# END MXGENIUS USB GADGET
+"@
+  [System.IO.File]::WriteAllText($configPath, "$config$gadgetBlock`n", [System.Text.UTF8Encoding]::new($false))
+}
 
 $manifest = Get-ChildItem -LiteralPath $destination -Recurse -File | ForEach-Object {
   [PSCustomObject]@{
@@ -124,8 +202,9 @@ $release = [PSCustomObject]@{
 )
 
 Write-Output "Staged MXG diagnostics kiosk at $destination"
-Write-Output "Activated first boot hook: /boot/firmware/mxg-firstboot.sh"
+Write-Output "Activated cloud-init installer: /boot/firmware/mxg-firstboot.sh"
 if ($UserName) { Write-Output "Provisioned initial user: $UserName" }
 if ($EnableSsh) { Write-Output 'Enabled SSH on first boot' }
+if ($EnableUsbGadget) { Write-Output 'Enabled Raspberry Pi 5 USB-C peripheral mode for the gadget capability test' }
 Write-Output "Release: $version"
 Write-Output "Payload files: $($manifest.Count)"
