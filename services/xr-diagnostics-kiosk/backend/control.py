@@ -20,7 +20,7 @@ async def request_control(action: str, **parameters: Any) -> dict[str, Any]:
     payload = json.dumps({"action": action, **parameters}, separators=(",", ":")).encode("utf-8") + b"\n"
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(CONTROL_SOCKET), timeout=2)
-    except (OSError, asyncio.TimeoutError) as error:
+    except (AttributeError, OSError, asyncio.TimeoutError, NotImplementedError) as error:
         raise ControlUnavailable("edge control service is unavailable") from error
 
     try:

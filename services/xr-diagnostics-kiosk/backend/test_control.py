@@ -1,13 +1,24 @@
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
 from app import app
+from control import ControlUnavailable, request_control
 from control_agent import _split_escaped, bluetooth_action, handle_action, usb_gadget_status, wifi_connect
 
 
 class ControlApiTests(unittest.TestCase):
+    def test_windows_without_unix_sockets_reports_control_unavailable(self):
+        with patch(
+            "control.asyncio.open_unix_connection",
+            new=AsyncMock(side_effect=NotImplementedError),
+            create=True,
+        ):
+            with self.assertRaises(ControlUnavailable):
+                asyncio.run(request_control("status"))
+
     def test_local_control_session_and_wifi_scan(self):
         with TestClient(app) as client:
             control = AsyncMock(side_effect=[

@@ -3,7 +3,11 @@ param(
   [ValidateRange(1024, 65535)]
   [int]$Port = 8844,
   [switch]$NoBrowser,
-  [switch]$TestOnly
+  [switch]$TestOnly,
+  [switch]$DisableEquipmentPack,
+  [ValidatePattern('^https://')]
+  [string]$CoreUrl = 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io',
+  [string]$DeviceIdentityFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,6 +19,13 @@ $manifestPath = Join-Path $previewBase 'preview-manifest.json'
 $venvRoot = Join-Path $serviceRoot '.venv'
 $venvPython = Join-Path $venvRoot 'Scripts\python.exe'
 $baseUrl = "http://127.0.0.1:$Port"
+$previewState = Join-Path $previewBase 'equipment-pack-state'
+if ($DeviceIdentityFile) {
+  $DeviceIdentityFile = [System.IO.Path]::GetFullPath($DeviceIdentityFile)
+  if (-not (Test-Path -LiteralPath $DeviceIdentityFile -PathType Leaf)) {
+    throw "Device identity file not found: $DeviceIdentityFile"
+  }
+}
 
 function Get-ReleaseItems {
   if (-not (Test-Path -LiteralPath $releaseListPath)) { throw "Release list not found: $releaseListPath" }
@@ -135,12 +146,16 @@ $simulatorJob = $null
 try {
   Write-Host '[2/5] Starting the staged diagnostics bridge...'
   $backendJob = Start-Job -ScriptBlock {
-    param($PythonPath, $BackendPath, $ListenPort)
+    param($PythonPath, $BackendPath, $ListenPort, $EquipmentPackEnabled, $EquipmentPackCoreUrl, $EquipmentPackState, $IdentityFile)
     $env:PYTHONDONTWRITEBYTECODE = '1'
+    $env:MXG_EDGE_PACKS_ENABLED = $EquipmentPackEnabled
+    $env:MXG_EDGE_CORE_URL = $EquipmentPackCoreUrl
+    $env:MXG_EDGE_STATE_DIR = $EquipmentPackState
+    if ($IdentityFile) { $env:MXG_EDGE_HARDWARE_ID_FILE = $IdentityFile }
     Set-Location -LiteralPath $BackendPath
     & $PythonPath -m uvicorn app:app --host 127.0.0.1 --port $ListenPort
     if ($LASTEXITCODE -ne 0) { throw "uvicorn exited with code $LASTEXITCODE" }
-  } -ArgumentList $venvPython, (Join-Path $previewRoot 'backend'), $Port
+  } -ArgumentList $venvPython, (Join-Path $previewRoot 'backend'), $Port, $(if ($DisableEquipmentPack) { '0' } else { '1' }), $CoreUrl, $previewState, $DeviceIdentityFile
 
   $healthy = $false
   for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
