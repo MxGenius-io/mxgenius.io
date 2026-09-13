@@ -475,7 +475,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=58/);
+  assert.match(dashboard, /app\.js\?v=59/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -1069,6 +1069,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
   assert.match(dashboard, /equipment-pack-workspace\.js\?v=2/);
+  assert.match(dashboard, /class="equipment-pack-workspace__body"/);
   assert.match(dashboard, /id="settingsPackFolderChoose"/);
   assert.match(dashboard, /id="settingsPackFolderName"/);
   assert.match(application, /MXEquipmentPacks\?\.init/);
@@ -1092,7 +1093,9 @@ test('Settings approves Pi-originated short claims without exposing credentials'
     'settingsDeviceClaimCode',
     'settingsDeviceRegister',
     'settingsDeviceRefresh',
-    'settingsDeviceList'
+    'settingsDeviceList',
+    'settingsDeviceRevokedList',
+    'settingsDeviceRevokedCount'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
   assert.match(dashboard, /Device Access &amp; Registry/);

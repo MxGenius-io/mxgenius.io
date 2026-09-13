@@ -1307,6 +1307,17 @@ fn blob_query_url(url: &str, query: &str) -> String {
     format!("{url}{}{query}", if url.contains('?') { '&' } else { '?' })
 }
 
+fn workspace_blob_get(
+    client: &reqwest::Client,
+    access: PartsBlobAccess,
+) -> reqwest::RequestBuilder {
+    let mut request = client.get(access.url).header("x-ms-version", "2023-11-03");
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    request
+}
+
 fn equipment_pack_block_id(block_index: i32) -> (String, String) {
     let block_id = base64::engine::general_purpose::STANDARD.encode(format!("{block_index:08}"));
     let encoded = block_id
@@ -1481,10 +1492,7 @@ async fn equipment_pack_blob_digest(
     maximum_bytes: i64,
 ) -> Result<(String, i64), Response> {
     let access = workspace_read_blob_access(&state.realtime_client, storage_key).await?;
-    let mut request = state.realtime_client.get(access.url);
-    if let Some(token) = access.bearer_token {
-        request = request.bearer_auth(token);
-    }
+    let request = workspace_blob_get(&state.realtime_client, access);
     let upstream = match request.send().await {
         Ok(value) if value.status().is_success() => value,
         Ok(value) => {
@@ -1878,12 +1886,9 @@ async fn get_edge_pack_content(
             Ok(value) => value,
             Err(response) => return response,
         };
-    let mut request = state.realtime_client.get(access.url);
+    let mut request = workspace_blob_get(&state.realtime_client, access);
     if let Some(range) = headers.get(header::RANGE) {
         request = request.header(header::RANGE, range.clone());
-    }
-    if let Some(token) = access.bearer_token {
-        request = request.bearer_auth(token);
     }
     let upstream = match request.send().await {
         Ok(value) if value.status().is_success() => value,
@@ -10835,6 +10840,28 @@ fn origin_allowed(headers: &HeaderMap) -> bool {
 #[cfg(test)]
 mod structured_advisory_tests {
     use super::*;
+
+    #[test]
+    fn workspace_blob_get_sets_service_version_and_bearer_token() {
+        let request = workspace_blob_get(
+            &reqwest::Client::new(),
+            PartsBlobAccess {
+                url: "https://example.blob.core.windows.net/documents/test.zip".to_string(),
+                bearer_token: Some("test-token".to_string()),
+            },
+        )
+        .build()
+        .expect("workspace blob request");
+
+        assert_eq!(request.headers().get("x-ms-version").unwrap(), "2023-11-03");
+        assert_eq!(
+            request
+                .headers()
+                .get(reqwest::header::AUTHORIZATION)
+                .unwrap(),
+            "Bearer test-token"
+        );
+    }
 
     #[test]
     fn advisory_schema_is_strict_and_preserves_conversation() {

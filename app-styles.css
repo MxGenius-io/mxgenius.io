@@ -515,6 +515,10 @@ main {
   margin: -4px 0 14px;
 }
 
+.equipment-pack-workspace.collapsed .equipment-pack-workspace__body {
+  display: none;
+}
+
 .equipment-pack-create,
 .equipment-pack-history {
   border: 1px solid var(--border);
@@ -752,6 +756,36 @@ main {
 .device-registry-empty {
   margin: 0;
   padding: 14px 2px 2px;
+}
+
+.device-registry-revoked {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+.device-registry-revoked > summary {
+  align-items: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 600;
+  justify-content: space-between;
+  padding: 12px 2px 2px;
+}
+
+.device-registry-revoked > summary span:last-child {
+  background: rgba(239, 68, 68, 0.12);
+  border-radius: 999px;
+  color: #fca5a5;
+  min-width: 20px;
+  padding: 2px 7px;
+  text-align: center;
+}
+
+.device-registry-revoked .device-registry-list {
+  border-top: 0;
+  max-height: 220px;
 }
 
 @media (max-width: 640px) {

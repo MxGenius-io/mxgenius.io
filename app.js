@@ -2948,6 +2948,8 @@ function initSettings() {
   const deviceRefreshButton = document.getElementById('settingsDeviceRefresh');
   const deviceStatus = document.getElementById('settingsDeviceStatus');
   const deviceList = document.getElementById('settingsDeviceList');
+  const deviceRevokedList = document.getElementById('settingsDeviceRevokedList');
+  const deviceRevokedCount = document.getElementById('settingsDeviceRevokedCount');
   let profileImageObjectUrl = null;
 
   async function settingsSession({ forceRefresh = false } = {}) {
@@ -2998,14 +3000,17 @@ function initSettings() {
   };
 
   const renderEdgeDevices = (devices) => {
-    if (!deviceList) return;
+    if (!deviceList || !deviceRevokedList) return;
     deviceList.replaceChildren();
-    if (!devices.length) {
+    deviceRevokedList.replaceChildren();
+    const activeDevices = devices.filter((device) => device.status !== 'revoked');
+    const revokedDevices = devices.filter((device) => device.status === 'revoked');
+    if (deviceRevokedCount) deviceRevokedCount.textContent = String(revokedDevices.length);
+    if (!activeDevices.length) {
       const empty = document.createElement('p');
       empty.className = 'settings-hint device-registry-empty';
-      empty.textContent = 'No devices registered yet.';
+      empty.textContent = devices.length ? 'No active devices.' : 'No devices registered yet.';
       deviceList.appendChild(empty);
-      return;
     }
 
     devices.forEach((device) => {
@@ -3061,8 +3066,15 @@ function initSettings() {
         actions.append(revokeButton);
         row.appendChild(actions);
       }
-      deviceList.appendChild(row);
+      (device.status === 'revoked' ? deviceRevokedList : deviceList).appendChild(row);
     });
+
+    if (!revokedDevices.length) {
+      const empty = document.createElement('p');
+      empty.className = 'settings-hint device-registry-empty';
+      empty.textContent = 'No revoked devices.';
+      deviceRevokedList.appendChild(empty);
+    }
   };
 
   const loadEdgeDevices = async () => {
@@ -3075,7 +3087,9 @@ function initSettings() {
       );
       const devices = Array.isArray(payload?.devices) ? payload.devices : [];
       renderEdgeDevices(devices);
-      setDeviceStatus(`${devices.length} registered device${devices.length === 1 ? '' : 's'}.`, 'success');
+      const activeCount = devices.filter((device) => device.status !== 'revoked').length;
+      const revokedCount = devices.length - activeCount;
+      setDeviceStatus(`${activeCount} active · ${revokedCount} revoked`, 'success');
     } catch (error) {
       renderEdgeDevices([]);
       setDeviceStatus(error.message || 'Unable to load registered devices.', 'error');
