@@ -36,9 +36,10 @@ use crate::application::cannibalizations::{
     ProposeCannibalizationInput,
 };
 use crate::application::equipment_packs::{
-    AssignEquipmentPackInput, CreateEquipmentPackInput, CreateEquipmentPackVersionInput,
-    DeviceIdentity, EdgeDeploymentStatusInput, EdgeEnrollmentInput, EquipmentPackError,
-    EquipmentPackRepository, RegisterEdgeDeviceInput, EQUIPMENT_PACK_BLOCK_BYTES,
+    ApproveEdgeClaimInput, AssignEquipmentPackInput, CreateEquipmentPackInput,
+    CreateEquipmentPackVersionInput, DeviceIdentity, EdgeDeploymentStatusInput,
+    EdgeEnrollmentInput, EquipmentPackError, EquipmentPackRepository, RegisterEdgeDeviceInput,
+    RequestEdgeClaimInput, EQUIPMENT_PACK_BLOCK_BYTES,
 };
 use crate::application::part_imports::{ImportRequestQuery, PartImportRepository};
 use crate::application::part_procurement::{
@@ -249,6 +250,10 @@ pub fn router_with_health_and_manual(
             post(publish_equipment_pack_version),
         )
         .route(
+            "/api/equipment-pack-versions/:version_id/upload",
+            get(get_equipment_pack_upload),
+        )
+        .route(
             "/api/edge/devices",
             get(list_edge_devices).post(register_edge_device),
         )
@@ -268,6 +273,9 @@ pub fn router_with_health_and_manual(
             "/api/edge/devices/:device_id/assignment",
             axum::routing::put(assign_equipment_pack),
         )
+        .route("/api/edge/claims", post(request_edge_claim))
+        .route("/api/edge/claims/approve", post(approve_edge_claim))
+        .route("/api/edge/claims/:claim_id", get(get_edge_claim_status))
         .route("/api/edge/enroll", post(enroll_edge_device))
         .route("/api/edge/state", get(get_edge_desired_state))
         .route(
@@ -937,6 +945,27 @@ fn random_enrollment_code() -> String {
     )
 }
 
+fn random_claim_code() -> String {
+    let entropy = Uuid::new_v4().simple().to_string();
+    let value = u32::from_str_radix(&entropy[..8], 16).expect("UUID prefix is hexadecimal");
+    format!("{:07}", 1_000_000 + (value % 9_000_000))
+}
+
+fn normalize_claim_code(value: &str) -> Option<String> {
+    let code: String = value
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .collect();
+    (code.len() == 7).then_some(code)
+}
+
+fn normalize_hardware_id(value: &str) -> Option<String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    let suffix = normalized.strip_prefix("mxg-pi-")?;
+    (suffix.len() == 32 && suffix.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then_some(normalized)
+}
+
 fn normalize_enrollment_code(value: &str) -> Option<String> {
     let code: String = value
         .chars()
@@ -970,7 +999,7 @@ async fn edge_device_identity(
     headers: &HeaderMap,
 ) -> Result<(EquipmentPackRepository, DeviceIdentity), Response> {
     let repository = equipment_pack_repository(state)?;
-    let (device_id, token) = parse_device_bearer(headers).ok_or_else(|| {
+    let (_token_id, token) = parse_device_bearer(headers).ok_or_else(|| {
         realtime_error(
             StatusCode::UNAUTHORIZED,
             "DEVICE_AUTH_REQUIRED",
@@ -978,10 +1007,136 @@ async fn edge_device_identity(
         )
     })?;
     let identity = repository
-        .authenticate_device(device_id, &sha256_prefixed(token.as_bytes()))
+        .authenticate_device_token(&sha256_prefixed(token.as_bytes()))
         .await
         .map_err(equipment_pack_error)?;
     Ok((repository, identity))
+}
+
+async fn request_edge_claim(
+    State(state): State<AppState>,
+    Json(input): Json<RequestEdgeClaimInput>,
+) -> Response {
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(hardware_id) = normalize_hardware_id(&input.hardware_id) else {
+        return equipment_pack_error(EquipmentPackError::Invalid("hardware id is invalid"));
+    };
+
+    for _ in 0..5 {
+        let claim_id = Uuid::new_v4();
+        let code = random_claim_code();
+        let credential = random_device_token(claim_id);
+        match repository
+            .create_device_claim(
+                claim_id,
+                &hardware_id,
+                &sha256_prefixed(code.as_bytes()),
+                &sha256_prefixed(credential.as_bytes()),
+            )
+            .await
+        {
+            Ok(expires_at) => {
+                return (
+                    StatusCode::CREATED,
+                    [(header::CACHE_CONTROL, "no-store")],
+                    Json(json!({
+                        "claimId": claim_id,
+                        "claimCode": code,
+                        "credential": credential,
+                        "expiresAt": expires_at,
+                        "pollAfterSeconds": 3
+                    })),
+                )
+                    .into_response();
+            }
+            Err(EquipmentPackError::Conflict) => continue,
+            Err(error) => return equipment_pack_error(error),
+        }
+    }
+    equipment_pack_error(EquipmentPackError::Conflict)
+}
+
+async fn approve_edge_claim(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<ApproveEdgeClaimInput>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EDGE_DEVICE_WRITE_DENIED",
+            "only managers and administrators can approve edge devices",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some(code) = normalize_claim_code(&input.code) else {
+        return equipment_pack_error(EquipmentPackError::Unauthorized);
+    };
+    match repository
+        .approve_device_claim(
+            &context,
+            &sha256_prefixed(code.as_bytes()),
+            &input.display_name,
+        )
+        .await
+    {
+        Ok(device) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "device": device })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn get_edge_claim_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(claim_id): Path<Uuid>,
+) -> Response {
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let Some((token_claim_id, token)) = parse_device_bearer(&headers) else {
+        return equipment_pack_error(EquipmentPackError::Unauthorized);
+    };
+    if token_claim_id != claim_id {
+        return equipment_pack_error(EquipmentPackError::Unauthorized);
+    }
+    match repository
+        .device_claim_status(claim_id, &sha256_prefixed(token.as_bytes()))
+        .await
+    {
+        Ok(status) => match (status.device_id, status.display_name) {
+            (Some(device_id), Some(display_name)) => (
+                StatusCode::OK,
+                [(header::CACHE_CONTROL, "no-store")],
+                Json(json!({
+                    "status": "approved",
+                    "device": { "id": device_id, "displayName": display_name }
+                })),
+            )
+                .into_response(),
+            _ => (
+                StatusCode::ACCEPTED,
+                [(header::CACHE_CONTROL, "no-store")],
+                Json(json!({ "status": "pending", "expiresAt": status.expires_at })),
+            )
+                .into_response(),
+        },
+        Err(error) => equipment_pack_error(error),
+    }
 }
 
 async fn list_equipment_packs(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -1095,6 +1250,57 @@ async fn list_equipment_pack_versions(
             .into_response(),
         Err(error) => equipment_pack_error(error),
     }
+}
+
+async fn get_equipment_pack_upload(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(version_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can resume equipment pack uploads",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let version = match repository
+        .version_for_upload(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(value) if value.status == "uploading" => value,
+        Ok(_) => return equipment_pack_error(EquipmentPackError::Conflict),
+        Err(error) => return equipment_pack_error(error),
+    };
+    let blocks = match repository
+        .upload_blocks(context.organization_id.0, version_id)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    let block_count = (version.byte_size + EQUIPMENT_PACK_BLOCK_BYTES as i64 - 1)
+        / EQUIPMENT_PACK_BLOCK_BYTES as i64;
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({
+            "version": version,
+            "upload": {
+                "blockSize": EQUIPMENT_PACK_BLOCK_BYTES,
+                "blockCount": block_count,
+                "blocks": blocks
+            }
+        })),
+    )
+        .into_response()
 }
 
 fn blob_query_url(url: &str, query: &str) -> String {

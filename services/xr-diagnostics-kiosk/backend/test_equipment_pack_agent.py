@@ -15,6 +15,7 @@ from unittest.mock import patch
 from equipment_pack_agent import (
     AgentConfig,
     DesiredPack,
+    EdgeClaim,
     EdgeIdentity,
     EquipmentPackAgent,
     EquipmentPackError,
@@ -72,6 +73,21 @@ class FakeCore:
         self.downloads = 0
         self.etags: list[str | None] = []
         self.enrollments: list[tuple[str, str | None]] = []
+        self.claim_requests: list[str] = []
+        self.claim_approved = False
+
+    def request_claim(self, hardware_id: str) -> EdgeClaim:
+        self.claim_requests.append(hardware_id)
+        return EdgeClaim(
+            claim_id=DEVICE_ID,
+            claim_code="1234567",
+            credential=IDENTITY.credential,
+            expires_at="2030-01-01T00:00:00Z",
+            poll_seconds=0.01,
+        )
+
+    def claim_status(self, _claim: EdgeClaim) -> EdgeIdentity | None:
+        return IDENTITY if self.claim_approved else None
 
     def enroll(self, code: str, hardware_id: str | None) -> EdgeIdentity:
         self.enrollments.append((code, hardware_id))
@@ -144,6 +160,35 @@ class IdentityAndStateTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(core.enrollments, [("ABCDEF1234567890ABCDEF12", HARDWARE_ID)])
             self.assertEqual(agent.public_status()["hardwareId"], HARDWARE_ID)
+
+    async def test_unenrolled_node_requests_a_short_claim_and_finishes_after_approval(self):
+        payload, desired = package({"manuals/overview.txt": b"ready"})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            core = FakeCore(payload, desired)
+            agent = EquipmentPackAgent(
+                AgentConfig(True, "https://core.example", root, hardware_id=HARDWARE_ID),
+                core,
+            )
+            await agent.start()
+            for _ in range(50):
+                if agent.public_status()["claimCode"] == "1234567":
+                    break
+                await asyncio.sleep(0.01)
+            self.assertEqual(agent.public_status()["claimCode"], "1234567")
+            self.assertEqual(core.claim_requests, [HARDWARE_ID])
+            self.assertTrue((root / "claim.json").is_file())
+
+            core.claim_approved = True
+            for _ in range(50):
+                if agent.public_status()["enrolled"]:
+                    break
+                await asyncio.sleep(0.01)
+            self.assertTrue(agent.public_status()["enrolled"])
+            self.assertIsNone(agent.public_status()["claimCode"])
+            self.assertFalse((root / "claim.json").exists())
+            self.assertEqual(StateStore(root).load_identity(), IDENTITY)
+            await agent.stop()
 
     async def test_identity_and_staged_state_survive_restart(self):
         payload, desired = package({"manual.pdf": b"test data"})
@@ -222,6 +267,47 @@ class PackageValidationTests(unittest.TestCase):
 
 
 class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_outbound_socket_authenticates_and_only_wakes_reconciliation(self):
+        class FakeSocket:
+            def __init__(self):
+                self.messages = iter(['{"type":"edge.desired.changed","version":1,"generation":2}'])
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                try:
+                    return next(self.messages)
+                except StopIteration:
+                    await asyncio.Future()
+
+        class FakeConnection:
+            def __init__(self):
+                self.socket = FakeSocket()
+
+            async def __aenter__(self):
+                return self.socket
+
+            async def __aexit__(self, *_):
+                return False
+
+        with tempfile.TemporaryDirectory() as temporary:
+            agent = EquipmentPackAgent(AgentConfig(True, "https://core.example", Path(temporary)))
+            agent.identity = IDENTITY
+            with patch("equipment_pack_agent.websockets.connect", return_value=FakeConnection()) as connect:
+                task = asyncio.create_task(agent._socket_loop())
+                await asyncio.wait_for(agent._wake.wait(), timeout=1)
+                self.assertTrue(agent.notification_connected)
+                self.assertEqual(connect.call_args.args[0], "wss://core.example/api/edge/ws")
+                self.assertEqual(
+                    connect.call_args.kwargs["additional_headers"],
+                    {"Authorization": f"Bearer {IDENTITY.credential}"},
+                )
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+                self.assertFalse(agent.notification_connected)
+
     async def test_new_generation_uses_inactive_slot_and_acknowledges_each_phase(self):
         payload, desired = package({"manual.txt": b"generation two"}, generation=2)
         activated: list[tuple[str, Path, int]] = []

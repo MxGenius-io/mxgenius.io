@@ -72,6 +72,19 @@ pub struct EdgeEnrollmentInput {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct RequestEdgeClaimInput {
+    #[serde(rename = "hardwareId")]
+    pub hardware_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApproveEdgeClaimInput {
+    pub code: String,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct EdgeDeploymentStatusInput {
     pub state: String,
     #[serde(rename = "activeSlot")]
@@ -129,6 +142,14 @@ pub struct DeviceIdentity {
     pub organization_id: Uuid,
     pub device_id: Uuid,
     pub display_name: String,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct EdgeClaimStatus {
+    pub expires_at: OffsetDateTime,
+    pub organization_id: Option<Uuid>,
+    pub device_id: Option<Uuid>,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -444,6 +465,162 @@ impl EquipmentPackRepository {
         .map_err(map_database_error)
     }
 
+    pub async fn create_device_claim(
+        &self,
+        claim_id: Uuid,
+        hardware_id: &str,
+        claim_code_hash: &str,
+        credential_hash: &str,
+    ) -> Result<OffsetDateTime, EquipmentPackError> {
+        let hardware_id = hardware_id.trim();
+        if hardware_id.is_empty() || hardware_id.chars().count() > 180 {
+            return Err(EquipmentPackError::Invalid("hardware id is invalid"));
+        }
+        validate_sha256(claim_code_hash)?;
+        validate_sha256(credential_hash)?;
+        let expires_at = OffsetDateTime::now_utc() + Duration::minutes(10);
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query(
+            r#"DELETE FROM edge_device_claims
+               WHERE hardware_id=$1 AND approved_at IS NULL AND expires_at<=now()"#,
+        )
+        .bind(hardware_id)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            r#"INSERT INTO edge_device_claims
+               (id,hardware_id,claim_code_hash,credential_hash,expires_at)
+               VALUES ($1,$2,$3,$4,$5)"#,
+        )
+        .bind(claim_id)
+        .bind(hardware_id)
+        .bind(claim_code_hash)
+        .bind(credential_hash)
+        .bind(expires_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_database_error)?;
+        transaction.commit().await?;
+        Ok(expires_at)
+    }
+
+    pub async fn approve_device_claim(
+        &self,
+        context: &ExecutionContext,
+        claim_code_hash: &str,
+        display_name: &str,
+    ) -> Result<EdgeDeviceRow, EquipmentPackError> {
+        validate_sha256(claim_code_hash)?;
+        let display_name = bounded_text(display_name, 120, "device name is required")?;
+        let mut transaction = self.pool.begin().await?;
+        let claim: Option<(Uuid, String, String, OffsetDateTime, Option<OffsetDateTime>)> =
+            sqlx::query_as(
+                r#"SELECT id,hardware_id,credential_hash,expires_at,approved_at
+                   FROM edge_device_claims WHERE claim_code_hash=$1 FOR UPDATE"#,
+            )
+            .bind(claim_code_hash)
+            .fetch_optional(&mut *transaction)
+            .await?;
+        let Some((claim_id, hardware_id, credential_hash, expires_at, approved_at)) = claim else {
+            return Err(EquipmentPackError::Unauthorized);
+        };
+        if approved_at.is_some() || expires_at <= OffsetDateTime::now_utc() {
+            return Err(EquipmentPackError::EnrollmentGone);
+        }
+
+        let existing: Option<(Uuid, String)> = sqlx::query_as(
+            r#"SELECT id,status FROM edge_devices
+               WHERE organization_id=$1 AND hardware_id=$2 FOR UPDATE"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(&hardware_id)
+        .fetch_optional(&mut *transaction)
+        .await?;
+
+        let device_id = match existing {
+            Some((_device_id, status)) if status == "revoked" => {
+                return Err(EquipmentPackError::Conflict);
+            }
+            Some((device_id, _)) => {
+                sqlx::query(
+                    r#"UPDATE edge_devices SET display_name=$1,status='active',
+                         credential_hash=$2,credential_issued_at=now(),updated_at=now()
+                       WHERE organization_id=$3 AND id=$4"#,
+                )
+                .bind(display_name)
+                .bind(&credential_hash)
+                .bind(context.organization_id.0)
+                .bind(device_id)
+                .execute(&mut *transaction)
+                .await?;
+                device_id
+            }
+            None => {
+                sqlx::query(
+                    r#"INSERT INTO edge_devices
+                       (id,organization_id,display_name,hardware_id,status,credential_hash,
+                        credential_issued_at,created_by)
+                       VALUES ($1,$2,$3,$4,'active',$5,now(),$6)"#,
+                )
+                .bind(claim_id)
+                .bind(context.organization_id.0)
+                .bind(display_name)
+                .bind(&hardware_id)
+                .bind(&credential_hash)
+                .bind(context.user_id.0)
+                .execute(&mut *transaction)
+                .await
+                .map_err(map_database_error)?;
+                claim_id
+            }
+        };
+
+        sqlx::query(
+            r#"UPDATE edge_device_claims SET organization_id=$1,device_id=$2,
+                 display_name=$3,approved_by=$4,approved_at=now()
+               WHERE id=$5"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(device_id)
+        .bind(display_name)
+        .bind(context.user_id.0)
+        .bind(claim_id)
+        .execute(&mut *transaction)
+        .await?;
+
+        let device = sqlx::query_as(
+            r#"SELECT id,display_name,hardware_id,status,last_seen_at,created_at,updated_at
+               FROM edge_devices WHERE organization_id=$1 AND id=$2"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(device_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(device)
+    }
+
+    pub async fn device_claim_status(
+        &self,
+        claim_id: Uuid,
+        credential_hash: &str,
+    ) -> Result<EdgeClaimStatus, EquipmentPackError> {
+        validate_sha256(credential_hash)?;
+        let status: EdgeClaimStatus = sqlx::query_as(
+            r#"SELECT expires_at,organization_id,device_id,display_name
+               FROM edge_device_claims WHERE id=$1 AND credential_hash=$2"#,
+        )
+        .bind(claim_id)
+        .bind(credential_hash)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(EquipmentPackError::Unauthorized)?;
+        if status.expires_at <= OffsetDateTime::now_utc() && status.device_id.is_none() {
+            return Err(EquipmentPackError::EnrollmentGone);
+        }
+        Ok(status)
+    }
+
     pub async fn list_devices(
         &self,
         context: &ExecutionContext,
@@ -535,6 +712,19 @@ impl EquipmentPackRepository {
         if locked_device.is_none() {
             return Err(EquipmentPackError::NotFound);
         }
+        // Issuing a replacement enrollment code is an explicit credential
+        // rotation. Cut off the previously enrolled appliance immediately;
+        // the registry row remains authoritative and returns to pending until
+        // the new one-time code is consumed by the intended device.
+        sqlx::query(
+            r#"UPDATE edge_devices SET status='pending',credential_hash=NULL,
+                      credential_issued_at=NULL,updated_at=now()
+               WHERE organization_id=$1 AND id=$2 AND status<>'revoked'"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(device_id)
+        .execute(&mut *transaction)
+        .await?;
         sqlx::query(
             "UPDATE edge_device_enrollment_codes SET consumed_at=now() WHERE organization_id=$1 AND device_id=$2 AND consumed_at IS NULL",
         )
@@ -630,6 +820,39 @@ impl EquipmentPackRepository {
                FROM edge_devices WHERE id=$1 AND status IN ('active','offline')"#,
         )
         .bind(device_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some((organization_id, device_id, display_name, stored_hash)) = stored else {
+            return Err(EquipmentPackError::Unauthorized);
+        };
+        if !constant_time_eq(stored_hash.as_bytes(), credential_hash.as_bytes()) {
+            return Err(EquipmentPackError::Unauthorized);
+        }
+        sqlx::query(
+            r#"UPDATE edge_devices SET last_seen_at=now(),updated_at=now(),
+                 status=CASE WHEN status='offline' THEN 'active' ELSE status END
+               WHERE id=$1 AND status IN ('active','offline')"#,
+        )
+        .bind(device_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(DeviceIdentity {
+            organization_id,
+            device_id,
+            display_name,
+        })
+    }
+
+    pub async fn authenticate_device_token(
+        &self,
+        credential_hash: &str,
+    ) -> Result<DeviceIdentity, EquipmentPackError> {
+        validate_sha256(credential_hash)?;
+        let stored: Option<(Uuid, Uuid, String, String)> = sqlx::query_as(
+            r#"SELECT organization_id,id,display_name,credential_hash
+               FROM edge_devices WHERE credential_hash=$1 AND status IN ('active','offline')"#,
+        )
+        .bind(credential_hash)
         .fetch_optional(&self.pool)
         .await?;
         let Some((organization_id, device_id, display_name, stored_hash)) = stored else {

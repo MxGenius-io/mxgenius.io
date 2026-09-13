@@ -124,26 +124,30 @@ Production startup:
 12. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images;
 13. mounts deliberate still-frame spatial analysis only when its kill switch and server-side provider credential are both configured. Frames are JPEG-only, bounded to 1280 pixels and 1 MiB, analyzed once per uncached scan, and never persisted or logged. `/adapterz` exposes the effective non-secret scan policy and aggregate request, provider-attempt, cache-hit, throttle, budget, and timeout counters.
 14. mounts Remote Witness on `/api/xr/witness/*`: authenticated wearer-created rooms, single-use 7-digit guest PINs, memory-only role-scoped WSS credentials, explicit approval/pause/layer/revoke controls, and read-only case-media delivery. The public guest never receives application access or a reconnectable account credential. The socket accepts only bounded JSON state/signaling, admits one producer at a time, and rejects binary media; the Quest companion can claim that producer role through its authenticated loopback bootstrap.
-15. mounts the Equipment Pack control plane only when `MXGENIUS_EQUIPMENT_PACKS_ENABLED=true`: tenant-scoped immutable package versions, bounded resumable Blob uploads, one-time edge enrollment, durable desired-state generations, authenticated ranged downloads, deployment receipts, credential revocation, and WebSocket change notifications. PostgreSQL polling and ETags remain authoritative if a notification is missed.
+15. mounts the Equipment Pack control plane only when `MXGENIUS_EQUIPMENT_PACKS_ENABLED=true`: tenant-scoped immutable package versions, bounded resumable Blob uploads, Pi-originated seven-digit claims approved through Entra, durable desired-state generations, authenticated ranged downloads, deployment receipts, credential revocation, and WebSocket change notifications. PostgreSQL polling and ETags remain authoritative if a notification is missed.
 
 ### Equipment Pack and edge-device API
 
 The human routes use the existing Entra application context. Managers and
-administrators can create, publish, assign, enroll, and revoke; authenticated
+administrators can create, publish, assign, approve claims, and revoke; authenticated
 tenant members can list packs, versions, devices, and deployment history.
-The device routes accept only the per-device bearer credential returned once by
-enrollment.
+The Pi receives its credential on its own TLS claim request. The authenticated
+browser sees only the seven-digit approval code and never receives that secret.
 
 ```text
 GET|POST /api/equipment-packs
 GET|POST /api/equipment-packs/{packId}/versions
 PUT      /api/equipment-pack-versions/{versionId}/blocks/{blockIndex}
+GET      /api/equipment-pack-versions/{versionId}/upload
 POST     /api/equipment-pack-versions/{versionId}/publish
 GET|POST /api/edge/devices
 POST     /api/edge/devices/{deviceId}/enrollment-code
 DELETE   /api/edge/devices/{deviceId}
 PUT      /api/edge/devices/{deviceId}/assignment
 GET      /api/edge/devices/{deviceId}/deployments
+POST     /api/edge/claims
+POST     /api/edge/claims/approve
+GET      /api/edge/claims/{claimId}
 POST     /api/edge/enroll
 GET      /api/edge/state
 GET      /api/edge/packs/{versionId}/content

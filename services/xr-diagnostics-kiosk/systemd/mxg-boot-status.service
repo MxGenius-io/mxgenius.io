@@ -1,0 +1,20 @@
+[Unit]
+Description=Publish bounded MXG appliance boot status
+After=local-fs.target network.target mxg-edge-control.service mxg-diagnostics-kiosk.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/opt/mxg-diagnostics-kiosk/scripts/boot-status.sh
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mxg-diagnostics-kiosk /boot /boot/firmware
+
+[Install]
+WantedBy=multi-user.target

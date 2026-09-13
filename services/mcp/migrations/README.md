@@ -38,3 +38,4 @@ release gates.
 | `0025_part_alternates.sql`               | catalog interchangeability: alternates and supersessions with the authority each claim rests on |
 | `0026_receiving_inspection.sql`          | receiving inspection evidence, non-conforming holds, suspected-unapproved flag, and discrepancy reports |
 | `0027_equipment_packs.sql`               | immutable equipment-folder packs, resumable upload blocks, edge-device enrollment, desired generations, and activation history |
+| `0028_edge_device_claims.sql`            | Pi-originated seven-digit claims with Entra approval and browser-blind device credentials |

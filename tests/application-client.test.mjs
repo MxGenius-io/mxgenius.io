@@ -70,7 +70,7 @@ function harness(outputs, orchestration = null, { now = 1_800_000_000_000 } = {}
           : { ok: true, request };
         return {
           ok: true,
-          status: options.method === 'DELETE' ? 204 : 200,
+          status: options.method === 'DELETE' && url.includes('/api/beta-access/') ? 204 : 200,
           headers: { get: () => 'application/json' },
           json: async () => responsePayload,
           arrayBuffer: async () => new TextEncoder().encode('glTF-test').buffer,
@@ -537,7 +537,7 @@ test('beta access rules use the authenticated server boundary instead of browser
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
-test('edge device enrollment uses the tenant-authenticated application boundary', async () => {
+test('edge device claim approval uses the tenant-authenticated application boundary', async () => {
   const { client, requests } = harness({});
   const session = {
     accessToken: 'oidc-token',
@@ -546,27 +546,63 @@ test('edge device enrollment uses the tenant-authenticated application boundary'
   };
 
   await client.edgeDevices.list(session);
-  await client.edgeDevices.register({
+  await client.edgeDevices.approveClaim({
+    code: '1234567',
     displayName: 'MXG Pi 01',
-    hardwareId: 'mxg-pi-0123456789abcdef0123456789abcdef',
     session
   });
-  await client.edgeDevices.issueEnrollmentCode('device/1', session);
 
   assert.deepEqual(
     requests.map(({ url, options }) => [url, options.method]),
     [
       ['/api/edge/devices', 'GET'],
-      ['/api/edge/devices', 'POST'],
-      ['/api/edge/devices/device%2F1/enrollment-code', 'POST']
+      ['/api/edge/claims/approve', 'POST']
     ]
   );
   assert.deepEqual(requests[1].request, {
-    displayName: 'MXG Pi 01',
-    hardwareId: 'mxg-pi-0123456789abcdef0123456789abcdef'
+    code: '1234567',
+    displayName: 'MXG Pi 01'
   });
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
   assert.ok(requests.every(({ options }) => options.headers['X-MXG-Organization-ID'] === 'org-1'));
+});
+
+test('equipment pack publishing and assignment stay behind the authenticated application boundary', async () => {
+  const { client, requests } = harness({});
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+  const block = new Blob(['pack-block'], { type: 'application/octet-stream' });
+
+  await client.equipmentPacks.list(session);
+  await client.equipmentPacks.create({ name: 'Jet manuals', equipmentFamily: 'Global 7500', session });
+  await client.equipmentPacks.versions('pack/1', session);
+  await client.equipmentPacks.createVersion('pack/1', {
+    manifest: { schemaVersion: 1, files: [{ path: 'manual.pdf', sizeBytes: 10, sha256: `sha256:${'1'.repeat(64)}` }] },
+    contentHash: `sha256:${'2'.repeat(64)}`,
+    byteSize: 10,
+    fileCount: 1,
+    session
+  });
+  await client.equipmentPacks.uploadBlock('version/1', 0, block, session);
+  await client.equipmentPacks.uploadStatus('version/1', session);
+  await client.equipmentPacks.publishVersion('version/1', session);
+  await client.equipmentPacks.assignVersion('device/1', 'version/1', session);
+  await client.edgeDevices.deployments('device/1', session);
+  await client.edgeDevices.revoke('device/1', session);
+
+  assert.deepEqual(requests.map(({ url, options }) => [url, options.method]), [
+    ['/api/equipment-packs', 'GET'],
+    ['/api/equipment-packs', 'POST'],
+    ['/api/equipment-packs/pack%2F1/versions', 'GET'],
+    ['/api/equipment-packs/pack%2F1/versions', 'POST'],
+    ['/api/equipment-pack-versions/version%2F1/blocks/0', 'PUT'],
+    ['/api/equipment-pack-versions/version%2F1/upload', 'GET'],
+    ['/api/equipment-pack-versions/version%2F1/publish', 'POST'],
+    ['/api/edge/devices/device%2F1/assignment', 'PUT'],
+    ['/api/edge/devices/device%2F1/deployments', 'GET'],
+    ['/api/edge/devices/device%2F1', 'DELETE']
+  ]);
+  assert.equal(requests[4].request, block);
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 
 test('chat sends only bounded relevant fleet context instead of the full compatibility dataset', async () => {

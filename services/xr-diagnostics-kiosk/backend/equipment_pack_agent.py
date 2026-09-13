@@ -10,6 +10,7 @@ import re
 import shutil
 import stat
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,12 +20,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Awaitable, Callable, Protocol
 
+import websockets
+
 
 MAX_PACKAGE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_JSON_BYTES = 1024 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 ENROLLMENT_CODE = re.compile(r"^[0-9A-F]{24}$")
+CLAIM_CODE = re.compile(r"^[0-9]{7}$")
 HARDWARE_ID = re.compile(r"^mxg-pi-[0-9a-f]{32}$")
 FAT_RESERVED = {"CON", "PRN", "AUX", "NUL"}
 
@@ -110,9 +114,39 @@ class EdgeIdentity:
             raise EquipmentPackError("INVALID_ENROLLMENT", "the core returned an invalid node ID") from error
         if not display_name or len(display_name) > 120:
             raise EquipmentPackError("INVALID_ENROLLMENT", "the core returned an invalid node name")
-        if not credential.startswith(f"mxgd.{device_id}.") or not 50 <= len(credential) <= 180:
+        if not credential.startswith("mxgd.") or not 50 <= len(credential) <= 180:
             raise EquipmentPackError("INVALID_ENROLLMENT", "the core returned an invalid device credential")
         return cls(device_id=device_id, display_name=display_name, credential=credential)
+
+
+@dataclass(frozen=True)
+class EdgeClaim:
+    claim_id: str
+    claim_code: str
+    credential: str
+    expires_at: str
+    poll_seconds: float = 3.0
+
+    @classmethod
+    def from_wire(cls, payload: dict[str, Any]) -> "EdgeClaim":
+        try:
+            claim_id = str(uuid.UUID(str(payload.get("claimId"))))
+        except ValueError as error:
+            raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid claim ID") from error
+        claim_code = str(payload.get("claimCode") or "")
+        credential = str(payload.get("credential") or "")
+        expires_at = str(payload.get("expiresAt") or "")
+        try:
+            poll_seconds = max(2.0, min(float(payload.get("pollAfterSeconds") or 3), 15.0))
+        except (TypeError, ValueError):
+            poll_seconds = 3.0
+        if not CLAIM_CODE.fullmatch(claim_code):
+            raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid claim code")
+        if not credential.startswith(f"mxgd.{claim_id}.") or not 50 <= len(credential) <= 180:
+            raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid claim credential")
+        if not expires_at:
+            raise EquipmentPackError("INVALID_CLAIM", "the core omitted the claim expiry")
+        return cls(claim_id, claim_code, credential, expires_at, poll_seconds)
 
 
 @dataclass(frozen=True)
@@ -203,6 +237,7 @@ class StateStore:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.identity_path = root / "identity.json"
+        self.claim_path = root / "claim.json"
         self.runtime_path = root / "state.json"
 
     def _read(self, path: Path) -> dict[str, Any] | None:
@@ -247,6 +282,26 @@ class StateStore:
             },
         )
 
+    def load_claim(self) -> EdgeClaim | None:
+        payload = self._read(self.claim_path)
+        return None if payload is None else EdgeClaim.from_wire(payload)
+
+    def save_claim(self, claim: EdgeClaim) -> None:
+        self._write(
+            self.claim_path,
+            {
+                "schemaVersion": 1,
+                "claimId": claim.claim_id,
+                "claimCode": claim.claim_code,
+                "credential": claim.credential,
+                "expiresAt": claim.expires_at,
+                "pollAfterSeconds": claim.poll_seconds,
+            },
+        )
+
+    def clear_claim(self) -> None:
+        self.claim_path.unlink(missing_ok=True)
+
     def load_runtime(self) -> RuntimeState:
         payload = self._read(self.runtime_path)
         if payload is None:
@@ -260,6 +315,10 @@ class StateStore:
 
 
 class CoreClient(Protocol):
+    def request_claim(self, hardware_id: str) -> EdgeClaim: ...
+
+    def claim_status(self, claim: EdgeClaim) -> EdgeIdentity | None: ...
+
     def enroll(self, code: str, hardware_id: str | None) -> EdgeIdentity: ...
 
     def desired_state(self, identity: EdgeIdentity, etag: str | None) -> tuple[bool, str | None, DesiredPack | None]: ...
@@ -299,8 +358,10 @@ class HttpCoreClient:
                 decoded = json.loads(raw) if raw else None
                 return response.status, dict(response.headers.items()), decoded
         except urllib.error.HTTPError as error:
-            if error.code == 304:
-                return 304, dict(error.headers.items()), None
+            if error.code in {304, 410}:
+                raw = error.read(MAX_JSON_BYTES + 1)
+                decoded = json.loads(raw) if raw else None
+                return error.code, dict(error.headers.items()), decoded
             raise EquipmentPackError("CORE_REJECTED", f"the core rejected the request with HTTP {error.code}") from error
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
             raise EquipmentPackError("CORE_UNAVAILABLE", "the Equipment Pack core is unavailable") from error
@@ -314,6 +375,30 @@ class HttpCoreClient:
         if status != 201 or not isinstance(payload, dict):
             raise EquipmentPackError("INVALID_ENROLLMENT", "the core returned an invalid enrollment response")
         return EdgeIdentity.from_wire(payload)
+
+    def request_claim(self, hardware_id: str) -> EdgeClaim:
+        status, _, payload = self._json_request(
+            "POST",
+            "/api/edge/claims",
+            payload={"hardwareId": hardware_id},
+        )
+        if status != 201 or not isinstance(payload, dict):
+            raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid device claim")
+        return EdgeClaim.from_wire(payload)
+
+    def claim_status(self, claim: EdgeClaim) -> EdgeIdentity | None:
+        status, _, payload = self._json_request(
+            "GET",
+            f"/api/edge/claims/{claim.claim_id}",
+            headers={"Authorization": f"Bearer {claim.credential}"},
+        )
+        if status == 410:
+            raise EquipmentPackError("CLAIM_EXPIRED", "the device claim expired")
+        if status == 202 and isinstance(payload, dict) and payload.get("status") == "pending":
+            return None
+        if status != 200 or not isinstance(payload, dict) or payload.get("status") != "approved":
+            raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid claim status")
+        return EdgeIdentity.from_wire({"device": payload.get("device"), "credential": claim.credential})
 
     def desired_state(self, identity: EdgeIdentity, etag: str | None) -> tuple[bool, str | None, DesiredPack | None]:
         headers = {"If-None-Match": etag} if etag else {}
@@ -521,43 +606,154 @@ class EquipmentPackAgent:
         self.client = client or (HttpCoreClient(config.core_url) if config.core_url else None)
         self.activate = activate
         self.identity: EdgeIdentity | None = None
+        self.claim: EdgeClaim | None = None
         self.runtime = RuntimeState()
         self.phase = "disabled" if not config.enabled else "unenrolled"
         self.detail = "Equipment Pack synchronization is disabled" if not config.enabled else "Enroll this node"
-        self._task: asyncio.Task[None] | None = None
+        self._poll_task: asyncio.Task[None] | None = None
+        self._socket_task: asyncio.Task[None] | None = None
+        self._claim_task: asyncio.Task[None] | None = None
+        self._wake = asyncio.Event()
         self._lock = asyncio.Lock()
+        self.notification_connected = False
+        self.last_successful_sync_at: int | None = None
+
+    def _start_background(self) -> None:
+        if self._poll_task is None:
+            self._poll_task = asyncio.create_task(self._poll_loop())
+        if self._socket_task is None and isinstance(self.client, HttpCoreClient):
+            self._socket_task = asyncio.create_task(self._socket_loop())
 
     async def start(self) -> None:
         if not self.config.enabled:
             return
         try:
             self.identity = self.store.load_identity()
+            self.claim = self.store.load_claim()
             self.runtime = self.store.load_runtime()
         except EquipmentPackError as error:
             self.phase, self.detail = "failed", error.detail
             return
         if self.identity is None:
-            self.phase, self.detail = "unenrolled", "Enroll this node"
+            if self.client is None:
+                self.phase, self.detail = "failed", "Configure the Equipment Pack core URL"
+                return
+            if not self.config.hardware_id:
+                self.phase, self.detail = "failed", "The baked device identity is missing"
+                return
+            self.phase, self.detail = "claiming", "Requesting a seven-digit setup code"
+            self._start_claiming()
             return
         if self.client is None:
             self.phase, self.detail = "failed", "Configure the Equipment Pack core URL"
             return
         self.phase, self.detail = "reconciling", "Checking for an assigned package"
-        self._task = asyncio.create_task(self._poll_loop())
+        self._start_background()
 
     async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
+        for task in (self._poll_task, self._socket_task, self._claim_task):
+            if task:
+                task.cancel()
+        for task in (self._poll_task, self._socket_task, self._claim_task):
+            if not task:
+                continue
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
-            self._task = None
+        self._poll_task = None
+        self._socket_task = None
+        self._claim_task = None
+        self.notification_connected = False
+
+    def _start_claiming(self) -> None:
+        if self._claim_task is None or self._claim_task.done():
+            self._claim_task = asyncio.create_task(self._claim_loop())
+
+    async def _claim_loop(self) -> None:
+        while self.identity is None:
+            try:
+                if self.claim is None:
+                    self.phase, self.detail = "claiming", "Requesting a seven-digit setup code"
+                    self.claim = await asyncio.to_thread(self.client.request_claim, self.config.hardware_id)
+                    self.store.save_claim(self.claim)
+                self.phase = "awaiting_approval"
+                self.detail = f"Enter {self.claim.claim_code} in MXGenius Settings"
+                identity = await asyncio.to_thread(self.client.claim_status, self.claim)
+                if identity is None:
+                    await asyncio.sleep(self.claim.poll_seconds)
+                    continue
+                self.store.save_identity(identity)
+                self.store.clear_claim()
+                self.identity = identity
+                self.claim = None
+                self.phase, self.detail = "ready", "Node approved; checking for an assignment"
+                self._start_background()
+                self._wake.set()
+                return
+            except asyncio.CancelledError:
+                raise
+            except EquipmentPackError as error:
+                if error.code == "CLAIM_EXPIRED":
+                    self.store.clear_claim()
+                    self.claim = None
+                    self.phase, self.detail = "claiming", "Setup code expired; requesting a new code"
+                    await asyncio.sleep(1)
+                    continue
+                if error.code == "CORE_UNAVAILABLE":
+                    self.phase, self.detail = "waiting_network", "Connect this Pi to the internet to get a setup code"
+                    await asyncio.sleep(5)
+                    continue
+                self.phase, self.detail = "failed", error.detail
+                await asyncio.sleep(10)
 
     async def _poll_loop(self) -> None:
         while True:
             await self.reconcile_once()
-            await asyncio.sleep(self.config.poll_seconds)
+            try:
+                await asyncio.wait_for(self._wake.wait(), timeout=self.config.poll_seconds)
+            except asyncio.TimeoutError:
+                pass
+            self._wake.clear()
+
+    async def _socket_loop(self) -> None:
+        if not self.identity or not self.config.core_url:
+            return
+        parsed = urllib.parse.urlsplit(self.config.core_url)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        socket_url = urllib.parse.urlunsplit((scheme, parsed.netloc, "/api/edge/ws", "", ""))
+        delay = 1.0
+        while True:
+            try:
+                async with websockets.connect(
+                    socket_url,
+                    additional_headers={"Authorization": f"Bearer {self.identity.credential}"},
+                    open_timeout=20,
+                    ping_interval=20,
+                    ping_timeout=20,
+                    max_size=2048,
+                ) as socket:
+                    self.notification_connected = True
+                    delay = 1.0
+                    async for message in socket:
+                        if not isinstance(message, str) or len(message) > 2048:
+                            continue
+                        try:
+                            payload = json.loads(message)
+                        except json.JSONDecodeError:
+                            continue
+                        if isinstance(payload, dict) and payload.get("type") in {
+                            "edge.hello", "edge.desired.changed", "edge.reconcile.required"
+                        }:
+                            self._wake.set()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
+            finally:
+                self.notification_connected = False
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 60.0)
 
     def public_status(self) -> dict[str, Any]:
         return {
@@ -566,6 +762,8 @@ class EquipmentPackAgent:
             "deviceId": self.identity.device_id if self.identity else None,
             "displayName": self.identity.display_name if self.identity else None,
             "hardwareId": self.config.hardware_id,
+            "claimCode": self.claim.claim_code if self.claim else None,
+            "claimExpiresAt": self.claim.expires_at if self.claim else None,
             "phase": self.phase,
             "detail": self.detail,
             "activeGeneration": self.runtime.active_generation,
@@ -573,6 +771,8 @@ class EquipmentPackAgent:
             "activeSlot": self.runtime.active_slot,
             "pendingGeneration": self.runtime.pending_generation,
             "pendingSlot": self.runtime.pending_slot,
+            "notificationConnected": self.notification_connected,
+            "lastSuccessfulSyncAt": self.last_successful_sync_at,
         }
 
     async def enroll(self, code: str, hardware_id: str | None = None) -> dict[str, Any]:
@@ -586,10 +786,39 @@ class EquipmentPackAgent:
             raise EquipmentPackError("INVALID_HARDWARE_ID", "the hardware identifier is invalid")
         identity = await asyncio.to_thread(self.client.enroll, normalized, normalized_hardware_id)
         self.store.save_identity(identity)
+        self.store.clear_claim()
         self.identity = identity
+        self.claim = None
         self.phase, self.detail = "ready", "Node enrolled; checking for an assignment"
-        if self._task is None:
-            self._task = asyncio.create_task(self._poll_loop())
+        if self._socket_task is not None:
+            self._socket_task.cancel()
+            try:
+                await self._socket_task
+            except asyncio.CancelledError:
+                pass
+            self._socket_task = None
+        self._start_background()
+        self._wake.set()
+        return self.public_status()
+
+    async def restart_claim(self) -> dict[str, Any]:
+        if not self.config.enabled or self.client is None:
+            raise EquipmentPackError("AGENT_DISABLED", "Equipment Pack synchronization is not configured")
+        if self.identity is not None:
+            return self.public_status()
+        if not self.config.hardware_id:
+            raise EquipmentPackError("INVALID_HARDWARE_ID", "the baked device identity is missing")
+        if self._claim_task is not None:
+            self._claim_task.cancel()
+            try:
+                await self._claim_task
+            except asyncio.CancelledError:
+                pass
+        self._claim_task = None
+        self.store.clear_claim()
+        self.claim = None
+        self.phase, self.detail = "claiming", "Requesting a new seven-digit setup code"
+        self._start_claiming()
         return self.public_status()
 
     async def reconcile_once(self) -> dict[str, Any]:
@@ -604,6 +833,7 @@ class EquipmentPackAgent:
                 unchanged, etag, desired = await asyncio.to_thread(
                     self.client.desired_state, self.identity, self.runtime.desired_etag
                 )
+                self.last_successful_sync_at = int(time.time())
                 if unchanged:
                     if self.runtime.pending_generation and self.runtime.pending_slot:
                         self.phase = "staged"

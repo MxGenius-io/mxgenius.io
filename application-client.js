@@ -438,6 +438,79 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function approveEdgeDeviceClaim({ code, displayName, session = {} }) {
+    return applicationJson('/api/edge/claims/approve', {
+      session,
+      method: 'POST',
+      body: { code, displayName }
+    });
+  }
+
+  function revokeEdgeDevice(deviceId, session = {}) {
+    return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}`, {
+      session,
+      method: 'DELETE'
+    });
+  }
+
+  function listEquipmentPacks(session = {}) {
+    return applicationJson('/api/equipment-packs', { session });
+  }
+
+  function createEquipmentPack({ name, equipmentFamily, description = null, session = {} }) {
+    return applicationJson('/api/equipment-packs', {
+      session,
+      method: 'POST',
+      body: { name, equipmentFamily, description }
+    });
+  }
+
+  function listEquipmentPackVersions(packId, session = {}) {
+    return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/versions`, { session });
+  }
+
+  function createEquipmentPackVersion(packId, { manifest, contentHash, byteSize, fileCount, session = {} }) {
+    return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/versions`, {
+      session,
+      method: 'POST',
+      body: { manifest, contentHash, byteSize, fileCount }
+    });
+  }
+
+  function uploadEquipmentPackBlock(versionId, blockIndex, block, session = {}) {
+    if (!(block instanceof Blob)) throw new TypeError('Equipment Pack block must be a Blob');
+    return applicationJson(`/api/equipment-pack-versions/${encodeURIComponent(versionId)}/blocks/${blockIndex}`, {
+      session,
+      method: 'PUT',
+      body: block,
+      contentType: 'application/octet-stream'
+    });
+  }
+
+  function publishEquipmentPackVersion(versionId, session = {}) {
+    return applicationJson(`/api/equipment-pack-versions/${encodeURIComponent(versionId)}/publish`, {
+      session,
+      method: 'POST',
+      body: {}
+    });
+  }
+
+  function equipmentPackUploadStatus(versionId, session = {}) {
+    return applicationJson(`/api/equipment-pack-versions/${encodeURIComponent(versionId)}/upload`, { session });
+  }
+
+  function assignEquipmentPackVersion(deviceId, versionId, session = {}) {
+    return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}/assignment`, {
+      session,
+      method: 'PUT',
+      body: { versionId }
+    });
+  }
+
+  function listEdgeDeployments(deviceId, session = {}) {
+    return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}/deployments`, { session });
+  }
+
   function uploadContent(file, session = {}) {
     if (!(file instanceof Blob)) throw new TypeError('Content upload must be a Blob or File');
     const filename = String(file.name || 'uploaded-content').slice(0, 180);
@@ -1657,7 +1730,20 @@ const MXApplicationClient = (() => {
     edgeDevices: Object.freeze({
       list: listEdgeDevices,
       register: registerEdgeDevice,
-      issueEnrollmentCode: issueEdgeEnrollmentCode
+      issueEnrollmentCode: issueEdgeEnrollmentCode,
+      approveClaim: approveEdgeDeviceClaim,
+      revoke: revokeEdgeDevice,
+      deployments: listEdgeDeployments
+    }),
+    equipmentPacks: Object.freeze({
+      list: listEquipmentPacks,
+      create: createEquipmentPack,
+      versions: listEquipmentPackVersions,
+      createVersion: createEquipmentPackVersion,
+      uploadBlock: uploadEquipmentPackBlock,
+      uploadStatus: equipmentPackUploadStatus,
+      publishVersion: publishEquipmentPackVersion,
+      assignVersion: assignEquipmentPackVersion
     }),
     companyDetail,
     companyList,

@@ -1,15 +1,16 @@
 # MXGenius Azure Deployment Plan
 
-## Equipment Pack Control Plane — 2026-09-10
+## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Deployed
+> **Status:** Validated
 
 ### 1. Project Overview
 
 **Goal:** Extend the existing MXGenius Azure core with a fast, durable control
 plane for uploading immutable equipment-folder packages, assigning a package
 version to a Raspberry Pi, notifying the device immediately, transferring the
-content securely, and recording verified activation state.
+content securely, recording verified activation state, and approving a new Pi
+with a seven-digit device-originated claim instead of a manually copied secret.
 
 **Path:** Add Components (MODIFY existing Azure application)
 
@@ -35,7 +36,7 @@ content securely, and recording verified activation state.
 | Application database | Durable tenant and device state | PostgreSQL 16 | Existing `mxg-pg-50106` |
 | Package object store | Private package bytes | Azure Blob Storage | Existing `mxgstorage50106/documents` |
 | Identity boundary | Human authentication and tenant membership | Entra OIDC plus application roles | Existing dispatcher/auth context |
-| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (protocol consumer; not modified in this Azure-only slice) |
+| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.23` release) |
 
 Existing reusable seams:
 
@@ -48,8 +49,8 @@ Existing reusable seams:
 - Axum WebSocket support is already deployed and the Container App is held at
   one replica. Durable polling remains authoritative so a missed socket event
   cannot lose an update and future scale-out does not change correctness.
-- No Equipment Pack, edge-device enrollment, desired-state, or cloud activation
-  implementation currently exists; migration `0027` is the clean next seam.
+- Equipment Pack desired-state and activation use migration `0027`; the
+  device-originated approval flow is added by migration `0028`.
 
 ### 4. Recipe Selection
 
@@ -101,7 +102,7 @@ private Blob <----- bounded blocks --- mxg-core <------------+
   reserved FAT names, or exceed configured limits are rejected before publish.
 - Published versions are append-only; replacing a pack creates a new version.
 
-#### Durable state model (migration `0027`)
+#### Durable state model (migrations `0027` and `0028`)
 
 - `equipment_packs`: tenant-owned logical pack and equipment metadata.
 - `equipment_pack_versions`: immutable manifest, Blob key, hashes, sizes, and
@@ -109,7 +110,10 @@ private Blob <----- bounded blocks --- mxg-core <------------+
 - `edge_devices`: tenant-owned Pi identity, hashed device credential, status,
   credential rotation/revocation, and last-seen data.
 - `edge_device_enrollment_codes`: one-time, short-lived, 96-bit bootstrap
-  records; successful exchange returns a high-entropy device secret.
+  records retained as a compatibility recovery path.
+- `edge_device_claims`: short-lived seven-digit human approval codes paired
+  with a high-entropy credential delivered only to the Pi over TLS. The browser
+  sees the claim code and registry result, never the credential.
 - `edge_device_assignments`: one current desired version per device with a
   strictly increasing generation and requesting actor.
 - `edge_device_deployments`: append-only download/stage/activate/fail history,
@@ -126,13 +130,19 @@ private Blob <----- bounded blocks --- mxg-core <------------+
   expected blocks are present.
 - Publish validates manifest, byte count, ordered block set, aggregate hash,
   path safety, and immutable state.
-- Register/revoke devices, issue one-time enrollment codes, assign a published
-  version, and inspect deployment history.
+- Approve a Pi-originated seven-digit claim with a friendly device name,
+  revoke devices, assign a published version, and inspect deployment history.
 
 #### Device API (separate device credential)
 
-- `POST /api/edge/enroll`: exchange a one-time, 96-bit, 10-minute code for a
-  random device secret; only its SHA-256 digest is stored.
+- `POST /api/edge/claims`: the Pi presents its baked hardware ID and receives a
+  seven-digit display code plus a private high-entropy credential over TLS.
+- `POST /api/edge/claims/approve`: an Entra-authenticated manager binds the
+  displayed code and friendly name to the organization without receiving the
+  credential.
+- `GET /api/edge/claims/{claim_id}`: the Pi polls with its private credential
+  until approval, then persists that credential locally.
+- `POST /api/edge/enroll`: retained as a compatibility-only recovery exchange.
 - `GET /api/edge/state`: return desired generation and pack metadata with ETag;
   `If-None-Match` gives a cheap durable reconciliation fallback.
 - `GET /api/edge/packs/{version_id}/content`: permit only the version assigned
@@ -254,6 +264,13 @@ replica, ingress, or cost-bearing resource change is planned.
 | Managed identity RBAC | `az role assignment list` for the `mxg-core` principal | ✅ Storage Blob Data Contributor scoped to `mxgstorage50106/documents` | 2026-09-10 |
 | Linux container build | `az acr build --no-push ...` | ✅ ACR run `cj26`; Dockerfile completed; no image published | 2026-09-10 |
 | Current live baseline | `/healthz`, `/readyz`, current revision and flag inspection | ✅ Both HTTP 200; `mxg-core--spatialshell3eacbb0` unchanged; feature flag absent/off | 2026-09-10 |
+| Frontend regression | `npm test -- --runInBand` | ✅ 403 passed, 0 failed | 2026-09-13 |
+| Pi kiosk regression | `python -m unittest discover -s services/xr-diagnostics-kiosk/backend -p 'test_*.py'` | ✅ 80 passed, 0 failed | 2026-09-13 |
+| Rust workspace regression | `cargo test --manifest-path services/mcp/Cargo.toml --workspace` | ✅ All workspace and contract tests passed | 2026-09-13 |
+| Lint and release gates | `cargo clippy --locked --workspace --all-targets -- -D warnings`; `cargo build --locked --release` | ✅ Clean optimized build | 2026-09-13 |
+| Pi release preview | `preview-release.ps1 -TestOnly -NoBrowser` against `0.3.1-poc.23` | ✅ HTTP, schema, state, WSS, scanner, and thermal checks passed | 2026-09-13 |
+| Azure resource/RBAC recheck | `az account`, resource, role, policy, and Container App inspection | ✅ Existing subscription/resources healthy; no infrastructure or RBAC delta | 2026-09-13 |
+| Linux container rebuild | `az acr build --no-push ...` | ✅ ACR run `cj28`; Dockerfile completed; no image published | 2026-09-13 |
 
 ### 8.1 Deployment Proof
 
@@ -289,7 +306,7 @@ replica, ingress, or cost-bearing resource change is planned.
 | `services/mcp/server/tests/equipment_packs.rs` | Migration, auth, tenant, idempotency, race, and transfer contract tests | Created |
 | `services/mcp/README.md` | Configuration and operational contract | Updated |
 
-The Pi `0.3.1-poc.11` release is included in the paired Git batch but remains
+The Pi `0.3.1-poc.23` release is included in the paired Git batch but remains
 excluded from the Azure core image and Container App promotion.
 
 ### 10. Next Steps

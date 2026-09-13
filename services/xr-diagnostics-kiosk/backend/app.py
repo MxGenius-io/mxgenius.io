@@ -24,7 +24,7 @@ from bluetooth_stream import BluetoothDiagnosticsServer
 from control import ControlUnavailable, request_control
 from diagnostics import DiagnosticsCollector
 from edge_schema import StateDeltaEncoder
-from equipment_pack_agent import AgentConfig, EquipmentPackAgent, EquipmentPackError
+from equipment_pack_agent import AgentConfig, DesiredPack, EquipmentPackAgent, EquipmentPackError
 from integration_fixtures import simulated_integrations
 from scanner import normalize_scan_observation
 
@@ -220,7 +220,25 @@ except EquipmentPackError as error:
         hardware_id=None,
     )
     equipment_pack_config_error = error
-equipment_pack_agent = EquipmentPackAgent(equipment_pack_config)
+async def _activate_equipment_pack(slot: str, _: Path, desired: DesiredPack) -> None:
+    try:
+        response = await request_control(
+            "usb.gadget.activate",
+            timeout_seconds=900,
+            slot=slot,
+            generation=desired.generation,
+            versionId=desired.version_id,
+        )
+    except ControlUnavailable as error:
+        raise EquipmentPackError("GADGET_CONTROL_UNAVAILABLE", str(error)) from error
+    if not response.get("ok"):
+        raise EquipmentPackError(
+            "GADGET_ACTIVATION_FAILED",
+            str(response.get("error") or "the USB Equipment Pack could not be activated")[:500],
+        )
+
+
+equipment_pack_agent = EquipmentPackAgent(equipment_pack_config, activate=_activate_equipment_pack)
 if equipment_pack_config_error is not None:
     equipment_pack_agent.phase = "failed"
     equipment_pack_agent.detail = equipment_pack_config_error.detail
@@ -332,6 +350,16 @@ async def equipment_pack_enroll(request: Request) -> dict[str, Any]:
             code=str(payload.get("code") or ""),
             hardware_id=payload.get("hardwareId"),
         )
+    except EquipmentPackError as error:
+        status = 503 if error.code == "AGENT_DISABLED" else 400
+        raise HTTPException(status_code=status, detail=error.detail) from error
+
+
+@app.post("/api/v1/equipment-pack/claim")
+async def equipment_pack_claim(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    try:
+        return await equipment_pack_agent.restart_claim()
     except EquipmentPackError as error:
         status = 503 if error.code == "AGENT_DISABLED" else 400
         raise HTTPException(status_code=status, detail=error.detail) from error

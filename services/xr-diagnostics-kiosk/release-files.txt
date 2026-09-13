@@ -9,9 +9,11 @@ scripts/simulate_scanner.py
 scripts/scan_serial.py
 scripts/smoke_test.py
 scripts/configure-appliance.sh
+scripts/diagnose-appliance.sh
+scripts/boot-status.sh
+scripts/start-kiosk.sh
 install.sh
 update.sh
-mxg-firstboot.sh
 requirements.txt
 README.md
 VERSION

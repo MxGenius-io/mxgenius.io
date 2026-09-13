@@ -475,7 +475,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=57/);
+  assert.match(dashboard, /app\.js\?v=58/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -1049,7 +1049,7 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(client, /uiSounds: Object\.freeze/);
   assert.match(xrUiAudio, /id: 'SND-001'/);
   assert.match(xrUiAudio, /MXGeniusSoundStorage/);
-  const applicationClientIndex = dashboard.indexOf('<script src="application-client.js?v=43"></script>');
+  const applicationClientIndex = dashboard.search(/<script src="application-client\.js\?v=\d+"><\/script>/);
   const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
@@ -1060,29 +1060,50 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
 });
 
-test('Settings registers edge devices and exposes one-time enrollment keys without browser persistence', () => {
+test('Settings exposes the complete Equipment Pack publish and assign lifecycle', async () => {
+  const equipmentWorkspace = await readFile(new URL('../equipment-pack-workspace.js', import.meta.url), 'utf8');
+  for (const id of [
+    'settingsPacksCard', 'settingsPackCreate', 'settingsPackName', 'settingsPackFamily',
+    'settingsPackSelect', 'settingsPackFolder', 'settingsPackPublish', 'settingsPackVersion',
+    'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
+  ]) assert.match(dashboard, new RegExp(`id="${id}"`));
+
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=1/);
+  assert.match(application, /MXEquipmentPacks\?\.init/);
+  assert.match(equipmentWorkspace, /webkitRelativePath/);
+  assert.match(equipmentWorkspace, /crypto\.subtle\.digest\('SHA-256'/);
+  assert.match(equipmentWorkspace, /client\.createVersion/);
+  assert.match(equipmentWorkspace, /client\.uploadBlock/);
+  assert.match(equipmentWorkspace, /client\.uploadStatus/);
+  assert.match(equipmentWorkspace, /storedBlocks/);
+  assert.match(equipmentWorkspace, /client\.publishVersion/);
+  assert.match(equipmentWorkspace, /client\.assignVersion/);
+  assert.match(equipmentWorkspace, /edgeDevices\.deployments/);
+  assert.doesNotMatch(equipmentWorkspace, /localStorage|sessionStorage/);
+});
+
+test('Settings approves Pi-originated short claims without exposing credentials', () => {
   for (const id of [
     'settingsDevicesCard',
     'settingsDeviceForm',
     'settingsDeviceName',
-    'settingsHardwareId',
+    'settingsDeviceClaimCode',
     'settingsDeviceRegister',
-    'settingsDeviceKeyPanel',
-    'settingsDeviceKey',
-    'settingsDeviceKeyCopy',
     'settingsDeviceRefresh',
     'settingsDeviceList'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /Register &amp; generate key/);
+  assert.match(dashboard, /Device Access &amp; Registry/);
+  assert.match(dashboard, /Approve device/);
+  assert.match(dashboard, /seven-digit code shown on its screen/);
   assert.match(client, /function listEdgeDevices/);
-  assert.match(client, /function registerEdgeDevice/);
-  assert.match(client, /function issueEdgeEnrollmentCode/);
+  assert.match(client, /function approveEdgeDeviceClaim/);
   assert.match(client, /edgeDevices: Object\.freeze/);
   assert.match(application, /MXApplicationClient\.edgeDevices\.list/);
-  assert.match(application, /MXApplicationClient\.edgeDevices\.register/);
-  assert.match(application, /MXApplicationClient\.edgeDevices\.issueEnrollmentCode/);
-  assert.match(application, /navigator\.clipboard\.writeText/);
+  assert.match(application, /MXApplicationClient\.edgeDevices\.approveClaim/);
+  assert.match(application, /MXApplicationClient\.edgeDevices\.revoke/);
+  assert.match(application, /Registered:/);
+  assert.doesNotMatch(application, /navigator\.clipboard\.writeText/);
   assert.doesNotMatch(application, /localStorage\.setItem\([^\n]*DeviceKey/i);
   assert.match(applicationStyles, /\.device-registry-list\s*\{[^}]*max-height: 280px;[^}]*overflow-y: auto;/s);
 });

@@ -413,16 +413,19 @@ function renderEquipmentPack(status) {
   $('packPhase').dataset.state = phase;
   $('packDetail').textContent = status.detail || 'No Equipment Pack status is available.';
   $('packNode').textContent = status.displayName || (status.enrolled ? status.deviceId : 'Not enrolled');
-  $('packHardwareId').value = status.hardwareId || '';
-  $('packHardwareIdState').textContent = status.hardwareId ? 'baked into drive' : 'not found';
+  $('packClaim').hidden = status.enrolled || !status.claimCode;
+  $('packClaimCode').textContent = status.claimCode || '-------';
   $('packAssigned').textContent = status.pendingGeneration
     ? `Generation ${status.pendingGeneration} · slot ${status.pendingSlot || '—'}`
     : 'No pending pack';
   $('packActive').textContent = status.activeGeneration
     ? `Generation ${status.activeGeneration} · slot ${status.activeSlot || '—'}`
     : 'None';
-  $('packRetry').disabled = !status.enabled || !status.enrolled;
-  $('packEnrollForm').querySelector('button').disabled = !status.enabled;
+  $('packRetry').disabled = !status.enabled;
+  $('packRetry').textContent = status.enrolled ? 'Check for update' : 'New setup code';
+  if (status.notificationConnected && status.phase !== 'failed') {
+    $('packDetail').textContent += ' · Cloud updates connected.';
+  }
 }
 
 async function loadEquipmentPackStatus() {
@@ -439,8 +442,13 @@ async function loadEquipmentPackStatus() {
 async function loadUsbGadgetStatus() {
   try {
     const status = await controlRequest('/api/v1/control/usb-gadget/status');
-    $('packUsb').textContent = status.activationReady ? 'Ready' : status.supported ? 'Needs tools' : 'Not detected';
-    $('packUsb').title = (status.udcs || []).join(', ') || 'No USB device controller detected';
+    const activeSlot = status.state?.activeSlot;
+    $('packUsb').textContent = activeSlot && status.bound
+      ? `Slot ${activeSlot} · ${status.hostState === 'configured' ? 'connected' : 'ready'}`
+      : status.activationReady ? 'Ready' : status.supported ? 'Needs tools' : 'Not detected';
+    $('packUsb').title = activeSlot
+      ? `Controller ${status.state.controller || 'unknown'} · host ${status.hostState || 'unknown'}`
+      : (status.udcs || []).join(', ') || 'No USB device controller detected';
   } catch {
     $('packUsb').textContent = 'Unavailable';
   }
@@ -533,8 +541,13 @@ async function scanWifi() {
   setControlNotice('Scanning for nearby Wi-Fi networks…');
   try {
     const result = await controlRequest('/api/v1/control/wifi/scan');
-    renderWifiNetworks(result.networks || []);
-    setControlNotice(`${(result.networks || []).length} Wi-Fi network(s) found`, 'success');
+    const networks = result.networks || [];
+    renderWifiNetworks(networks);
+    const adapter = result.device ? ` on ${result.device}` : '';
+    const notice = networks.length
+      ? `${networks.length} Wi-Fi network(s) found${adapter}`
+      : `No broadcast Wi-Fi networks found${adapter}; enter a hidden network below`;
+    setControlNotice(result.scanWarning ? `${notice} · cached results` : notice, result.scanWarning ? '' : 'success');
     logEvent('info', 'wifi', 'Wi-Fi scan completed', { networks: (result.networks || []).length });
   } catch (error) {
     setControlNotice(error.message, 'error');
@@ -699,36 +712,19 @@ $('bluetoothScan').addEventListener('click', scanBluetooth);
 $('packRetry').addEventListener('click', async () => {
   $('packRetry').disabled = true;
   try {
-    const status = await controlRequest('/api/v1/equipment-pack/reconcile');
+    const endpoint = equipmentPackStatus?.enrolled
+      ? '/api/v1/equipment-pack/reconcile'
+      : '/api/v1/equipment-pack/claim';
+    const status = await controlRequest(endpoint);
     renderEquipmentPack(status);
-    logEvent('info', 'equipment-pack', 'Equipment Pack assignment checked', { phase: status.phase });
+    logEvent('info', 'equipment-pack', equipmentPackStatus?.enrolled
+      ? 'Equipment Pack assignment checked'
+      : 'New device setup code requested', { phase: status.phase });
   } catch (error) {
     setControlNotice(error.message, 'error');
     logEvent('error', 'equipment-pack', 'Equipment Pack check failed', { error: error.message });
   } finally {
-    if (equipmentPackStatus?.enabled && equipmentPackStatus?.enrolled) $('packRetry').disabled = false;
-  }
-});
-$('packEnrollForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const button = event.currentTarget.querySelector('button[type="submit"]');
-  button.disabled = true;
-  setControlNotice('Enrolling this node…');
-  try {
-    const status = await controlRequest('/api/v1/equipment-pack/enroll', {
-      code: $('packEnrollCode').value,
-      hardwareId: equipmentPackStatus?.hardwareId || null,
-    }, 30000);
-    $('packEnrollCode').value = '';
-    renderEquipmentPack(status);
-    setControlNotice(`${status.displayName || 'Node'} enrolled`, 'success');
-    logEvent('info', 'equipment-pack', 'Equipment Pack node enrolled', { deviceId: status.deviceId });
-  } catch (error) {
-    $('packEnrollCode').value = '';
-    setControlNotice(error.message, 'error');
-    logEvent('error', 'equipment-pack', 'Equipment Pack enrollment failed', { error: error.message });
-  } finally {
-    button.disabled = equipmentPackStatus?.enabled === false;
+    if (equipmentPackStatus?.enabled) $('packRetry').disabled = false;
   }
 });
 $('wifiForm').addEventListener('submit', async (event) => {

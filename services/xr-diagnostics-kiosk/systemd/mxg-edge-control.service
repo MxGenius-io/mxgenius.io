@@ -1,7 +1,8 @@
 [Unit]
 Description=MXG allow-listed edge appliance control agent
-After=NetworkManager.service bluetooth.service
+After=NetworkManager.service bluetooth.service systemd-modules-load.service sys-kernel-config.mount
 Wants=NetworkManager.service bluetooth.service
+RequiresMountsFor=/sys/kernel/config
 
 [Service]
 Type=simple
@@ -18,9 +19,9 @@ RestartSec=2
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ProtectKernelTunables=true
+ProtectKernelTunables=false
 ProtectControlGroups=true
-ReadWritePaths=/run/mxg-edge-control
+ReadWritePaths=/run/mxg-edge-control /var/lib/mxg-diagnostics-kiosk /sys/kernel/config
 
 [Install]
 WantedBy=multi-user.target

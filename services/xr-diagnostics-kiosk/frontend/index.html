@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.11">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.23">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -155,15 +155,11 @@
         </div>
         <div class="pack-actions">
           <button id="packRetry" class="scan-button" type="button">Check for update</button>
-          <details class="pack-enrollment">
-            <summary>Node setup</summary>
-            <form id="packEnrollForm" class="pack-enroll-form" autocomplete="off">
-              <label>One-time code<input id="packEnrollCode" maxlength="29" inputmode="text" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required></label>
-              <label>Hardware ID <span id="packHardwareIdState">checking drive</span><input id="packHardwareId" maxlength="180" placeholder="Baked device ID" readonly></label>
-              <button class="primary-button" type="submit">Enroll node</button>
-            </form>
-            <p>Enrollment credentials stay on this Pi and are never shown here.</p>
-          </details>
+          <div id="packClaim" class="pack-claim" aria-live="polite" hidden>
+            <span>SETUP CODE</span>
+            <strong id="packClaimCode">-------</strong>
+            <p>Open MXGenius Settings, name this device, and enter these seven digits.</p>
+          </div>
         </div>
       </article>
       <div class="connection-grid">
@@ -228,6 +224,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.11"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.23"></script>
 </body>
 </html>

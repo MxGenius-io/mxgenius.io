@@ -149,6 +149,10 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .pack-facts small { color:#668294; font:750 8px ui-monospace,monospace; letter-spacing:.08em; }
 .pack-facts b { margin-top:5px; color:#dceff3; font-size:12px; }
 .pack-actions { display:flex; align-items:flex-start; gap:12px; margin-top:14px; }
+.pack-claim { flex:1; padding:10px 14px; border:1px solid rgba(65,215,231,.22); border-radius:10px; background:rgba(2,8,18,.62); }
+.pack-claim span { display:block; color:#668294; font:750 8px ui-monospace,monospace; letter-spacing:.12em; }
+.pack-claim strong { display:block; margin-top:4px; color:var(--cyan); font:800 24px ui-monospace,monospace; letter-spacing:.22em; }
+.pack-claim p { margin:5px 0 0; color:#85a4b2; font-size:10px; }
 .pack-enrollment { flex:1; color:#7591a1; font-size:10px; }
 .pack-enrollment summary { width:max-content; padding:10px 4px; color:#91b3be; cursor:pointer; font:750 10px ui-monospace,monospace; }
 .pack-enrollment > p { margin:9px 0 0; }

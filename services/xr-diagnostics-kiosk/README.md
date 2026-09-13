@@ -8,6 +8,32 @@ This service turns a Raspberry Pi into a standalone fullscreen diagnostics appli
 
 The POC has three deliberately separate paths. UI work should not require an SD-card write, and routine Pi updates should not require reprovisioning the device.
 
+### Local golden image
+
+The production appliance is built locally from a pinned official Raspberry Pi
+OS image. The builder verifies the base checksum, mounts both filesystems under
+WSL, installs the exact preflighted MXG release into the root filesystem,
+creates a locked SSH-key-only operator, bakes the device identity, enables the
+normal services, validates both filesystems, and emits a compressed image plus
+SHA-256 and JSON provenance files.
+
+Run this from PowerShell after installing the local WSL Ubuntu builder:
+
+```powershell
+.\scripts\build-appliance-image.ps1 -HardwareId 'mxg-pi-00000000000000000000000000000000'
+```
+
+The private operator key is generated once at
+`D:\AAog\.secrets\mxgenius-pi-admin` and never enters the repository or image.
+Only its public key is baked into the appliance. Supply `-NetworkConfig` with a
+local, untracked cloud-init network configuration when Wi-Fi must be present on
+first boot; Ethernet remains the deterministic recovery path.
+
+The booted appliance continuously publishes a bounded, credential-free
+`mxg-boot-status.txt` on `bootfs`, but rewrites it only when status changes.
+This makes the last boot stage inspectable from Windows even when the display
+or network is unavailable.
+
 ### Double-click release preview
 
 Double-click `start.bat` in this folder. It will:
@@ -27,7 +53,14 @@ For a non-interactive preflight without opening a browser:
 .\scripts\preview-release.ps1 -TestOnly
 ```
 
-`release-files.txt` is also consumed by both SD staging and SSH deployment, preventing those paths from silently packaging a different set of files.
+`release-files.txt` is consumed by preview and SSH deployment so the exact payload tested on the development machine is the payload installed on the Pi. SD commissioning deliberately carries no application payload.
+
+The installed NetworkManager policy preserves ordinary wired DHCP and also
+enables IPv4 link-local addressing on Ethernet. With no DHCP server present, a
+direct cable can still reach the appliance through `mxgenius-pi-01.local` (or
+the commissioned hostname) once the host has assigned its own link-local
+address. This recovery path does not share internet access or change the Pi's
+default route.
 
 ### 1. Local surface and simulated sensor
 
@@ -49,7 +82,12 @@ Run the black-box contract checks against an already-running bridge with:
 The startup splash is event-driven: it clears only after the WebSocket bridge connects and the first diagnostics snapshot arrives.
 Open `http://127.0.0.1:8844/?splash=hold` to hold its final ready state while styling or reviewing it.
 
-On Raspberry Pi OS, installation also selects desktop auto-login, suppresses Chromium's first-run prompts, and configures the packaged MxGenius logo as the early fullscreen boot splash through Raspberry Pi's `rpi-splash-screen-support` tool. Linux still boots underneath, but the intended operator path is splash → local web splash → live kiosk without a login or browser prompt. The splash is regenerated only when the source logo changes; reboot once after installation or an updated logo to validate the early-boot handoff.
+On Raspberry Pi OS, installation selects desktop auto-login and suppresses
+Chromium's first-run prompts. The branded splash lives only inside the local
+web application. Firmware/initramfs splash ownership is deliberately removed
+because a second display owner can leave HDMI sinks black during the KMS and
+Wayland handoff. The intended operator path is normal OS startup → local web
+splash → live kiosk without a login or browser prompt.
 
 ### 2. Incremental Pi deployment
 
@@ -59,11 +97,24 @@ After the Pi has a valid `mxgenius` user and SSH access:
 .\scripts\deploy-pi.ps1 -HostName mxgenius.local -UserName mxgenius
 ```
 
-This packages only the service, uploads it to `/tmp`, runs the initial installer or lightweight updater, restarts the systemd services, and performs a loopback health check on the Pi. Use `-IdentityFile` after key-based SSH is configured. This is the normal day-to-day hardware iteration path.
+This packages only the service, uploads it to `/tmp`, runs the initial installer
+or atomic updater, restarts the systemd services, and performs a loopback health
+check on the Pi. Use `-IdentityFile` after key-based SSH is configured. This is
+the normal day-to-day hardware iteration path.
 
-### 3. Cold SD-card provisioning
+An update is fully prepared in `/opt/mxg-diagnostics-kiosk.next` before the live
+services stop. Cutover preserves the prior release at
+`/opt/mxg-diagnostics-kiosk.previous`; if the new local health endpoint does not
+become ready within 30 seconds, the updater restores that release and restarts
+the appliance automatically. Persistent identity, enrollment, active pack, and
+USB image state remain under `/var/lib/mxg-diagnostics-kiosk` and are not part of
+the software swap.
 
-Use this path to prove a new device can install itself. Generate a password hash without placing the clear-text password in a script:
+### 3. SD-card commissioning and recovery
+
+Use this path to assign a durable hardware ID, preserve normal boot, and make a
+new or recovered card reachable for the one-time SSH install. Generate a
+password hash without placing the clear-text password in a script:
 
 ```text
 openssl passwd -6
@@ -72,26 +123,50 @@ openssl passwd -6
 With the newly flashed `bootfs` partition mounted as `E:`:
 
 ```powershell
-.\scripts\provision-device-identity.ps1 -Drive E: -DisplayName 'MXG Pi 01'
-.\deploy-to-sd.ps1 -Drive E: -UserName mxgenius -PasswordHash '$6$...' -EnableSsh -EnableUsbGadget
+.\deploy-to-sd.ps1 -Drive E: -DeviceDisplayName 'MXG Pi 01' -UserName mxgenius -PasswordHash '$6$...' -EnableSsh -EnableUsbGadget
 ```
 
-The identity command creates `mxg-device-identity.json` once and preserves the
-same hardware ID on later runs. The ID is an inventory identifier, not a
-credential. The local enrollment form reads it from the boot partition and
-sends it only when exchanging the short-lived enrollment key.
+The commissioning command creates `mxg-device-identity.json` once and preserves
+the same hardware ID on later runs. The ID is an inventory identifier, not a
+credential. Once the Pi has internet access, it automatically requests a
+short-lived device claim and shows a seven-digit setup code. An authenticated
+manager enters that code with a friendly name in MXGenius Settings. The browser
+approves the registry binding but never receives the device credential; the Pi
+keeps polling on its original TLS lane and saves the credential locally after
+approval. A new approved claim for the same hardware ID rotates access.
+Revoking access permanently closes that registry record.
 
 `-EnableUsbGadget` adds the Raspberry Pi 5 USB-C peripheral-mode overlay used
-by the read-only capability probe. It does not activate a mass-storage gadget
-or expose a folder by itself. The staging command also normalizes packaged
-shell scripts to LF, assigns a fresh NoCloud instance ID, and activates the installer
-through a one-shot systemd kernel-command-line hook. This works for both newly imaged
-and already-provisioned appliances. Successful installation leaves
-`mxg-firstboot.status` on `bootfs`, removes the hook, and removes the installer script.
+by the permanent read-only Equipment Pack drive. The running control agent
+creates and binds the gadget only after a cloud-assigned version passes local
+verification. The commissioning command removes obsolete application payloads,
+release manifests, and one-shot boot arguments from the boot partition. It never
+changes the Pi's normal boot target. Use `scripts/deploy-pi.ps1` against the
+running Pi for the initial application install and later software updates.
 
-The command validates the target as a Raspberry Pi boot partition, writes the initial user configuration, stages a whitelisted kiosk payload and release manifest, and activates the one-time systemd boot hook. `mxg-firstboot.status` on `bootfs` records `starting`, `installing`, `installed`, or `failed` for cold-start diagnosis.
+For one bounded, credential-safe lifecycle check on the running Pi:
 
-The cold installer needs network access for Debian and Python packages. After a successful cold install, use the SSH deployment path instead of rewriting the card.
+```bash
+sudo /opt/mxg-diagnostics-kiosk/scripts/diagnose-appliance.sh
+```
+
+The diagnostic reports the boot target, installed version, systemd services,
+hardware identity, local HTTP/Equipment Pack state, ConfigFS, UDC, and current
+gadget binding. It never reads or prints `/etc/mxg-diagnostics-kiosk.env`.
+
+On Raspberry Pi 5, the USB-C connector is the OTG/peripheral data port. Power
+the appliance from its dedicated regulated GPIO supply when that port is
+connected to the headset; do not depend on the headset to power the Pi.
+
+The command validates the target as a Raspberry Pi boot partition, preserves
+device identity and networking, and leaves the operating-system lifecycle alone.
+It does not install or update the application from the boot partition, and it
+does not remove Raspberry Pi Imager's `firstrun.sh` customization.
+
+After the card boots normally and joins the network, run `deploy-pi.ps1`. That
+initial installer needs network access for Debian and Python packages. Later
+software updates use the same SSH path; Equipment Pack content updates happen
+from authenticated Settings and do not rewrite the card.
 
 ## Interfaces
 
@@ -110,7 +185,8 @@ The cold installer needs network access for Debian and Python packages. After a 
 - `POST /api/v1/control/poweroff` — guarded local safe-shutdown action
 - `POST /api/v1/control/usb-gadget/status` — read-only ConfigFS, UDC, and required-tool capability probe
 - `GET /api/v1/equipment-pack/status` — non-secret local node, assignment, slot, and synchronization state
-- `POST /api/v1/equipment-pack/enroll` — local-control exchange of a one-time node enrollment code
+- `POST /api/v1/equipment-pack/claim` — discard an unapproved claim and request a fresh seven-digit setup code
+- `POST /api/v1/equipment-pack/enroll` — compatibility-only recovery exchange for the legacy long code
 - `POST /api/v1/equipment-pack/reconcile` — local-control request for an immediate durable assignment check
 - `WS /ws/xr?token=...` — Quest/browser consumer stream
 - `WS /ws/ingest?token=...` — local simulator and alternate high-bandwidth producer test path
@@ -122,15 +198,16 @@ Loopback clients do not need the token. LAN clients use the token generated in `
 
 Radio and power actions are more restrictive than the read-only diagnostics API. They require a per-process nonce available only to a loopback browser and are forwarded over a group-restricted Unix socket to a separate root-owned allow-list service. The FastAPI diagnostics bridge remains unprivileged and cannot execute arbitrary commands. Wi-Fi passwords are never added to the commissioning log and the form clears them after each connection attempt.
 
-Equipment Pack synchronization is disabled by default. Set
-`MXG_EDGE_PACKS_ENABLED=1` and `MXG_EDGE_CORE_URL=https://...` only after the
+Equipment Pack synchronization is enabled by the appliance installer after the
 cloud migration and authenticated API smoke test pass. Enrollment stores the
 node UUID and device credential in the systemd-managed state directory with
 mode `0600`. The Pi checks durable desired state at startup and every 60
 seconds; packages download to a resumable `.part` file and are hash-verified
-before safe extraction into the inactive local A/B slot. Until the physical
-USB gadget capability probe and activation helper pass, the agent stops at
-`staged` and never claims that the package is active.
+before safe extraction into the inactive local A/B slot. The agent reports a
+generation active only after the root broker has built the read-only VFAT
+image, bound it to the Pi's USB device controller, and verified the local
+binding. If activation fails, the prior image is restored and the deployment
+is reported failed rather than active.
 
 The kiosk Overview includes explicit readiness cards for the FLIR ONE Pro headset lane and the Honeywell Xenon XP 1950g, Zebra DS3608, and Socket Mobile S740 Pi scanner lanes. Its Live log view retains a bounded device-local commissioning trace, filters warnings and errors, and exports JSONL for first-run diagnosis. Scanner log entries record only profile, transport, and sequence; raw scanned values are not persisted in the log.
 

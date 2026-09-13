@@ -4,6 +4,7 @@ use mxgenius_mcp::application::equipment_packs::{
 use serde_json::json;
 
 const MIGRATION: &str = include_str!("../../migrations/0027_equipment_packs.sql");
+const CLAIM_MIGRATION: &str = include_str!("../../migrations/0028_edge_device_claims.sql");
 const HTTP: &str = include_str!("../src/transport/http.rs");
 
 #[test]
@@ -34,6 +35,40 @@ fn device_credentials_are_revocable_and_enrollment_is_one_time() {
     assert!(HTTP.contains("axum::routing::delete(revoke_edge_device)"));
     assert!(HTTP.contains("MXGENIUS_EQUIPMENT_PACKS_ENABLED"));
     assert!(HTTP.contains(".unwrap_or(false)"));
+}
+
+#[test]
+fn device_claims_keep_the_credential_off_the_authenticated_browser() {
+    assert!(CLAIM_MIGRATION.contains("CREATE TABLE IF NOT EXISTS edge_device_claims"));
+    assert!(CLAIM_MIGRATION.contains("UNIQUE (claim_code_hash)"));
+    assert!(CLAIM_MIGRATION.contains("UNIQUE (credential_hash)"));
+    assert!(CLAIM_MIGRATION.contains("edge_devices_credential_hash_unique_idx"));
+    assert!(HTTP.contains("/api/edge/claims/approve"));
+    assert!(HTTP.contains("/api/edge/claims/:claim_id"));
+    assert!(HTTP.contains("\"claimCode\": code"));
+    assert!(HTTP.contains("\"credential\": credential"));
+    let approval = HTTP
+        .split("async fn approve_edge_claim")
+        .nth(1)
+        .and_then(|value| value.split("async fn get_edge_claim_status").next())
+        .expect("approval handler");
+    assert!(!approval.contains("\"credential\""));
+}
+
+#[test]
+fn manual_reissue_immediately_invalidates_the_previous_device_credential() {
+    let application = include_str!("../src/application/equipment_packs.rs");
+    assert!(application.contains("UPDATE edge_devices SET status='pending',credential_hash=NULL"));
+    assert!(application.contains("credential_issued_at=NULL,updated_at=now()"));
+    assert!(application.contains("UPDATE edge_device_enrollment_codes SET consumed_at=now()"));
+}
+
+#[test]
+fn interrupted_browser_uploads_have_an_authenticated_resume_contract() {
+    assert!(HTTP.contains("/api/equipment-pack-versions/:version_id/upload"));
+    assert!(HTTP.contains("get(get_equipment_pack_upload)"));
+    assert!(HTTP.contains("only managers and administrators can resume equipment pack uploads"));
+    assert!(HTTP.contains("\"blocks\": blocks"));
 }
 
 #[test]

@@ -2943,15 +2943,11 @@ function initSettings() {
   const workspaceOpen = document.getElementById('settingsWorkspaceOpen');
   const deviceForm = document.getElementById('settingsDeviceForm');
   const deviceNameInput = document.getElementById('settingsDeviceName');
-  const hardwareIdInput = document.getElementById('settingsHardwareId');
+  const deviceClaimCodeInput = document.getElementById('settingsDeviceClaimCode');
   const deviceRegisterButton = document.getElementById('settingsDeviceRegister');
   const deviceRefreshButton = document.getElementById('settingsDeviceRefresh');
   const deviceStatus = document.getElementById('settingsDeviceStatus');
   const deviceList = document.getElementById('settingsDeviceList');
-  const deviceKeyPanel = document.getElementById('settingsDeviceKeyPanel');
-  const deviceKey = document.getElementById('settingsDeviceKey');
-  const deviceKeyExpiry = document.getElementById('settingsDeviceKeyExpiry');
-  const deviceKeyCopy = document.getElementById('settingsDeviceKeyCopy');
   let profileImageObjectUrl = null;
 
   async function settingsSession({ forceRefresh = false } = {}) {
@@ -3001,38 +2997,6 @@ function initSettings() {
     return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString();
   };
 
-  const showEnrollmentKey = (enrollment, displayName) => {
-    if (!deviceKeyPanel || !deviceKey || !deviceKeyExpiry) return;
-    deviceKey.textContent = String(enrollment?.code || '');
-    deviceKeyExpiry.textContent = `${displayName} · expires ${formatDeviceDate(enrollment?.expiresAt, 'soon')}`;
-    deviceKeyPanel.hidden = false;
-    deviceKeyCopy?.focus();
-  };
-
-  const clearEnrollmentKey = () => {
-    if (deviceKey) deviceKey.textContent = '';
-    if (deviceKeyExpiry) deviceKeyExpiry.textContent = '';
-    if (deviceKeyPanel) deviceKeyPanel.hidden = true;
-  };
-
-  const issueDeviceKey = async (device, button) => {
-    if (!device?.id) return;
-    clearEnrollmentKey();
-    if (button) button.disabled = true;
-    setDeviceStatus(`Generating a key for ${device.displayName}…`);
-    try {
-      const enrollment = await withSettingsSession((requestSession) =>
-        MXApplicationClient.edgeDevices.issueEnrollmentCode(device.id, requestSession)
-      );
-      showEnrollmentKey(enrollment, device.displayName);
-      setDeviceStatus('Key generated. It is shown once and expires in 10 minutes.', 'success');
-    } catch (error) {
-      setDeviceStatus(error.message || 'Unable to generate a device key.', 'error');
-    } finally {
-      if (button) button.disabled = false;
-    }
-  };
-
   const renderEdgeDevices = (devices) => {
     if (!deviceList) return;
     deviceList.replaceChildren();
@@ -3057,24 +3021,45 @@ function initSettings() {
       const status = document.createElement('span');
       status.className = 'device-registry-item__status';
       status.dataset.state = device.status || 'registered';
-      status.textContent = device.status || 'registered';
+      const stateLabels = { pending: 'Awaiting enrollment', active: 'Authorized', offline: 'Offline', revoked: 'Revoked' };
+      status.textContent = stateLabels[device.status] || device.status || 'Registered';
       heading.append(name, status);
 
       const hardwareId = document.createElement('code');
-      hardwareId.textContent = device.hardwareId || 'Hardware ID pending';
+      const fingerprint = String(device.hardwareId || '');
+      hardwareId.textContent = fingerprint ? `Device …${fingerprint.slice(-8)}` : 'Device identity unavailable';
       const lastSeen = document.createElement('span');
       lastSeen.className = 'settings-hint';
       lastSeen.textContent = `Last connected: ${formatDeviceDate(device.lastSeenAt, 'never')}`;
-      summary.append(heading, hardwareId, lastSeen);
+      const registeredAt = document.createElement('span');
+      registeredAt.className = 'settings-hint';
+      registeredAt.textContent = `Registered: ${formatDeviceDate(device.createdAt, 'date unavailable')}`;
+      summary.append(heading, hardwareId, registeredAt, lastSeen);
       row.appendChild(summary);
 
       if (device.status !== 'revoked') {
-        const keyButton = document.createElement('button');
-        keyButton.className = 'device-registry-item__key';
-        keyButton.type = 'button';
-        keyButton.textContent = 'New key';
-        keyButton.addEventListener('click', () => issueDeviceKey(device, keyButton));
-        row.appendChild(keyButton);
+        const actions = document.createElement('div');
+        actions.className = 'device-registry-item__actions';
+        const revokeButton = document.createElement('button');
+        revokeButton.className = 'device-registry-item__revoke';
+        revokeButton.type = 'button';
+        revokeButton.textContent = 'Revoke';
+        revokeButton.addEventListener('click', async () => {
+          if (!window.confirm(`Revoke ${device.displayName}? Its saved credential will stop working immediately and this registry record cannot be re-enrolled.`)) return;
+          revokeButton.disabled = true;
+          setDeviceStatus(`Revoking ${device.displayName}…`);
+          try {
+            await withSettingsSession((requestSession) => MXApplicationClient.edgeDevices.revoke(device.id, requestSession));
+            await loadEdgeDevices();
+            window.dispatchEvent(new Event('mxg:edge-devices-changed'));
+            setDeviceStatus(`${device.displayName} revoked.`, 'success');
+          } catch (error) {
+            revokeButton.disabled = false;
+            setDeviceStatus(error.message || 'Unable to revoke the device.', 'error');
+          }
+        });
+        actions.append(revokeButton);
+        row.appendChild(actions);
       }
       deviceList.appendChild(row);
     });
@@ -3102,45 +3087,35 @@ function initSettings() {
   deviceForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const displayName = deviceNameInput?.value.trim() || '';
-    const hardwareId = hardwareIdInput?.value.trim() || '';
-    if (!displayName || !hardwareId) {
-      setDeviceStatus('Enter the device name and the hardware ID stored on its drive.', 'error');
+    const code = String(deviceClaimCodeInput?.value || '').replace(/\D/g, '');
+    if (!displayName || code.length !== 7) {
+      setDeviceStatus('Enter a device name and the seven-digit code shown on the Pi.', 'error');
       return;
     }
     if (deviceRegisterButton) deviceRegisterButton.disabled = true;
-    clearEnrollmentKey();
-    setDeviceStatus(`Registering ${displayName}…`);
+    setDeviceStatus(`Approving ${displayName}…`);
     try {
       const payload = await withSettingsSession((requestSession) =>
-        MXApplicationClient.edgeDevices.register({ displayName, hardwareId, session: requestSession })
+        MXApplicationClient.edgeDevices.approveClaim({ code, displayName, session: requestSession })
       );
       const device = payload?.device;
-      if (!device?.id) throw new Error('The device registered, but its identifier was not returned.');
+      if (!device?.id) throw new Error('The device was approved, but its identifier was not returned.');
       if (deviceNameInput) deviceNameInput.value = '';
-      if (hardwareIdInput) hardwareIdInput.value = '';
+      if (deviceClaimCodeInput) deviceClaimCodeInput.value = '';
       await loadEdgeDevices();
-      await issueDeviceKey(device);
+      window.dispatchEvent(new Event('mxg:edge-devices-changed'));
+      setDeviceStatus(`${device.displayName} approved. The Pi will connect automatically.`, 'success');
     } catch (error) {
-      setDeviceStatus(error.message || 'Unable to register the device.', 'error');
+      setDeviceStatus(error.message || 'Unable to approve the device.', 'error');
     } finally {
       if (deviceRegisterButton) deviceRegisterButton.disabled = false;
     }
   });
 
   deviceRefreshButton?.addEventListener('click', loadEdgeDevices);
-  deviceKeyCopy?.addEventListener('click', async () => {
-    const value = deviceKey?.textContent || '';
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      deviceKeyCopy.textContent = 'Copied';
-      window.setTimeout(() => { deviceKeyCopy.textContent = 'Copy'; }, 1500);
-    } catch {
-      setDeviceStatus('Copy was blocked. Select the key and copy it manually.', 'error');
-    }
-  });
 
   if (acct || window.MXGENIUS_CONFIG?.allowInsecurePilot) void loadEdgeDevices();
+  window.MXEquipmentPacks?.init?.({ withSession: withSettingsSession });
 
   workspaceOpen?.addEventListener('click', () => {
     const destination = workspaceSelect?.value;
@@ -3296,7 +3271,7 @@ function initSettings() {
 
   let profileSaveTimer = null;
   const scheduleServerProfileSave = (event) => {
-    if (event?.target?.closest?.('#settingsDevicesCard')) return;
+    if (event?.target?.closest?.('#settingsDevicesCard, #settingsPacksCard')) return;
     if (!acct && !window.MXGENIUS_CONFIG?.allowInsecurePilot) return;
     clearTimeout(profileSaveTimer);
     profileSaveTimer = setTimeout(() => {

@@ -117,7 +117,7 @@ $gitBash = $bashCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select
 if ($gitBash) {
   Push-Location $previewRoot
   try {
-    & $gitBash -n install.sh update.sh mxg-firstboot.sh
+    & $gitBash -n install.sh update.sh
     if ($LASTEXITCODE -ne 0) { throw 'A Raspberry Pi shell script failed its syntax check.' }
   } finally { Pop-Location }
   Write-Host '[preflight] Raspberry Pi shell scripts parsed.' -ForegroundColor Green
