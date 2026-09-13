@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Deployed
+> **Status:** Validated
 
 ### 1. Project Overview
 
@@ -36,7 +36,7 @@ with a seven-digit device-originated claim instead of a manually copied secret.
 | Application database | Durable tenant and device state | PostgreSQL 16 | Existing `mxg-pg-50106` |
 | Package object store | Private package bytes | Azure Blob Storage | Existing `mxgstorage50106/documents` |
 | Identity boundary | Human authentication and tenant membership | Entra OIDC plus application roles | Existing dispatcher/auth context |
-| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.23` release) |
+| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.24` release) |
 
 Existing reusable seams:
 
@@ -50,7 +50,9 @@ Existing reusable seams:
   one replica. Durable polling remains authoritative so a missed socket event
   cannot lose an update and future scale-out does not change correctness.
 - Equipment Pack desired-state and activation use migration `0027`; the
-  device-originated approval flow is added by migration `0028`.
+  device-originated approval flow is added by migration `0028`; and migration
+  `0029` permits a device-authenticated self-unregister to clear its credential
+  while retaining the row as offline and recoverable by a new approved claim.
 
 ### 4. Recipe Selection
 
@@ -143,6 +145,8 @@ private Blob <----- bounded blocks --- mxg-core <------------+
 - `GET /api/edge/claims/{claim_id}`: the Pi polls with its private credential
   until approval, then persists that credential locally.
 - `POST /api/edge/enroll`: retained as a compatibility-only recovery exchange.
+- `POST /api/edge/unregister`: authenticated node invalidates its cloud
+  credential before removing the local copy and requesting a fresh claim.
 - `GET /api/edge/state`: return desired generation and pack metadata with ETag;
   `If-None-Match` gives a cheap durable reconciliation fallback.
 - `GET /api/edge/packs/{version_id}/content`: permit only the version assigned
@@ -271,6 +275,11 @@ replica, ingress, or cost-bearing resource change is planned.
 | Pi release preview | `preview-release.ps1 -TestOnly -NoBrowser` against `0.3.1-poc.23` | ✅ HTTP, schema, state, WSS, scanner, and thermal checks passed | 2026-09-13 |
 | Azure resource/RBAC recheck | `az account`, resource, role, policy, and Container App inspection | ✅ Existing subscription/resources healthy; no infrastructure or RBAC delta | 2026-09-13 |
 | Linux container rebuild | `az acr build --no-push ...` | ✅ ACR run `cj28`; Dockerfile completed; no image published | 2026-09-13 |
+| Pi controls regression | kiosk Python suite, exact release preview, image read-only mount audit | ✅ 82 tests; `0.3.1-poc.24` preview passed; image contains unregister controls and excludes `piwiz` autostart | 2026-09-13 |
+| Device self-unregister contracts | Rust Equipment Pack test plus strict clippy | ✅ 8/8 contract tests; active devices retain credential requirement; offline self-unregister may clear it | 2026-09-13 |
+| Current Azure boundary | subscription, group, Container Apps environment, policy, managed identity, live health/readiness | ✅ Existing Central US resources healthy; 0 policy assignments; Blob contributor remains container-scoped; HTTP 200 | 2026-09-13 |
+| Exact committed container validation | `az acr build --no-push` from `services/mcp` at `83bc383` | ✅ ACR run `cj2b`; optimized locked Docker build succeeded; no image published | 2026-09-13 |
+| Existing registry pull posture | Container App registry configuration and ACR role query | ⚠️ Existing app uses ACR admin credential; system identity has no `AcrPull`. Preserved for this release; migrate separately. | 2026-09-13 |
 
 ### 8.1 Deployment Proof
 
@@ -331,7 +340,7 @@ replica, ingress, or cost-bearing resource change is planned.
 | `services/mcp/server/tests/equipment_packs.rs` | Migration, auth, tenant, idempotency, race, and transfer contract tests | Created |
 | `services/mcp/README.md` | Configuration and operational contract | Updated |
 
-The Pi `0.3.1-poc.23` release is included in the paired Git batch but remains
+The Pi `0.3.1-poc.24` release is included in the paired Git batch but remains
 excluded from the Azure core image and Container App promotion.
 
 ### 10. Next Steps
