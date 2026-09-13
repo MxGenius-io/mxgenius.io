@@ -1068,7 +1068,9 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=1/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=2/);
+  assert.match(dashboard, /id="settingsPackFolderChoose"/);
+  assert.match(dashboard, /id="settingsPackFolderName"/);
   assert.match(application, /MXEquipmentPacks\?\.init/);
   assert.match(equipmentWorkspace, /webkitRelativePath/);
   assert.match(equipmentWorkspace, /crypto\.subtle\.digest\('SHA-256'/);

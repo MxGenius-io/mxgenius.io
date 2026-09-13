@@ -539,7 +539,8 @@ main {
 }
 
 .equipment-pack-create__form label,
-.equipment-pack-flow label {
+.equipment-pack-flow label,
+.equipment-pack-folder-field {
   color: var(--text-muted);
   display: grid;
   font-size: 0.7rem;
@@ -557,11 +558,45 @@ main {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
-.equipment-pack-flow input[type="file"] {
-  color: var(--text-muted);
-  font-size: 0.7rem;
+.equipment-pack-folder-picker {
+  align-items: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  height: 38px;
   min-width: 0;
+  overflow: hidden;
+  padding: 4px;
   width: 100%;
+}
+
+.equipment-pack-folder-button {
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  height: 28px;
+  padding: 0 10px;
+}
+
+.equipment-pack-folder-button:hover,
+.equipment-pack-folder-button:focus-visible {
+  background: rgba(0, 212, 255, 0.18);
+  border-color: var(--cyan);
+  outline: none;
+}
+
+#settingsPackFolderName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .equipment-pack-workspace__footer {

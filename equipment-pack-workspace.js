@@ -132,6 +132,8 @@
     const versionSelect = byId('settingsPackVersion');
     const deviceSelect = byId('settingsPackDevice');
     const folderInput = byId('settingsPackFolder');
+    const folderChoose = byId('settingsPackFolderChoose');
+    const folderName = byId('settingsPackFolderName');
     const publishButton = byId('settingsPackPublish');
     const assignButton = byId('settingsPackAssign');
     const status = byId('settingsPackStatus');
@@ -239,9 +241,19 @@
       }
     });
 
+    folderChoose?.addEventListener('click', () => folderInput?.click());
+
     folderInput?.addEventListener('change', () => {
       const selected = Array.from(folderInput.files || []);
       const bytes = selected.reduce((total, file) => total + file.size, 0);
+      const relativePath = selected[0]?.webkitRelativePath || '';
+      const selectedFolder = relativePath.split('/')[0];
+      if (folderName) {
+        folderName.textContent = selected.length
+          ? `${selectedFolder || 'Selected folder'} · ${selected.length} file${selected.length === 1 ? '' : 's'}`
+          : 'No folder selected';
+        folderName.title = selectedFolder || '';
+      }
       setStatus(selected.length ? `${selected.length} files selected · ${(bytes / 1048576).toFixed(1)} MiB` : 'Choose a folder to publish.');
       updateActions();
     });
@@ -283,6 +295,10 @@
         setStatus('Verifying and publishing in Azure…');
         await run((session) => client.publishVersion(version.id, session));
         folderInput.value = '';
+        if (folderName) {
+          folderName.textContent = 'No folder selected';
+          folderName.title = '';
+        }
         await loadVersions();
         versionSelect.value = version.id;
         setStatus(`Version ${version.versionNumber} published and ready to assign.`, 'success');
