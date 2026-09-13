@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Validated
+> **Status:** Deployed
 
 ### 1. Project Overview
 
@@ -280,8 +280,28 @@ replica, ingress, or cost-bearing resource change is planned.
 | Current Azure boundary | subscription, group, Container Apps environment, policy, managed identity, live health/readiness | ✅ Existing Central US resources healthy; 0 policy assignments; Blob contributor remains container-scoped; HTTP 200 | 2026-09-13 |
 | Exact committed container validation | `az acr build --no-push` from `services/mcp` at `83bc383` | ✅ ACR run `cj2b`; optimized locked Docker build succeeded; no image published | 2026-09-13 |
 | Existing registry pull posture | Container App registry configuration and ACR role query | ⚠️ Existing app uses ACR admin credential; system identity has no `AcrPull`. Preserved for this release; migrate separately. | 2026-09-13 |
+| Pi controls production image | `az acr build` from `services/mcp` at `0fe7f3e` | ✅ ACR run `cj2c`; image published with digest `sha256:9d71329f9a370caf338b7fa2bf456b66805fa67d5d2bec9fdf29257076f13aee` | 2026-09-13 |
+| Pi controls production promotion | `az containerapp update`; revision, health, and fail-closed probes | ✅ `mxg-core--pictl0fe7f3e` healthy/latest-ready at 100% traffic; `/healthz` and `/readyz` HTTP 200; anonymous `POST /api/edge/unregister` HTTP 401 | 2026-09-13 |
 
 ### 8.1 Deployment Proof
+
+#### Pi Equipment Pack controls release — 2026-09-13
+
+- Git commits `83bc383` and `0fe7f3e` were pushed to the canonical
+  `MxGenius-io/mxgenius.io` shared `main` before the production image build.
+- ACR run `cj2c` published
+  `mxg-core:pi-controls-0fe7f3e-20260913` with digest
+  `sha256:9d71329f9a370caf338b7fa2bf456b66805fa67d5d2bec9fdf29257076f13aee`.
+- Revision `mxg-core--pictl0fe7f3e` is Healthy, latest-ready, and serves 100%
+  traffic. Live `/healthz` and `/readyz` returned HTTP 200.
+- Anonymous `POST /api/edge/unregister` returned HTTP 401, proving the new
+  route is deployed and remains device-authenticated.
+- The paired Pi image is `0.3.1-poc.24`; its read-only mount audit verified
+  the update progress UI, self-unregister controls, and removal of the
+  Raspberry Pi first-run wizard autostart that produced the accessibility
+  audio loop.
+- Rollback is non-destructive: shift traffic to
+  `mxg-core--packread245a173`. Additive migration `0029` may remain in place.
 
 #### Device approval and Pi `0.3.1-poc.23` release — 2026-09-13
 
