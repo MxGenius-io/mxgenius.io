@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Validated
+> **Status:** Deployed
 
 ### 1. Project Overview
 
@@ -273,6 +273,31 @@ replica, ingress, or cost-bearing resource change is planned.
 | Linux container rebuild | `az acr build --no-push ...` | ✅ ACR run `cj28`; Dockerfile completed; no image published | 2026-09-13 |
 
 ### 8.1 Deployment Proof
+
+#### Device approval and Pi `0.3.1-poc.23` release — 2026-09-13
+
+- Git commits `c010f412ad4155d95239cb8df148aa7ba9348119` and the
+  deployment-proof follow-up were pushed to the canonical
+  `MxGenius-io/mxgenius.io` shared `main`; Pages run `34784315195`
+  completed successfully.
+- ACR validation run `cj28` rebuilt the Linux container without publishing it.
+  ACR run `cj29` then published
+  `mxg-core:edge-claim-c010f41-20260913` with digest
+  `sha256:b25b44b724b726afe2dc035ab3b9ae5f0c7adbbad1173ebb71665afbe2774d5c`.
+- Revision `mxg-core--claimc010f41` is Healthy, latest-ready, and serves 100%
+  traffic. Live `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200.
+- The device-originated claim route rejects an invalid hardware ID with HTTP
+  400, the Entra-side approval route rejects an anonymous request with HTTP
+  401, and an invalid claim-status bearer is rejected with HTTP 401.
+- The live dashboard exposes the seven-digit `Setup code` / `Approve device`
+  flow and its client calls `/api/edge/claims/approve`; it does not expose or
+  copy the device credential.
+- Rollback is non-destructive: return traffic to
+  `mxg-core--eqpon3d2d398` and its
+  `mxg-core:equipment-pack-3d2d398-20260910` image. The additive `0028`
+  migration can remain in place.
+
+#### Equipment Pack release — 2026-09-10
 
 - Git commit `3d2d39808ab1c2c9bf5bc788939fad0bd3403482` was pushed to
   `MxGenius-io/mxgenius.io` shared `main`; Pages run `34545985481`
