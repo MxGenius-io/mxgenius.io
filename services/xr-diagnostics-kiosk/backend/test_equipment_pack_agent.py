@@ -75,6 +75,8 @@ class FakeCore:
         self.enrollments: list[tuple[str, str | None]] = []
         self.claim_requests: list[str] = []
         self.claim_approved = False
+        self.unregisters: list[EdgeIdentity] = []
+        self.unregister_error: EquipmentPackError | None = None
 
     def request_claim(self, hardware_id: str) -> EdgeClaim:
         self.claim_requests.append(hardware_id)
@@ -106,6 +108,11 @@ class FakeCore:
 
     def report(self, _identity, _desired, state: str, **fields) -> None:
         self.reports.append((state, fields))
+
+    def unregister(self, identity: EdgeIdentity) -> None:
+        if self.unregister_error is not None:
+            raise self.unregister_error
+        self.unregisters.append(identity)
 
 
 class IdentityAndStateTests(unittest.IsolatedAsyncioTestCase):
@@ -189,6 +196,55 @@ class IdentityAndStateTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse((root / "claim.json").exists())
             self.assertEqual(StateStore(root).load_identity(), IDENTITY)
             await agent.stop()
+
+    async def test_unregister_invalidates_cloud_first_then_returns_to_short_claim(self):
+        payload, desired = package({"manuals/overview.txt": b"ready"})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            core = FakeCore(payload, desired)
+            store = StateStore(root)
+            store.save_identity(IDENTITY)
+            runtime = RuntimeState(active_generation=4, active_version_id=VERSION_ID, active_slot="A")
+            store.save_runtime(runtime)
+            agent = EquipmentPackAgent(
+                AgentConfig(True, "https://core.example", root, hardware_id=HARDWARE_ID),
+                core,
+            )
+            agent.identity = IDENTITY
+            agent.runtime = runtime
+
+            status = await agent.unregister()
+            for _ in range(50):
+                if agent.public_status()["claimCode"] == "1234567":
+                    break
+                await asyncio.sleep(0.01)
+
+            self.assertEqual(core.unregisters, [IDENTITY])
+            self.assertIsNone(store.load_identity())
+            self.assertFalse(status["enrolled"])
+            self.assertEqual(agent.public_status()["claimCode"], "1234567")
+            self.assertEqual(store.load_runtime().active_generation, 4)
+            await agent.stop()
+
+    async def test_unregister_keeps_local_identity_when_cloud_invalidation_fails(self):
+        payload, desired = package({"manuals/overview.txt": b"ready"})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            core = FakeCore(payload, desired)
+            core.unregister_error = EquipmentPackError("CORE_UNAVAILABLE", "offline")
+            store = StateStore(root)
+            store.save_identity(IDENTITY)
+            agent = EquipmentPackAgent(
+                AgentConfig(True, "https://core.example", root, hardware_id=HARDWARE_ID),
+                core,
+            )
+            agent.identity = IDENTITY
+
+            with self.assertRaises(EquipmentPackError):
+                await agent.unregister()
+
+            self.assertEqual(store.load_identity(), IDENTITY)
+            self.assertEqual(agent.identity, IDENTITY)
 
     async def test_identity_and_staged_state_survive_restart(self):
         payload, desired = package({"manual.pdf": b"test data"})

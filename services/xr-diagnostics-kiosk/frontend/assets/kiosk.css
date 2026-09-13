@@ -149,6 +149,12 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .pack-facts small { color:#668294; font:750 8px ui-monospace,monospace; letter-spacing:.08em; }
 .pack-facts b { margin-top:5px; color:#dceff3; font-size:12px; }
 .pack-actions { display:flex; align-items:flex-start; gap:12px; margin-top:14px; }
+.pack-buttons { display:flex; align-items:center; gap:9px; }
+.pack-progress { display:flex; flex:1; align-items:center; gap:9px; min-height:36px; padding:8px 12px; border:1px solid rgba(65,215,231,.18); border-radius:10px; color:#91b3be; font:700 10px ui-monospace,monospace; }
+.pack-progress[hidden] { display:none; }
+.pack-spinner { width:14px; height:14px; flex:none; border:2px solid rgba(65,215,231,.22); border-top-color:var(--cyan); border-radius:50%; animation:pack-spin .75s linear infinite; }
+.danger-button { padding:10px 12px; border-color:rgba(251,113,133,.32); background:rgba(251,113,133,.08); color:#fecdd3; }
+@keyframes pack-spin { to { transform:rotate(360deg); } }
 .pack-claim { flex:1; padding:10px 14px; border:1px solid rgba(65,215,231,.22); border-radius:10px; background:rgba(2,8,18,.62); }
 .pack-claim span { display:block; color:#668294; font:750 8px ui-monospace,monospace; letter-spacing:.12em; }
 .pack-claim strong { display:block; margin-top:4px; color:var(--cyan); font:800 24px ui-monospace,monospace; letter-spacing:.22em; }
@@ -228,9 +234,9 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .privacy-note { margin:8px 0 0; padding-top:15px; border-top:1px solid var(--line); color:#668294; font-size:10px; line-height:1.5; }
 @media (max-width:1100px) { .peripheral-grid { grid-template-columns:repeat(2,1fr); }.integration-layout { grid-template-columns:1fr; }.integration-grid { grid-template-columns:repeat(3,1fr); } }
 @media (max-width:950px) { header{align-items:flex-start}.header-actions{align-items:flex-end;flex-direction:column-reverse}.hero { grid-template-columns:1fr 1fr; }.metrics,.lower,.connection-grid { grid-template-columns:repeat(2,1fr); }.log-layout{grid-template-columns:1fr}.log-stream{border-right:0}.runbook{display:none} }
-@media (max-width:760px) { .connection-grid{grid-template-columns:1fr}.connections-heading{align-items:flex-start;flex-direction:column}.connect-form,.pack-enroll-form{grid-template-columns:1fr}.pack-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.pack-actions{align-items:stretch;flex-direction:column}.connection-card{min-height:0}.hero{grid-template-columns:1fr}.hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-stats span{gap:10px;min-width:0} }
+@media (max-width:760px) { .connection-grid{grid-template-columns:1fr}.connections-heading{align-items:flex-start;flex-direction:column}.connect-form,.pack-enroll-form{grid-template-columns:1fr}.pack-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.pack-actions{align-items:stretch;flex-direction:column}.pack-buttons{align-items:stretch;flex-direction:column}.connection-card{min-height:0}.hero{grid-template-columns:1fr}.hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-stats span{gap:10px;min-width:0} }
 @media (max-width:620px) { .shell{padding:20px}.site-brand>img{width:44px;height:44px}.header-actions{gap:8px}.hero{grid-template-columns:1fr;padding:26px}.metrics,.lower,.peripheral-grid,.integration-grid{grid-template-columns:1fr}.bridge-state{display:none}.section-heading,.log-heading,.performance-heading{align-items:flex-start;flex-direction:column}.performance-legend{justify-content:flex-start}.performance-chart{height:220px}.log-summary{width:100%;justify-content:space-between}.log-toolbar{align-items:stretch;flex-wrap:wrap}.log-filters{width:100%;margin:0}.log-filter{flex:1}.log-row{grid-template-columns:78px 65px minmax(0,1fr)}.log-source{display:none}.view-switch{flex-wrap:wrap;justify-content:flex-end} }
-@media (prefers-reduced-motion:reduce) { .boot-splash,.boot-content,.boot-ambient,.boot-mark:before,.boot-mark:after,.boot-progress span { transition:none; animation:none; } }
+@media (prefers-reduced-motion:reduce) { .boot-splash,.boot-content,.boot-ambient,.boot-mark:before,.boot-mark:after,.boot-progress span,.pack-spinner { transition:none; animation:none; } }
 @media (max-height:850px) and (min-width:951px) {
   .shell { padding-top:20px; padding-bottom:20px; }
   header { margin-bottom:15px; }

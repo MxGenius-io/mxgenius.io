@@ -277,6 +277,7 @@ pub fn router_with_health_and_manual(
         .route("/api/edge/claims/approve", post(approve_edge_claim))
         .route("/api/edge/claims/:claim_id", get(get_edge_claim_status))
         .route("/api/edge/enroll", post(enroll_edge_device))
+        .route("/api/edge/unregister", post(unregister_edge_device))
         .route("/api/edge/state", get(get_edge_desired_state))
         .route(
             "/api/edge/packs/:version_id/content",
@@ -1719,6 +1720,21 @@ async fn revoke_edge_device(
         Ok(device) => (
             [(header::CACHE_CONTROL, "no-store")],
             Json(json!({ "device": device })),
+        )
+            .into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn unregister_edge_device(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let (repository, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.disconnect_device(&identity).await {
+        Ok(()) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "deviceId": identity.device_id, "status": "offline" })),
         )
             .into_response(),
         Err(error) => equipment_pack_error(error),

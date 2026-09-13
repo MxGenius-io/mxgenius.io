@@ -97,6 +97,7 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn("Get-FileHash", IMAGE_WRAPPER)
         self.assertIn("ssh-keygen.exe", IMAGE_WRAPPER)
         self.assertNotIn("systemd.run", IMAGE_BUILDER)
+        self.assertIn('rm -f "$ROOT_MOUNT/etc/xdg/autostart/piwiz.desktop"', IMAGE_BUILDER)
 
     def test_appliance_surface_exposes_local_connections_and_guarded_power(self):
         for marker in ('data-view="connections"', 'id="wifiScan"', 'id="bluetoothScan"', 'id="powerDialog"'):
@@ -105,10 +106,12 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertNotIn("wifiPassword').value, error", JS)
 
     def test_equipment_pack_status_is_compact_and_claim_is_device_originated(self):
-        for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', 'id="packClaimCode"'):
+        for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', 'id="packClaimCode"',
+                       'id="packProgress"', 'id="packUnregister"'):
             self.assertIn(marker, HTML)
         self.assertIn('Open MXGenius Settings', HTML)
-        for marker in ('/api/v1/equipment-pack/status', '/api/v1/equipment-pack/claim', '/api/v1/equipment-pack/reconcile'):
+        for marker in ('/api/v1/equipment-pack/status', '/api/v1/equipment-pack/claim',
+                       '/api/v1/equipment-pack/reconcile', '/api/v1/equipment-pack/unregister'):
             self.assertIn(marker, JS)
         self.assertNotIn('id="packEnrollCode"', HTML)
         self.assertNotIn("status.credential", JS)

@@ -664,6 +664,25 @@ impl EquipmentPackRepository {
         Ok(row)
     }
 
+    pub async fn disconnect_device(
+        &self,
+        identity: &DeviceIdentity,
+    ) -> Result<(), EquipmentPackError> {
+        let result = sqlx::query(
+            r#"UPDATE edge_devices SET status='offline',credential_hash=NULL,
+                      credential_issued_at=NULL,updated_at=now()
+               WHERE organization_id=$1 AND id=$2 AND status<>'revoked'"#,
+        )
+        .bind(identity.organization_id)
+        .bind(identity.device_id)
+        .execute(&self.pool)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(EquipmentPackError::NotFound);
+        }
+        Ok(())
+    }
+
     pub async fn deployment_history(
         &self,
         context: &ExecutionContext,

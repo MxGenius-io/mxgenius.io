@@ -5,6 +5,8 @@ use serde_json::json;
 
 const MIGRATION: &str = include_str!("../../migrations/0027_equipment_packs.sql");
 const CLAIM_MIGRATION: &str = include_str!("../../migrations/0028_edge_device_claims.sql");
+const SELF_UNREGISTER_MIGRATION: &str =
+    include_str!("../../migrations/0029_edge_device_self_unregister.sql");
 const HTTP: &str = include_str!("../src/transport/http.rs");
 
 #[test]
@@ -61,6 +63,19 @@ fn manual_reissue_immediately_invalidates_the_previous_device_credential() {
     assert!(application.contains("UPDATE edge_devices SET status='pending',credential_hash=NULL"));
     assert!(application.contains("credential_issued_at=NULL,updated_at=now()"));
     assert!(application.contains("UPDATE edge_device_enrollment_codes SET consumed_at=now()"));
+}
+
+#[test]
+fn device_can_disconnect_itself_without_becoming_permanently_revoked() {
+    let application = include_str!("../src/application/equipment_packs.rs");
+    assert!(HTTP.contains("/api/edge/unregister"));
+    assert!(HTTP.contains("async fn unregister_edge_device"));
+    assert!(application.contains("pub async fn disconnect_device"));
+    assert!(application.contains("SET status='offline',credential_hash=NULL"));
+    assert!(application.contains("WHERE organization_id=$1 AND id=$2 AND status<>'revoked'"));
+    assert!(SELF_UNREGISTER_MIGRATION.contains("DROP CONSTRAINT edge_device_credential_state"));
+    assert!(SELF_UNREGISTER_MIGRATION.contains("OR status = 'offline'"));
+    assert!(SELF_UNREGISTER_MIGRATION.contains("status = 'active' AND credential_hash IS NOT NULL"));
 }
 
 #[test]

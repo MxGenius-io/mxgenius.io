@@ -183,6 +183,10 @@ chroot "$ROOT_MOUNT" /usr/bin/env \
   /tmp/mxg-release/install.sh /tmp/mxg-release
 
 echo "[6/8] Hardening and sealing first boot..."
+# This is a dedicated kiosk appliance. Raspberry Pi OS's piwiz autostart owns
+# the repeating Ctrl+Alt+Space accessibility reminder and must not race the
+# MXGenius kiosk on first boot.
+rm -f "$ROOT_MOUNT/etc/xdg/autostart/piwiz.desktop"
 cat >"$ROOT_MOUNT/etc/ssh/sshd_config.d/20-mxgenius-appliance.conf" <<'EOF'
 PasswordAuthentication no
 KbdInteractiveAuthentication no

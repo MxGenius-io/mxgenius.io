@@ -302,6 +302,9 @@ class StateStore:
     def clear_claim(self) -> None:
         self.claim_path.unlink(missing_ok=True)
 
+    def clear_identity(self) -> None:
+        self.identity_path.unlink(missing_ok=True)
+
     def load_runtime(self) -> RuntimeState:
         payload = self._read(self.runtime_path)
         if payload is None:
@@ -326,6 +329,8 @@ class CoreClient(Protocol):
     def download(self, identity: EdgeIdentity, desired: DesiredPack, destination: Path) -> None: ...
 
     def report(self, identity: EdgeIdentity, desired: DesiredPack, state: str, **fields: Any) -> None: ...
+
+    def unregister(self, identity: EdgeIdentity) -> None: ...
 
 
 class HttpCoreClient:
@@ -469,6 +474,15 @@ class HttpCoreClient:
         )
         if status != 200:
             raise EquipmentPackError("STATUS_REPORT_FAILED", "the core rejected a deployment status")
+
+    def unregister(self, identity: EdgeIdentity) -> None:
+        status, _, payload = self._json_request(
+            "POST",
+            "/api/edge/unregister",
+            identity=identity,
+        )
+        if status != 200 or not isinstance(payload, dict) or payload.get("status") != "offline":
+            raise EquipmentPackError("UNREGISTER_FAILED", "the core returned an invalid unregister response")
 
 
 def _validate_path(value: str) -> str:
@@ -818,6 +832,38 @@ class EquipmentPackAgent:
         self.store.clear_claim()
         self.claim = None
         self.phase, self.detail = "claiming", "Requesting a new seven-digit setup code"
+        self._start_claiming()
+        return self.public_status()
+
+    async def unregister(self) -> dict[str, Any]:
+        if not self.config.enabled or self.client is None:
+            raise EquipmentPackError("AGENT_DISABLED", "Equipment Pack synchronization is not configured")
+        if self.identity is None:
+            return await self.restart_claim()
+        if not self.config.hardware_id:
+            raise EquipmentPackError("INVALID_HARDWARE_ID", "the baked device identity is missing")
+        async with self._lock:
+            identity = self.identity
+            self.phase, self.detail = "unregistering", "Disconnecting this node from MXGenius"
+            await asyncio.to_thread(self.client.unregister, identity)
+            for task in (self._poll_task, self._socket_task):
+                if task is not None:
+                    task.cancel()
+            for task in (self._poll_task, self._socket_task):
+                if task is None:
+                    continue
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            self._poll_task = None
+            self._socket_task = None
+            self.notification_connected = False
+            self.store.clear_identity()
+            self.store.clear_claim()
+            self.identity = None
+            self.claim = None
+            self.phase, self.detail = "claiming", "Requesting a new seven-digit setup code"
         self._start_claiming()
         return self.public_status()
 

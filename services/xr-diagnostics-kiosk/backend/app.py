@@ -375,6 +375,16 @@ async def equipment_pack_reconcile(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=status, detail=error.detail) from error
 
 
+@app.post("/api/v1/equipment-pack/unregister")
+async def equipment_pack_unregister(request: Request) -> dict[str, Any]:
+    _require_local_control(request)
+    try:
+        return await equipment_pack_agent.unregister()
+    except EquipmentPackError as error:
+        status = 503 if error.code == "AGENT_DISABLED" else 409
+        raise HTTPException(status_code=status, detail=error.detail) from error
+
+
 @app.post("/api/v1/control/wifi/scan")
 async def control_wifi_scan(request: Request) -> dict[str, Any]:
     _require_local_control(request)

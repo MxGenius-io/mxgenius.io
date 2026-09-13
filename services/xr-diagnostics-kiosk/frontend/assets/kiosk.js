@@ -24,6 +24,7 @@ let integrationFixtures = [];
 let eventLog = [];
 let controlToken = '';
 let equipmentPackStatus = null;
+let equipmentPackBusy = false;
 let performanceHistory = [];
 let performanceIntervalSeconds = 5;
 
@@ -421,8 +422,17 @@ function renderEquipmentPack(status) {
   $('packActive').textContent = status.activeGeneration
     ? `Generation ${status.activeGeneration} · slot ${status.activeSlot || '—'}`
     : 'None';
-  $('packRetry').disabled = !status.enabled;
-  $('packRetry').textContent = status.enrolled ? 'Check for update' : 'New setup code';
+  const activePhases = new Set(['claiming', 'reconciling', 'downloading', 'staging', 'activating', 'unregistering']);
+  const showProgress = equipmentPackBusy || activePhases.has(phase);
+  $('packProgress').hidden = !showProgress;
+  $('packProgressText').textContent = status.detail || 'Working…';
+  $('packRetry').disabled = !status.enabled || equipmentPackBusy;
+  $('packRetry').classList.toggle('is-busy', equipmentPackBusy);
+  $('packRetry').textContent = equipmentPackBusy
+    ? (status.enrolled ? 'Updating…' : 'Requesting…')
+    : (status.enrolled ? 'Check for update' : 'New setup code');
+  $('packUnregister').hidden = !status.enrolled;
+  $('packUnregister').disabled = equipmentPackBusy;
   if (status.notificationConnected && status.phase !== 'failed') {
     $('packDetail').textContent += ' · Cloud updates connected.';
   }
@@ -710,7 +720,13 @@ document.querySelectorAll('.view-tab').forEach((button) => button.addEventListen
 $('wifiScan').addEventListener('click', scanWifi);
 $('bluetoothScan').addEventListener('click', scanBluetooth);
 $('packRetry').addEventListener('click', async () => {
-  $('packRetry').disabled = true;
+  equipmentPackBusy = true;
+  renderEquipmentPack({
+    ...equipmentPackStatus,
+    phase: equipmentPackStatus?.enrolled ? 'reconciling' : 'claiming',
+    detail: equipmentPackStatus?.enrolled ? 'Checking cloud assignment…' : 'Requesting a new setup code…',
+  });
+  const progressPoll = setInterval(loadEquipmentPackStatus, 1000);
   try {
     const endpoint = equipmentPackStatus?.enrolled
       ? '/api/v1/equipment-pack/reconcile'
@@ -724,7 +740,25 @@ $('packRetry').addEventListener('click', async () => {
     setControlNotice(error.message, 'error');
     logEvent('error', 'equipment-pack', 'Equipment Pack check failed', { error: error.message });
   } finally {
-    if (equipmentPackStatus?.enabled) $('packRetry').disabled = false;
+    clearInterval(progressPoll);
+    equipmentPackBusy = false;
+    await loadEquipmentPackStatus();
+  }
+});
+$('packUnregister').addEventListener('click', async () => {
+  if (!confirm('Unregister this Pi? Its cloud credential will be invalidated. The active USB pack remains available, and a new seven-digit setup code will appear.')) return;
+  equipmentPackBusy = true;
+  renderEquipmentPack({ ...equipmentPackStatus, phase: 'unregistering', detail: 'Disconnecting this node from MXGenius…' });
+  try {
+    const status = await controlRequest('/api/v1/equipment-pack/unregister');
+    renderEquipmentPack(status);
+    logEvent('info', 'equipment-pack', 'Device unregistered; a new setup code is being requested');
+  } catch (error) {
+    setControlNotice(error.message, 'error');
+    logEvent('error', 'equipment-pack', 'Device unregister failed', { error: error.message });
+  } finally {
+    equipmentPackBusy = false;
+    await loadEquipmentPackStatus();
   }
 });
 $('wifiForm').addEventListener('submit', async (event) => {

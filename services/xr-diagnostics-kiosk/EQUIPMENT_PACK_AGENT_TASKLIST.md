@@ -44,6 +44,9 @@
       display only seven digits, and poll until an authenticated manager names
       and approves it. The device credential travels only on the Pi's TLS lane;
       a later claim rotates access and revoke remains final for that row.
+- [x] Let the Pi explicitly unregister: invalidate its cloud credential first,
+      retain the last active read-only pack, then return to a fresh seven-digit
+      claim. Manager revocation remains the permanent security boundary.
 
 ## Durable reconciliation
 
@@ -83,7 +86,7 @@
 ## Local UI
 
 - [x] Add one compact Equipment Pack card: node, connection, assigned version,
-      active version/slot, progress, and one retry action.
+      active version/slot, live phase feedback, retry, and guarded unregister.
 - [x] Show the seven-digit setup code directly on the Pi and keep approval and
       revocation in the authenticated web registry.
 - [x] Keep credentials, raw tokens, Blob paths, and verbose logs out of the UI.
@@ -95,8 +98,8 @@
 - [x] Unit-test identity persistence, ETag handling, generation ordering,
       interrupted downloads, hash failure, safe extraction, slot selection,
       acknowledgement payloads, and rollback state.
-- [x] Pass the complete kiosk Python suite (80 tests on 2026-09-13).
-- [x] Pass the canonical release preview (`0.3.1-poc.23`, 58 files,
+- [x] Pass the complete kiosk Python suite (82 tests on 2026-09-13).
+- [x] Pass the canonical release preview (`0.3.1-poc.24`, 58 files,
       HTTP/schema/state/WebSocket/scanner/thermal preflight on 2026-09-13).
 - [ ] Flash one Pi and record the capability probe.
 - [ ] Assign generation 1 and prove A activates and is visible to the USB host.
@@ -112,5 +115,5 @@
 - [x] Confirm the deployed Azure core has the Equipment Pack feature enabled
       and migration `0027` in its canonical migration set.
 - [ ] Pass authenticated publish/assign smoke against the release candidate.
-- [ ] Do not commit, push, or deploy until the local and physical evidence is
-      reviewed together.
+- [x] Keep the change on canonical `main`; deploy the core endpoint before the
+      `0.3.1-poc.24` physical test so device unregister can complete end to end.

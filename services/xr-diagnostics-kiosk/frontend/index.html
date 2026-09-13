@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.23">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.24">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -154,7 +154,14 @@
           <span><small>USB MODE</small><b id="packUsb">Checking</b></span>
         </div>
         <div class="pack-actions">
-          <button id="packRetry" class="scan-button" type="button">Check for update</button>
+          <div class="pack-buttons">
+            <button id="packRetry" class="scan-button" type="button">Check for update</button>
+            <button id="packUnregister" class="danger-button" type="button" hidden>Unregister device</button>
+          </div>
+          <div id="packProgress" class="pack-progress" role="status" aria-live="polite" hidden>
+            <span class="pack-spinner" aria-hidden="true"></span>
+            <span id="packProgressText">Checking cloud assignment…</span>
+          </div>
           <div id="packClaim" class="pack-claim" aria-live="polite" hidden>
             <span>SETUP CODE</span>
             <strong id="packClaimCode">-------</strong>
@@ -224,6 +231,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.23"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.24"></script>
 </body>
 </html>
