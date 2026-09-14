@@ -134,7 +134,9 @@ manager enters that code with a friendly name in MXGenius Settings. The browser
 approves the registry binding but never receives the device credential; the Pi
 keeps polling on its original TLS lane and saves the credential locally after
 approval. A new approved claim for the same hardware ID rotates access.
-Revoking access permanently closes that registry record.
+Revocation immediately invalidates the node credential and the node cannot
+restore itself. An authenticated manager may deliberately restore that exact
+hardware record by approving a new device-originated seven-digit claim.
 
 `-EnableUsbGadget` adds the Raspberry Pi 5 USB-C peripheral-mode overlay used
 by the permanent read-only Equipment Pack drive. The running control agent
@@ -167,6 +169,10 @@ After the card boots normally and joins the network, run `deploy-pi.ps1`. That
 initial installer needs network access for Debian and Python packages. Later
 software updates use the same SSH path; Equipment Pack content updates happen
 from authenticated Settings and do not rewrite the card.
+
+Wi-Fi connections made from the local Connections view are saved as persistent
+NetworkManager profiles, marked for automatic reconnect, and the most recently
+joined network receives the preferred reconnect priority.
 
 ## Interfaces
 

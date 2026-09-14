@@ -172,18 +172,38 @@ def wifi_connect(payload: dict[str, Any]) -> dict[str, Any]:
         return _repair_wifi_key_management(ssid, password, payload.get("hidden") is True)
     if result.returncode:
         return {"ok": False, "error": error}
-    return {"ok": True, "ssid": ssid, "message": "Wi-Fi connection activated"}
+    profile_name = _find_wifi_profile(ssid)
+    if not profile_name:
+        return {
+            "ok": False,
+            "error": "Wi-Fi connected, but NetworkManager did not save a reusable profile",
+        }
+    persisted = _run([
+        "nmcli", "connection", "modify", profile_name,
+        "connection.autoconnect", "yes",
+        "connection.autoconnect-priority", "100",
+    ], timeout=15)
+    if persisted.returncode:
+        return {
+            "ok": False,
+            "error": persisted.stderr.strip() or "Wi-Fi connected, but its automatic reconnect setting could not be saved",
+        }
+    return {
+        "ok": True,
+        "ssid": ssid,
+        "saved": True,
+        "message": "Wi-Fi connection saved and activated",
+    }
 
 
-def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[str, Any]:
+def _find_wifi_profile(ssid: str) -> str:
     profiles = _run([
         "nmcli", "--terse", "--escape", "yes", "--fields", "NAME,TYPE",
         "connection", "show",
     ], timeout=10)
     if profiles.returncode:
-        return {"ok": False, "error": "NetworkManager could not inspect the saved Wi-Fi profile"}
+        return ""
 
-    profile_name = ""
     for line in profiles.stdout.splitlines():
         fields = _split_escaped(line)
         if len(fields) < 2 or fields[1] not in {"wifi", "802-11-wireless"}:
@@ -193,8 +213,12 @@ def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[
             "nmcli", "--get-values", "802-11-wireless.ssid", "connection", "show", candidate,
         ], timeout=8)
         if not observed.returncode and observed.stdout.strip() == ssid:
-            profile_name = candidate
-            break
+            return candidate
+    return ""
+
+
+def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[str, Any]:
+    profile_name = _find_wifi_profile(ssid)
 
     if not profile_name:
         profile_name = f"mxg-wifi-{hashlib.sha256(ssid.encode('utf-8')).hexdigest()[:10]}"
@@ -210,6 +234,7 @@ def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[
         "802-11-wireless-security.key-mgmt", "wpa-psk",
         "802-11-wireless-security.psk", password,
         "connection.autoconnect", "yes",
+        "connection.autoconnect-priority", "100",
     ]
     if hidden:
         modification.extend(["802-11-wireless.hidden", "yes"])
@@ -220,7 +245,12 @@ def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[
     activated = _run(["nmcli", "--wait", "35", "connection", "up", profile_name], timeout=45)
     if activated.returncode:
         return {"ok": False, "error": activated.stderr.strip() or "Wi-Fi profile could not be activated"}
-    return {"ok": True, "ssid": ssid, "message": "Wi-Fi security profile repaired and activated"}
+    return {
+        "ok": True,
+        "ssid": ssid,
+        "saved": True,
+        "message": "Wi-Fi security profile repaired, saved, and activated",
+    }
 
 
 def _bluetooth_info(address: str, name: str) -> dict[str, Any]:

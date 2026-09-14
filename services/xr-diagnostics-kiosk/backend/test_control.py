@@ -11,6 +11,7 @@ from app import app
 from control import ControlUnavailable, request_control
 from control_agent import (
     _bind_usb_image,
+    _find_wifi_profile,
     _split_escaped,
     bluetooth_action,
     handle_action,
@@ -142,6 +143,31 @@ class ControlAgentValidationTests(unittest.TestCase):
         self.assertIn("netplan-wlan0:Basement", modification)
         self.assertIn("802-11-wireless-security.key-mgmt", modification)
         self.assertIn("wpa-psk", modification)
+
+    def test_wifi_connect_persists_and_prefers_the_successful_profile(self):
+        responses = [
+            Mock(returncode=0, stdout="Device successfully activated\n", stderr=""),
+            Mock(returncode=0, stdout="Hangar:wifi\n", stderr=""),
+            Mock(returncode=0, stdout="Hangar\n", stderr=""),
+            Mock(returncode=0, stdout="", stderr=""),
+        ]
+        with patch("control_agent._run", side_effect=responses) as run:
+            result = wifi_connect({"ssid": "Hangar", "password": "secret-passphrase"})
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["saved"])
+        modification = run.call_args_list[3].args[0]
+        self.assertIn("connection.autoconnect", modification)
+        self.assertIn("connection.autoconnect-priority", modification)
+        self.assertIn("100", modification)
+
+    def test_wifi_profile_lookup_matches_ssid_not_connection_name(self):
+        responses = [
+            Mock(returncode=0, stdout="netplan-wlan0\\:Hangar:wifi\n", stderr=""),
+            Mock(returncode=0, stdout="Hangar\n", stderr=""),
+        ]
+        with patch("control_agent._run", side_effect=responses):
+            self.assertEqual(_find_wifi_profile("Hangar"), "netplan-wlan0:Hangar")
 
     def test_wifi_connect_does_not_repair_unrelated_failures(self):
         with patch("control_agent._run", return_value=Mock(returncode=10, stdout="", stderr="No network found")) as run:

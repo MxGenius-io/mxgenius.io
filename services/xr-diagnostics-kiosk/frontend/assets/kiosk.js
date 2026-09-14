@@ -547,7 +547,11 @@ function renderBluetoothDevices(devices) {
 
 async function scanWifi() {
   const button = $('wifiScan');
+  const label = $('wifiScanLabel');
   button.disabled = true;
+  button.classList.add('is-busy');
+  button.setAttribute('aria-busy', 'true');
+  label.textContent = 'Searching…';
   setControlNotice('Scanning for nearby Wi-Fi networks…');
   try {
     const result = await controlRequest('/api/v1/control/wifi/scan');
@@ -564,6 +568,9 @@ async function scanWifi() {
     logEvent('error', 'wifi', 'Wi-Fi scan failed', { error: error.message });
   } finally {
     button.disabled = false;
+    button.classList.remove('is-busy');
+    button.removeAttribute('aria-busy');
+    label.textContent = 'Search networks';
   }
 }
 
@@ -773,7 +780,7 @@ $('wifiForm').addEventListener('submit', async (event) => {
       hidden: $('wifiHidden').checked,
     });
     $('wifiPassword').value = '';
-    setControlNotice(`${result.ssid} connected`, 'success');
+    setControlNotice(`${result.ssid} connected · saved for automatic reconnect`, 'success');
     logEvent('info', 'wifi', 'Wi-Fi connection activated', { ssid: result.ssid });
     window.setTimeout(scanWifi, 1200);
   } catch (error) {

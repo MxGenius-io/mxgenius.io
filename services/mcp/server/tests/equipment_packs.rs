@@ -79,6 +79,20 @@ fn device_can_disconnect_itself_without_becoming_permanently_revoked() {
 }
 
 #[test]
+fn manager_approval_can_restore_the_same_revoked_hardware() {
+    let application = include_str!("../src/application/equipment_packs.rs");
+    let approval = application
+        .split("pub async fn approve_device_claim")
+        .nth(1)
+        .and_then(|value| value.split("pub async fn device_claim_status").next())
+        .expect("device claim approval repository method");
+    assert!(approval.contains("Some((device_id, _))"));
+    assert!(approval.contains("status='active'"));
+    assert!(approval.contains("credential_hash=$2"));
+    assert!(!approval.contains("status == \"revoked\""));
+}
+
+#[test]
 fn interrupted_browser_uploads_have_an_authenticated_resume_contract() {
     assert!(HTTP.contains("/api/equipment-pack-versions/:version_id/upload"));
     assert!(HTTP.contains("get(get_equipment_pack_upload)"));

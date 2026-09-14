@@ -538,9 +538,9 @@ impl EquipmentPackRepository {
         .await?;
 
         let device_id = match existing {
-            Some((_device_id, status)) if status == "revoked" => {
-                return Err(EquipmentPackError::Conflict);
-            }
+            // A revoked node cannot restore itself because its credential is gone.
+            // Approving a fresh, device-originated claim is an explicit manager
+            // action, so it is also the recovery path for the same hardware ID.
             Some((device_id, _)) => {
                 sqlx::query(
                     r#"UPDATE edge_devices SET display_name=$1,status='active',

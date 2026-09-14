@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.24">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.25">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -171,7 +171,7 @@
       </article>
       <div class="connection-grid">
         <article class="card connection-card">
-          <div class="connection-title"><div><p class="label">NETWORK</p><h3>Wi-Fi</h3></div><button id="wifiScan" class="scan-button" type="button">Search networks</button></div>
+          <div class="connection-title"><div><p class="label">NETWORK</p><h3>Wi-Fi</h3></div><button id="wifiScan" class="scan-button" type="button"><span class="button-spinner" aria-hidden="true"></span><span id="wifiScanLabel">Search networks</span></button></div>
           <div id="wifiNetworks" class="device-list"><p class="device-empty">Run a scan to find nearby networks.</p></div>
           <form id="wifiForm" class="connect-form" autocomplete="off">
             <label>Network name<input id="wifiSsid" name="ssid" maxlength="32" required placeholder="SSID"></label>
@@ -231,6 +231,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.24"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.25"></script>
 </body>
 </html>

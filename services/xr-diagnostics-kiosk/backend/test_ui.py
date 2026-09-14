@@ -105,6 +105,16 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn("X-MXG-Control-Token", JS)
         self.assertNotIn("wifiPassword').value, error", JS)
 
+    def test_wifi_scan_has_visible_busy_feedback_and_saved_reconnect(self):
+        css = (ROOT / "frontend" / "assets" / "kiosk.css").read_text(encoding="utf-8")
+        for marker in ('class="button-spinner"', 'id="wifiScanLabel"'):
+            self.assertIn(marker, HTML)
+        for marker in ("button.classList.add('is-busy')", "label.textContent = 'Searching…'", "aria-busy"):
+            self.assertIn(marker, JS)
+        self.assertIn(".scan-button.is-busy .button-spinner", css)
+        for marker in ("connection.autoconnect", "connection.autoconnect-priority", '"saved": True'):
+            self.assertIn(marker, CONTROL_AGENT)
+
     def test_equipment_pack_status_is_compact_and_claim_is_device_originated(self):
         for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', 'id="packClaimCode"',
                        'id="packProgress"', 'id="packUnregister"'):
