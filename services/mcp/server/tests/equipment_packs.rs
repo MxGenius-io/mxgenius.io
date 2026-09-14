@@ -93,6 +93,14 @@ fn manager_approval_can_restore_the_same_revoked_hardware() {
 }
 
 #[test]
+fn edge_desired_state_names_the_pack_for_device_status() {
+    let application = include_str!("../src/application/equipment_packs.rs");
+    assert!(application.contains("p.name AS pack_name"));
+    assert!(application.contains("p.equipment_family"));
+    assert!(application.contains("JOIN equipment_packs p"));
+}
+
+#[test]
 fn interrupted_browser_uploads_have_an_authenticated_resume_contract() {
     assert!(HTTP.contains("/api/equipment-pack-versions/:version_id/upload"));
     assert!(HTTP.contains("get(get_equipment_pack_upload)"));

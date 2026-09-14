@@ -25,6 +25,7 @@ let eventLog = [];
 let controlToken = '';
 let equipmentPackStatus = null;
 let equipmentPackBusy = false;
+let controlNoticeTimer = null;
 let performanceHistory = [];
 let performanceIntervalSeconds = 5;
 
@@ -367,9 +368,24 @@ async function loadIntegrationFixtures() {
   }
 }
 
-function setControlNotice(message, state = '') {
-  $('controlNotice').textContent = message;
-  $('controlNotice').dataset.state = state;
+function setControlNotice(message, state = '', dismissAfterMs = 0) {
+  const notice = $('controlNotice');
+  if (controlNoticeTimer) clearTimeout(controlNoticeTimer);
+  controlNoticeTimer = null;
+  notice.hidden = false;
+  notice.classList.remove('is-fading');
+  notice.textContent = message;
+  notice.dataset.state = state;
+  if (dismissAfterMs > 0) {
+    controlNoticeTimer = setTimeout(() => {
+      notice.classList.add('is-fading');
+      controlNoticeTimer = setTimeout(() => {
+        notice.hidden = true;
+        notice.classList.remove('is-fading');
+        controlNoticeTimer = null;
+      }, 350);
+    }, dismissAfterMs);
+  }
 }
 
 async function initializeControls() {
@@ -420,8 +436,11 @@ function renderEquipmentPack(status) {
     ? `Generation ${status.pendingGeneration} · slot ${status.pendingSlot || '—'}`
     : 'No pending pack';
   $('packActive').textContent = status.activeGeneration
-    ? `Generation ${status.activeGeneration} · slot ${status.activeSlot || '—'}`
+    ? `${status.activePackName || 'Equipment Pack'}${status.activeVersionNumber ? ` · v${status.activeVersionNumber}` : ''} · gen ${status.activeGeneration} · slot ${status.activeSlot || '—'}`
     : 'None';
+  $('packActive').title = status.activeGeneration
+    ? [status.activeEquipmentFamily, status.activePackId, status.activeVersionId].filter(Boolean).join(' · ')
+    : '';
   const activePhases = new Set(['claiming', 'reconciling', 'downloading', 'staging', 'activating', 'unregistering']);
   const showProgress = equipmentPackBusy || activePhases.has(phase);
   $('packProgress').hidden = !showProgress;
@@ -780,7 +799,7 @@ $('wifiForm').addEventListener('submit', async (event) => {
       hidden: $('wifiHidden').checked,
     });
     $('wifiPassword').value = '';
-    setControlNotice(`${result.ssid} connected · saved for automatic reconnect`, 'success');
+    setControlNotice(`${result.ssid} connected · saved for automatic reconnect`, 'success', 5000);
     logEvent('info', 'wifi', 'Wi-Fi connection activated', { ssid: result.ssid });
     window.setTimeout(scanWifi, 1200);
   } catch (error) {

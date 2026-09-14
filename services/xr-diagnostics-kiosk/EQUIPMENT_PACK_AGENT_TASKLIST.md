@@ -102,9 +102,13 @@
 - [x] Unit-test identity persistence, ETag handling, generation ordering,
       interrupted downloads, hash failure, safe extraction, slot selection,
       acknowledgement payloads, and rollback state.
-- [x] Pass the complete kiosk Python suite (85 tests on 2026-09-13).
-- [x] Pass the canonical release preview (`0.3.1-poc.25`, 58 files,
-      HTTP/schema/state/WebSocket/scanner/thermal preflight on 2026-09-13).
+- [x] Pass the complete kiosk Python suite (86 tests on 2026-09-14).
+- [x] Pass the canonical release preview (`0.3.1-poc.26`, 58 files,
+      HTTP/schema/state/WebSocket/scanner/thermal preflight on 2026-09-14).
+- [x] Reproduce the generation 3 activation failure on physical hardware and
+      trace it to configfs returning `EBUSY` while the existing mass-storage
+      function remained linked; cover the corrected detach/swap/relink order
+      with a regression test.
 - [ ] Flash one Pi and record the capability probe.
 - [ ] Assign generation 1 and prove A activates and is visible to the USB host.
 - [ ] Assign generation 2 and prove B activates without rebuilding the Pi.
@@ -120,5 +124,5 @@
       and migration `0027` in its canonical migration set.
 - [ ] Pass authenticated publish/assign smoke against the release candidate.
 - [x] Keep the change on canonical `main`; deploy the core endpoint before the
-      `0.3.1-poc.25` physical test so restored approval and device unregister
+      `0.3.1-poc.26` physical test so restored approval and device unregister
       can complete end to end.

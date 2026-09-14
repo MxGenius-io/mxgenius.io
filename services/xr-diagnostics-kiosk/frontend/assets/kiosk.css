@@ -135,7 +135,9 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .scan-button.is-busy .button-spinner { display:block; }
 .scan-button:hover,.primary-button:hover { background:rgba(65,215,231,.16); }
 .scan-button:disabled,.primary-button:disabled,.device-action:disabled { opacity:.48; cursor:wait; }
-.control-notice { margin-bottom:14px; padding:11px 14px; border:1px solid rgba(65,215,231,.17); border-radius:11px; background:rgba(4,13,24,.6); color:#93aeba; font:700 10px ui-monospace,monospace; }
+.control-notice { margin-bottom:14px; padding:11px 14px; border:1px solid rgba(65,215,231,.17); border-radius:11px; background:rgba(4,13,24,.6); color:#93aeba; font:700 10px ui-monospace,monospace; opacity:1; transform:translateY(0); transition:opacity .35s ease,transform .35s ease; }
+.control-notice[hidden] { display:none; }
+.control-notice.is-fading { opacity:0; transform:translateY(-4px); }
 .control-notice[data-state="success"] { border-color:rgba(74,222,128,.25); color:var(--green); }
 .control-notice[data-state="error"] { border-color:rgba(251,113,133,.3); color:var(--red); }
 .equipment-pack-card { margin-bottom:16px; padding:20px 24px; }

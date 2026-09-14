@@ -173,6 +173,14 @@ from authenticated Settings and do not rewrite the card.
 Wi-Fi connections made from the local Connections view are saved as persistent
 NetworkManager profiles, marked for automatic reconnect, and the most recently
 joined network receives the preferred reconnect priority.
+Successful connection notices dismiss themselves after a short confirmation so
+the Connections view does not retain stale network status.
+
+The Equipment Pack card shows the active pack name, version number, deployment
+generation, and USB slot from the Pi's persisted runtime state. Pack activation
+uses an explicit configfs unbind, function detach, backing-image swap, relink,
+bind, and read-back verification lifecycle; the previous slot is restored if
+any stage fails.
 
 ## Interfaces
 

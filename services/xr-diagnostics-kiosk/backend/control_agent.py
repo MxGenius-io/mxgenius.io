@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -28,6 +29,7 @@ USB_GADGET_STATE = STATE_ROOT / "usb-gadget.json"
 USB_GADGET_NAME = "mxgenius"
 USB_IMAGE_MIN_BYTES = 128 * 1024 * 1024
 USB_IMAGE_MAX_BYTES = 3 * 1024 * 1024 * 1024
+LOGGER = logging.getLogger("mxgenius.edge_control")
 
 
 def _run(command: list[str], timeout: int = 40) -> subprocess.CompletedProcess[str]:
@@ -495,13 +497,18 @@ def _bind_usb_image(
 
     function = gadget_root / "functions" / "mass_storage.0"
     function.mkdir(parents=True, exist_ok=True)
+    link = config / "mass_storage.0"
+    # Unbinding the gadget does not detach its function from the configuration.
+    # Configfs rejects updates to a still-linked mass-storage function with
+    # EBUSY, so explicitly unlink it before swapping the backing image.
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    _write_config_value(function / "lun.0" / "file", "")
     _write_config_value(function / "stall", "1")
     _write_config_value(function / "lun.0" / "removable", "1")
     _write_config_value(function / "lun.0" / "ro", "1")
     _write_config_value(function / "lun.0" / "file", str(image.resolve()))
-    link = config / "mass_storage.0"
-    if not link.exists():
-        link.symlink_to(function)
+    link.symlink_to(function)
     _write_config_value(gadget_root / "UDC", controllers[0])
     if (gadget_root / "UDC").read_text(encoding="utf-8").strip() != controllers[0]:
         raise RuntimeError("The USB gadget did not bind to its device controller")
@@ -551,13 +558,16 @@ def usb_gadget_activate(payload: dict[str, Any]) -> dict[str, Any]:
         }
         _atomic_json(USB_GADGET_STATE, state)
         return {"ok": True, "activeSlot": slot, "generation": generation, "controller": controller}
-    except Exception:
+    except Exception as error:
         try:
             _unbind_usb_gadget(CONFIGFS_GADGET_ROOT / USB_GADGET_NAME)
             if previous_image.is_file():
                 _bind_usb_image(previous_image)
         except Exception:
-            pass
+            LOGGER.exception("Equipment Pack activation rollback failed")
+        if isinstance(error, OSError):
+            reason = error.strerror or str(error) or "kernel interface rejected the switch"
+            raise RuntimeError(f"USB Equipment Pack switch failed: {reason}") from error
         raise
 
 
@@ -617,6 +627,7 @@ class ControlHandler(socketserver.StreamRequestHandler):
             except (ValueError, RuntimeError) as error:
                 response = {"ok": False, "error": str(error)[:500]}
             except Exception:
+                LOGGER.exception("Unhandled edge control operation failure")
                 response = {"ok": False, "error": "Control operation failed"}
         self.wfile.write(json.dumps(response, separators=(",", ":")).encode("utf-8") + b"\n")
 

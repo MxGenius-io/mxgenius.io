@@ -114,6 +114,8 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn(".scan-button.is-busy .button-spinner", css)
         for marker in ("connection.autoconnect", "connection.autoconnect-priority", '"saved": True'):
             self.assertIn(marker, CONTROL_AGENT)
+        self.assertIn("dismissAfterMs", JS)
+        self.assertIn("saved for automatic reconnect`, 'success', 5000", JS)
 
     def test_equipment_pack_status_is_compact_and_claim_is_device_originated(self):
         for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', 'id="packClaimCode"',
@@ -125,6 +127,8 @@ class KioskUiContractTests(unittest.TestCase):
             self.assertIn(marker, JS)
         self.assertNotIn('id="packEnrollCode"', HTML)
         self.assertNotIn("status.credential", JS)
+        for marker in ("activePackName", "activeVersionNumber", "LOADED PACK"):
+            self.assertIn(marker, JS + HTML)
 
     def test_equipment_pack_cloud_is_preconfigured_for_appliance_enrollment(self):
         for script in (INSTALL, UPDATE):

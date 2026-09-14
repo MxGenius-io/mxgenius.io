@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
+import control_agent
 from app import app
 from control import ControlUnavailable, request_control
 from control_agent import (
@@ -211,6 +212,38 @@ class ControlAgentValidationTests(unittest.TestCase):
                 str(image.resolve()),
             )
             self.assertEqual((gadget / "functions" / "mass_storage.0" / "lun.0" / "ro").read_text(), "1")
+
+    def test_usb_gadget_binding_detaches_an_existing_function_before_reconfiguration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            gadget = root / "configfs" / "mxgenius"
+            udc = root / "udc"
+            function = gadget / "functions" / "mass_storage.0"
+            config = gadget / "configs" / "c.1"
+            image = root / "slot-B.img"
+            (function / "lun.0").mkdir(parents=True)
+            config.mkdir(parents=True)
+            udc.joinpath("pisp_udc").mkdir(parents=True)
+            image.write_bytes(b"image")
+            link = config / "mass_storage.0"
+            link.write_text("linked", encoding="utf-8")
+
+            original_write = control_agent._write_config_value
+
+            def assert_detached(path, value):
+                if path == function / "stall":
+                    self.assertFalse(link.exists())
+                    self.assertFalse(link.is_symlink())
+                original_write(path, value)
+
+            with (
+                patch("control_agent._write_config_value", side_effect=assert_detached),
+                patch("control_agent.Path.symlink_to") as symlink,
+            ):
+                observed = _bind_usb_image(image, gadget_root=gadget, udc_root=udc)
+
+            self.assertEqual(observed, "pisp_udc")
+            symlink.assert_called_once_with(function)
 
     def test_usb_gadget_activation_persists_only_after_binding(self):
         with tempfile.TemporaryDirectory() as temporary:

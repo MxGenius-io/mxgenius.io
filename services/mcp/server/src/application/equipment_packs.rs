@@ -161,6 +161,8 @@ pub struct DeviceDesiredState {
     pub generation: i64,
     pub version_id: Uuid,
     pub pack_id: Uuid,
+    pub pack_name: String,
+    pub equipment_family: String,
     pub version_number: i64,
     pub content_hash: String,
     pub byte_size: i64,
@@ -945,11 +947,14 @@ impl EquipmentPackRepository {
     ) -> Result<Option<DeviceDesiredState>, EquipmentPackError> {
         Ok(sqlx::query_as(
             r#"SELECT a.organization_id,a.device_id,a.generation,a.version_id,
-                      v.pack_id,v.version_number,v.content_hash,v.byte_size,
+                      v.pack_id,p.name AS pack_name,p.equipment_family,
+                      v.version_number,v.content_hash,v.byte_size,
                       v.file_count,v.manifest,v.storage_key,a.requested_at
                FROM edge_device_assignments a
                JOIN equipment_pack_versions v
                  ON v.organization_id=a.organization_id AND v.id=a.version_id
+               JOIN equipment_packs p
+                 ON p.organization_id=v.organization_id AND p.id=v.pack_id
                WHERE a.organization_id=$1 AND a.device_id=$2 AND v.status='published'"#,
         )
         .bind(identity.organization_id)

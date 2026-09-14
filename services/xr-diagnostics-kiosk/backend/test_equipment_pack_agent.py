@@ -28,6 +28,7 @@ from equipment_pack_agent import (
 
 DEVICE_ID = "a1379f31-f033-4dc5-9b60-b5aecb5fc456"
 VERSION_ID = "79c23ab9-2c6b-46c4-b05b-b63831129e33"
+PACK_ID = "0ec45b82-5986-4527-93a4-b230d09fa13b"
 IDENTITY = EdgeIdentity(
     device_id=DEVICE_ID,
     display_name="Hangar node 1",
@@ -60,6 +61,9 @@ def package(files: dict[str, bytes], generation: int = 1) -> tuple[bytes, Desire
                 for name, content in files.items()
             ],
         },
+        pack_id=PACK_ID,
+        pack_name="Hangar reference set",
+        equipment_family="Aircraft maintenance",
     )
     return payload, desired
 
@@ -382,6 +386,9 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(status["phase"], "active")
             self.assertEqual(status["activeGeneration"], 2)
             self.assertEqual(status["activeSlot"], "B")
+            self.assertEqual(status["activePackName"], "Hangar reference set")
+            self.assertEqual(status["activeVersionNumber"], 2)
+            self.assertEqual(status["activeEquipmentFamily"], "Aircraft maintenance")
             self.assertEqual([state for state, _ in core.reports], [
                 "downloading", "verified", "staged", "activating", "active"
             ])

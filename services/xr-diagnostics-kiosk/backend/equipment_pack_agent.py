@@ -158,6 +158,9 @@ class DesiredPack:
     byte_size: int
     file_count: int
     manifest: dict[str, Any]
+    pack_id: str | None = None
+    pack_name: str | None = None
+    equipment_family: str | None = None
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> "DesiredPack | None":
@@ -176,6 +179,16 @@ class DesiredPack:
             raise EquipmentPackError("INVALID_DESIRED_STATE", "the desired package identifiers are invalid") from error
         content_hash = str(desired.get("contentHash") or "")
         manifest = desired.get("manifest")
+        try:
+            pack_id = str(uuid.UUID(str(desired.get("packId"))))
+        except ValueError:
+            pack_id = None
+        pack_name = str(desired.get("packName") or "").strip() or None
+        equipment_family = str(desired.get("equipmentFamily") or "").strip() or None
+        if pack_name is not None and len(pack_name) > 120:
+            raise EquipmentPackError("INVALID_DESIRED_STATE", "the desired package name is invalid")
+        if equipment_family is not None and len(equipment_family) > 120:
+            raise EquipmentPackError("INVALID_DESIRED_STATE", "the desired equipment family is invalid")
         if generation < 1 or version_number < 1:
             raise EquipmentPackError("INVALID_DESIRED_STATE", "the desired generation is invalid")
         if not 1 <= byte_size <= MAX_PACKAGE_BYTES or not 1 <= file_count <= 100_000:
@@ -193,6 +206,9 @@ class DesiredPack:
             byte_size=byte_size,
             file_count=file_count,
             manifest=manifest,
+            pack_id=pack_id,
+            pack_name=pack_name,
+            equipment_family=equipment_family,
         )
 
 
@@ -205,6 +221,10 @@ class RuntimeState:
     desired_etag: str | None = None
     pending_generation: int | None = None
     pending_slot: str | None = None
+    active_pack_id: str | None = None
+    active_pack_name: str | None = None
+    active_equipment_family: str | None = None
+    active_version_number: int | None = None
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> "RuntimeState":
@@ -222,6 +242,11 @@ class RuntimeState:
             pending_generation = int(pending_generation)
             if pending_generation < 1:
                 raise EquipmentPackError("INVALID_LOCAL_STATE", "the saved pending generation is invalid")
+        active_version_number = payload.get("active_version_number")
+        if active_version_number is not None:
+            active_version_number = int(active_version_number)
+            if active_version_number < 1:
+                raise EquipmentPackError("INVALID_LOCAL_STATE", "the saved package version is invalid")
         return cls(
             active_generation=active_generation,
             active_version_id=payload.get("active_version_id"),
@@ -230,6 +255,10 @@ class RuntimeState:
             desired_etag=payload.get("desired_etag"),
             pending_generation=pending_generation,
             pending_slot=pending_slot,
+            active_pack_id=payload.get("active_pack_id"),
+            active_pack_name=payload.get("active_pack_name"),
+            active_equipment_family=payload.get("active_equipment_family"),
+            active_version_number=active_version_number,
         )
 
 
@@ -589,6 +618,9 @@ def verify_and_stage(archive: Path, desired: DesiredPack, slots_root: Path, slot
                 "generation": desired.generation,
                 "versionId": desired.version_id,
                 "versionNumber": desired.version_number,
+                "packId": desired.pack_id,
+                "packName": desired.pack_name,
+                "equipmentFamily": desired.equipment_family,
                 "contentHash": desired.content_hash,
             },
         )
@@ -783,6 +815,10 @@ class EquipmentPackAgent:
             "activeGeneration": self.runtime.active_generation,
             "activeVersionId": self.runtime.active_version_id,
             "activeSlot": self.runtime.active_slot,
+            "activePackId": self.runtime.active_pack_id,
+            "activePackName": self.runtime.active_pack_name,
+            "activeEquipmentFamily": self.runtime.active_equipment_family,
+            "activeVersionNumber": self.runtime.active_version_number,
             "pendingGeneration": self.runtime.pending_generation,
             "pendingSlot": self.runtime.pending_slot,
             "notificationConnected": self.notification_connected,
@@ -951,6 +987,10 @@ class EquipmentPackAgent:
                 self.runtime.active_version_id = desired.version_id
                 self.runtime.active_slot = slot
                 self.runtime.active_hash = desired.content_hash
+                self.runtime.active_pack_id = desired.pack_id
+                self.runtime.active_pack_name = desired.pack_name
+                self.runtime.active_equipment_family = desired.equipment_family
+                self.runtime.active_version_number = desired.version_number
                 self.runtime.desired_etag = etag
                 self.runtime.pending_generation = None
                 self.runtime.pending_slot = None
