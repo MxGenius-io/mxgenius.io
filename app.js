@@ -817,6 +817,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
 
+async function refreshCoreReadiness(status, label) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`${MXApplicationClient.MCP_BASE}/readyz`, {
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    const readiness = await response.json().catch(() => null);
+    const ready = response.ok && readiness?.ready === true;
+    status?.classList.toggle('connected', ready);
+    if (label) label.textContent = ready ? 'MXGenius core ready' : 'MXGenius core limited';
+  } catch (_) {
+    status?.classList.remove('connected');
+    if (label) label.textContent = 'MXGenius core unavailable';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function login() {
   await window.MXGENIUS_CONFIG?.ready;
   if (!window.MXGENIUS_AUTH?.account?.()) throw new Error('Entra sign-in required');
@@ -825,8 +846,9 @@ async function login() {
   TOKEN = 'LIVE_TOKEN';
   BEARER = '';
   const status = document.getElementById('apiStatus');
-  status.classList.add('connected');
-  status.querySelector('span:last-child').textContent = 'Fleet proxy ready';
+  const label = status?.querySelector('span:last-child');
+  if (label) label.textContent = 'Signed in · checking core…';
+  void refreshCoreReadiness(status, label);
 }
 
 // -- EARLY APPEARANCE RESTORE --
@@ -2423,7 +2445,7 @@ Rules:
           requires_human_approval: false
         }
       }, ...(MXSpatialSceneCommands?.clientTools?.() || [])],
-      instructions: `You are the MXGenius maintenance copilot. ${caseDescription} ${spatialDescription} For every informational, analytical, image, or conversational request, call mxg__chat__structured_response exactly once and do not answer before its result. After it returns, speak only its spoken_summary without adding facts. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. Spatial commands change local presentation only and must be acknowledged by their client tool result. When the user asks whether a part is in stock, how many there are, or where one is, call mxg__parts__lookup_stock and speak only its spoken_summary. Use the other supplied typed capabilities only for explicit operational actions. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
+      instructions: `You are the MXGenius maintenance copilot. Speak naturally, answer directly, and do not add routine disclaimers when they do not affect the answer. ${caseDescription} ${spatialDescription} For ordinary conversation, product or navigation questions, maintenance analysis, and image questions, call mxg__chat__structured_response exactly once and wait for its result. Then speak its spoken_summary naturally without adding factual claims. Direct inventory questions are the exception: call mxg__parts__lookup_stock and speak its spoken_summary instead of also calling structured chat. Spatial presentation requests should call the matching spatial command and acknowledge its result instead of calling structured chat. Use the other supplied typed capabilities only for explicit operational actions. The returned display_context describes what is mounted in the application and remains available for conversational follow-ups. Read evidence and confidence from capability envelopes. Operational mutations always require a dashboard confirmation and may be declined.`
     });
   }
 

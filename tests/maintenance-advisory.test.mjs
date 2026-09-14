@@ -9,9 +9,11 @@ const productionStyles = await readFile(new URL('../production-ui.css', import.m
 const backend = await readFile(new URL('../services/mcp/server/src/transport/http.rs', import.meta.url), 'utf8');
 const manualAdapter = await readFile(new URL('../services/mcp/server/src/adapters/manual.rs', import.meta.url), 'utf8');
 
-test('chat requests strict maintenance structured output and retrieves 33 manual records', () => {
+test('chat uses a compact conversation envelope with a strict nested advisory and retrieves 33 manual records', () => {
   assert.match(backend, /"type": "json_schema"/);
   assert.match(backend, /"strict": true/);
+  assert.match(backend, /chat_response_schema\(\)/);
+  assert.match(backend, /"advisory": advisory/);
   assert.match(backend, /limit: Some\(33\)/);
   assert.match(backend, /MODEL_MANUAL_RECORD_LIMIT: usize = 12/);
   assert.match(backend, /build_manual_search_query/);
@@ -65,7 +67,7 @@ test('manual images stay behind the application API boundary', () => {
 test('structured output remains enabled with persisted memory and multimodal input', () => {
   assert.match(backend, /chat_conversation_input\(\s*&conversation_history/);
   assert.match(backend, /"type": "input_image"/);
-  assert.match(backend, /maintenance_advisory_schema\(\)/);
+  assert.match(backend, /chat_response_schema\(\)/);
   assert.match(dashboard, /id="chatAttachBtn"/);
   assert.match(dashboard, /id="settingsContentUploadChoose"/);
 });
@@ -88,8 +90,28 @@ test('text model selection preserves orchestration and realtime exchanges persis
   assert.match(app, /threads\.persistExchange/);
 });
 
-test('model output cannot declare transport readiness', () => {
-  assert.match(backend, /Do not claim that a connection, service, tool, data source, or application is healthy/);
+test('model awareness distinguishes verified runtime facts from mounted capabilities', () => {
+  assert.match(backend, /application_awareness_manifest/);
+  assert.match(backend, /"request_reached_core": true/);
+  assert.match(backend, /"mounted_read_only_capabilities"/);
+  assert.match(backend, /Never imply that nothing is connected/);
+  assert.doesNotMatch(backend, /Do not claim that a connection, service, tool, data source, or application is healthy/);
+});
+
+test('ordinary conversation is natural and does not populate maintenance sections', () => {
+  assert.match(backend, /response_kind=conversation with advisory=null/);
+  assert.match(backend, /Be direct, natural, and transparent/);
+  assert.match(backend, /normalize_chat_response/);
+  assert.match(backend, /assistant_memory_content/);
+  assert.doesNotMatch(backend, /persist_chat_exchange\([\s\S]{0,400}&answer,/);
+});
+
+test('application readiness badge is based on a bounded core probe instead of sign-in alone', () => {
+  assert.match(app, /async function refreshCoreReadiness/);
+  assert.match(app, /fetch\(`\$\{MXApplicationClient\.MCP_BASE\}\/readyz`/);
+  assert.match(app, /const ready = response\.ok && readiness\?\.ready === true/);
+  assert.match(app, /MXGenius core ready/);
+  assert.doesNotMatch(app, /textContent = 'Fleet proxy ready'/);
 });
 
 test('chat rejection diagnostics reach the browser with correlation and upstream detail', () => {

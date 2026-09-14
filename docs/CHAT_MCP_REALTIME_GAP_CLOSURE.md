@@ -252,8 +252,8 @@ Acceptance:
 - [ ] Reject non-empty advisory sections that cite no evidence when citations are required.
 - [ ] Treat model-generated evidence-strength values as presentation metadata only after citation validation.
 - [x] Preserve manual revision, effective date, content hash, source reference, and retrieval warning.
-- [ ] Separate conversation and maintenance-advisory schemas so ordinary conversation does not populate
-      irrelevant required advisory fields.
+- [ ] Separate the compact conversation envelope from the nested maintenance-advisory schema so ordinary
+      conversation returns `advisory: null` instead of populating irrelevant maintenance fields.
 - [ ] Add explicit abstention output for missing, conflicting, stale, or unavailable evidence.
 - [ ] Add prompt-injection tests using hostile text inside manual excerpts and compatibility records.
 
