@@ -36,7 +36,7 @@ with a seven-digit device-originated claim instead of a manually copied secret.
 | Application database | Durable tenant and device state | PostgreSQL 16 | Existing `mxg-pg-50106` |
 | Package object store | Private package bytes | Azure Blob Storage | Existing `mxgstorage50106/documents` |
 | Identity boundary | Human authentication and tenant membership | Entra OIDC plus application roles | Existing dispatcher/auth context |
-| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.24` release) |
+| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.25` release) |
 
 Existing reusable seams:
 
@@ -275,15 +275,36 @@ replica, ingress, or cost-bearing resource change is planned.
 | Pi release preview | `preview-release.ps1 -TestOnly -NoBrowser` against `0.3.1-poc.23` | ✅ HTTP, schema, state, WSS, scanner, and thermal checks passed | 2026-09-13 |
 | Azure resource/RBAC recheck | `az account`, resource, role, policy, and Container App inspection | ✅ Existing subscription/resources healthy; no infrastructure or RBAC delta | 2026-09-13 |
 | Linux container rebuild | `az acr build --no-push ...` | ✅ ACR run `cj28`; Dockerfile completed; no image published | 2026-09-13 |
-| Pi controls regression | kiosk Python suite, exact release preview, image read-only mount audit | ✅ 82 tests; `0.3.1-poc.24` preview passed; image contains unregister controls and excludes `piwiz` autostart | 2026-09-13 |
+| Pi controls regression | kiosk Python suite, exact release preview, image read-only mount audit | ✅ 85 tests; `0.3.1-poc.25` preview passed; image contains Wi-Fi busy feedback, persistent auto-connect, unregister controls, and excludes `piwiz` autostart | 2026-09-13 |
 | Device self-unregister contracts | Rust Equipment Pack test plus strict clippy | ✅ 8/8 contract tests; active devices retain credential requirement; offline self-unregister may clear it | 2026-09-13 |
 | Current Azure boundary | subscription, group, Container Apps environment, policy, managed identity, live health/readiness | ✅ Existing Central US resources healthy; 0 policy assignments; Blob contributor remains container-scoped; HTTP 200 | 2026-09-13 |
 | Exact committed container validation | `az acr build --no-push` from `services/mcp` at `83bc383` | ✅ ACR run `cj2b`; optimized locked Docker build succeeded; no image published | 2026-09-13 |
 | Existing registry pull posture | Container App registry configuration and ACR role query | ⚠️ Existing app uses ACR admin credential; system identity has no `AcrPull`. Preserved for this release; migrate separately. | 2026-09-13 |
 | Pi controls production image | `az acr build` from `services/mcp` at `0fe7f3e` | ✅ ACR run `cj2c`; image published with digest `sha256:9d71329f9a370caf338b7fa2bf456b66805fa67d5d2bec9fdf29257076f13aee` | 2026-09-13 |
 | Pi controls production promotion | `az containerapp update`; revision, health, and fail-closed probes | ✅ `mxg-core--pictl0fe7f3e` healthy/latest-ready at 100% traffic; `/healthz` and `/readyz` HTTP 200; anonymous `POST /api/edge/unregister` HTTP 401 | 2026-09-13 |
+| Revoked-device approval recovery | manager approval contract, strict clippy, and production image build | ✅ A signed-in manager may approve a fresh claim for the same revoked hardware and rotate its credential; device self-restore remains impossible; ACR run `cj2d` published digest `sha256:07994817c8683d685b6000426ffddad32ab5153e845347b2f40f3c858a2604ad` | 2026-09-13 |
+| Approval recovery promotion | `az containerapp update` plus revision and health probes | ✅ `mxg-core--piapp99cf04f` healthy/latest-ready at 100% traffic; `/healthz` and `/readyz` HTTP 200 | 2026-09-13 |
 
 ### 8.1 Deployment Proof
+
+#### Pi approval recovery and `0.3.1-poc.25` — 2026-09-13
+
+- Git commit `99cf04f` was pushed to canonical shared `main` after 403 frontend
+  tests, 85 Pi tests, 9 Equipment Pack contracts, strict Rust clippy, and the
+  exact 58-file Pi preview passed.
+- ACR run `cj2d` published `mxg-core:pi-approval-99cf04f-20260913` with digest
+  `sha256:07994817c8683d685b6000426ffddad32ab5153e845347b2f40f3c858a2604ad`.
+- Revision `mxg-core--piapp99cf04f` is Healthy, latest-ready, and serves 100%
+  traffic. Live `/healthz` and `/readyz` returned HTTP 200.
+- Manager approval of a fresh seven-digit claim now restores the matching
+  revoked hardware row and rotates its credential. A node cannot restore
+  itself, so revocation remains manager-controlled.
+- Pi image `0.3.1-poc.25` adds visible Wi-Fi scan progress and marks the most
+  recently joined NetworkManager profile persistent, auto-connectable, and
+  preferred. Its read-only image audit verified those files and the absence of
+  `piwiz.desktop`.
+- Rollback is non-destructive: shift cloud traffic to
+  `mxg-core--pictl0fe7f3e` and use Pi image `0.3.1-poc.24`.
 
 #### Pi Equipment Pack controls release — 2026-09-13
 
