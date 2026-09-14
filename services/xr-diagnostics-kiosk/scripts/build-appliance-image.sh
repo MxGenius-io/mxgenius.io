@@ -75,13 +75,50 @@ VERSION="$(tr -d '\r\n' <"$RELEASE/VERSION")"
 WORK_DIR="$(mktemp -d /var/tmp/mxg-image-build.XXXXXX)"
 RAW_IMAGE="$WORK_DIR/mxgenius.img"
 ROOT_MOUNT="$WORK_DIR/root"
-LOOP_DEVICE=""
+BOOT_DEVICE=""
+ROOT_DEVICE=""
 MOUNTS=()
+
+attach_image_partitions() {
+  local partition_bytes
+  partition_bytes="$(
+    sfdisk --json "$RAW_IMAGE" | python3 -c '
+import json, sys
+table = json.load(sys.stdin)["partitiontable"]
+partitions = table["partitions"]
+if len(partitions) < 2:
+    raise SystemExit("the image does not contain boot and root partitions")
+sector = int(table["sectorsize"])
+values = []
+for partition in partitions[:2]:
+    values.extend((int(partition["start"]) * sector, int(partition["size"]) * sector))
+print(*values)
+'
+  )"
+  local boot_offset boot_size root_offset root_size
+  read -r boot_offset boot_size root_offset root_size <<<"$partition_bytes"
+  [ -n "$root_size" ] || { echo "Image partition geometry is invalid." >&2; return 1; }
+
+  # WSL currently compiles the loop driver with max_part=0, so --partscan
+  # cannot create /dev/loopXpN nodes. Attach each bounded partition directly
+  # from the image table instead; this also avoids device-mapper teardown races.
+  BOOT_DEVICE="$(losetup --find --show --offset "$boot_offset" --sizelimit "$boot_size" "$RAW_IMAGE")"
+  ROOT_DEVICE="$(losetup --find --show --offset "$root_offset" --sizelimit "$root_size" "$RAW_IMAGE")"
+  [ -b "$BOOT_DEVICE" ] && [ -b "$ROOT_DEVICE" ] || { echo "Image partitions were not attached." >&2; return 1; }
+}
+
+detach_image_partitions() {
+  sync
+  [ -n "$ROOT_DEVICE" ] && losetup "$ROOT_DEVICE" >/dev/null 2>&1 && losetup -d "$ROOT_DEVICE"
+  [ -n "$BOOT_DEVICE" ] && losetup "$BOOT_DEVICE" >/dev/null 2>&1 && losetup -d "$BOOT_DEVICE"
+  BOOT_DEVICE=""
+  ROOT_DEVICE=""
+}
 
 cleanup() {
   set +e
   for ((i=${#MOUNTS[@]}-1; i>=0; i--)); do mountpoint -q "${MOUNTS[$i]}" && umount --recursive --lazy "${MOUNTS[$i]}"; done
-  [ -n "$LOOP_DEVICE" ] && losetup "$LOOP_DEVICE" >/dev/null 2>&1 && losetup -d "$LOOP_DEVICE"
+  [ -f "$RAW_IMAGE" ] && detach_image_partitions >/dev/null 2>&1
   rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT INT TERM
@@ -90,18 +127,13 @@ echo "[1/8] Expanding pinned Raspberry Pi OS image..."
 xz --decompress --stdout "$BASE" >"$RAW_IMAGE"
 
 echo "[2/8] Attaching image partitions..."
-LOOP_DEVICE="$(losetup --find --show --partscan "$RAW_IMAGE")"
-for attempt in $(seq 1 50); do
-  [ -b "${LOOP_DEVICE}p1" ] && [ -b "${LOOP_DEVICE}p2" ] && break
-  sleep 0.1
-done
-[ -b "${LOOP_DEVICE}p1" ] && [ -b "${LOOP_DEVICE}p2" ] || { echo "Image partitions were not discovered." >&2; exit 1; }
+attach_image_partitions
 
 mkdir -p "$ROOT_MOUNT"
-mount "${LOOP_DEVICE}p2" "$ROOT_MOUNT"
+mount "$ROOT_DEVICE" "$ROOT_MOUNT"
 MOUNTS+=("$ROOT_MOUNT")
 mkdir -p "$ROOT_MOUNT/boot/firmware"
-mount "${LOOP_DEVICE}p1" "$ROOT_MOUNT/boot/firmware"
+mount "$BOOT_DEVICE" "$ROOT_MOUNT/boot/firmware"
 MOUNTS+=("$ROOT_MOUNT/boot/firmware")
 
 echo "[3/8] Installing device identity and operator access..."
@@ -148,7 +180,10 @@ EOF
 chmod 0755 "$ROOT_MOUNT/usr/sbin/policy-rc.d"
 
 echo "[4/8] Creating the locked local operator account..."
-chroot "$ROOT_MOUNT" /bin/bash -euxo pipefail <<'CHROOT'
+# Package maintainer scripts occasionally leave short-lived helpers behind.
+# A dedicated PID namespace guarantees no chroot descendant can retain an
+# image filesystem after the stage command returns.
+unshare --pid --fork --kill-child chroot "$ROOT_MOUNT" /bin/bash -euxo pipefail <<'CHROOT'
 existing_user="$(getent passwd 1000 | cut -d: -f1)"
 if id mxgenius >/dev/null 2>&1; then
   [ "$(id -u mxgenius)" = 1000 ] || { echo "mxgenius exists with an unexpected UID" >&2; exit 1; }
@@ -175,7 +210,7 @@ install -m 0600 "$SSH_PUBLIC_KEY" "$ROOT_MOUNT/home/mxgenius/.ssh/authorized_key
 chown -R 1000:1000 "$ROOT_MOUNT/home/mxgenius/.ssh"
 
 echo "[5/8] Installing the complete MXG runtime into the image..."
-chroot "$ROOT_MOUNT" /usr/bin/env \
+unshare --pid --fork --kill-child chroot "$ROOT_MOUNT" /usr/bin/env \
   DEBIAN_FRONTEND=noninteractive \
   MXG_IMAGE_BUILD=1 \
   MXG_APPLIANCE_MODEL='Raspberry Pi 5' \
@@ -193,7 +228,7 @@ KbdInteractiveAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
 EOF
-chroot "$ROOT_MOUNT" systemctl enable ssh.service avahi-daemon.service NetworkManager.service
+unshare --pid --fork --kill-child chroot "$ROOT_MOUNT" systemctl enable ssh.service avahi-daemon.service NetworkManager.service
 rm -f "$ROOT_MOUNT/usr/sbin/policy-rc.d" "$ROOT_MOUNT/etc/resolv.conf"
 if [ -n "$RESOLV_LINK" ]; then
   ln -s "$RESOLV_LINK" "$ROOT_MOUNT/etc/resolv.conf"
@@ -209,34 +244,22 @@ for ((i=${#MOUNTS[@]}-1; i>=0; i--)); do
   mountpoint -q "${MOUNTS[$i]}" && umount --recursive "${MOUNTS[$i]}"
 done
 MOUNTS=()
-losetup -d "$LOOP_DEVICE"
-LOOP_DEVICE=""
 sync
-sleep 1
-LOOP_DEVICE="$(losetup --find --show --partscan "$RAW_IMAGE")"
-for attempt in $(seq 1 50); do
-  [ -b "${LOOP_DEVICE}p1" ] && [ -b "${LOOP_DEVICE}p2" ] && break
-  sleep 0.1
-done
+# A loop device that has just backed a mounted filesystem can remain marked
+# busy briefly inside WSL even after every mount is gone. Validate through a
+# fresh pair of bounded loop devices so e2fsck/fsck.vfat see the sealed image,
+# not stale state from the installation lifecycle.
+detach_image_partitions
+attach_image_partitions
 repair_exit=0
-e2fsck -pf "${LOOP_DEVICE}p2" || repair_exit=$?
+e2fsck -pf "$ROOT_DEVICE" || repair_exit=$?
 [ "$repair_exit" -le 1 ] || exit "$repair_exit"
 repair_exit=0
-fsck.vfat -a "${LOOP_DEVICE}p1" || repair_exit=$?
+fsck.vfat -a "$BOOT_DEVICE" || repair_exit=$?
 [ "$repair_exit" -le 1 ] || exit "$repair_exit"
-losetup -d "$LOOP_DEVICE"
-LOOP_DEVICE=""
-sync
-sleep 1
-LOOP_DEVICE="$(losetup --find --show --partscan --read-only "$RAW_IMAGE")"
-for attempt in $(seq 1 50); do
-  [ -b "${LOOP_DEVICE}p1" ] && [ -b "${LOOP_DEVICE}p2" ] && break
-  sleep 0.1
-done
-e2fsck -fn "${LOOP_DEVICE}p2"
-fsck.vfat -n "${LOOP_DEVICE}p1"
-losetup -d "$LOOP_DEVICE"
-LOOP_DEVICE=""
+e2fsck -fn "$ROOT_DEVICE"
+fsck.vfat -n "$BOOT_DEVICE"
+detach_image_partitions
 
 echo "[8/8] Compressing and checksumming final appliance image..."
 mkdir -p "$(dirname "$OUTPUT")"

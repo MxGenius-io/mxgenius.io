@@ -20,6 +20,7 @@ KIOSK_SERVICE = (ROOT / "systemd" / "mxg-diagnostics-kiosk.service").read_text(e
 KIOSK_START = (ROOT / "scripts" / "start-kiosk.sh").read_text(encoding="utf-8")
 IMAGE_BUILDER = (ROOT / "scripts" / "build-appliance-image.sh").read_text(encoding="utf-8")
 IMAGE_WRAPPER = (ROOT / "scripts" / "build-appliance-image.ps1").read_text(encoding="utf-8")
+PREVIEW_WRAPPER = (ROOT / "scripts" / "preview-release.ps1").read_text(encoding="utf-8")
 SD_COMMISSION = (ROOT / "deploy-to-sd.ps1").read_text(encoding="utf-8")
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
@@ -92,8 +93,16 @@ class KioskUiContractTests(unittest.TestCase):
         base_contract = (ROOT / "image" / "base-image.env").read_text(encoding="utf-8")
         for marker in ("MXG_BASE_IMAGE_URL=https://downloads.raspberrypi.com/", "MXG_BASE_IMAGE_SHA256="):
             self.assertIn(marker, base_contract)
-        for marker in ("sha256sum", "losetup --find --show --partscan", "e2fsck", "fsck.vfat", "MXG_IMAGE_BUILD=1"):
+        for marker in ("sha256sum", "sfdisk --json", "--sizelimit", "e2fsck", "fsck.vfat", "MXG_IMAGE_BUILD=1"):
             self.assertIn(marker, IMAGE_BUILDER)
+        self.assertIn('BOOT_DEVICE="$(losetup --find --show --offset', IMAGE_BUILDER)
+        self.assertIn('ROOT_DEVICE="$(losetup --find --show --offset', IMAGE_BUILDER)
+        self.assertNotIn('mount "${LOOP_DEVICE}p2"', IMAGE_BUILDER)
+        self.assertGreaterEqual(IMAGE_BUILDER.count("unshare --pid --fork --kill-child chroot"), 3)
+        check_stage = IMAGE_BUILDER.split('echo "[7/8] Checking both filesystems..."', 1)[1]
+        self.assertLess(check_stage.index("detach_image_partitions"), check_stage.index("e2fsck -pf"))
+        self.assertLess(check_stage.index("attach_image_partitions"), check_stage.index("e2fsck -pf"))
+        self.assertIn("@('__pycache__', '.pytest_cache')", PREVIEW_WRAPPER)
         self.assertIn("Get-FileHash", IMAGE_WRAPPER)
         self.assertIn("ssh-keygen.exe", IMAGE_WRAPPER)
         self.assertNotIn("systemd.run", IMAGE_BUILDER)

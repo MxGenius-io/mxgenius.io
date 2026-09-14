@@ -65,13 +65,15 @@ foreach ($item in $releaseItems) {
 }
 
 $previewBoundary = [System.IO.Path]::GetFullPath("$previewRoot\")
-Get-ChildItem -LiteralPath $previewRoot -Directory -Filter '__pycache__' -Recurse | ForEach-Object {
+Get-ChildItem -LiteralPath $previewRoot -Directory -Recurse |
+  Where-Object { $_.Name -in @('__pycache__', '.pytest_cache') } |
+  ForEach-Object {
   $cachePath = [System.IO.Path]::GetFullPath($_.FullName)
   if (-not $cachePath.StartsWith($previewBoundary, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Generated cache path escaped the preview root: $cachePath"
   }
   Remove-Item -LiteralPath $cachePath -Recurse -Force
-}
+  }
 Get-ChildItem -LiteralPath $previewRoot -File -Recurse | Where-Object { $_.Extension -in @('.pyc', '.pyo') } | ForEach-Object {
   $generatedPath = [System.IO.Path]::GetFullPath($_.FullName)
   if (-not $generatedPath.StartsWith($previewBoundary, [System.StringComparison]::OrdinalIgnoreCase)) {

@@ -36,7 +36,7 @@ with a seven-digit device-originated claim instead of a manually copied secret.
 | Application database | Durable tenant and device state | PostgreSQL 16 | Existing `mxg-pg-50106` |
 | Package object store | Private package bytes | Azure Blob Storage | Existing `mxgstorage50106/documents` |
 | Identity boundary | Human authentication and tenant membership | Entra OIDC plus application roles | Existing dispatcher/auth context |
-| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.25` release) |
+| Pi edge bridge | Native device client and USB-image activation | Python, FastAPI, systemd | `services/xr-diagnostics-kiosk` (paired `0.3.1-poc.26` release) |
 
 Existing reusable seams:
 
@@ -284,8 +284,41 @@ replica, ingress, or cost-bearing resource change is planned.
 | Pi controls production promotion | `az containerapp update`; revision, health, and fail-closed probes | ✅ `mxg-core--pictl0fe7f3e` healthy/latest-ready at 100% traffic; `/healthz` and `/readyz` HTTP 200; anonymous `POST /api/edge/unregister` HTTP 401 | 2026-09-13 |
 | Revoked-device approval recovery | manager approval contract, strict clippy, and production image build | ✅ A signed-in manager may approve a fresh claim for the same revoked hardware and rotate its credential; device self-restore remains impossible; ACR run `cj2d` published digest `sha256:07994817c8683d685b6000426ffddad32ab5153e845347b2f40f3c858a2604ad` | 2026-09-13 |
 | Approval recovery promotion | `az containerapp update` plus revision and health probes | ✅ `mxg-core--piapp99cf04f` healthy/latest-ready at 100% traffic; `/healthz` and `/readyz` HTTP 200 | 2026-09-13 |
+| Deterministic pack-switch release | 403 frontend tests; 86 Pi tests; 10 Equipment Pack contracts; strict Rust clippy; exact `0.3.1-poc.26` preview | ✅ All local release gates passed for commit `b2ddb6e` | 2026-09-14 |
+| Azure baseline and live roles | subscription, Central US resources, policy assignments, `mxg-core` identity roles, `/healthz`, and `/readyz` | ✅ Existing resources healthy; 0 policy assignments; data-plane roles unchanged and correctly scoped; HTTP 200 | 2026-09-14 |
+| Exact committed container validation | `az acr build --no-push` from `services/mcp` at `b2ddb6e` | ✅ ACR run `cj2e`; locked optimized Docker build succeeded; no image published | 2026-09-14 |
+| Deterministic pack-switch production image | `az acr build` from `services/mcp` at `b2ddb6e` | ✅ ACR run `cj2f`; immutable image published with digest `sha256:81cf762a40d4d6575cd67131c43ff0dea63f413b5de653f4b7cf6aefb34d5b26` | 2026-09-14 |
+| Deterministic pack-switch promotion | Container App revision, traffic, health, readiness, and anonymous auth probes | ✅ `mxg-core--packswb2ddb6e` Healthy/latest-ready at 100% traffic; health/readiness HTTP 200; anonymous desired-state read HTTP 401 | 2026-09-14 |
+| Pi `0.3.1-poc.26` appliance image | Pinned-base build, writable and read-only filesystem checks, XZ integrity test, and read-only mounted-image audit | ✅ Both filesystems clean; identity/services/USB configuration and shipped source verified; `.img.xz` SHA-256 `55848df65dcd90b0403fe1d66fde1dcf3bf7f1533ebd9047e88c646e982579bf` | 2026-09-14 |
 
 ### 8.1 Deployment Proof
+
+#### Deterministic Equipment Pack activation and `0.3.1-poc.26` — 2026-09-14
+
+- Git commit `b2ddb6e` was pushed to canonical shared `main` after 403 frontend
+  tests, 86 Pi tests, 10 Equipment Pack contracts, strict Rust clippy, and the
+  exact 53-file Pi release preview passed.
+- ACR run `cj2f` published
+  `mxg-core:pack-switch-b2ddb6e-20260914` with digest
+  `sha256:81cf762a40d4d6575cd67131c43ff0dea63f413b5de653f4b7cf6aefb34d5b26`.
+- Revision `mxg-core--packswb2ddb6e` is Healthy, latest-ready, and serves 100%
+  traffic. Live `/healthz` and `/readyz` returned HTTP 200; anonymous
+  `GET /api/edge/state` returned HTTP 401.
+- Live role verification confirmed the unchanged `mxg-core` managed identity
+  remains `Storage Blob Data Contributor` only at the private
+  `mxgstorage50106/documents` container and `Cognitive Services User` at the
+  existing Document Intelligence resource.
+- Pi image `0.3.1-poc.26` was rebuilt from the pinned Raspberry Pi OS base. Its
+  builder repaired and then read-only verified both filesystems, and a final
+  read-only mount audit verified the baked hardware identity, enabled services,
+  USB peripheral configuration, removal of `piwiz.desktop`, pack metadata UI,
+  and source-identical configfs unlink/swap/relink implementation.
+- The compressed image SHA-256 is
+  `55848df65dcd90b0403fe1d66fde1dcf3bf7f1533ebd9047e88c646e982579bf`;
+  the Imager-ready raw image SHA-256 is
+  `22022d7003a7f5d567ef285fa19b057dc8900717f7ff0bfc60dee39777ae0cff`.
+- Rollback is non-destructive: shift cloud traffic to
+  `mxg-core--piapp99cf04f` and reflash Pi image `0.3.1-poc.25`.
 
 #### Pi approval recovery and `0.3.1-poc.25` — 2026-09-13
 
@@ -381,14 +414,14 @@ replica, ingress, or cost-bearing resource change is planned.
 | `services/mcp/server/tests/equipment_packs.rs` | Migration, auth, tenant, idempotency, race, and transfer contract tests | Created |
 | `services/mcp/README.md` | Configuration and operational contract | Updated |
 
-The Pi `0.3.1-poc.24` release is included in the paired Git batch but remains
-excluded from the Azure core image and Container App promotion.
+The Pi `0.3.1-poc.26` appliance is built and distributed separately from the
+Azure core image and Container App promotion.
 
 ### 10. Next Steps
 
-1. Commit and push the validated Git batch to shared `main`.
-2. Promote the committed core image to the existing Container App.
-3. Verify migration, health, readiness, auth boundaries, and rollback target.
+1. Flash the audited `0.3.1-poc.26` appliance image.
+2. Approve its seven-digit claim and allow the assigned generation to reconcile.
+3. Verify host-side USB enumeration and A/B activation on physical hardware.
 
 ### Rollback
 

@@ -103,12 +103,15 @@
       interrupted downloads, hash failure, safe extraction, slot selection,
       acknowledgement payloads, and rollback state.
 - [x] Pass the complete kiosk Python suite (86 tests on 2026-09-14).
-- [x] Pass the canonical release preview (`0.3.1-poc.26`, 58 files,
+- [x] Pass the canonical release preview (`0.3.1-poc.26`, 53 files,
       HTTP/schema/state/WebSocket/scanner/thermal preflight on 2026-09-14).
 - [x] Reproduce the generation 3 activation failure on physical hardware and
       trace it to configfs returning `EBUSY` while the existing mass-storage
       function remained linked; cover the corrected detach/swap/relink order
       with a regression test.
+- [x] Build `0.3.1-poc.26` from the pinned base, repair and read-only verify both
+      filesystems, and audit the finished image read-only for its baked identity,
+      enabled services, USB configuration, version metadata, and shipped fix.
 - [ ] Flash one Pi and record the capability probe.
 - [ ] Assign generation 1 and prove A activates and is visible to the USB host.
 - [ ] Assign generation 2 and prove B activates without rebuilding the Pi.
