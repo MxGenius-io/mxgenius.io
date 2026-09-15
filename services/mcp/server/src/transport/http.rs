@@ -10142,23 +10142,63 @@ async fn model_manual_images(state: &AppState, evidence: &[Evidence]) -> Vec<Cha
 
 fn extract_ata_chapter(text: &str) -> Option<String> {
     let uppercase = text.to_ascii_uppercase();
-    let mut remainder = uppercase.as_str();
-    while let Some(marker) = remainder.find("ATA") {
-        let after_marker = &remainder[marker + 3..];
-        let digits = after_marker
-            .trim_start_matches(|character: char| {
-                character.is_ascii_whitespace() || matches!(character, '-' | ':' | '#')
-            })
-            .chars()
-            .take_while(|character| character.is_ascii_digit())
-            .take(3)
-            .collect::<String>();
-        if digits.len() >= 2 {
-            return Some(digits);
+    for prefix in ["ATA", "CHAPTER"] {
+        let mut remainder = uppercase.as_str();
+        while let Some(marker) = remainder.find(prefix) {
+            let after_marker = &remainder[marker + prefix.len()..];
+            let digits = after_marker
+                .trim_start_matches(|character: char| {
+                    character.is_ascii_whitespace() || matches!(character, '-' | ':' | '#')
+                })
+                .chars()
+                .take_while(|character| character.is_ascii_digit())
+                .take(3)
+                .collect::<String>();
+            if digits.len() >= 2 {
+                return Some(digits);
+            }
+            remainder = after_marker;
         }
-        remainder = after_marker;
     }
     None
+}
+
+fn extract_manual_type(text: &str) -> Option<String> {
+    let uppercase = text.to_ascii_uppercase();
+    let tokens = uppercase
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .collect::<std::collections::HashSet<_>>();
+    [
+        (
+            "IPC",
+            ["ILLUSTRATED PARTS CATALOG", "ILLUSTRATED PARTS CATALOGUE"],
+        ),
+        (
+            "SPM",
+            ["STANDARD PRACTICES MANUAL", "STANDARD PRACTICE MANUAL"],
+        ),
+        (
+            "NDT",
+            [
+                "NONDESTRUCTIVE TESTING MANUAL",
+                "NON-DESTRUCTIVE TESTING MANUAL",
+            ],
+        ),
+        (
+            "SSM",
+            ["SYSTEM SCHEMATIC MANUAL", "SYSTEM SCHEMATICS MANUAL"],
+        ),
+        (
+            "AMM",
+            ["AIRCRAFT MAINTENANCE MANUAL", "AIRPLANE MAINTENANCE MANUAL"],
+        ),
+    ]
+    .into_iter()
+    .find_map(|(manual_type, names)| {
+        (tokens.contains(manual_type) || names.iter().any(|name| uppercase.contains(name)))
+            .then(|| manual_type.to_owned())
+    })
 }
 
 fn explicit_manual_aircraft_model(text: &str) -> Option<String> {
@@ -10222,6 +10262,10 @@ fn should_search_manual(message: &str, case_id: Option<Uuid>) -> bool {
     ]
     .iter()
     .any(|term| text.contains(term))
+}
+
+fn should_include_manual_references(has_registered_image: bool, evidence_count: usize) -> bool {
+    has_registered_image || evidence_count > 0
 }
 
 fn build_manual_search_query(
@@ -10511,6 +10555,7 @@ async fn chat(
             .search(&ManualQuery {
                 aircraft_id,
                 aircraft_model: manual_aircraft_model.clone(),
+                manual_type: extract_manual_type(&manual_search_query),
                 ata: extract_ata_chapter(&manual_search_query),
                 text: manual_search_query,
                 limit: Some(33),
@@ -10912,9 +10957,8 @@ async fn chat(
             "OpenAI service cited evidence that was not retrieved",
         );
     }
-    let include_references = registered_image.is_some()
-        || manual_image_count > 0
-        || advisory.get("response_kind").and_then(Value::as_str) == Some("maintenance_advisory");
+    let include_references =
+        should_include_manual_references(registered_image.is_some(), manual_evidence.len());
     let manual_records = if registered_image.is_some() {
         manual_model_context.clone()
     } else if include_references {
@@ -12314,6 +12358,31 @@ mod structured_advisory_tests {
             explicit_manual_aircraft_model("Which aircraft applies?"),
             None
         );
+    }
+
+    #[test]
+    fn explicit_manual_names_and_chapter_scope_the_retrieval_query() {
+        for (query, expected) in [
+            ("Use the CL350 AMM chapter 31", "AMM"),
+            ("Search the illustrated parts catalog chapter 11", "IPC"),
+            ("Use the Standard Practices Manual task", "SPM"),
+            ("Use the NDT section 01 GENERAL", "NDT"),
+            ("Use the System Schematic Manual Chapter 23", "SSM"),
+        ] {
+            assert_eq!(extract_manual_type(query).as_deref(), Some(expected));
+        }
+        assert_eq!(
+            extract_ata_chapter("IPC Chapter 11 placards"),
+            Some("11".into())
+        );
+        assert_eq!(extract_ata_chapter("SSM ATA 23 audio"), Some("23".into()));
+    }
+
+    #[test]
+    fn retrieved_text_is_always_returned_for_ui_evidence() {
+        assert!(should_include_manual_references(false, 1));
+        assert!(should_include_manual_references(true, 0));
+        assert!(!should_include_manual_references(false, 0));
     }
 
     #[test]

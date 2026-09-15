@@ -64,7 +64,8 @@ test('manual evidence cards keep images behind the application API boundary', ()
   assert.match(app, /appendManualEvidencePreview\(streamTarget, data\?\.manual_records \|\| \[\]\)/);
   assert.match(app, /appendManualEvidencePreview\(bubble, manualRecords\)/);
   assert.match(app, /figure\.classList\.add\('is-unavailable'\)/);
-  assert.match(backend, /registered_image\.is_some\(\)\s*\|\| manual_image_count > 0/);
+  assert.match(backend, /fn should_include_manual_references/);
+  assert.match(backend, /should_include_manual_references\(registered_image\.is_some\(\), manual_evidence\.len\(\)\)/);
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 

@@ -15,6 +15,7 @@ pub trait ManualCorpusAdapter: Send + Sync {
 pub struct ManualQuery {
     pub aircraft_id: Option<String>,
     pub aircraft_model: Option<String>,
+    pub manual_type: Option<String>,
     pub ata: Option<String>,
     pub text: String,
     pub limit: Option<u32>,

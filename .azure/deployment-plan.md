@@ -1,5 +1,79 @@
 # MXGenius Azure Deployment Plan
 
+## Five-Manual Retrieval Finalization — 2026-09-15
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Finalize the frozen CL350 manual path vertically from the authoritative Azure
+Search corpus, through model grounding, to the production citation/excerpt and
+registered-diagram UI. Explicit AMM, IPC, SPM, NDT, and SSM requests are scoped
+to their requested manual before hybrid retrieval. Chapter/ATA filtering is
+used only where that field is populated by the frozen index; SPM and NDT retain
+manual-only filtering. Any retrieved text evidence is returned to the browser
+even when the model classifies the answer as ordinary conversation.
+
+### Deployment scope
+
+- Build `services/mcp` from the exact committed source in the existing
+  `mxgacr50106` registry and promote only the existing `mxg-core` Container App.
+- Preserve the frozen `manuals-authoritative-v2` index, all manual/image Blob
+  content, the published Pi Equipment Drive, environment settings, secrets,
+  identity, ingress, scale, database, migrations, Entra objects, and RBAC.
+- No infrastructure, data, permission, frontend, or cost-bearing resource
+  change is included.
+
+### Validation steps
+
+- Run Rust formatting, complete locked all-target workspace tests,
+  warnings-denied Clippy, and the locked optimized workspace build.
+- Run the complete frontend/application contract suite and `git diff --check`.
+- Reconcile the frozen five-manual manifest with Azure and probe one indexed
+  production subject per manual.
+- Confirm the approved subscription, Central US resource group, Container Apps
+  environment, ACR, policy posture, current health/readiness/adapter endpoints,
+  registry authentication mode, and live managed-identity roles.
+- After promotion, run one authenticated production model query per manual and
+  verify model grounding, evidence pills, expandable excerpts, and the
+  registered AMM diagram without inventing figures for text-only manuals.
+
+### Validation proof
+
+- `cargo fmt --all -- --check` passed. The complete locked all-target Rust
+  workspace passed 298 tests with one credential-gated live exporter
+  intentionally ignored; strict Clippy passed with warnings denied; the locked
+  optimized workspace build passed.
+- `npm test` passed 425/425 application and contract checks after updating the
+  evidence-return contract; the focused maintenance-advisory suite passed
+  18/18. `git diff --check` passed.
+- The authoritative reconciliation matched all five manuals, eight source
+  documents, 13,121 approved chunks, and five registered AMM images with no
+  hash/count failures. Direct Azure Search probes returned qualified AMM, IPC,
+  SPM, NDT, and SSM records; SPM's frozen records correctly expose no ATA field.
+- Azure CLI confirmed approved subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), resource group
+  `mxg-rg-50106`, and the existing Central US Container Apps environment and
+  ACR are enabled and provisioned. Subscription/resource-group policy
+  assignment counts are zero.
+- Pre-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. The
+  current core is running and uses the established registry secret rather than
+  managed-identity ACR pull, so the new-resource `AcrPull` propagation gate is
+  not applicable.
+- Static and live role review found no RBAC delta. The `mxg-core` system
+  identity retains only `Storage Blob Data Contributor` on the private
+  `documents` container and `Cognitive Services User` on the existing Document
+  Intelligence account.
+
+### Deployment proof
+
+- Pending validated release execution and five-manual live acceptance.
+
+### Rollback
+
+Keep revision `mxg-core--rockyfffa8b4` available until all five production
+queries pass. If the new revision fails readiness or manual acceptance, restore
+100% traffic to that revision. No data or schema rollback is required.
+
 ## Rocky Administrator Promotion — 2026-09-15
 
 > **Status:** Deployed and live-verified

@@ -16,6 +16,7 @@ async fn main() -> Result<()> {
         .search(&ManualQuery {
             aircraft_id: None,
             aircraft_model: Some("CL350".into()),
+            manual_type: None,
             ata: None,
             text: query,
             limit: Some(5),

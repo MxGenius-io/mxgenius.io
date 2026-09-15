@@ -221,6 +221,7 @@ impl Tool for MaintenanceCaseBuildContextTool {
                 .search(&ManualQuery {
                     aircraft_id: Some(case.aircraft_id.clone()),
                     aircraft_model: aircraft_model.clone(),
+                    manual_type: None,
                     ata: None,
                     text: case.raw_discrepancy.clone(),
                     limit: Some(8),

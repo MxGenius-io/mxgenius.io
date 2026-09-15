@@ -257,17 +257,11 @@ impl ManualCorpusAdapter for AzureManualCorpusAdapter {
             odata_string(&aircraft_model),
             approved_documents
         );
-        let filter = query
-            .ata
-            .as_deref()
-            .filter(|ata| {
-                (2..=3).contains(&ata.len())
-                    && ata.chars().all(|character| character.is_ascii_digit())
-            })
-            .map_or_else(
-                || base_filter.clone(),
-                |ata| format!("({base_filter}) and ata eq '{ata}'"),
-            );
+        let filter = scoped_manual_filter(
+            &base_filter,
+            query.manual_type.as_deref(),
+            query.ata.as_deref(),
+        );
         let url = format!(
             "{}/indexes/{}/docs/search?api-version=2023-11-01",
             self.search_endpoint, self.index_name
@@ -632,6 +626,27 @@ fn odata_string(value: &str) -> String {
     value.replace('\'', "''")
 }
 
+fn scoped_manual_filter(base_filter: &str, manual_type: Option<&str>, ata: Option<&str>) -> String {
+    let mut filter = base_filter.to_owned();
+    if let Some(manual_type) =
+        manual_type.filter(|value| matches!(value, &"AMM" | &"IPC" | &"SPM" | &"NDT" | &"SSM"))
+    {
+        filter = format!(
+            "({filter}) and manual_type eq '{}'",
+            odata_string(manual_type)
+        );
+    }
+    let ata_is_indexed_for_manual = !matches!(manual_type, Some("SPM" | "NDT"));
+    if let Some(ata) = ata.filter(|value| {
+        ata_is_indexed_for_manual
+            && (2..=3).contains(&value.len())
+            && value.chars().all(|character| character.is_ascii_digit())
+    }) {
+        filter = format!("({filter}) and ata eq '{}'", odata_string(ata));
+    }
+    filter
+}
+
 fn required_env(name: &str) -> AdapterResult<String> {
     std::env::var(name).map_err(|_| AdapterError::NotConfigured {
         reason: format!("{name} is unset"),
@@ -726,6 +741,27 @@ mod contract_tests {
             );
         }
         assert_eq!(canonical_aircraft_model("Global 6000", &supported), None);
+    }
+
+    #[test]
+    fn explicit_manual_and_ata_scope_are_applied_to_the_search_filter() {
+        let base = "source_class eq 'manual' and aircraft_model eq 'CL350'";
+        assert_eq!(
+            scoped_manual_filter(base, Some("IPC"), Some("11")),
+            "((source_class eq 'manual' and aircraft_model eq 'CL350') and manual_type eq 'IPC') and ata eq '11'"
+        );
+        assert_eq!(
+            scoped_manual_filter(base, Some("UNKNOWN"), Some("not-an-ata")),
+            base
+        );
+        assert_eq!(
+            scoped_manual_filter(base, Some("SPM"), Some("20")),
+            "(source_class eq 'manual' and aircraft_model eq 'CL350') and manual_type eq 'SPM'"
+        );
+        assert_eq!(
+            scoped_manual_filter(base, Some("NDT"), Some("01")),
+            "(source_class eq 'manual' and aircraft_model eq 'CL350') and manual_type eq 'NDT'"
+        );
     }
 
     #[test]
