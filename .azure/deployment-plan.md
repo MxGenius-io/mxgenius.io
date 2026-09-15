@@ -47,8 +47,9 @@ application's dark visual system.
   US resource group, ACR, and current `mxg-core` revision are healthy, with
   zero policy assignments.
 - 2026-09-15: no infrastructure or RBAC file changes are present. Live role
-  verification confirmed the `mxg-core` identity still has only `Storage Blob
-  Data Contributor` on the private `documents` container; the existing ACR
+  verification confirmed the `mxg-core` identity retains `Storage Blob Data
+  Contributor` on the private `documents` container and `Cognitive Services
+  User` on the existing Document Intelligence account; the existing ACR
   registry configuration is unchanged.
 
 ### Rollback
@@ -56,6 +57,33 @@ application's dark visual system.
 Shift Container App traffic back to `mxg-core--imgreg915` and revert the paired
 GitHub Pages release. No schema or data repair is required because this release
 contains no migration and creates no operational record.
+
+### Deployment Proof
+
+- Integrated commit `f571423` and startup correction `8bdcf99` were pushed to
+  canonical `main`. Final GitHub Pages run `34974166813` completed successfully
+  after the full application test gate; the correction changed no MCP source.
+- ACR run `cj2p` built the committed `services/mcp` source and published
+  `mxg-core:parts-stable-f571423-20260915` with immutable digest
+  `sha256:033f21bfba37629485e8c7229d233ca564524869c40096f16e726cd9ad7f15cb`.
+- Container App revision `mxg-core--parts915` is Healthy, latest-ready, and
+  serves 100% traffic. Production `/healthz`, `/readyz`, and `/adapterz`
+  returned HTTP 200; readiness reports database and manual library ready, and
+  the adapter reports Parts available.
+- Live static checks confirmed the final `case-workspace.js?v=18`, dark Parts
+  stylesheet, demo visual registry, feature catalog pin, and all six optimized
+  JPEG assets. Every asset returned HTTP 200.
+- A signed-in visible-browser smoke confirmed the Parts inventory and request
+  tabs load on entry, pager buttons and checkboxes use the dark treatment, an
+  ordinary production stock record receives no demo visual, and the newest
+  maintenance case now opens automatically after a fresh dashboard load. Its
+  private recorded image loaded directly without the retired generic-image
+  flash.
+- Post-deployment role verification found the same two existing assignments:
+  `Storage Blob Data Contributor` on the private `documents` container and
+  `Cognitive Services User` on the Document Intelligence account. No resource,
+  role, migration, Search corpus, Blob content, case, or stock record was
+  created or changed by this release.
 
 ## Azure Manual Library and Operations Release Delta — 2026-09-15
 
