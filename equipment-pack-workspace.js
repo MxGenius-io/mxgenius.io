@@ -201,7 +201,7 @@
     }
 
     async function refresh() {
-      setStatus('Loading Equipment Packs…');
+      setStatus('Loading Equipment Drives…');
       try {
         const [packPayload, devicePayload] = await Promise.all([
           run((session) => client.list(session)),
@@ -209,21 +209,21 @@
         ]);
         packs = packPayload.packs || [];
         devices = (devicePayload.devices || []).filter((device) => device.status !== 'revoked');
-        fill(packSelect, packs, packs.length ? 'Select a pack' : 'Create the first pack',
+        fill(packSelect, packs, packs.length ? 'Select a drive' : 'Create the first drive',
           (pack) => `${pack.name} · ${pack.equipmentFamily}`);
         fill(deviceSelect, devices, devices.length ? 'Select a device' : 'Register a device first',
           (device) => `${device.displayName} · ${device.status}`);
         await loadVersions();
         updateActions();
-        setStatus(`${packs.length} pack${packs.length === 1 ? '' : 's'} · ${devices.length} available device${devices.length === 1 ? '' : 's'}`, 'success');
+        setStatus(`${packs.length} drive${packs.length === 1 ? '' : 's'} · ${devices.length} available device${devices.length === 1 ? '' : 's'}`, 'success');
       } catch (error) {
-        setStatus(error.message || 'Unable to load Equipment Packs.', 'error');
+        setStatus(error.message || 'Unable to load Equipment Drives.', 'error');
       }
     }
 
     byId('settingsPackCreate')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      setStatus('Creating Equipment Pack…');
+      setStatus('Creating Equipment Drive…');
       try {
         const payload = await run((session) => client.create({
           name: byId('settingsPackName').value.trim(),
@@ -237,7 +237,7 @@
         await loadVersions();
         setStatus(`${payload.pack.name} is ready for a folder.`, 'success');
       } catch (error) {
-        setStatus(error.message || 'Unable to create Equipment Pack.', 'error');
+        setStatus(error.message || 'Unable to create Equipment Drive.', 'error');
       }
     });
 
@@ -259,7 +259,7 @@
     });
 
     byId('settingsPackPublish')?.addEventListener('click', async () => {
-      if (!packSelect.value) return setStatus('Select or create an Equipment Pack first.', 'error');
+      if (!packSelect.value) return setStatus('Select or create an Equipment Drive first.', 'error');
       const files = Array.from(folderInput.files || []);
       if (!files.length) return setStatus('Choose a folder first.', 'error');
       const button = publishButton;
@@ -303,7 +303,7 @@
         versionSelect.value = version.id;
         setStatus(`Version ${version.versionNumber} published and ready to assign.`, 'success');
       } catch (error) {
-        setStatus(error.message || 'Equipment Pack publication failed.', 'error');
+        setStatus(error.message || 'Equipment Drive publication failed.', 'error');
       } finally {
         updateActions();
       }

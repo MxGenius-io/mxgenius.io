@@ -879,11 +879,22 @@ test('company detail hydrates contacts and aircraft relationships with user-faci
 });
 
 test('maintenance case creation binds the explicit submit action to a short-lived confirmation grant', () => {
+  assert.match(dashboard, /<form id="caseIntakeForm"[^>]*novalidate/);
+  assert.match(dashboard, /id="caseIntakeStatus"[^>]*role="status"[^>]*aria-live="assertive"/);
   assert.match(caseWorkspace, /MXApplicationClient\.aircraft\.lookup/);
   assert.match(caseWorkspace, /toolName: 'mxg\.maintenance_case\.create'/);
   assert.match(caseWorkspace, /raw_discrepancy: discrepancy/);
   assert.match(caseWorkspace, /confirmationGrant: confirmation\.token/);
+  assert.match(caseWorkspace, /if \(missingField\)[\s\S]*setIntakeStatus\(message, 'error'\)[\s\S]*missingField\.focus\(\)/);
+  assert.match(caseWorkspace, /submitButton\.textContent = 'Creating maintenance case…'/);
+  assert.match(caseWorkspace, /setSubmissionStatus\(`\$\{error\.code \|\| 'CASE_SLICE_FAILED'\}: \$\{error\.message\}`, 'error'\)/);
   assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*confirmation/i);
+});
+
+test('maintenance cases use a stable human-readable display name', () => {
+  assert.match(caseWorkspace, /return `MXG-CASE-\$\{dateToken\}-\$\{reference\}`/);
+  assert.match(caseWorkspace, /caseDisplayName\(caseState\)/);
+  assert.match(caseWorkspace, /<span>Case<\/span>\$\{escapeHtml\(displayName\)\}/);
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
@@ -1068,7 +1079,10 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=2/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=3/);
+  assert.match(dashboard, />\s*Equipment Drives\s*</);
+  assert.match(dashboard, />Create a drive<\/summary>/);
+  assert.match(dashboard, /<span>1 · Drive<\/span>/);
   assert.match(dashboard, /class="equipment-pack-workspace__body"/);
   assert.match(dashboard, /id="settingsPackFolderChoose"/);
   assert.match(dashboard, /id="settingsPackFolderName"/);
@@ -1082,6 +1096,8 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   assert.match(equipmentWorkspace, /client\.publishVersion/);
   assert.match(equipmentWorkspace, /client\.assignVersion/);
   assert.match(equipmentWorkspace, /edgeDevices\.deployments/);
+  assert.match(equipmentWorkspace, /Loading Equipment Drives/);
+  assert.doesNotMatch(equipmentWorkspace, /Loading Equipment Packs|Select a pack|Creating Equipment Pack|Equipment Pack publication failed/);
   assert.doesNotMatch(equipmentWorkspace, /localStorage|sessionStorage/);
 });
 

@@ -52,6 +52,18 @@ const MXCaseWorkspace = (() => {
     element.dataset.state = state;
   }
 
+  function setIntakeStatus(message, state = 'idle') {
+    const element = byId('caseIntakeStatus');
+    if (!element) return;
+    element.textContent = message;
+    element.dataset.state = state;
+  }
+
+  function setSubmissionStatus(message, state = 'idle') {
+    setStatus(message, state);
+    setIntakeStatus(message, state);
+  }
+
   function list(items, render) {
     if (!items?.length) return '<div class="case-workspace__empty">None returned by the capability.</div>';
     return `<ul class="case-workspace__list">${items.map((item) => `<li>${render(item)}</li>`).join('')}</ul>`;
@@ -75,6 +87,18 @@ const MXCaseWorkspace = (() => {
     return new Intl.DateTimeFormat(undefined, {
       month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
     }).format(parsed);
+  }
+
+  function caseDisplayName(caseState) {
+    const opened = new Date(caseState?.opened_at || caseState?.updated_at || '');
+    const dateToken = Number.isNaN(opened.getTime())
+      ? 'UNDATED'
+      : `${opened.getUTCFullYear()}${String(opened.getUTCMonth() + 1).padStart(2, '0')}${String(opened.getUTCDate()).padStart(2, '0')}`;
+    const reference = String(caseState?.case_id || caseState?.caseId || '')
+      .replace(/[^a-z0-9]/gi, '')
+      .slice(0, 8)
+      .toUpperCase() || 'PENDING';
+    return `MXG-CASE-${dateToken}-${reference}`;
   }
 
   function validateCaseImage(file) {
@@ -182,6 +206,7 @@ const MXCaseWorkspace = (() => {
     const matches = result.aircraft?.matches || [];
     const canonical = matches.find((match) => match.aircraft_id === caseState.aircraft_id) || matches[0] || {};
     const aircraftLabel = canonical.registration || [canonical.make, canonical.model].filter(Boolean).join(' ') || 'Aircraft';
+    const displayName = caseDisplayName({ ...caseState, case_id: result.caseId || caseState.case_id });
     const confidence = result.trace.map((entry) => entry.confidence?.level || entry.confidence?.basis).filter(Boolean).join(', ');
     target.innerHTML = `
       <div class="case-workspace__case-hero">
@@ -204,6 +229,7 @@ const MXCaseWorkspace = (() => {
           </div>
         </div>
         <div class="case-workspace__summary">
+          <div class="case-workspace__metric"><span>Case</span>${escapeHtml(displayName)}</div>
           <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
           <div class="case-workspace__metric"><span>Status</span>${escapeHtml(displayToken(caseState.status, 'Open'))}</div>
           <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(displayToken(caseState.priority, 'Routine'))}</div>
@@ -266,6 +292,7 @@ const MXCaseWorkspace = (() => {
     const panel = byId('caseIntakePanel');
     if (!panel || panel.open) return;
     panel.classList.remove('is-closing');
+    setIntakeStatus('Aircraft registration and observed discrepancy are required.', 'idle');
     panel.showModal();
     byId('woReg')?.focus();
   }
@@ -305,9 +332,9 @@ const MXCaseWorkspace = (() => {
       cases.forEach((caseState) => {
         const summary = text(caseState.raw_discrepancy, '').replace(/\s+/g, ' ').slice(0, 72);
         const label = [
+          caseDisplayName(caseState),
           caseState.priority?.toUpperCase(),
           caseState.status,
-          caseState.aircraft_id,
           summary
         ].filter(Boolean).join(' · ');
         select.add(new Option(label, caseState.case_id));
@@ -431,12 +458,23 @@ const MXCaseWorkspace = (() => {
     event.preventDefault();
     const form = event.currentTarget;
     const submitButton = byId('caseCreateButton');
-    submitButton.disabled = true;
     const registration = form.elements.registration.value.trim();
     const discrepancy = form.elements.discrepancy.value.trim();
     const priority = form.elements.priority.value;
     const caseImage = form.elements.caseImage.files?.[0] || null;
-    setStatus('Resolving aircraft…', 'working');
+    const missingField = !registration ? form.elements.registration : (!discrepancy ? form.elements.discrepancy : null);
+    if (missingField) {
+      const message = missingField === form.elements.registration
+        ? 'Enter the aircraft registration before creating the case.'
+        : 'Enter the observed discrepancy before creating the case.';
+      missingField.setAttribute('aria-invalid', 'true');
+      setIntakeStatus(message, 'error');
+      missingField.focus();
+      return;
+    }
+    submitButton.disabled = true;
+    submitButton.textContent = 'Creating maintenance case…';
+    setSubmissionStatus('Resolving aircraft…', 'working');
     try {
       if (caseImage) validateCaseImage(caseImage);
       const requestSession = await session();
@@ -460,13 +498,13 @@ const MXCaseWorkspace = (() => {
         raw_discrepancy: discrepancy,
         priority
       };
-      setStatus('Confirming maintenance case creation…', 'working');
+      setSubmissionStatus('Confirming maintenance case creation…', 'working');
       const confirmation = await MXApplicationClient.confirmations.issue({
         toolName: 'mxg.maintenance_case.create',
         arguments: createArguments,
         session: requestSession
       });
-      setStatus('Creating maintenance case and building context…', 'working');
+      setSubmissionStatus('Creating maintenance case and building context…', 'working');
       const result = await MXApplicationClient.caseWorkspace.runFirstSlice({
         registration,
         discrepancy,
@@ -475,7 +513,7 @@ const MXCaseWorkspace = (() => {
       });
       let imageWarning = null;
       if (caseImage) {
-        setStatus(`Case ${result.caseId} created. Adding image…`, 'working');
+        setSubmissionStatus(`Case ${result.caseId} created. Adding image…`, 'working');
         try {
           await attachCaseImage({
             caseId: result.caseId,
@@ -493,23 +531,33 @@ const MXCaseWorkspace = (() => {
       render(result);
       activeCase = result;
       localStorage.setItem('mxg_active_case_id', result.caseId);
-      setStatus(imageWarning
+      const completionMessage = imageWarning
         ? `Case ${result.caseId} is live, but the image could not be added. Use Add image to try again.`
-        : `Case ${result.caseId} is live${caseImage ? ' with its image attached' : ''}.`, imageWarning ? 'error' : 'ready');
+        : `Case ${result.caseId} is live${caseImage ? ' with its image attached' : ''}.`;
+      setSubmissionStatus(completionMessage, imageWarning ? 'error' : 'ready');
       globalThis.dispatchEvent(new CustomEvent('mxg:case-selected', { detail: result }));
       await loadExistingCases();
       form.reset();
       resetIntakeImage();
       closeCaseIntakePanel({ focusId: 'caseExistingSelect' });
     } catch (error) {
-      setStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
+      setSubmissionStatus(`${error.code || 'CASE_SLICE_FAILED'}: ${error.message}`, 'error');
     } finally {
       submitButton.disabled = false;
+      submitButton.textContent = 'Create maintenance case';
     }
   }
 
   function init() {
     byId('caseIntakeForm')?.addEventListener('submit', submit);
+    for (const field of [byId('woReg'), byId('woDesc')]) {
+      field?.addEventListener('input', () => {
+        field.removeAttribute('aria-invalid');
+        if (byId('caseIntakeStatus')?.dataset.state === 'error') {
+          setIntakeStatus('Aircraft registration and observed discrepancy are required.', 'idle');
+        }
+      });
+    }
     byId('caseImage')?.addEventListener('change', updateIntakeImageSelection);
     byId('caseImageRemove')?.addEventListener('click', resetIntakeImage);
     byId('caseIntakeOpenButton')?.addEventListener('click', openCaseIntakePanel);

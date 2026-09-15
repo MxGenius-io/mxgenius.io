@@ -206,6 +206,22 @@
 .case-image-picker img { width: 72px; height: 48px; border-radius: 6px; object-fit: cover; }
 .case-image-picker img[hidden] { display: none; }
 
+.case-intake-panel__status {
+  min-height: 38px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 8px;
+  color: #91a1b7;
+  background: rgba(2, 8, 23, .28);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.case-intake-panel__status[data-state="working"] { color: #93c5fd; border-color: rgba(96, 165, 250, .28); background: rgba(30, 64, 175, .08); }
+.case-intake-panel__status[data-state="error"] { color: #fecaca; border-color: rgba(248, 113, 113, .38); background: rgba(127, 29, 29, .14); }
+.case-intake-panel__status[data-state="ready"] { color: #a7f3d0; border-color: rgba(52, 211, 153, .28); background: rgba(6, 78, 59, .12); }
+
 #caseCreateButton {
   width: 100%;
   margin-top: 14px;
@@ -219,6 +235,7 @@
 }
 
 #caseCreateButton:hover:not(:disabled) { border-color: #a5f3fc; background: linear-gradient(105deg, #5eead4, #a5f3fc); }
+#caseCreateButton:disabled { cursor: wait; opacity: .72; }
 
 .case-workspace__result { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 4px; }
 .case-workspace__case-hero {
