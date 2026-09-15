@@ -34,6 +34,22 @@ use mxgenius_shared::domain::ids::{
 use crate::application::evidence_service::EvidenceService;
 use crate::application::policy_enforce::check_action;
 
+pub(crate) fn observation_evidence_content_hash(
+    observation_id: Uuid,
+    request: &MaintenanceCaseAttachObservationRequest,
+) -> String {
+    let mut digest = sha2::Sha256::new();
+    digest.update(b"mxgenius:maintenance-observation:v1\0");
+    digest.update(observation_id.as_bytes());
+    digest.update(b"\0");
+    digest.update(request.note.as_bytes());
+    for media_reference in &request.media_refs {
+        digest.update(b"\0");
+        digest.update(media_reference.as_bytes());
+    }
+    format!("sha256:{}", hex::encode(digest.finalize()))
+}
+
 #[derive(Debug, Error)]
 pub enum CaseError {
     #[error("case not found")]
@@ -443,7 +459,7 @@ impl InMemoryCaseService {
             created_at: now,
         };
         let evidence_id = EvidenceId(Uuid::new_v4());
-        let content_hash = hex::encode(sha2::Sha256::digest(req.note.as_bytes()));
+        let content_hash = observation_evidence_content_hash(observation.id, req);
         let link = CaseEvidenceLink {
             organization_id: ctx.organization_id,
             case_id: req.case_id,
@@ -740,5 +756,33 @@ pub fn status_to_dto(s: CaseStatus) -> CaseStatusDto {
         CaseStatus::AwaitingApproval => CaseStatusDto::AwaitingApproval,
         CaseStatus::Closed => CaseStatusDto::Closed,
         CaseStatus::Cancelled => CaseStatusDto::Cancelled,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::observation_evidence_content_hash;
+    use mxgenius_shared::contracts::MaintenanceCaseAttachObservationRequest;
+    use mxgenius_shared::domain::ids::CaseId;
+    use uuid::Uuid;
+
+    #[test]
+    fn repeated_observation_notes_have_distinct_evidence_hashes() {
+        let request = MaintenanceCaseAttachObservationRequest {
+            case_id: CaseId(Uuid::nil()),
+            note: "Image attached during maintenance case intake".into(),
+            component_id: None,
+            media_refs: vec!["azure-blob://documents/content-uploads/demo/image.jpg".into()],
+        };
+        let first_id = Uuid::from_u128(1);
+        let second_id = Uuid::from_u128(2);
+
+        let first = observation_evidence_content_hash(first_id, &request);
+        assert_eq!(first, observation_evidence_content_hash(first_id, &request));
+        assert_ne!(
+            first,
+            observation_evidence_content_hash(second_id, &request)
+        );
+        assert!(first.starts_with("sha256:"));
     }
 }

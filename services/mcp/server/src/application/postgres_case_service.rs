@@ -1,7 +1,6 @@
 //! Transactional Postgres implementation of the MaintenanceCase spine.
 
 use async_trait::async_trait;
-use sha2::Digest;
 use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -20,7 +19,9 @@ use mxgenius_shared::domain::case::{
 };
 use mxgenius_shared::domain::ids::{CaseId, DiscrepancyId, EvidenceId, OrganizationId, UserId};
 
-use super::case_service::{status_to_dto, to_dto, CaseError, CaseService};
+use super::case_service::{
+    observation_evidence_content_hash, status_to_dto, to_dto, CaseError, CaseService,
+};
 use crate::application::policy_enforce::check_action;
 
 #[derive(Clone)]
@@ -315,10 +316,7 @@ impl CaseService for PostgresCaseService {
         let event_id = Uuid::new_v4();
         let audit_id = Uuid::new_v4();
         let trace_id = Uuid::new_v4();
-        let content_hash = format!(
-            "sha256:{}",
-            hex::encode(sha2::Sha256::digest(req.note.as_bytes()))
-        );
+        let content_hash = observation_evidence_content_hash(observation_id, req);
         sqlx::query(
             r#"INSERT INTO observations
                (id, organization_id, case_id, note, component_id, author_user_id, media_refs, created_at)
