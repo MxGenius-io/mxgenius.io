@@ -195,6 +195,13 @@ test('first case slice uses one authenticated backend orchestration request', as
   assert.equal(requests.length, 1);
   assert.equal(requests[0].request.registration, 'N12345');
   assert.equal(requests[0].request.discrepancy, 'hydraulic pressure low');
+  assert.deepEqual(requests[0].request.include, {
+    documents: true,
+    compliance: true,
+    weather: true,
+    parts: false,
+    timeline: true
+  });
   assert.equal(requests[0].options.headers.Authorization, 'Bearer access-token');
   assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], '11111111-1111-1111-1111-111111111111');
   assert.equal(requests[0].options.headers['X-Correlation-ID'], '22222222-2222-2222-2222-222222222222');

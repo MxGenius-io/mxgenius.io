@@ -323,7 +323,7 @@
         state.textContent = `${visible} visible feature and status rows · source FEATURES.md`;
       }
 
-      Promise.resolve(fetch('FEATURES.md?v=20260902', { cache: 'no-store' }))
+      Promise.resolve(fetch('FEATURES.md?v=20260915', { cache: 'no-store' }))
         .then((response) => {
           if (!response.ok) throw new Error(`Feature catalog returned ${response.status}`);
           return response.text();

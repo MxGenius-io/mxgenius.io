@@ -135,9 +135,25 @@ const MXCaseState = {
     const stage = document.getElementById('caseWorkspaceImage');
     const videoStage = document.getElementById('caseWorkspaceVideo');
     const count = document.getElementById('caseWorkspaceImageCount');
-    const media = (sources.length ? sources : ['media/deck-mechanic.jpg']).map((source) => (
-      typeof source === 'string' ? { source, kind: 'image' } : source
-    ));
+    const media = (Array.isArray(sources) ? sources : [])
+      .filter(Boolean)
+      .map((source) => (typeof source === 'string' ? { source, kind: 'image' } : source))
+      .filter((item) => item?.source);
+    if (!media.length) {
+      gallery?.replaceChildren();
+      if (stage) {
+        stage.removeAttribute('src');
+        stage.alt = '';
+        stage.hidden = true;
+      }
+      if (videoStage) {
+        videoStage.pause();
+        videoStage.removeAttribute('src');
+        videoStage.hidden = true;
+      }
+      if (count) count.textContent = 'No media';
+      return null;
+    }
     const select = (index) => {
       const selectedMedia = media[index];
       const isVideo = selectedMedia.kind === 'video';
@@ -180,7 +196,7 @@ const MXCaseState = {
       }));
     }
     select(0);
-    return media.find((item) => item.kind !== 'video')?.source || 'media/deck-mechanic.jpg';
+    return media.find((item) => item.kind !== 'video')?.source || null;
   },
   async updateCardImage(detail, canonical) {
     const thumbnail = document.getElementById('activeCaseImage');
@@ -189,11 +205,6 @@ const MXCaseState = {
       : 'Maintenance case image';
     this.imageObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
     this.imageObjectUrls = [];
-    const fallback = this.renderImageGallery(['media/deck-mechanic.jpg'], alternative);
-    if (thumbnail) {
-      thumbnail.src = fallback;
-      thumbnail.alt = alternative;
-    }
     const caseMedia = (Array.isArray(detail?.caseMedia) ? detail.caseMedia : [])
       .filter((item) => ['image', 'video'].includes(item?.kind) && item.observationId !== undefined)
       .slice(0, 8);
@@ -203,8 +214,29 @@ const MXCaseState = {
     ].filter((candidate, index, items) => (
       /^https:\/\//i.test(String(candidate || '')) && items.indexOf(candidate) === index
     )).slice(0, 8);
-    if (!caseMedia.length && !aircraftCandidates.length) return;
-    const expectedCaseId = detail.caseId;
+    const demoVisual = globalThis.MXDemoVisualRegistry?.forCase?.(detail?.case) || null;
+    const setThumbnail = (source) => {
+      if (!thumbnail) return;
+      if (source) {
+        thumbnail.src = source;
+        thumbnail.alt = alternative;
+        thumbnail.hidden = false;
+      } else {
+        thumbnail.removeAttribute('src');
+        thumbnail.alt = '';
+        thumbnail.hidden = true;
+      }
+    };
+    if (!caseMedia.length && !aircraftCandidates.length) {
+      const first = this.renderImageGallery(demoVisual ? [demoVisual.src] : [], alternative);
+      setThumbnail(first);
+      return;
+    }
+    this.renderImageGallery([], alternative);
+    const count = document.getElementById('caseWorkspaceImageCount');
+    if (count) count.textContent = 'Loading media…';
+    setThumbnail(null);
+    const expectedCaseId = detail.caseId || detail.case?.case_id;
     const session = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
     const results = await Promise.allSettled([
       ...caseMedia.map(async (item) => ({
@@ -232,10 +264,10 @@ const MXCaseState = {
     if (loadedMedia.length) {
       this.imageObjectUrls = objectUrls;
       const first = this.renderImageGallery(loadedMedia, alternative);
-      if (thumbnail) {
-        thumbnail.src = first;
-        thumbnail.alt = alternative;
-      }
+      setThumbnail(first);
+    } else {
+      const first = this.renderImageGallery(demoVisual ? [demoVisual.src] : [], alternative);
+      setThumbnail(first);
     }
   },
   matchesAircraft(aircraft) {
@@ -320,8 +352,9 @@ const MXCaseState = {
       card.setAttribute('aria-label', 'Open the latest maintenance case');
     }
     if (image) {
-      image.src = 'media/deck-mechanic.jpg';
+      image.removeAttribute('src');
       image.alt = '';
+      image.hidden = true;
     }
     if (value) value.textContent = 'No case available';
     if (status) status.textContent = 'Ready';
@@ -1473,7 +1506,7 @@ Rules:
 
     // Style ATA chapter citations Ã¢â€ â€™ pill badges (AMM Ch.28, IPC Ch.32, etc.)
     html = html.replace(/\(?(AMM|AMP|IPC|CMM|SRM|NDT|WDM|TSM|SFP|AIPC)\s+([^,.)]+)/gi, (match, manual, ref) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">Ã°Å¸â€œËœ ${manual} ${ref.trim()}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">${manual} ${ref.trim()}</span>`;
     });
 
     // Style standalone ATA references like "ATA 32" or "(ATA 28 - Fuel)"
@@ -2956,6 +2989,7 @@ function switchTab(tabId) {
     tabLoaded[tabId] = true;
     switch (tabId) {
       case 'dashboard': loadGlobe(); loadAircraft(); loadCompanies(); loadContacts(); break;
+      case 'parts': MXPartsWorkspace.activate(); break;
       case '3d-viewer': break;
       case 'settings': initSettings(); break;
     }

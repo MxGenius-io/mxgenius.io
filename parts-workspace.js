@@ -1663,11 +1663,20 @@ const MXPartsWorkspace = (() => {
     const traceSelect = byId('wizardTrace');
     if (traceSelect) traceSelect.innerHTML = optionList(TRACE_TYPES, 'none');
     bindEvents();
-    performSearch();
-    loadLocations();
-    loadShortages();
-    loadRequests();
     handleRouting();
+  }
+
+  function activate() {
+    const reads = [loadLocations()];
+    if (state.view === 'inventory') reads.push(performSearch());
+    if (state.view === 'requests') reads.push(loadRequests());
+    if (state.view === 'shortages') reads.push(loadShortages());
+    if (state.view === 'discrepancies') reads.push(loadDiscrepancies());
+    if (state.view === 'locations') reads.push(renderLocations());
+    if (state.view === 'rotables') reads.push(loadRotables());
+    if (state.view === 'cannibalizations') reads.push(loadRobs());
+    if (state.view === 'imports') reads.push(loadImportBatches());
+    return Promise.allSettled(reads);
   }
 
   function bindEvents() {
@@ -1782,17 +1791,25 @@ const MXPartsWorkspace = (() => {
 
   function unitCard(unit) {
     const card = document.createElement('button');
+    const visual = globalThis.MXDemoVisualRegistry?.forPart?.(unit) || null;
     card.type = 'button';
-    card.className = 'inventory-card';
+    card.className = `inventory-card${visual ? ' has-visual' : ''}`;
     card.innerHTML = `
-      <div class="inventory-card-header">
-        <span class="inventory-part-number">${escapeHtml(unit.partNumber)}</span>
-        <span class="inventory-status-badge status-${escapeHtml(unit.status)}">${escapeHtml(unit.status)}</span>
-      </div>
-      <div class="inventory-description">${escapeHtml(unit.description)}</div>
-      <div><strong>SN:</strong> ${escapeHtml(unit.serialNumber || 'N/A')}</div>
-      <div><strong>Condition:</strong> ${escapeHtml(unit.conditionCode)}</div>
-      <div><strong>Location:</strong> ${escapeHtml(unit.location)}</div>`;
+      ${visual ? `
+        <span class="inventory-card-visual">
+          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}" loading="lazy">
+          <span class="inventory-card-visual-label">Demo visual</span>
+        </span>` : ''}
+      <span class="inventory-card-body">
+        <span class="inventory-card-header">
+          <span class="inventory-part-number">${escapeHtml(unit.partNumber)}</span>
+          <span class="inventory-status-badge status-${escapeHtml(unit.status)}">${escapeHtml(unit.status)}</span>
+        </span>
+        <span class="inventory-description">${escapeHtml(unit.description)}</span>
+        <span><strong>SN:</strong> ${escapeHtml(unit.serialNumber || 'N/A')}</span>
+        <span><strong>Condition:</strong> ${escapeHtml(unit.conditionCode)}</span>
+        <span><strong>Location:</strong> ${escapeHtml(unit.location)}</span>
+      </span>`;
     card.addEventListener('click', () => openUnit(unit.id));
     return card;
   }
@@ -2825,9 +2842,11 @@ const MXPartsWorkspace = (() => {
     }
   }
 
-  globalThis.addEventListener?.('mxg:demo-data-loaded', () => void performSearch());
+  globalThis.addEventListener?.('mxg:demo-data-loaded', () => {
+    if (byId('tab-parts')?.classList.contains('active')) void activate();
+  });
 
-  return Object.freeze({ init, refresh: performSearch });
+  return Object.freeze({ init, activate, refresh: activate });
 })();
 
 if (document.readyState === 'loading') {

@@ -1,12 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 
 const html = readFileSync('dashboard.html', 'utf8');
+const app = readFileSync('app.js', 'utf8');
 const js = readFileSync('parts-workspace.js', 'utf8');
 const client = readFileSync('application-client.js', 'utf8');
 const css = readFileSync('parts-workspace.css', 'utf8');
+const demoVisuals = readFileSync('demo-visual-registry.js', 'utf8');
 const partsHttp = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
+
+test('demo visual registry keeps fictional imagery out of production records', () => {
+  const context = {};
+  vm.runInNewContext(demoVisuals, context);
+  const registry = context.MXDemoVisualRegistry;
+
+  assert.equal(registry.forCase({ case_id: 'case-production-1' }), null);
+  assert.equal(registry.forPart({ part_number: '29-1001' }), null);
+  assert.equal(
+    registry.forCase({ case_id: 'd0000000-0000-4000-8000-000000000001', raw_discrepancy: '[DEMO] Cabin filter' }).src,
+    'media/demo/maintenance-cabin-filter.jpg'
+  );
+  assert.equal(
+    registry.forCase({ aircraft_id: 'MXG-DEMO-01', raw_discrepancy: 'Brake inspection' }).src,
+    'media/demo/maintenance-wheel-brake.jpg'
+  );
+  assert.equal(
+    registry.forPart({ part_number: '29-1001', metadata: { demo: true } }).src,
+    'media/demo/part-hydraulic-pump.jpg'
+  );
+  assert.equal(
+    registry.forPart({ part_number: 'MXG-DEMO-32', description: 'Wheel and brake', metadata: { demo: true } }).src,
+    'media/demo/part-wheel-brake.jpg'
+  );
+});
 
 test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html contains parts navigation', () => {
@@ -18,6 +46,18 @@ test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html includes parts CSS and JS', () => {
     assert.match(html, /href="parts-workspace\.css\?v=\d+"/);
     assert.match(html, /src="parts-workspace\.js\?v=\d+"/);
+    assert.match(html, /src="demo-visual-registry\.js\?v=\d+"/);
+  });
+
+  await t.test('parts controls and fictional demo imagery share the dark presentation treatment', () => {
+    assert.match(css, /\.parts-workspace button\.secondary/);
+    assert.match(css, /\.parts-workspace input\[type='checkbox'\]/);
+    assert.match(css, /\.inventory-card-visual-label/);
+    assert.match(js, /MXDemoVisualRegistry\?\.forPart/);
+    assert.match(js, /Demo visual/);
+    assert.match(demoVisuals, /part-hydraulic-pump\.jpg/);
+    assert.match(demoVisuals, /part-wheel-brake\.jpg/);
+    assert.match(demoVisuals, /part-consumables\.jpg/);
   });
 
   await t.test('application-client.js exposes the production parts namespace', () => {
@@ -47,6 +87,14 @@ test('Parts Frontend Shell requirements', async (t) => {
 
   await t.test('parts-workspace.js avoids direct fetch calls', () => {
     assert.doesNotMatch(js, /fetch\(/, 'parts-workspace.js must not call fetch directly');
+  });
+
+  await t.test('parts and procurement reads wait until the Parts tab is opened', () => {
+    const init = js.slice(js.indexOf('function init()'), js.indexOf('function activate()'));
+    assert.doesNotMatch(init, /performSearch\(\)|loadLocations\(\)|loadShortages\(\)|loadRequests\(\)/);
+    assert.match(js, /function activate\(\)/);
+    assert.match(app, /case 'parts': MXPartsWorkspace\.activate\(\); break;/);
+    assert.match(js, /if \(byId\('tab-parts'\)\?\.classList\.contains\('active'\)\) void activate\(\);/);
   });
 
   await t.test('parts-workspace.js defines the receiving wizard steps', () => {
@@ -872,9 +920,9 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=24/);
-    assert.match(html, /parts-workspace\.css\?v=19/);
-    assert.match(html, /application-client\.js\?v=44/);
+    assert.match(html, /parts-workspace\.js\?v=26/);
+    assert.match(html, /parts-workspace\.css\?v=20/);
+    assert.match(html, /application-client\.js\?v=45/);
   });
 });
 

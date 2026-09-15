@@ -993,7 +993,21 @@ const MXApplicationClient = (() => {
     return grant.token;
   }
 
-  async function runFirstCaseSlice({ registration, discrepancy, priority = 'routine', include, session = {} }) {
+  const DEFAULT_MAINTENANCE_CONTEXT_INCLUDE = Object.freeze({
+    documents: true,
+    compliance: true,
+    weather: true,
+    parts: false,
+    timeline: true
+  });
+
+  async function runFirstCaseSlice({
+    registration,
+    discrepancy,
+    priority = 'routine',
+    include = DEFAULT_MAINTENANCE_CONTEXT_INCLUDE,
+    session = {}
+  }) {
     // An insecure local server supplies its own trusted confirmation, and issues
     // no grants; an authenticated one trusts nothing that is not signed, so a
     // grant has to be minted here when the caller did not bring one.

@@ -12,6 +12,7 @@ const application = await readFile(new URL('../app.js', import.meta.url), 'utf8'
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const cache = await readFile(new URL('../cache.js', import.meta.url), 'utf8');
 const caseWorkspace = await readFile(new URL('../case-workspace.js', import.meta.url), 'utf8');
+const demoVisuals = await readFile(new URL('../demo-visual-registry.js', import.meta.url), 'utf8');
 const realtimeClient = await readFile(new URL('../realtime-client.js', import.meta.url), 'utf8');
 const capabilityWorkbench = await readFile(new URL('../capability-workbench.js', import.meta.url), 'utf8');
 const runtimeConfig = await readFile(new URL('../runtime-config.js', import.meta.url), 'utf8');
@@ -374,6 +375,9 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(application, /No maintenance case is selected\./);
   assert.doesNotMatch(caseWorkspace, /Status \/ version|· v\$\{/);
   assert.match(caseWorkspace, /mxg\.maintenance_case\.build_context/);
+  assert.match(caseWorkspace, /const MAINTENANCE_CONTEXT_INCLUDE = Object\.freeze\([\s\S]*parts: false/);
+  assert.doesNotMatch(caseWorkspace, /parts: true/);
+  assert.doesNotMatch(caseWorkspace, /facilities: true/);
   assert.match(caseWorkspace, /mxg_active_case_id/);
 });
 
@@ -481,7 +485,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=62/);
+  assert.match(dashboard, /app\.js\?v=65/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -566,7 +570,7 @@ test('root documentation exposes one status-marked product feature catalog', () 
 test('Settings exposes one Operations Center while the living feature catalog remains available inside it', () => {
   assert.match(dashboard, /<option value="operations-center\.html">Operations Center<\/option>/);
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress)\.html">/);
-  assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260902', \{ cache: 'no-store' \}\)/);
+  assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260915', \{ cache: 'no-store' \}\)/);
   assert.match(featureCatalogPage, /id="featureSearch"/);
   assert.match(featureCatalogPage, /id="featureStatus"/);
   assert.match(featureCatalogPage, /const escapeHtml =/);
@@ -976,13 +980,20 @@ test('onboarding is mounted before application boot with restart and empty-state
 });
 
 test('recalled maintenance cases reuse the existing aircraft image path inside the workspace', () => {
-  assert.match(caseWorkspace, /id="caseWorkspaceImage"[\s\S]*media\/deck-mechanic\.jpg/);
+  assert.match(caseWorkspace, /id="caseWorkspaceImage"/);
+  assert.match(caseWorkspace, /MXDemoVisualRegistry/);
   assert.match(caseWorkspace, /id="caseWorkspaceGallery"/);
   assert.match(caseWorkspace, /case-workspace__gallery-thumb is-active/);
   assert.match(caseWorkspace, /case-workspace__case-hero/);
+  assert.match(caseWorkspace, /Demo visual/);
+  assert.match(demoVisuals, /maintenance-hydraulic-bay\.jpg/);
+  assert.match(demoVisuals, /maintenance-cabin-filter\.jpg/);
+  assert.match(demoVisuals, /maintenance-wheel-brake\.jpg/);
   assert.match(application, /renderImageGallery\(sources, alternative\)/);
   assert.match(application, /const first = this\.renderImageGallery\(loadedMedia, alternative\)/);
-  assert.match(application, /thumbnail\.src = first/);
+  assert.match(application, /setThumbnail\(first\)/);
+  assert.match(application, /count\.textContent = 'Loading media…'/);
+  assert.doesNotMatch(application, /renderImageGallery\(\['media\/deck-mechanic\.jpg'\]/);
   assert.match(application, /Promise\.allSettled/);
   assert.match(application, /MXApplicationClient\.aircraftImageBlobUrl\(source\)/);
   assert.match(application, /MXApplicationClient\.cases\.getMedia/);

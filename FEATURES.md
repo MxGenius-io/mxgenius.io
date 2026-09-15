@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -81,6 +81,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` New-case validation stays inside the intake drawer, identifies the missing field, and focuses it without creating a partial case.
 - `[x]` Optional intake and follow-up images persist in the private tenant-scoped evidence store and render when a case is recalled.
 - `[x]` Case-media reads use the ordinary signed-in organization session; users do not need direct Azure Storage roles or Blob URLs.
+- `[x]` Recorded case media loads without a generic-image flash; fictional demo visuals come from an explicit registry, are labeled, and never replace uploaded evidence.
 - `[x]` Persist case status and case-scoped context through the application API.
 - `[x]` Active-case focus card from the dashboard.
 - `[x]` Pass active case context into chat, Realtime voice, and the 3D viewer.
@@ -101,6 +102,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Persisted conversation threads and new-thread flow.
 - `[x]` Server-persisted conversation memory behind application identity.
 - `[x]` Bounded aircraft and case context instead of sending the full fleet dataset.
+- `[x]` Maintenance context explicitly excludes Parts and procurement data unless that workflow is requested.
 - `[x]` Image attachments through authenticated content upload.
 - `[x]` Multimodal questions with structured maintenance output.
 - `[x]` Grounded maintenance advisory with retrieval relevance and citations.
@@ -144,6 +146,8 @@ This is the canonical product inventory. It records what the current repository 
 
 - `[x]` Search by part number, description, serial number, status, and location.
 - `[x]` Responsive inventory grid with desktop dock and narrow-screen detail drawer.
+- `[x]` Fictional demo stock uses a labeled visual registry and dark-theme inventory cards without attaching illustrations to production stock.
+- `[x]` Parts filters, checkboxes, and request paging controls share the application dark-theme interaction treatment.
 - `[x]` Versioned confirmed metadata corrections.
 - `[x]` Append-only inventory event history.
 - `[x]` All schema-defined inventory event types reachable through controlled workflows.

@@ -10348,10 +10348,7 @@ async fn chat(
             "mxg.maintenance_case.build_context",
             json!({
                 "case_id": case_id,
-                "include": {
-                    "documents": true, "compliance": true, "weather": true,
-                    "parts": true, "timeline": true
-                }
+                "include": maintenance_context_include()
             }),
         )
         .await
@@ -11223,6 +11220,16 @@ fn default_priority() -> String {
     "routine".into()
 }
 
+fn maintenance_context_include() -> Value {
+    json!({
+        "documents": true,
+        "compliance": true,
+        "weather": true,
+        "parts": false,
+        "timeline": true
+    })
+}
+
 async fn first_case_slice(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -11318,12 +11325,7 @@ async fn first_case_slice(
         Err(response) => return response,
     };
     trace.push(trace_summary("mxg.maintenance_case.get", &current));
-    let include = input.include.unwrap_or_else(|| {
-        json!({
-            "documents": true, "compliance": true, "weather": true,
-            "parts": true, "timeline": true
-        })
-    });
+    let include = input.include.unwrap_or_else(maintenance_context_include);
     let context = match invoke(
         &state.dispatcher,
         read_auth,
@@ -11546,6 +11548,16 @@ mod structured_advisory_tests {
         let value = serde_json::to_value(row).expect("case API row");
         assert_eq!(value["opened_at"], "1970-01-01T00:00:00Z");
         assert_eq!(value["updated_at"], "1970-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn maintenance_context_does_not_implicitly_activate_procurement() {
+        let include = maintenance_context_include();
+        assert_eq!(include["documents"], true);
+        assert_eq!(include["compliance"], true);
+        assert_eq!(include["weather"], true);
+        assert_eq!(include["parts"], false);
+        assert_eq!(include["timeline"], true);
     }
 
     #[test]

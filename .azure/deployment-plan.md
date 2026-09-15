@@ -4,6 +4,59 @@
 
 > **Status:** Validated
 
+## Maintenance and Parts Presentation Stabilization — 2026-09-15
+
+This release separates maintenance model context from procurement state,
+defers Parts reads until the workspace is actually opened, and completes the
+paired presentation pass. The dashboard now uses six optimized, explicitly
+labeled fictional demo visuals through a deterministic browser registry. Real
+uploaded case evidence and aircraft imagery retain priority, and cases with
+recorded media no longer flash the generic mechanic placeholder while private
+content loads. Parts request paging and checkbox controls now follow the
+application's dark visual system.
+
+### Deployment scope
+
+- Push the complete static application and feature catalog to canonical
+  `main`, allowing the existing GitHub Pages workflow to publish them.
+- Build `services/mcp` from the exact committed source in the existing ACR and
+  promote only the existing `mxg-core` Container App.
+- Preserve all Container App environment settings, secrets, identity, ingress,
+  scaling, database state, Blob content, Search indexes, and role assignments.
+- Create no Azure resource, migration, stored demo case, stock unit, or
+  production evidence record. The visual registry applies only to records
+  already marked as fictional demo data.
+
+### Validation Proof
+
+- 2026-09-15: `npm test` passed 417/417 browser and contract tests,
+  including behavioral isolation checks for the fictional visual registry.
+- 2026-09-15: targeted Parts, maintenance, application-client, structure, and
+  target-registry checks passed 237/237 tests after the visual integration.
+- 2026-09-15: `cargo test --locked --workspace`, Rust formatting, and strict
+  workspace Clippy passed; the credential-gated exporter test remains
+  intentionally ignored by the ordinary suite.
+- 2026-09-15: `cargo build --locked --release --workspace` completed from the
+  release tree.
+- 2026-09-15: JavaScript syntax checks passed for the new registry and all
+  changed application bundles; `git diff --check` is clean.
+- 2026-09-15: all six generated JPEG assets were visually inspected after
+  optimization and contain no labels, logos, registration numbers, or UI
+  text. Their combined deployed size is under 1.7 MiB.
+- 2026-09-15: Azure CLI confirmed the documented default subscription, Central
+  US resource group, ACR, and current `mxg-core` revision are healthy, with
+  zero policy assignments.
+- 2026-09-15: no infrastructure or RBAC file changes are present. Live role
+  verification confirmed the `mxg-core` identity still has only `Storage Blob
+  Data Contributor` on the private `documents` container; the existing ACR
+  registry configuration is unchanged.
+
+### Rollback
+
+Shift Container App traffic back to `mxg-core--imgreg915` and revert the paired
+GitHub Pages release. No schema or data repair is required because this release
+contains no migration and creates no operational record.
+
 ## Azure Manual Library and Operations Release Delta — 2026-09-15
 
 This release surfaces the frozen five-manual Azure Search corpus and its linked

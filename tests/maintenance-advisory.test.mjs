@@ -66,6 +66,17 @@ test('manual images stay behind the application API boundary', () => {
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 
+test('manual reference pills omit the legacy mojibake icon', () => {
+  assert.ok(app.includes('>${manual} ${ref.trim()}</span>'));
+  assert.ok(!app.includes('Ã°Å¸â€œËœ ${manual}'));
+});
+
+test('maintenance chat context stays separate from procurement state', () => {
+  assert.match(backend, /fn maintenance_context_include\(\) -> Value/);
+  assert.match(backend, /"parts": false/);
+  assert.doesNotMatch(backend, /"parts": true/);
+});
+
 test('structured output remains enabled with persisted memory and multimodal input', () => {
   assert.match(backend, /chat_conversation_input\(\s*&conversation_history/);
   assert.match(backend, /"type": "input_image"/);

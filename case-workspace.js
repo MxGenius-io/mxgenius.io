@@ -5,6 +5,13 @@ const MXCaseWorkspace = (() => {
   let intakePreviewUrl = null;
   const CASE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CASE_IMAGE_BYTES = 50 * 1024 * 1024;
+  const MAINTENANCE_CONTEXT_INCLUDE = Object.freeze({
+    documents: true,
+    compliance: true,
+    weather: true,
+    parts: false,
+    timeline: true
+  });
   const byId = (id) => document.getElementById(id);
   const text = (value, fallback = 'Not available') => value === null || value === undefined || value === '' ? fallback : String(value);
 
@@ -211,19 +218,29 @@ const MXCaseWorkspace = (() => {
     const aircraftLabel = canonical.registration || [canonical.make, canonical.model].filter(Boolean).join(' ') || 'Aircraft';
     const displayName = caseDisplayName({ ...caseState, case_id: result.caseId || caseState.case_id });
     const confidence = result.trace.map((entry) => entry.confidence?.level || entry.confidence?.basis).filter(Boolean).join(', ');
+    const hasRecordedMedia = (Array.isArray(result.caseMedia) ? result.caseMedia : [])
+      .some((item) => ['image', 'video'].includes(item?.kind));
+    const hasAircraftImage = [
+      ...(Array.isArray(result.aircraft?.images) ? result.aircraft.images : []),
+      ...(Array.isArray(canonical.images) ? canonical.images : [])
+    ].some((source) => /^https:\/\//i.test(String(source || '')));
+    const demoVisual = !hasRecordedMedia && !hasAircraftImage
+      ? globalThis.MXDemoVisualRegistry?.forCase?.(caseState)
+      : null;
     target.innerHTML = `
       <div class="case-workspace__case-hero">
         <div class="case-workspace__gallery" aria-label="Maintenance case image gallery">
           <figure class="case-workspace__case-media">
-            <img id="caseWorkspaceImage" src="media/deck-mechanic.jpg" alt="Maintenance case preview">
+            <img id="caseWorkspaceImage"${demoVisual ? ` src="${escapeHtml(demoVisual.src)}" alt="${escapeHtml(demoVisual.alt)}"` : ' alt="" hidden'}>
             <video id="caseWorkspaceVideo" controls playsinline preload="metadata" hidden aria-label="Maintenance case video evidence"></video>
-            <figcaption>${escapeHtml(aircraftLabel)} · ${escapeHtml(displayToken(caseState.priority, 'Routine'))}</figcaption>
-            <span class="case-workspace__gallery-count" id="caseWorkspaceImageCount">1 / 1</span>
+            <figcaption>${escapeHtml(aircraftLabel)} · ${escapeHtml(displayToken(caseState.priority, 'Routine'))}${demoVisual ? ' · Demo visual' : ''}</figcaption>
+            <span class="case-workspace__gallery-count" id="caseWorkspaceImageCount">${demoVisual ? '1 / 1' : 'No media'}</span>
           </figure>
           <div class="case-workspace__gallery-rail" id="caseWorkspaceGallery" aria-label="Choose case image">
-            <button type="button" class="case-workspace__gallery-thumb is-active" aria-label="Show image 1" aria-pressed="true">
-              <img src="media/deck-mechanic.jpg" alt="">
-            </button>
+            ${demoVisual ? `
+              <button type="button" class="case-workspace__gallery-thumb is-active" aria-label="Show demo visual" aria-pressed="true">
+                <img src="${escapeHtml(demoVisual.src)}" alt="">
+              </button>` : ''}
           </div>
           <div class="case-workspace__media-toolbar">
             <label id="caseActiveImageButton" for="caseActiveImage">Add image</label>
@@ -375,14 +392,7 @@ const MXCaseWorkspace = (() => {
       const loadSupportingDetails = (activeSession) => Promise.allSettled([
         MXApplicationClient.capabilities.call('mxg.maintenance_case.build_context', {
           case_id: caseId,
-          include: {
-            documents: true,
-            compliance: true,
-            weather: true,
-            parts: true,
-            facilities: true,
-            timeline: true
-          }
+          include: MAINTENANCE_CONTEXT_INCLUDE
         }, activeSession),
         MXApplicationClient.capabilities.call('mxg.aircraft.profile', {
           aircraft_id: caseState.aircraft_id
@@ -514,6 +524,7 @@ const MXCaseWorkspace = (() => {
         registration,
         discrepancy,
         priority,
+        include: MAINTENANCE_CONTEXT_INCLUDE,
         session: { ...requestSession, confirmationGrant: confirmation.token }
       });
       let imageWarning = null;
