@@ -2,7 +2,7 @@
 
 ## Rocky Administrator Promotion — 2026-09-15
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 
 Promote Rocky's two protected MXGenius identities, `rocky@mxgenius.io` and
 `hagy2392@gmail.com`, to the tenant-scoped Administrator application role.
@@ -43,6 +43,25 @@ restoring the former Procurement or Manager roles.
   secret, so the managed-identity `AcrPull` propagation gate does not apply.
 - The ordered migration set contains 30 unique SQL files and ends at
   `0030_promote_rocky_administrator.sql`.
+
+### Deployment proof
+
+- Commit `fffa8b4` was pushed to canonical `main`. ACR run `cj2w` built the
+  exact committed MCP source as `mxg-core:rocky-admin-fffa8b4-20260915` with
+  digest `sha256:32861817bb11b80e04cc1272822161b1d6cecc0c1434d162fb2f2e1a84151027`.
+- Revision `mxg-core--rockyfffa8b4` is Healthy, Provisioned, running one
+  replica, and serving 100% of single-mode traffic. Its startup log shows the
+  SQLx migration ledger was reconciled before the application began listening.
+- Production `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200 after
+  promotion; Postgres and the frozen manual library are ready and Parts remains
+  available.
+- An authenticated production `GET /api/beta-access` returned both
+  `rocky@mxgenius.io` and `hagy2392@gmail.com` as locked rules with
+  `member_role: administrator`. The visible Operations Center registry also
+  lists both protected identities.
+- Post-deployment Azure RBAC verification is unchanged: the `mxg-core` identity
+  retains only its existing private-Blob contributor and Document Intelligence
+  user assignments. No Azure or Entra administrator role was added.
 
 ### Rollback
 
