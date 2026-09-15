@@ -2,7 +2,7 @@
 
 ## Conversation Isolation and Expandable Manual Sources — 2026-09-15
 
-> **Status:** Validated — Awaiting Deployment
+> **Status:** Deployed and live-verified
 
 This paired static/core release prevents a response shown in an earlier chat
 from being treated as context for a newly created conversation, and makes every
@@ -58,9 +58,11 @@ archive action that refuses to hide a drive still assigned to a Pi.
   build passed. The credential-gated live archive test remains intentionally
   ignored by the ordinary suite.
 - Azure CLI 2.86.0 confirmed the approved, enabled subscription and Central US
-  target. The resource group, ACR, Container Apps environment, and `mxg-core`
-  report successful/running state; `mxg-core--imgroute94f` is Healthy with one
-  replica and 100% Single-mode traffic.
+  target. ACR run `cj2v` produced
+  `sha256:03d82004c604fbb50071994911f89c6464d1dd43db3baed013a9a15d9b920855`;
+  `mxg-core--manuals82092ac` is Healthy with one replica and 100% Single-mode
+  traffic. Pages runs `35018889445` and `35020385656` successfully deployed the
+  paired `82092ac` release and the live-found `d158219` form cleanup.
 - `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. The frozen manual
   library is ready and the Parts adapter remains available. Subscription and
   resource-group policy assignment counts are both zero.
@@ -70,6 +72,24 @@ archive action that refuses to hide a drive still assigned to a Pi.
   Services User` on the existing Document Intelligence account. ACR pull
   continues through the established registry secret, so no new `AcrPull`
   assignment or propagation gate applies.
+- Signed-in acceptance created `CL350 Manuals`, published immutable version 1,
+  and assigned it to `Other New Pi` as desired generation 4. The obsolete
+  `the first test pack` drive was then soft-archived; the visible list now
+  contains only the manuals drive while the archived version Blobs remain
+  recoverable.
+- A byte-level readback of the exact 52,879,267-byte published ZIP matched its
+  `sha256:304f1f4cae67da1db4ba247445ad17aaaa973b9df28a585b9ffcf1695198e3d9`
+  immutable name. Its AMM, IPC, SPM, NDT, and SSM records total 13,121 index
+  rows, matching the frozen
+  `sha256:8522219c188bb09a5dc8104405a78f85e814e74c8c46bdce4e731a65888eece9`
+  content set. All five image byte hashes match both `INDEX/image-map.json` and
+  the model's frozen image register.
+- A clean broad CL350 conversation returned zero manual records and no inherited
+  image. Separate live lookups for the two elevator figures, brake transducer,
+  FDR download, and FDR removal each rendered the correct registered image and
+  exactly one manual record; the section disclosure expanded and an ordinary
+  manufacturer question remained unblocked. Core logs recorded successful
+  terminal status and zero model tool calls for these deterministic lookups.
 
 ### Rollback
 
