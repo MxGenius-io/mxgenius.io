@@ -1256,6 +1256,7 @@ function setupChatPanel() {
         : message.content;
       setChatBubbleContent(bubble, text, payload.images || []);
       appendManualRecordImages(bubble, manualRecords);
+      appendManualRecordAppendix(bubble, manualRecords, { includeImages: false });
       if (message.role === 'assistant') {
         lastDisplayedResponseContext = buildDisplayedResponseContext({
           advisory,
@@ -1307,6 +1308,7 @@ function setupChatPanel() {
   threadSelect?.addEventListener('change', async () => {
     activeThreadId = threadSelect.value || null;
     chatTurns.length = 0;
+    lastDisplayedResponseContext = null;
     clearPendingImages();
     if (activeThreadId) {
       localStorage.setItem('mxg_active_thread_id', activeThreadId);
@@ -1324,6 +1326,7 @@ function setupChatPanel() {
     activeThreadId = null;
     activeAircraftContext = null;
     chatTurns.length = 0;
+    lastDisplayedResponseContext = null;
     clearPendingImages();
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
@@ -1367,6 +1370,7 @@ function setupChatPanel() {
     activeCaseContext = event.detail?.caseId ? event.detail : null;
     activeAircraftContext = null;
     activeThreadId = null;
+    lastDisplayedResponseContext = null;
     localStorage.removeItem('mxg_active_thread_id');
     if (threadSelect) threadSelect.value = '';
     history.replaceChildren();
@@ -1612,6 +1616,82 @@ Rules:
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function createManualRecordDisclosure(record, { includeImages = true } = {}) {
+    const disclosure = document.createElement('details');
+    disclosure.className = 'mx-manual-record';
+
+    const summary = document.createElement('summary');
+    const recordHeader = document.createElement('span');
+    recordHeader.className = 'mx-manual-record__header';
+    const rank = document.createElement('span');
+    rank.textContent = record.citation ? `[${record.citation}]` : `#${record.rank}`;
+    const recordTitle = document.createElement('strong');
+    recordTitle.textContent = record.title || 'Manual excerpt';
+    const score = document.createElement('span');
+    score.className = 'mx-manual-record__score';
+    score.textContent = Number.isFinite(record.match_percent)
+      ? `${record.match_percent}% retrieval relevance`
+      : (record.retrieval_basis === 'deterministic_image_register'
+        ? 'registered source'
+        : 'ranked retrieval result');
+    recordHeader.append(rank, recordTitle, score);
+    const toggleLabel = document.createElement('span');
+    toggleLabel.className = 'mx-manual-record__toggle';
+    toggleLabel.textContent = 'Section text';
+    summary.append(recordHeader, toggleLabel);
+
+    const body = document.createElement('div');
+    body.className = 'mx-manual-record__body';
+    const meta = document.createElement('small');
+    meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
+      .filter(Boolean).join(' - ');
+    const excerpt = document.createElement('p');
+    excerpt.className = 'mx-manual-record__excerpt';
+    excerpt.textContent = record.excerpt || 'No section text was supplied for this record.';
+    body.append(meta, excerpt);
+
+    if (includeImages && record.images?.length) {
+      const grid = document.createElement('div');
+      grid.className = 'mx-manual-record__images';
+      record.images.forEach((asset) => {
+        const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
+        if (!src) return;
+        const figure = document.createElement('figure');
+        const image = document.createElement('img');
+        image.loading = 'lazy';
+        image.alt = asset.caption || `${record.title} reference image`;
+        image.src = src;
+        const caption = document.createElement('figcaption');
+        caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' - ');
+        image.addEventListener('error', () => {
+          image.remove();
+          figure.classList.add('is-unavailable');
+          caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
+        });
+        figure.append(image, caption);
+        grid.appendChild(figure);
+      });
+      if (grid.childElementCount) body.appendChild(grid);
+    }
+
+    disclosure.append(summary, body);
+    return disclosure;
+  }
+
+  function appendManualRecordAppendix(container, records, { includeImages = true } = {}) {
+    if (!Array.isArray(records) || !records.length) return;
+    const appendix = document.createElement('details');
+    appendix.className = 'mx-manual-appendix';
+    appendix.open = true;
+    const summary = document.createElement('summary');
+    summary.textContent = `${records.length} RETRIEVED MANUAL ${records.length === 1 ? 'RECORD' : 'RECORDS'}`;
+    appendix.appendChild(summary);
+    records.forEach((record) => appendix.appendChild(
+      createManualRecordDisclosure(record, { includeImages })
+    ));
+    container.appendChild(appendix);
+  }
+
   function renderMaintenanceAdvisory(target, advisory, records = []) {
     target.replaceChildren();
     if (advisory?.response_kind !== 'maintenance_advisory') {
@@ -1747,59 +1827,7 @@ Rules:
       article.appendChild(followUp);
     }
 
-    const appendix = document.createElement('details');
-    appendix.className = 'mx-manual-appendix';
-    appendix.open = records.length > 0;
-    const summary = document.createElement('summary');
-    summary.textContent = `${records.length} RETRIEVED MANUAL RECORDS`;
-    appendix.appendChild(summary);
-    records.forEach((record) => {
-      const card = document.createElement('article');
-      card.className = 'mx-manual-record';
-      const recordHeader = document.createElement('header');
-      const rank = document.createElement('span');
-      rank.textContent = record.citation ? `[${record.citation}]` : `#${record.rank}`;
-      const recordTitle = document.createElement('strong');
-      recordTitle.textContent = record.title || 'Manual excerpt';
-      const score = document.createElement('span');
-      score.className = 'mx-manual-record__score';
-      score.textContent = Number.isFinite(record.match_percent)
-        ? `${record.match_percent}% retrieval relevance`
-        : 'ranked retrieval result';
-      recordHeader.append(rank, recordTitle, score);
-      const meta = document.createElement('small');
-      meta.textContent = [record.revision && `Rev ${record.revision}`, record.content_hash?.slice(0, 22)]
-        .filter(Boolean).join(' - ');
-      const excerpt = document.createElement('p');
-      excerpt.textContent = record.excerpt || 'No excerpt supplied.';
-      card.append(recordHeader, meta, excerpt);
-
-      if (record.images?.length) {
-        const grid = document.createElement('div');
-        grid.className = 'mx-manual-record__images';
-        record.images.forEach((asset) => {
-          const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
-          if (!src) return;
-          const figure = document.createElement('figure');
-          const image = document.createElement('img');
-          image.loading = 'lazy';
-          image.alt = asset.caption || `${record.title} reference image`;
-          image.src = src;
-          const caption = document.createElement('figcaption');
-          caption.textContent = [asset.caption, asset.page && `Page ${asset.page}`].filter(Boolean).join(' - ');
-          image.addEventListener('error', () => {
-            image.remove();
-            figure.classList.add('is-unavailable');
-            caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
-          });
-          figure.append(image, caption);
-          grid.appendChild(figure);
-        });
-        if (grid.childElementCount) card.appendChild(grid);
-      }
-      appendix.appendChild(card);
-    });
-    article.appendChild(appendix);
+    appendManualRecordAppendix(article, records);
     target.appendChild(article);
     return true;
   }
@@ -2150,6 +2178,7 @@ Rules:
       } else if (answerText) {
         streamTarget.innerHTML = formatMxResponse(answerText);
         appendManualRecordImages(streamTarget, data?.manual_records || []);
+        appendManualRecordAppendix(streamTarget, data?.manual_records || [], { includeImages: false });
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
       }

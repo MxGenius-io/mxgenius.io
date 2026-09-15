@@ -1,5 +1,70 @@
 # MXGenius Azure Deployment Plan
 
+## Conversation Isolation and Expandable Manual Sources — 2026-09-15
+
+> **Status:** Validated
+
+This paired static/core release prevents a response shown in an earlier chat
+from being treated as context for a newly created conversation, and makes every
+retrieved manual record an accessible disclosure so its section excerpt can be
+opened on demand. The browser clears its displayed-response state at thread,
+case, and new-conversation boundaries; the core independently removes that
+field whenever no persisted conversation exists and explicitly prohibits reuse
+of a prior registered figure when the current prompt has no register match.
+
+### Deployment scope
+
+- Publish the cache-versioned dashboard application through the existing
+  canonical `main` GitHub Pages workflow.
+- Build `services/mcp` from the exact committed source in the existing ACR and
+  promote only the existing `mxg-core` Container App.
+- Preserve every environment setting, secret, identity, ingress and scale
+  setting, role assignment, database record, Search index, and Blob object.
+  No infrastructure, migration, data, or permission change is included.
+
+### Validation plan
+
+- Run JavaScript syntax, the complete application suite, Rust formatting, the
+  locked workspace suite, warnings-denied Clippy, the locked release build,
+  and `git diff --check`.
+- Reconfirm the previously approved `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), Central US resource group, ACR,
+  current core revision, policy posture, health/readiness, registry pull
+  configuration, and live managed-identity roles.
+- After promotion, use the signed-in visible browser to verify that a broad
+  Bombardier prompt cannot inherit the earlier registered figure, that the
+  exact CL350 task still renders its registered image, and that the associated
+  manual excerpt expands without blocking an ordinary follow-up question.
+
+### Validation proof
+
+- `npm test` passed 421/421 application and contract checks. `node --check
+  app.js` and `git diff --check` also passed.
+- `cargo fmt --all --check`, the complete locked Rust workspace and all-target
+  suite, warnings-denied workspace Clippy, and the locked optimized workspace
+  build passed. The credential-gated live archive test remains intentionally
+  ignored by the ordinary suite.
+- Azure CLI 2.86.0 confirmed the approved, enabled subscription and Central US
+  target. The resource group, ACR, Container Apps environment, and `mxg-core`
+  report successful/running state; `mxg-core--imgroute94f` is Healthy with one
+  replica and 100% Single-mode traffic.
+- `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. The frozen manual
+  library is ready and the Parts adapter remains available. Subscription and
+  resource-group policy assignment counts are both zero.
+- Static review found no infrastructure, migration, identity, secret, or RBAC
+  delta. Live role verification found the unchanged `Storage Blob Data
+  Contributor` assignment on the private `documents` container and `Cognitive
+  Services User` on the existing Document Intelligence account. ACR pull
+  continues through the established registry secret, so no new `AcrPull`
+  assignment or propagation gate applies.
+
+### Rollback
+
+Keep `mxg-core--imgroute94f` and its immutable image available. If any build,
+startup, readiness, model-routing, image, excerpt, or ordinary-chat gate fails,
+restore that revision and revert the paired Pages commit. No data repair or
+resource deletion is required.
+
 ## Parts and Maintenance Display Polish — 2026-09-15
 
 > **Status:** Deployed and live-verified

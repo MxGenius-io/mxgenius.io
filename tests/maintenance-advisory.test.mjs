@@ -121,6 +121,24 @@ test('ordinary conversation is natural and does not populate maintenance section
   assert.doesNotMatch(backend, /persist_chat_exchange\([\s\S]{0,400}&answer,/);
 });
 
+test('new conversation boundaries clear visible-response context before the next model turn', () => {
+  assert.match(app, /newThreadBtn\?\.addEventListener\('click',[\s\S]{0,240}lastDisplayedResponseContext = null/);
+  assert.match(app, /threadSelect\?\.addEventListener\('change',[\s\S]{0,180}lastDisplayedResponseContext = null/);
+  assert.match(app, /mxg:case-selected[\s\S]{0,260}lastDisplayedResponseContext = null/);
+  assert.match(backend, /input\.thread_id\.is_some\(\) \|\| !conversation_history\.is_empty\(\)/);
+  assert.match(backend, /never reuse a prior manual figure for a broad aircraft image request/);
+});
+
+test('retrieved manual records expose expandable section text in advisory and conversation views', () => {
+  assert.match(app, /function createManualRecordDisclosure/);
+  assert.match(app, /document\.createElement\('details'\)/);
+  assert.match(app, /toggleLabel\.textContent = 'Section text'/);
+  assert.match(app, /excerpt\.textContent = record\.excerpt/);
+  assert.match(app, /appendManualRecordAppendix\(bubble, manualRecords, \{ includeImages: false \}\)/);
+  assert.match(app, /appendManualRecordAppendix\(article, records\)/);
+  assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*white-space:pre-wrap/);
+});
+
 test('application readiness badge is based on a bounded core probe instead of sign-in alone', () => {
   assert.match(app, /async function refreshCoreReadiness/);
   assert.match(app, /fetch\(`\$\{MXApplicationClient\.MCP_BASE\}\/readyz`/);
