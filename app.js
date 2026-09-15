@@ -1064,43 +1064,174 @@ function setupChatPanel() {
     container.appendChild(grid);
   };
 
-  const appendManualRecordImages = (container, records) => {
-    const images = (Array.isArray(records) ? records : [])
-      .flatMap((record) => (record?.images || []).map((image) => ({
-        ...image,
-        title: record?.title || 'Manual figure'
-      })))
-      .slice(0, 2);
-    if (!images.length) return;
-    const grid = document.createElement('div');
-    grid.className = 'chat-message-images';
-    images.forEach((asset) => {
-      const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
-      if (!src) return;
-      const figure = document.createElement('figure');
-      const image = document.createElement('img');
-      image.src = src;
-      image.alt = asset.caption || asset.title;
-      image.loading = 'lazy';
-      image.addEventListener('click', () => openImageLightbox(src));
-      const caption = document.createElement('figcaption');
-      caption.textContent = [asset.caption || asset.title, asset.page && `Page ${asset.page}`]
-        .filter(Boolean).join(' - ');
-      image.addEventListener('error', () => {
-        image.remove();
-        figure.classList.add('is-unavailable');
-        caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
-      });
-      figure.append(image, caption);
-      grid.appendChild(figure);
-    });
-    if (grid.childElementCount) container.appendChild(grid);
+  const appendInlineMxContent = (container, value) => {
+    const text = String(value || '');
+    const tokenPattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[(?:M|F|C)-\d{2,3}\])/g;
+    let cursor = 0;
+    for (const match of text.matchAll(tokenPattern)) {
+      if (match.index > cursor) container.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      const token = match[0];
+      if (token.startsWith('**')) {
+        const strong = document.createElement('strong');
+        strong.textContent = token.slice(2, -2);
+        container.appendChild(strong);
+      } else if (token.startsWith('`')) {
+        const code = document.createElement('code');
+        code.textContent = token.slice(1, -1);
+        container.appendChild(code);
+      } else {
+        const citation = document.createElement('span');
+        citation.className = 'mx-citation-pill';
+        citation.textContent = token;
+        container.appendChild(citation);
+      }
+      cursor = match.index + token.length;
+    }
+    if (cursor < text.length) container.appendChild(document.createTextNode(text.slice(cursor)));
   };
 
-  const setChatBubbleContent = (bubble, text, images = []) => {
+  const appendFormattedMxResponse = (container, value) => {
+    const text = String(value || '').replace(/\r\n?/g, '\n').trim();
+    if (!text) return;
+    const response = document.createElement('div');
+    response.className = 'mx-chat-response';
+    let activeList = null;
+    let activeListType = '';
+
+    const resetList = () => {
+      activeList = null;
+      activeListType = '';
+    };
+    const appendListItem = (type, content) => {
+      if (!activeList || activeListType !== type) {
+        activeList = document.createElement(type);
+        activeListType = type;
+        response.appendChild(activeList);
+      }
+      const item = document.createElement('li');
+      appendInlineMxContent(item, content);
+      activeList.appendChild(item);
+    };
+
+    text.split('\n').forEach((rawLine) => {
+      const line = rawLine.trim();
+      if (!line) {
+        resetList();
+        return;
+      }
+      const unordered = line.match(/^[-*\u2022]\s+(.+)$/);
+      if (unordered) {
+        appendListItem('ul', unordered[1]);
+        return;
+      }
+      const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+      if (ordered) {
+        appendListItem('ol', ordered[1]);
+        return;
+      }
+      resetList();
+      const heading = line.match(/^#{1,3}\s+(.+)$/);
+      if (heading) {
+        const title = document.createElement('h4');
+        appendInlineMxContent(title, heading[1]);
+        response.appendChild(title);
+        return;
+      }
+      const nextStep = line.match(/^NEXT\s*STEP\s*:?\s*(.*)$/i);
+      if (nextStep) {
+        const callout = document.createElement('aside');
+        callout.className = 'mx-chat-next-step';
+        const label = document.createElement('span');
+        label.textContent = 'NEXT STEP';
+        callout.appendChild(label);
+        if (nextStep[1]) {
+          const content = document.createElement('p');
+          appendInlineMxContent(content, nextStep[1]);
+          callout.appendChild(content);
+        }
+        response.appendChild(callout);
+        return;
+      }
+      const paragraph = document.createElement('p');
+      appendInlineMxContent(paragraph, line);
+      response.appendChild(paragraph);
+    });
+    container.appendChild(response);
+  };
+
+  const appendManualEvidencePreview = (container, records) => {
+    const evidenceRecords = (Array.isArray(records) ? records : [])
+      .filter((record) => record?.excerpt || record?.images?.length)
+      .slice(0, 2);
+    if (!evidenceRecords.length) return;
+
+    const evidence = document.createElement('section');
+    evidence.className = 'mx-manual-evidence';
+    const evidenceLabel = document.createElement('h4');
+    evidenceLabel.textContent = 'MANUAL EVIDENCE';
+    evidence.appendChild(evidenceLabel);
+
+    evidenceRecords.forEach((record, recordIndex) => {
+      const card = document.createElement('article');
+      card.className = 'mx-manual-evidence__card';
+      const header = document.createElement('header');
+      const citation = document.createElement('span');
+      citation.className = 'mx-citation-pill';
+      citation.textContent = record.citation ? `[${record.citation}]` : `#${record.rank || recordIndex + 1}`;
+      const title = document.createElement('strong');
+      title.textContent = record.title || 'Retrieved manual record';
+      const source = document.createElement('small');
+      source.textContent = Number.isFinite(record.match_percent)
+        ? `${record.match_percent}% retrieval relevance`
+        : (record.retrieval_basis === 'deterministic_image_register' ? 'Registered source' : 'Retrieved source');
+      header.append(citation, title, source);
+      card.appendChild(header);
+
+      if (record.excerpt) {
+        const snippet = document.createElement('p');
+        snippet.className = 'mx-manual-evidence__snippet';
+        const compactExcerpt = String(record.excerpt).replace(/\s+/g, ' ').trim();
+        snippet.textContent = compactExcerpt.length > 360
+          ? `${compactExcerpt.slice(0, 357).trimEnd()}...`
+          : compactExcerpt;
+        card.appendChild(snippet);
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'chat-message-images mx-manual-evidence__images';
+      (record.images || []).slice(0, 2).forEach((asset) => {
+        const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
+        if (!src) return;
+        const figure = document.createElement('figure');
+        const image = document.createElement('img');
+        image.src = src;
+        image.alt = asset.caption || record.title || 'Manual figure';
+        image.loading = recordIndex === 0 ? 'eager' : 'lazy';
+        image.addEventListener('click', () => openImageLightbox(src));
+        const caption = document.createElement('figcaption');
+        caption.textContent = [asset.caption || record.title, asset.page && `Page ${asset.page}`]
+          .filter(Boolean).join(' - ');
+        image.addEventListener('error', () => {
+          image.remove();
+          figure.classList.add('is-unavailable');
+          caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
+        });
+        figure.append(image, caption);
+        grid.appendChild(figure);
+      });
+      if (grid.childElementCount) card.appendChild(grid);
+      evidence.appendChild(card);
+    });
+    container.appendChild(evidence);
+  };
+
+  const setChatBubbleContent = (bubble, text, images = [], { formatted = false } = {}) => {
     bubble.replaceChildren();
     appendChatImages(bubble, images);
-    if (text) bubble.appendChild(document.createTextNode(text));
+    if (text) {
+      if (formatted) appendFormattedMxResponse(bubble, text);
+      else bubble.appendChild(document.createTextNode(text));
+    }
   };
 
   const boundedDisplayText = (value, limit = 600) => {
@@ -1254,8 +1385,8 @@ function setupChatPanel() {
       const text = message.role === 'assistant'
         ? (advisory.conversation_answer || advisory.synthesis || message.content)
         : message.content;
-      setChatBubbleContent(bubble, text, payload.images || []);
-      appendManualRecordImages(bubble, manualRecords);
+      setChatBubbleContent(bubble, text, payload.images || [], { formatted: message.role === 'assistant' });
+      appendManualEvidencePreview(bubble, manualRecords);
       appendManualRecordAppendix(bubble, manualRecords, { includeImages: false });
       if (message.role === 'assistant') {
         lastDisplayedResponseContext = buildDisplayedResponseContext({
@@ -1493,63 +1624,6 @@ Rules:
     text = text.replace(/\n{3,}/g, '\n\n').trim();
 
     return text;
-  }
-
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Format model response into polished HTML Ã¢â€â‚¬Ã¢â€â‚¬
-  function formatMxResponse(text) {
-    if (!text) return '';
-
-    // Escape HTML first
-    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    // Style NEXT STEP callouts
-    html = html.replace(/NEXT\s*STEP[:\s]*(.*?)(?:\.|$)/gi, (match, step) => {
-      return `<div style="margin-top:8px;padding:8px 12px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(59,130,246,0.08));border-left:3px solid #6366f1;border-radius:0 8px 8px 0;font-size:12px;">` +
-        `<span style="color:#818cf8;font-weight:700;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;">Ã¢â€“Â¸ Next Step</span><br>` +
-        `<span style="color:#e2e8f0;">${step.trim()}</span></div>`;
-    });
-
-    // Style procedure codes (BD700-A-J28..., AMM 27-11-17-220-801, etc.)
-    html = html.replace(/\b(BD\d{2,3}-[A-Z]-[A-Z0-9\-]+)/gi, (match, code) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;">Ã°Å¸â€œâ€ž ${code}</span>`;
-    });
-
-    // Style ATA chapter citations Ã¢â€ â€™ pill badges (AMM Ch.28, IPC Ch.32, etc.)
-    html = html.replace(/\(?(AMM|AMP|IPC|CMM|SRM|NDT|WDM|TSM|SFP|AIPC)\s+([^,.)]+)/gi, (match, manual, ref) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:12px;font-size:10px;font-weight:600;color:#a5b4fc;letter-spacing:0.3px;">${manual} ${ref.trim()}</span>`;
-    });
-
-    // Style standalone ATA references like "ATA 32" or "(ATA 28 - Fuel)"
-    html = html.replace(/\(?(ATA\s+\d+[^)]*)\)?/gi, (match, ata) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#6ee7b7;letter-spacing:0.3px;">Ã°Å¸â€œâ€¹ ${ata.trim()}</span>`;
-    });
-
-    // Style manual/chapter citations like (Chapter 28, p.12)
-    html = html.replace(/\((Chapter\s+\d+[^)]*)\)/gi, (match, ch) => {
-      return `<span style="display:inline-block;padding:2px 8px;margin:0 2px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:12px;font-size:10px;font-weight:600;color:#fbbf24;">${ch}</span>`;
-    });
-
-    // Style page references (p.12, page 1, etc.)
-    html = html.replace(/\b(page\s+\d+|p\.\s*\d+)/gi, (match) => {
-      return `<span style="color:#fbbf24;font-weight:600;">${match}</span>`;
-    });
-
-    // Style "Smart Fix Plus" and common manual names
-    html = html.replace(/\b(Smart\s*Fix\s*Plus|Aircraft\s*Maintenance\s*Publication)\b/gi, (match) => {
-      return `<span style="color:#818cf8;font-weight:600;">${match}</span>`;
-    });
-
-    // Convert dash-lists to styled bullets
-    html = html.replace(/^\s*-\s+/gm, '&bull; ');
-
-    // Convert line breaks to proper spacing
-    html = html.replace(/\n\n+/g, '</p><p style="margin:6px 0;">');
-    html = html.replace(/\n/g, '<br>');
-
-    // Wrap in paragraph
-    html = `<p style="margin:0;line-height:1.6;color:#e2e8f0;font-size:13px;">${html}</p>`;
-
-    return html;
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Format RAG procedure text into collapsible manual reference pills Ã¢â€â‚¬Ã¢â€â‚¬
@@ -1827,7 +1901,8 @@ Rules:
       article.appendChild(followUp);
     }
 
-    appendManualRecordAppendix(article, records);
+    appendManualEvidencePreview(article, records);
+    appendManualRecordAppendix(article, records, { includeImages: false });
     target.appendChild(article);
     return true;
   }
@@ -2176,8 +2251,9 @@ Rules:
       if (renderedStructured) {
         // Structured advisory is already mounted as safe DOM nodes.
       } else if (answerText) {
-        streamTarget.innerHTML = formatMxResponse(answerText);
-        appendManualRecordImages(streamTarget, data?.manual_records || []);
+        streamTarget.replaceChildren();
+        appendFormattedMxResponse(streamTarget, answerText);
+        appendManualEvidencePreview(streamTarget, data?.manual_records || []);
         appendManualRecordAppendix(streamTarget, data?.manual_records || [], { includeImages: false });
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
@@ -2206,10 +2282,15 @@ Rules:
       try {
         if (!recoverableCloudFailure) throw e;
         const fallback = await runOnDeviceFallback(text);
-        streamTarget.innerHTML =
-          '<div style="margin-bottom:8px;padding:6px 8px;border:1px solid #f59e0b;border-radius:6px;color:#fbbf24;font-size:11px;font-weight:700;">OFFLINE / NON-AUTHORITATIVE</div>' +
-          formatMxResponse(fallback.answer) +
-          formatProcedureBlock(fallback.evidence.hits);
+        streamTarget.replaceChildren();
+        const offlineLabel = document.createElement('div');
+        offlineLabel.className = 'mx-chat-offline-label';
+        offlineLabel.textContent = 'OFFLINE / NON-AUTHORITATIVE';
+        streamTarget.appendChild(offlineLabel);
+        appendFormattedMxResponse(streamTarget, fallback.answer);
+        const procedures = document.createElement('div');
+        procedures.innerHTML = formatProcedureBlock(fallback.evidence.hits);
+        streamTarget.appendChild(procedures);
         RAG.renderImages(fallback.evidence.images, streamTarget);
         chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: fallback.answer });
         if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);

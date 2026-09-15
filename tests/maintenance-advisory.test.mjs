@@ -53,24 +53,40 @@ test('aircraft prompt opens chat without the originating click closing it again'
   assert.match(app, /window\.openChatWith = \(text, aircraftContext = null\) => \{\s+activeAircraftContext = aircraftContext;\s+setPanelOpen\(true\);\s+input\.value = text;\s+sendMessage\(\);/);
   assert.match(app, /aircraftContext: activeCaseContext \? null : activeAircraftContext/);
   assert.match(app, /registration: ident\.regnbr \|\| ident\.registration \|\| null/);
-  assert.match(app, /html = html\.replace\(\/\^\\s\*-\\s\+\/gm, '&bull; '\);/);
+  assert.match(app, /const unordered = line\.match/);
 });
 
-test('manual images stay behind the application API boundary', () => {
+test('manual evidence cards keep images behind the application API boundary', () => {
   assert.match(client, /manualAssetUrl/);
   assert.match(client, /\/manual-assets\?reference=/);
   assert.match(app, /MXApplicationClient\.evidence\.manualAssetUrl/);
   assert.match(app, /image unavailable/);
-  assert.match(app, /appendManualRecordImages\(streamTarget, data\?\.manual_records \|\| \[\]\)/);
-  assert.match(app, /appendManualRecordImages\(bubble, manualRecords\)/);
+  assert.match(app, /appendManualEvidencePreview\(streamTarget, data\?\.manual_records \|\| \[\]\)/);
+  assert.match(app, /appendManualEvidencePreview\(bubble, manualRecords\)/);
   assert.match(app, /figure\.classList\.add\('is-unavailable'\)/);
   assert.match(backend, /registered_image\.is_some\(\)\s*\|\| manual_image_count > 0/);
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 
-test('manual reference pills omit the legacy mojibake icon', () => {
-  assert.ok(app.includes('>${manual} ${ref.trim()}</span>'));
-  assert.ok(!app.includes('Ã°Å¸â€œËœ ${manual}'));
+test('conversation formatting is safe and only exact evidence ids become pills', () => {
+  assert.match(app, /const appendInlineMxContent/);
+  assert.match(app, /\[\(\?:M\|F\|C\)-\\d\{2,3\}\\\]/);
+  assert.match(app, /citation\.className = 'mx-citation-pill'/);
+  assert.match(app, /strong\.textContent = token\.slice\(2, -2\)/);
+  assert.doesNotMatch(app, /\(AMM\|AMP\|IPC\|CMM\|SRM\|NDT\|WDM\|TSM\|SFP\|AIPC\)/);
+  assert.doesNotMatch(app, /function formatMxResponse/);
+  assert.match(productionStyles, /\.mx-citation-pill/);
+});
+
+test('conversation evidence visibly includes a snippet and diagram before expandable source text', () => {
+  assert.match(app, /const appendManualEvidencePreview/);
+  assert.match(app, /evidenceLabel\.textContent = 'MANUAL EVIDENCE'/);
+  assert.match(app, /snippet\.className = 'mx-manual-evidence__snippet'/);
+  assert.match(app, /record\.images \|\| \[\]/);
+  assert.match(app, /appendManualEvidencePreview\(bubble, manualRecords\);\s+appendManualRecordAppendix/);
+  assert.match(app, /appendManualEvidencePreview\(streamTarget, data\?\.manual_records \|\| \[\]\);\s+appendManualRecordAppendix/);
+  assert.match(productionStyles, /\.mx-manual-evidence__snippet/);
+  assert.match(productionStyles, /\.mx-manual-evidence__images/);
 });
 
 test('maintenance chat context stays separate from procurement state', () => {
@@ -135,7 +151,7 @@ test('retrieved manual records expose expandable section text in advisory and co
   assert.match(app, /toggleLabel\.textContent = 'Section text'/);
   assert.match(app, /excerpt\.textContent = record\.excerpt/);
   assert.match(app, /appendManualRecordAppendix\(bubble, manualRecords, \{ includeImages: false \}\)/);
-  assert.match(app, /appendManualRecordAppendix\(article, records\)/);
+  assert.match(app, /appendManualRecordAppendix\(article, records, \{ includeImages: false \}\)/);
   assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*white-space:pre-wrap/);
 });
 
