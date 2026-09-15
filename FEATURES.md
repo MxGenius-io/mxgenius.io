@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-07
+Last updated: 2026-09-14
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -77,6 +77,10 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Resolve a canonical aircraft before case mutation.
 - `[x]` Stop and request clarification when aircraft resolution is ambiguous.
 - `[x]` Open and refresh existing cases.
+- `[x]` Stable human-readable case references in `MXG-CASE-YYYYMMDD-XXXXXXXX` format.
+- `[x]` New-case validation stays inside the intake drawer, identifies the missing field, and focuses it without creating a partial case.
+- `[x]` Optional intake and follow-up images persist in the private tenant-scoped evidence store and render when a case is recalled.
+- `[x]` Case-media reads use the ordinary signed-in organization session; users do not need direct Azure Storage roles or Blob URLs.
 - `[x]` Persist case status and case-scoped context through the application API.
 - `[x]` Active-case focus card from the dashboard.
 - `[x]` Pass active case context into chat, Realtime voice, and the 3D viewer.
@@ -90,6 +94,10 @@ This is the canonical product inventory. It records what the current repository 
 ## 4. AI copilot, maintenance advisory, and Realtime voice
 
 - `[x]` Text copilot inside the primary application shell.
+- `[x]` Server-owned application awareness distinguishes mounted product surfaces, current request context, and measured backend readiness.
+- `[x]` Ordinary conversation uses a compact natural response while technical maintenance requests retain the strict cited advisory schema.
+- `[x]` Persisted assistant memory stores natural conversational text instead of raw structured response JSON.
+- `[x]` Application-shell readiness reflects the backend readiness probe rather than sign-in state alone.
 - `[x]` Persisted conversation threads and new-thread flow.
 - `[x]` Server-persisted conversation memory behind application identity.
 - `[x]` Bounded aircraft and case context instead of sending the full fleet dataset.
@@ -258,6 +266,9 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Quest passthrough snapshot capture persists to the active maintenance case through the existing authenticated evidence store.
 - `[x]` Active-case evidence tray with smooth captured-thumbnail transfer and shared Realtime voice presence.
 - `[x]` Maintenance case gallery and dashboard thumbnail recall stored images through tenant-scoped authenticated media routes.
+- `[x]` Equipment Drives package verified folders into deterministic private versions and assign a published version to an approved Pi.
+- `[x]` Device-originated seven-digit approval, credential rotation/revocation, durable desired state, resumable transfer, and verified A/B activation.
+- `[x]` Product copy consistently calls the operator-facing workflow an Equipment Drive while preserving the internal package API contract.
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
 - `[x]` Anonymous Remote Witness guest room with wearer-generated 7-digit service PIN, single-use exchange, memory-only viewer credential, approval, pause, layer controls, presence count, expiry, and revoke.
 - `[x]` Public guest witness page with no account or contact-data collection, peer-to-peer WebRTC, shared target/case projection, existing case-gallery media, sourced proposed observations, and separate recording consent.

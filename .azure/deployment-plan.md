@@ -290,8 +290,45 @@ replica, ingress, or cost-bearing resource change is planned.
 | Deterministic pack-switch production image | `az acr build` from `services/mcp` at `b2ddb6e` | ✅ ACR run `cj2f`; immutable image published with digest `sha256:81cf762a40d4d6575cd67131c43ff0dea63f413b5de653f4b7cf6aefb34d5b26` | 2026-09-14 |
 | Deterministic pack-switch promotion | Container App revision, traffic, health, readiness, and anonymous auth probes | ✅ `mxg-core--packswb2ddb6e` Healthy/latest-ready at 100% traffic; health/readiness HTTP 200; anonymous desired-state read HTTP 401 | 2026-09-14 |
 | Pi `0.3.1-poc.26` appliance image | Pinned-base build, writable and read-only filesystem checks, XZ integrity test, and read-only mounted-image audit | ✅ Both filesystems clean; identity/services/USB configuration and shipped source verified; `.img.xz` SHA-256 `55848df65dcd90b0403fe1d66fde1dcf3bf7f1533ebd9047e88c646e982579bf` | 2026-09-14 |
+| Copilot awareness and case-workspace regression | `npm test`; `cargo test`; strict clippy and formatting | ✅ 411 frontend tests and 176 Rust tests passed; formatting and warnings-denied clippy clean | 2026-09-14 |
+| Pages release | GitHub Actions validation and deployment | ✅ Runs `34915747319` and `34918061797` completed successfully for the conversational, intake, naming, Equipment Drive, and case-media changes | 2026-09-14 |
+| Case-media access boundary | Live ordinary-user case recall plus managed-identity RBAC inspection | ✅ Stored JPEG rendered through the authenticated application route; no end-user Blob role required; service identity remains contributor only on `mxgstorage50106/documents` | 2026-09-14 |
+| Copilot-awareness production image | `az acr build` from `services/mcp` | ✅ ACR run `cj2h`; digest `sha256:4dac6d73bf84f9449f41e20cbfc87c7235b4f0d24647570b6c9ec1d141b7d27e` | 2026-09-14 |
+| Case-media production image | `az acr build` from `services/mcp` at `f9cd9b5` | ✅ ACR run `cj2j`; digest `sha256:0262661e42072abff88c961436687a72e7935680703cc9b0cd9aa57a0a65a71b` | 2026-09-14 |
+| Case-media production promotion | Container App revision, health, readiness, adapter, and signed-in browser probes | ✅ `mxg-core--casemedia1` Healthy/latest-ready at 100% traffic; all three probes HTTP 200; recalled case rendered its stored JPEG and RFC 3339 timestamps | 2026-09-14 |
 
 ### 8.1 Deployment Proof
+
+#### Copilot awareness, maintenance intake, Equipment Drives, and case media — 2026-09-14
+
+- Git commits `014f247`, `1e8cd8a`, and `f9cd9b5` were pushed to the canonical
+  shared `main`. GitHub Pages runs `34915747319` and `34918061797` completed
+  validation and deployment successfully.
+- The release gives the copilot a server-owned product map and request-scoped
+  runtime facts, separates ordinary conversation from the nested maintenance
+  advisory, and stores natural assistant text in persisted conversation memory.
+- Maintenance intake now reports missing fields inside its drawer and focuses
+  the field that needs attention. Cases use stable
+  `MXG-CASE-YYYYMMDD-XXXXXXXX` display references, and the operator-facing
+  Equipment Pack wording is normalized to Equipment Drive without changing the
+  internal API or database contract.
+- ACR run `cj2h` published the copilot-awareness backend, then ACR run `cj2j`
+  published `mxg-core:case-media-f9cd9b5-20260914` with digest
+  `sha256:0262661e42072abff88c961436687a72e7935680703cc9b0cd9aa57a0a65a71b`.
+- Revision `mxg-core--casemedia1` is Healthy, latest-ready, and serves 100%
+  traffic. Live `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200.
+- Live signed-in browser acceptance recalled case `03cd5114` through the same
+  ordinary organization-member session that reads the case. Its stored JPEG
+  rendered instead of the fallback image, its display reference included the
+  opening date, and the empty create action produced focused inline validation
+  without creating a record.
+- No user-facing permission was broadened. Case-media access remains protected
+  by the normal application session and organization-scoped database lookup;
+  the service managed identity remains `Storage Blob Data Contributor` only on
+  the private `mxgstorage50106/documents` container.
+- Rollback is non-destructive: shift traffic to `mxg-core--aware014f2`, whose
+  immutable image digest is
+  `sha256:4dac6d73bf84f9449f41e20cbfc87c7235b4f0d24647570b6c9ec1d141b7d27e`.
 
 #### Deterministic Equipment Pack activation and `0.3.1-poc.26` — 2026-09-14
 
