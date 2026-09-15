@@ -2,15 +2,18 @@
 
 ## Parts and Maintenance Display Polish — 2026-09-15
 
-> **Status:** Validated locally; release in progress
+> **Status:** Deployed and live-verified
 
 This paired static/core release closes the narrow Parts-drawer layout fault,
 gives the fictional inventory family-specific presentation imagery, converts
 Settings to one non-destructive Show/Hide Demo Content toggle, and restores
 CL350 manual figures for conversational model responses. The manual Blob route
-and registered FDR image are healthy; the response layer was omitting manual
-records whenever a figure-bearing answer was classified as conversation rather
-than maintenance advisory.
+and registered FDR image are healthy. The response layer had been omitting
+manual records whenever a figure-bearing answer was classified as conversation
+rather than maintenance advisory, and its register routing gave an unrelated
+active-case model precedence over the explicitly requested CL350. Case-image
+intake also reused the observation note as its evidence hash, causing every
+later image with that note to collide with the first organization record.
 
 ### Deployment scope
 
@@ -25,6 +28,19 @@ than maintenance advisory.
 
 ### Validation proof
 
+- 2026-09-15: release commit `94f0951` passed the complete `mxgenius-mcp`
+  test suite (91 unit tests, 94 integration/bin tests, one credential-gated live
+  exporter intentionally ignored), warnings-denied workspace Clippy, Rust
+  formatting, and the locked optimized workspace release build.
+- Azure CLI 2.86.0 confirmed the approved `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), Central US resource group,
+  registry, and Container Apps environment are provisioned successfully. The
+  current `mxg-core--casemedia1cb` rollback revision is Running and ready, and
+  the resource group has no policy assignments.
+- The release changes only the chat routing source and changelog. It has no
+  migration, infrastructure, setting, secret, identity, role, Search, or Blob
+  delta. The existing deployment recipe therefore remains the exact-source ACR
+  build followed by a new `mxg-core` revision and health/readiness probes.
 - 2026-09-15: the targeted Maintenance, Parts, structure, and target-registry
   suite passed 214/214 checks; the complete application suite passed 419/419.
 - JavaScript syntax validation and `git diff --check` passed.
@@ -34,10 +50,52 @@ than maintenance advisory.
   provisioning Succeeded. The registered CL350 FDR-removal asset returned HTTP
   200 as `image/png` with 517,796 bytes through `/manual-assets`.
 
+### Deployment proof
+
+- Static commits `7b886b3`, `9bc832c`, `ea0e18f`, `1cb311e`, and `94f0951`
+  were pushed to canonical `main`. Their GitHub Pages runs `35004445396`,
+  `35006006738`, `35006539246`, `35009108551`, and `35010928606` all completed
+  successfully.
+- ACR run `cj2r` published
+  `mxg-core:display-polish-7b886b3-20260915` at digest
+  `sha256:94971d1f9b072adec416505695c823e4bb9b3e002647598cc8cb7e98e4f48690`.
+  ACR run `cj2s` published `mxg-core:case-media-1cb311e-20260915` at digest
+  `sha256:be51fbe50eadd071fa5d797a1720a9c95c7e7cc50ac78edef2e272f9baaac76a`.
+  Final ACR run `cj2t` published
+  `mxg-core:manual-route-94f0951-20260915` at digest
+  `sha256:fadd663f0e6cf55b6bc0016a4915a4ca556727fcce8f594a55626931a8f7a4ff`.
+- Revision `mxg-core--imgroute94f` is Healthy, Provisioned, running one replica,
+  and serves 100% traffic. Production `/healthz`, `/readyz`, and `/adapterz`
+  returned HTTP 200; readiness reports Postgres and the frozen Azure manual
+  library ready, and Parts remains available.
+- The visible signed-in Settings toggle was tested in both states. Demo mode
+  shows only the labeled fictional Maintenance and Parts records with varied
+  family-specific imagery; hidden mode returns the preserved operational
+  records. The bounded Parts drawer retains its own scroll region.
+- A live case intake created `MXG-CASE-20260915-8A2AC197`
+  (`8a2ac197-41b7-4bb8-9141-e2ffb2d40b65`) for `N350MX` and attached the new
+  landing-light JPEG after the evidence hash was corrected to include the
+  immutable observation identity and media references. Switching away and
+  back recalled the stored private 1536x1024 Blob image without the template
+  fallback.
+- From that same active `MATRIX` case, a fresh production conversation asked
+  for CL350 AMM Task `31-31-01-000-801`. The deterministic register bypassed
+  semantic Search, returned `IMG-CL350-AMM-31-FDR-REMOVAL`, cited `M-01`, and
+  rendered the complete 8103x9903 page-165 image. Core logs recorded
+  `manual_record_count=1`, `model_tool_calls=0`, terminal status `success`, and
+  correlation ID `e8f28b28-eedb-4ccb-b6d2-aa52c6866248`. No new browser error
+  or warning was emitted during the final request.
+- Post-promotion role verification is unchanged: the `mxg-core` identity has
+  `Storage Blob Data Contributor` only on the private `documents` container and
+  `Cognitive Services User` only on the existing Document Intelligence account.
+  ACR access continues through the app's established registry secret; no role,
+  secret, setting, resource, migration, Search record, Blob object, case, or
+  part was created by the final routing promotion.
+
 ### Rollback
 
 Revert the paired commit through the normal `main` workflow and shift Container
-App traffic to `mxg-core--demo065f8`. The release does not delete records or
+App traffic to `mxg-core--casemedia1cb`. The release does not delete records or
 alter schema, Blob content, Search content, identity, secrets, or RBAC.
 
 ## Equipment Pack Control Plane — 2026-09-13
