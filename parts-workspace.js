@@ -226,7 +226,7 @@ const MXPartsWorkspace = (() => {
     if (exportButton) {
       exportButton.disabled = presentationEnabled();
       exportButton.title = presentationEnabled()
-        ? 'Demo presentation hides mixed operational exports. Show all records in Settings to export.'
+        ? 'Demo presentation hides mixed operational exports. Hide demo content in Settings to export operational records.'
         : '';
     }
     byId('reportScopeHint').textContent = spec.scope;
@@ -329,7 +329,7 @@ const MXPartsWorkspace = (() => {
 
   async function exportReport() {
     if (presentationEnabled()) {
-      reportStatusMessage('Demo presentation keeps exports free of older operational history. Show all records in Settings to export.');
+      reportStatusMessage('Demo presentation keeps exports free of operational history. Hide demo content in Settings to export operational records.');
       return;
     }
     reportStatusMessage('Preparing the export\u2026');
@@ -2896,11 +2896,13 @@ const MXPartsWorkspace = (() => {
     if (byId('tab-parts')?.classList.contains('active')) void activate();
   });
   globalThis.addEventListener?.('mxg:demo-presentation-changed', () => {
-    if (presentationEnabled() && state.currentUnit
-      && !globalThis.MXDemoVisualRegistry?.isDemoPart?.(state.currentUnit.unit)) closeDrawer();
+    if (state.currentUnit) {
+      const currentIsDemo = globalThis.MXDemoVisualRegistry?.isDemoPart?.(state.currentUnit.unit) === true;
+      if (currentIsDemo !== presentationEnabled()) closeDrawer();
+    }
     resetReportView();
     showReportControls();
-    if (byId('tab-parts')?.classList.contains('active')) void activate();
+    void activate();
   });
 
   return Object.freeze({ init, activate, refresh: activate });

@@ -445,6 +445,8 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(css, /#tab-parts\.active\s*\{[\s\S]*height:\s*calc\(100dvh - 56px/);
     assert.match(css, /\.drawer-content\s*\{[\s\S]*min-height:\s*0/);
     assert.match(js, /parts-detail-visual/);
+    assert.match(js, /mxg:demo-presentation-changed[\s\S]*currentIsDemo !== presentationEnabled\(\)[\s\S]*void activate\(\)/);
+    assert.doesNotMatch(js, /Show all records in Settings/);
   });
 });
 
@@ -988,7 +990,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=29/);
+    assert.match(html, /parts-workspace\.js\?v=30/);
     assert.match(html, /parts-workspace\.css\?v=21/);
     assert.match(html, /application-client\.js\?v=45/);
   });
