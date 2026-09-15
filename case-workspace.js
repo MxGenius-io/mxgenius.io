@@ -90,7 +90,10 @@ const MXCaseWorkspace = (() => {
   }
 
   function caseDisplayName(caseState) {
-    const opened = new Date(caseState?.opened_at || caseState?.updated_at || '');
+    const opened = new Date(
+      caseState?.opened_at || caseState?.openedAt
+      || caseState?.updated_at || caseState?.updatedAt || ''
+    );
     const dateToken = Number.isNaN(opened.getTime())
       ? 'UNDATED'
       : `${opened.getUTCFullYear()}${String(opened.getUTCMonth() + 1).padStart(2, '0')}${String(opened.getUTCDate()).padStart(2, '0')}`;
@@ -233,7 +236,9 @@ const MXCaseWorkspace = (() => {
           <div class="case-workspace__metric"><span>Aircraft</span>${escapeHtml(aircraftLabel)}</div>
           <div class="case-workspace__metric"><span>Status</span>${escapeHtml(displayToken(caseState.status, 'Open'))}</div>
           <div class="case-workspace__metric"><span>Priority</span>${escapeHtml(displayToken(caseState.priority, 'Routine'))}</div>
-          <div class="case-workspace__metric"><span>Last updated</span>${escapeHtml(displayDate(caseState.updated_at || caseState.opened_at))}</div>
+          <div class="case-workspace__metric"><span>Last updated</span>${escapeHtml(displayDate(
+            caseState.updated_at || caseState.updatedAt || caseState.opened_at || caseState.openedAt
+          ))}</div>
         </div>
       </div>
       <section><strong>Discrepancy</strong><div>${escapeHtml(caseState.raw_discrepancy)}</div></section>
@@ -324,8 +329,8 @@ const MXCaseWorkspace = (() => {
         MXApplicationClient.cases.list(requestSession)
       ));
       const cases = [...(result.cases || [])].sort((left, right) => {
-        const rightTime = Date.parse(right.updated_at || right.opened_at || '') || 0;
-        const leftTime = Date.parse(left.updated_at || left.opened_at || '') || 0;
+        const rightTime = Date.parse(right.updated_at || right.updatedAt || right.opened_at || right.openedAt || '') || 0;
+        const leftTime = Date.parse(left.updated_at || left.updatedAt || left.opened_at || left.openedAt || '') || 0;
         return rightTime - leftTime || String(right.case_id || '').localeCompare(String(left.case_id || ''));
       });
       select.replaceChildren(new Option('Default — no active case', ''));

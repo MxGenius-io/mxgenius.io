@@ -7668,7 +7668,9 @@ struct CaseApiRow {
     aircraft_id: String,
     status: String,
     priority: String,
+    #[serde(with = "time::serde::rfc3339")]
     opened_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     updated_at: OffsetDateTime,
     location: Option<Value>,
     raw_discrepancy: String,
@@ -7898,21 +7900,41 @@ async fn get_case_media_content(
         Ok(value) => value,
         Err(response) => return response,
     };
-    let mut request = state.realtime_client.get(access.url);
-    if let Some(token) = access.bearer_token {
-        request = request.bearer_auth(token);
-    }
+    let mut request = workspace_blob_get(&state.realtime_client, access);
     if let Some(range) = requested_range {
         request = request.header("range", range);
     }
     let upstream = match request.send().await {
         Ok(value) if value.status().is_success() => value,
-        _ => {
+        Ok(value) => {
+            tracing::warn!(
+                target: "mxgenius.case_media",
+                status = %value.status(),
+                case_id = %case_id,
+                observation_id = %observation_id,
+                media_index,
+                "Blob rejected maintenance case media read"
+            );
             return realtime_error(
                 StatusCode::BAD_GATEWAY,
                 "CASE_MEDIA_UNAVAILABLE",
                 "case media could not be retrieved",
-            )
+            );
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "mxgenius.case_media",
+                error = %error,
+                case_id = %case_id,
+                observation_id = %observation_id,
+                media_index,
+                "Maintenance case media Blob request failed"
+            );
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CASE_MEDIA_UNAVAILABLE",
+                "case media could not be retrieved",
+            );
         }
     };
     let response_status = if upstream.status() == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -11012,6 +11034,29 @@ mod structured_advisory_tests {
                 .unwrap(),
             "Bearer test-token"
         );
+    }
+
+    #[test]
+    fn case_api_rows_serialize_timestamps_as_rfc3339() {
+        let row = CaseApiRow {
+            case_id: Uuid::nil(),
+            aircraft_id: "aircraft-test".to_string(),
+            status: "open".to_string(),
+            priority: "routine".to_string(),
+            opened_at: OffsetDateTime::UNIX_EPOCH,
+            updated_at: OffsetDateTime::UNIX_EPOCH,
+            location: None,
+            raw_discrepancy: "test".to_string(),
+            normalized_discrepancy: None,
+            assigned_user_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            approval_state: "pending".to_string(),
+            version: 1,
+        };
+
+        let value = serde_json::to_value(row).expect("case API row");
+        assert_eq!(value["opened_at"], "1970-01-01T00:00:00Z");
+        assert_eq!(value["updated_at"], "1970-01-01T00:00:00Z");
     }
 
     #[test]
