@@ -32,43 +32,43 @@ BEGIN
         assigned_user_ids, evidence_ids, approval_state, version
     ) VALUES
     (
-        'd0000000-0000-4000-8000-000000000101', demo_org, 'MXG-DEMO-N350MX',
+        'd0000000-0000-4000-8000-000000000101', demo_org, 'd0000000-0000-4000-8000-000000000001',
         'awaiting_parts', 'aog', now() - interval '9 hours', now() - interval '35 minutes',
         '{"icao":"KDAL","facility":"Demo Hangar 2"}'::jsonb,
         '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B"}'::jsonb,
+        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B"}'::jsonb,
         ARRAY[demo_actor],
         ARRAY['d0000000-0000-4000-8000-000000000501'::uuid,'d0000000-0000-4000-8000-000000000502'::uuid],
         'pending', 3
     ),
     (
-        'd0000000-0000-4000-8000-000000000102', demo_org, 'MXG-DEMO-N350MX',
+        'd0000000-0000-4000-8000-000000000102', demo_org, 'd0000000-0000-4000-8000-000000000001',
         'closed', 'urgent', now() - interval '45 days', now() - interval '44 days 18 hours',
         '{"icao":"KDAL","facility":"Demo Hangar 2"}'::jsonb,
         '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"replaced pressure switch"}'::jsonb,
+        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"replaced pressure switch"}'::jsonb,
         ARRAY[demo_actor], ARRAY['d0000000-0000-4000-8000-000000000503'::uuid],
         'approved', 5
     ),
     (
-        'd0000000-0000-4000-8000-000000000103', demo_org, 'MXG-DEMO-N350MX',
+        'd0000000-0000-4000-8000-000000000103', demo_org, 'd0000000-0000-4000-8000-000000000001',
         'scheduled', 'routine', now() - interval '3 days', now() - interval '2 hours',
         '{"icao":"KDAL","facility":"Demo Hangar 1"}'::jsonb,
         '[DEMO] Cabin air filter replacement due at next maintenance opportunity.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"21","symptom":"scheduled cabin air filter replacement","component_id":"MXG-DEMO-CABIN-FILTER"}'::jsonb,
+        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 21 cabin air filter due","raw":"[DEMO] Cabin air filter replacement due at next maintenance opportunity.","ata":"21","symptom":"scheduled cabin air filter replacement","component_id":"MXG-DEMO-CABIN-FILTER"}'::jsonb,
         ARRAY[demo_actor], ARRAY['d0000000-0000-4000-8000-000000000504'::uuid],
         'not_required', 2
     ),
     (
-        'd0000000-0000-4000-8000-000000000104', demo_org, 'MXG-DEMO-N350MX',
+        'd0000000-0000-4000-8000-000000000104', demo_org, 'd0000000-0000-4000-8000-000000000001',
         'closed', 'routine', now() - interval '120 days', now() - interval '119 days 20 hours',
         '{"icao":"KDAL","facility":"Demo Hangar 1"}'::jsonb,
         '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"serviced reservoir"}'::jsonb,
+        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"serviced reservoir"}'::jsonb,
         ARRAY[demo_actor], ARRAY[]::uuid[], 'approved', 4
     )
     ON CONFLICT (case_id) DO UPDATE SET
-        status=EXCLUDED.status, priority=EXCLUDED.priority,
+        aircraft_id=EXCLUDED.aircraft_id, status=EXCLUDED.status, priority=EXCLUDED.priority,
         updated_at=EXCLUDED.updated_at, location=EXCLUDED.location,
         raw_discrepancy=EXCLUDED.raw_discrepancy,
         normalized_discrepancy=EXCLUDED.normalized_discrepancy,
@@ -98,9 +98,10 @@ BEGIN
     ON CONFLICT DO NOTHING;
 
     INSERT INTO components (id, aircraft_id, ata, name, metadata) VALUES
-        ('d0000000-0000-4000-8000-000000000301', 'MXG-DEMO-N350MX', '29', 'Hydraulic Pump B', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-HYD-PUMP-B","zone":"right_aft_equipment_bay","status":"suspect"}'::jsonb),
-        ('d0000000-0000-4000-8000-000000000302', 'MXG-DEMO-N350MX', '21', 'Cabin Air Filter', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-CABIN-FILTER","zone":"environmental_control_bay","status":"service_due"}'::jsonb)
-    ON CONFLICT (id) DO UPDATE SET metadata=EXCLUDED.metadata;
+        ('d0000000-0000-4000-8000-000000000301', 'd0000000-0000-4000-8000-000000000001', '29', 'Hydraulic Pump B', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-HYD-PUMP-B","zone":"right_aft_equipment_bay","status":"suspect"}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000302', 'd0000000-0000-4000-8000-000000000001', '21', 'Cabin Air Filter', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-CABIN-FILTER","zone":"environmental_control_bay","status":"service_due"}'::jsonb)
+    ON CONFLICT (id) DO UPDATE SET
+        aircraft_id=EXCLUDED.aircraft_id, metadata=EXCLUDED.metadata;
 
     INSERT INTO technical_documents (id, organization_id, title, doc_type) VALUES
         ('d0000000-0000-4000-8000-000000000401', demo_org, '[DEMO] Challenger 350 Hydraulic System Maintenance Excerpt', 'maintenance_manual'),
@@ -132,11 +133,21 @@ BEGIN
         title=EXCLUDED.title, excerpt=EXCLUDED.excerpt, retrieved_at=EXCLUDED.retrieved_at,
         content=EXCLUDED.content;
 
+    UPDATE evidence_links
+    SET aircraft_id='d0000000-0000-4000-8000-000000000001'
+    WHERE organization_id=demo_org
+      AND aircraft_id='MXG-DEMO-N350MX'
+      AND case_id IN (
+          'd0000000-0000-4000-8000-000000000101',
+          'd0000000-0000-4000-8000-000000000102',
+          'd0000000-0000-4000-8000-000000000103'
+      );
+
     INSERT INTO evidence_links (organization_id, evidence_id, case_id, aircraft_id, document_id) VALUES
-        (demo_org, 'd0000000-0000-4000-8000-000000000501', 'd0000000-0000-4000-8000-000000000101', 'MXG-DEMO-N350MX', 'd0000000-0000-4000-8000-000000000401'),
-        (demo_org, 'd0000000-0000-4000-8000-000000000502', 'd0000000-0000-4000-8000-000000000101', 'MXG-DEMO-N350MX', NULL),
-        (demo_org, 'd0000000-0000-4000-8000-000000000503', 'd0000000-0000-4000-8000-000000000102', 'MXG-DEMO-N350MX', NULL),
-        (demo_org, 'd0000000-0000-4000-8000-000000000504', 'd0000000-0000-4000-8000-000000000103', 'MXG-DEMO-N350MX', 'd0000000-0000-4000-8000-000000000401')
+        (demo_org, 'd0000000-0000-4000-8000-000000000501', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000401'),
+        (demo_org, 'd0000000-0000-4000-8000-000000000502', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000001', NULL),
+        (demo_org, 'd0000000-0000-4000-8000-000000000503', 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000001', NULL),
+        (demo_org, 'd0000000-0000-4000-8000-000000000504', 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000401')
     ON CONFLICT DO NOTHING;
 
     INSERT INTO approvals (id, organization_id, case_id, action, required_role, granted_by, granted_at, decision) VALUES

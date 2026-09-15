@@ -279,14 +279,15 @@ const MXCaseState = {
   set(detail) {
     const matches = detail?.aircraft?.matches || [];
     const canonical = matches.find((match) => match.aircraft_id === detail?.case?.aircraft_id) || matches[0] || {};
-    this.active = { ...detail, registration: this.normalizeRegistration(canonical.registration) };
+    const demoAircraftLabel = window.MXDemoVisualRegistry?.aircraftLabelFor?.(detail.case) || '';
+    this.active = { ...detail, registration: this.normalizeRegistration(canonical.registration || demoAircraftLabel) };
     const card = document.getElementById('activeCaseCard');
     const value = document.getElementById('activeCaseValue');
     const label = document.getElementById('activeCaseLabel');
     const status = document.getElementById('activeCaseStatus');
     const priority = document.getElementById('activeCasePriority');
     const meta = document.getElementById('activeCaseMeta');
-    const registration = canonical.registration || 'Aircraft';
+    const registration = canonical.registration || demoAircraftLabel || 'Aircraft';
     const discrepancy = String(detail.case?.raw_discrepancy || '').replace(/\s+/g, ' ').trim();
     const aircraftType = [canonical.make || detail.aircraft?.make, canonical.model || detail.aircraft?.model].filter(Boolean).join(' ');
     const updated = this.displayDate(detail.case?.updated_at || detail.case?.opened_at);
@@ -3495,7 +3496,7 @@ function initSettings() {
       const result = await MXApplicationClient.demoData.load(await settingsSession());
       demoPresentation?.enable?.({ announce: false });
       if (demoDataStatus) {
-        demoDataStatus.textContent = `Loaded ${result.aircraft} aircraft, ${result.cases} cases, ${result.stock_units} stock units, ${result.facilities} facilities, and ${result.evidence} evidence records`;
+        demoDataStatus.textContent = `Demo workspace ready: ${result.aircraft} aircraft, ${result.cases} maintenance cases, ${result.stock_units} stock units, and ${result.evidence} evidence records.`;
       }
       syncDemoPresentationControls();
       window.dispatchEvent(new CustomEvent('mxg:demo-data-loaded', { detail: result }));

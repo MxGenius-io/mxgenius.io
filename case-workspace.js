@@ -215,7 +215,10 @@ const MXCaseWorkspace = (() => {
     const context = result.context;
     const matches = result.aircraft?.matches || [];
     const canonical = matches.find((match) => match.aircraft_id === caseState.aircraft_id) || matches[0] || {};
-    const aircraftLabel = canonical.registration || [canonical.make, canonical.model].filter(Boolean).join(' ') || 'Aircraft';
+    const aircraftLabel = canonical.registration
+      || globalThis.MXDemoVisualRegistry?.aircraftLabelFor?.(caseState)
+      || [canonical.make, canonical.model].filter(Boolean).join(' ')
+      || 'Aircraft';
     const displayName = caseDisplayName({ ...caseState, case_id: result.caseId || caseState.case_id });
     const confidence = result.trace.map((entry) => entry.confidence?.level || entry.confidence?.basis).filter(Boolean).join(', ');
     const hasRecordedMedia = (Array.isArray(result.caseMedia) ? result.caseMedia : [])

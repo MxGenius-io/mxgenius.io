@@ -6,29 +6,37 @@
 
 ## Demo Presentation Cleanup — 2026-09-15
 
-This static release turns the existing fictional Maintenance and Parts seed into
+This paired release turns the existing fictional Maintenance and Parts seed into
 a clean presentation workspace. When the browser detects the tenant's labeled
 demo cases or parts, it keeps stale test and operational history out of those
 views, opens the newest demo case, and applies the same scope across Parts tabs
-and reports. It does not delete, rewrite, or reclassify any stored record.
+and reports. A signed-in live trace also found and corrected two demo-seed
+contract mismatches: normalized discrepancies now carry their required raw
+text, and seeded cases reference the canonical aircraft UUID consumed by model
+capabilities while the interface retains the friendly `N350MX` label.
 
 ### Deployment scope
 
 - Push the validated static application to canonical `main` and let the
   existing GitHub Pages workflow publish it.
-- Reuse the already deployed authenticated `/api/demo-data` seed endpoint and
-  existing Azure data plane; no Container App image, infrastructure, migration,
-  secret, identity, role, Search index, or Blob change is required.
+- Build `services/mcp` from the exact committed source in the existing ACR and
+  promote only the existing `mxg-core` Container App. Preserve its environment,
+  secrets, identity, ingress, scaling, and traffic configuration.
+- Reuse the existing authenticated `/api/demo-data` endpoint and data plane;
+  no infrastructure, migration, secret, identity, role, Search index, or Blob
+  change is required.
 - Refresh the idempotent fictional tenant seed through the signed-in Settings
   action after the static release lands, then verify Maintenance and Parts in a
   visible browser.
 
 ### Validation proof
 
-- 2026-09-15: `npm test` passed 418/418 application and contract tests. Targeted
+- 2026-09-15: `npm test` passed 419/419 application and contract tests. Targeted
   Maintenance, Parts, structure, and target-registry checks cover the automatic
   demo scope, explicit return to all records, cache pins, and existing
   application boundaries.
+- The full locked Rust workspace passed, strict Clippy completed with warnings
+  denied, and the targeted demo-seed contract tests passed 4/4.
 - JavaScript syntax checks and `git diff --check` are clean.
 - Azure CLI confirmed the documented subscription, Central US resource group,
   ACR, and existing `mxg-core--parts915` revision are healthy, Running, and
@@ -39,9 +47,10 @@ and reports. It does not delete, rewrite, or reclassify any stored record.
 
 ### Rollback
 
-Revert the static commit through the normal `main` workflow. No data repair or
-Azure rollback is required; the demo seed is idempotent and presentation mode
-does not remove operational records.
+Revert the release through the normal `main` workflow and shift Container App
+traffic to `mxg-core--parts915`. No migration or deletion was performed; the
+fictional seed remains idempotent and presentation mode does not remove
+operational records.
 
 ## Maintenance and Parts Presentation Stabilization — 2026-09-15
 

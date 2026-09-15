@@ -94,6 +94,13 @@ mod tests {
     }
 
     #[test]
+    fn maintenance_seed_satisfies_the_model_facing_case_contract() {
+        assert!(DEMO_SEED_SQL.contains("\"summary\":\"ATA 29 hydraulic pressure decay\",\"raw\":\"[DEMO] Hydraulic system B pressure decays after engine shutdown."));
+        assert!(DEMO_SEED_SQL.contains("aircraft_id=EXCLUDED.aircraft_id"));
+        assert!(!DEMO_SEED_SQL.contains("demo_org, 'MXG-DEMO-N350MX',\n        'awaiting_parts'"));
+    }
+
+    #[test]
     fn record_ids_are_stable_and_unique_per_tenant() {
         let left = tenant_seed_sql(Uuid::from_u128(1));
         let left_again = tenant_seed_sql(Uuid::from_u128(1));

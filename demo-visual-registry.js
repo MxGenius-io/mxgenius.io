@@ -101,6 +101,10 @@
       || /^DEMO-/i.test(String(location?.code || ''));
   }
 
+  function aircraftLabelFor(record = {}) {
+    return (isDemoCase(record) || hasDemoMarker(record)) ? 'N350MX' : '';
+  }
+
   function mode() {
     try {
       return localStorage.getItem(PRESENTATION_STORAGE_KEY) || 'auto';
@@ -170,6 +174,7 @@
     assets: ASSETS,
     isDemoCase,
     isDemoPart,
+    aircraftLabelFor,
     forCase,
     forPart,
     presentation: Object.freeze({

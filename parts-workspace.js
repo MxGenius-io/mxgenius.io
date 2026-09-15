@@ -10,6 +10,9 @@ const MXPartsWorkspace = (() => {
   const scopeParts = (records) => presentation()?.scopeParts?.(records) || records || [];
   const scopeLocations = (records) => presentation()?.scopeLocations?.(records) || records || [];
   const scopeRecords = (records) => presentation()?.scopeRecords?.(records) || records || [];
+  const aircraftLabel = (record) => globalThis.MXDemoVisualRegistry?.aircraftLabelFor?.(record)
+    || record?.aircraftId
+    || 'not recorded';
   const state = {
     query: '',
     currentUnit: null,
@@ -369,7 +372,7 @@ const MXPartsWorkspace = (() => {
           <div><dt>Free stock</dt><dd>${escapeHtml(row.availableQuantity)}</dd></div>
           <div><dt>Short by</dt><dd>${short ? escapeHtml(row.shortfall) : 'Covered'}</dd></div>
         </dl>
-        <p class="shortage-meta">Aircraft ${escapeHtml(row.aircraftId)} · case ${escapeHtml(row.caseStatus.replace('_', ' '))} · needed by ${escapeHtml(due)} · accepts ${escapeHtml(conditions)}</p>
+        <p class="shortage-meta">Aircraft ${escapeHtml(aircraftLabel(row))} · case ${escapeHtml(row.caseStatus.replace('_', ' '))} · needed by ${escapeHtml(due)} · accepts ${escapeHtml(conditions)}</p>
       </article>`;
   }
 
@@ -519,7 +522,7 @@ const MXPartsWorkspace = (() => {
           ${flag}
         </div>
         <p class="shortage-description">${escapeHtml(row.description)}</p>
-        <p class="shortage-meta">Aircraft ${escapeHtml(row.aircraftId)} · needed ${escapeHtml(due)} · ${escapeHtml(row.quantityFulfilled)} of ${escapeHtml(row.quantity)} fulfilled · ${escapeHtml(row.openOrderCount)} open order(s)</p>
+        <p class="shortage-meta">Aircraft ${escapeHtml(aircraftLabel(row))} · needed ${escapeHtml(due)} · ${escapeHtml(row.quantityFulfilled)} of ${escapeHtml(row.quantity)} fulfilled · ${escapeHtml(row.openOrderCount)} open order(s)</p>
         <div class="unit-action-row">
           <button class="btn-quiet" data-open-orders="${escapeHtml(row.id)}">Orders</button>
           <button class="btn-quiet" data-open-trace="${escapeHtml(row.id)}">Trace</button>

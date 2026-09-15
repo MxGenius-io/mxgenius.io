@@ -9,6 +9,7 @@ const js = readFileSync('parts-workspace.js', 'utf8');
 const client = readFileSync('application-client.js', 'utf8');
 const css = readFileSync('parts-workspace.css', 'utf8');
 const demoVisuals = readFileSync('demo-visual-registry.js', 'utf8');
+const demoSeed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
 const partsHttp = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
 
 test('demo visual registry keeps fictional imagery out of production records', () => {
@@ -18,6 +19,8 @@ test('demo visual registry keeps fictional imagery out of production records', (
 
   assert.equal(registry.forCase({ case_id: 'case-production-1' }), null);
   assert.equal(registry.forPart({ part_number: '29-1001' }), null);
+  assert.equal(registry.aircraftLabelFor({ raw_discrepancy: 'Routine inspection' }), '');
+  assert.equal(registry.aircraftLabelFor({ raw_discrepancy: '[DEMO] Cabin filter' }), 'N350MX');
   assert.equal(
     registry.forCase({ case_id: 'd0000000-0000-4000-8000-000000000001', raw_discrepancy: '[DEMO] Cabin filter' }).src,
     'media/demo/maintenance-cabin-filter.jpg'
@@ -100,10 +103,19 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(demoVisuals, /part-wheel-brake\.jpg/);
     assert.match(demoVisuals, /part-consumables\.jpg/);
     assert.match(js, /scopeParts/);
+    assert.match(js, /aircraftLabel\(row\)/);
     assert.match(html, /id="settingsShowAllData"/);
     assert.match(app, /demoPresentation\?\.enable/);
     assert.match(app, /demoData\.load\(await settingsSession\(\)\)/);
     assert.doesNotMatch(app, /demoData\.load\(serverSession\)/);
+    assert.match(app, /Demo workspace ready:/);
+    assert.doesNotMatch(app, /result\.facilities/);
+  });
+
+  await t.test('the demo maintenance spine satisfies the model-facing case contract', () => {
+    assert.match(demoSeed, /"summary":"ATA 29 hydraulic pressure decay","raw":"\[DEMO\] Hydraulic system B pressure decays after engine shutdown\./);
+    assert.match(demoSeed, /aircraft_id=EXCLUDED\.aircraft_id/);
+    assert.doesNotMatch(demoSeed, /demo_org, 'MXG-DEMO-N350MX',\s*\n\s*'(?:awaiting_parts|closed|scheduled)'/);
   });
 
   await t.test('application-client.js exposes the production parts namespace', () => {
@@ -966,7 +978,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=27/);
+    assert.match(html, /parts-workspace\.js\?v=28/);
     assert.match(html, /parts-workspace\.css\?v=20/);
     assert.match(html, /application-client\.js\?v=45/);
   });
