@@ -7669,13 +7669,7 @@ async fn seed_beta_access_rules(
     pool: &sqlx::PgPool,
     context: &ExecutionContext,
 ) -> Result<(), sqlx::Error> {
-    for (rule, rule_type, member_role) in [
-        ("@advancedaog.com", "domain", "viewer"),
-        ("@mxgenius.io", "domain", "viewer"),
-        ("hagy2392@gmail.com", "email", "manager"),
-        ("rocky@mxgenius.io", "email", "procurement"),
-        ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
-    ] {
+    for (rule, rule_type, member_role) in BASELINE_BETA_ACCESS_RULES {
         sqlx::query(
             r#"INSERT INTO beta_access_rules
                (id,organization_id,rule,rule_type,member_role,created_by,created_at)
@@ -7694,8 +7688,9 @@ async fn seed_beta_access_rules(
         // A domain rule enrolls the whole company as `viewer`. A rule naming one
         // person a stronger role has to move the membership that domain rule
         // already created, or that person stays a viewer whatever the rule says.
-        // Only `viewer` is overwritten, so a role assigned deliberately
-        // elsewhere is never stomped by a redeploy.
+        // Baseline administrators are enforced so an older manager/procurement
+        // membership cannot silently survive a release; other elevated roles are
+        // still preserved when a seed merely provides a non-admin default.
         if rule_type == "email" && member_role != "viewer" {
             sqlx::query(
                 r#"UPDATE organization_memberships AS membership
@@ -7704,7 +7699,7 @@ async fn seed_beta_access_rules(
                    WHERE membership.user_id=app_user.id
                      AND membership.organization_id=$1
                      AND lower(app_user.email)=$2
-                     AND membership.role='viewer'"#,
+                     AND (membership.role='viewer' OR $3='administrator')"#,
             )
             .bind(context.organization_id.0)
             .bind(rule)
@@ -7715,6 +7710,14 @@ async fn seed_beta_access_rules(
     }
     Ok(())
 }
+
+const BASELINE_BETA_ACCESS_RULES: [(&str, &str, &str); 5] = [
+    ("@advancedaog.com", "domain", "viewer"),
+    ("@mxgenius.io", "domain", "viewer"),
+    ("hagy2392@gmail.com", "email", "administrator"),
+    ("rocky@mxgenius.io", "email", "administrator"),
+    ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
+];
 
 async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let context = match application_context(&state, &headers).await {
@@ -12230,6 +12233,16 @@ mod structured_advisory_tests {
         );
         assert_eq!(normalize_beta_access_rule("@advancedaog"), None);
         assert_eq!(normalize_beta_access_rule("not-an-email"), None);
+    }
+
+    #[test]
+    fn every_protected_rocky_identity_is_an_administrator() {
+        for email in ["rocky@mxgenius.io", "hagy2392@gmail.com"] {
+            let seeded_role = BASELINE_BETA_ACCESS_RULES
+                .iter()
+                .find_map(|(rule, _, role)| (*rule == email).then_some(*role));
+            assert_eq!(seeded_role, Some("administrator"), "{email}");
+        }
     }
 
     #[test]

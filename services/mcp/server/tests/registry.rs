@@ -1570,6 +1570,21 @@ fn beta_access_rules_are_server_owned_and_organization_scoped() {
     assert!(migration.contains("UNIQUE (organization_id, rule)"));
 }
 
+#[test]
+fn rocky_administrator_migration_updates_rules_and_existing_memberships() {
+    let migration = include_str!("../../migrations/0030_promote_rocky_administrator.sql");
+    for email in ["rocky@mxgenius.io", "hagy2392@gmail.com"] {
+        assert!(
+            migration.contains(email),
+            "missing protected identity {email}"
+        );
+    }
+    assert!(migration.contains("UPDATE beta_access_rules"));
+    assert!(migration.contains("UPDATE organization_memberships AS membership"));
+    assert!(migration.contains("access_rule.organization_id = membership.organization_id"));
+    assert!(migration.contains("SET role = 'administrator'"));
+}
+
 #[tokio::test]
 async fn streamable_http_handles_malformed_content_auth_resources_and_prompts() {
     use axum::body::{to_bytes, Body};

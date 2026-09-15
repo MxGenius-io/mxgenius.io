@@ -43,7 +43,7 @@ Dwayne
 
 | Area | What is available |
 | --- | --- |
-| Access | `Rocky@mxgenius.io` and the `@mxgenius.io` organization are allowed through the protected sign-in flow. Rocky receives the Parts & Procurement role. |
+| Access | `Rocky@mxgenius.io` and `hagy2392@gmail.com` are protected sign-in identities with the Administrator role. The `@mxgenius.io` organization remains allowed through the company access rule. |
 | Guided onboarding | A seven-step Parts & Procurement walkthrough covers access, navigation, connection status, Copilot, Parts Management, receiving, and the unit record. |
 | Parts receiving | A four-step flow accepts a PDF, packing slip, FAA 8130-3, placard image, or part photo. |
 | OCR review | Extracted values are suggestions. Rocky can review and correct the information before creating the unit. |

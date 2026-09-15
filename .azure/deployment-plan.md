@@ -1,5 +1,57 @@
 # MXGenius Azure Deployment Plan
 
+## Rocky Administrator Promotion — 2026-09-15
+
+> **Status:** Validated
+
+Promote Rocky's two protected MXGenius identities, `rocky@mxgenius.io` and
+`hagy2392@gmail.com`, to the tenant-scoped Administrator application role.
+This does not grant Azure subscription ownership, modify Entra directory roles,
+or broaden the `mxg-core` managed identity. Migration `0030` upgrades existing
+memberships at startup, while the protected seed keeps later releases from
+restoring the former Procurement or Manager roles.
+
+### Deployment scope
+
+- Build `services/mcp` from the exact committed source in the existing
+  `mxgacr50106` registry and promote only the existing `mxg-core` Container App.
+- Run the additive SQLx migration through the application's existing startup
+  migration path. Update only Rocky's two exact email rules and memberships in
+  organizations where the corresponding protected rule exists.
+- Preserve all infrastructure, service settings, secrets, Entra objects, Azure
+  RBAC assignments, manual/Search content, Blob content, and application data.
+
+### Validation proof
+
+- `cargo test --workspace` passed 288 tests with one credential-gated manual
+  exporter intentionally ignored; the two new Rocky role/migration regression
+  checks also passed independently.
+- `cargo fmt --all -- --check`, warnings-denied workspace Clippy,
+  `cargo build --locked --release -p mxgenius-mcp`, and `git diff --check`
+  passed on 2026-09-15.
+- Azure CLI 2.86.0 confirmed the previously approved subscription
+  `d1a68ed7-2983-4a86-ab0e-e56df9e2e325`, Central US resource group
+  `mxg-rg-50106`, and Container Apps environment `mxg-cae-50106` are enabled
+  and provisioned. Subscription and resource-group policy assignment lists are
+  empty.
+- `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200 before promotion;
+  Postgres and the frozen manual library report ready and Parts is available.
+- Static and live role review found no Azure RBAC delta. The `mxg-core` system
+  identity retains only `Storage Blob Data Contributor` on the private
+  `documents` container and `Cognitive Services User` on the existing Document
+  Intelligence account. ACR pull continues through the established registry
+  secret, so the managed-identity `AcrPull` propagation gate does not apply.
+- The ordered migration set contains 30 unique SQL files and ends at
+  `0030_promote_rocky_administrator.sql`.
+
+### Rollback
+
+Keep `mxg-core--manuals82092ac` active and available until the new revision
+passes migration, health, readiness, adapter, and role verification. If the
+promotion fails, restore that image/revision; migration `0030` is deliberately
+forward-only, so role rollback would require an explicit reviewed follow-up
+rather than silently narrowing Rocky's access.
+
 ## Conversation Isolation and Expandable Manual Sources — 2026-09-15
 
 > **Status:** Deployed and live-verified
