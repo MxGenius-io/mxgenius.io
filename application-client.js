@@ -465,6 +465,13 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function archiveEquipmentPack(packId, session = {}) {
+    return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}`, {
+      session,
+      method: 'DELETE'
+    });
+  }
+
   function listEquipmentPackVersions(packId, session = {}) {
     return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/versions`, { session });
   }
@@ -1760,6 +1767,7 @@ const MXApplicationClient = (() => {
     equipmentPacks: Object.freeze({
       list: listEquipmentPacks,
       create: createEquipmentPack,
+      archive: archiveEquipmentPack,
       versions: listEquipmentPackVersions,
       publishManualLibrary,
       createVersion: createEquipmentPackVersion,

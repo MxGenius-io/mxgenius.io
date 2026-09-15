@@ -613,6 +613,34 @@ main {
 
 .equipment-pack-workspace__footer p { margin: 0; }
 
+.equipment-pack-workspace__actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.equipment-pack-remove {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 7px;
+  color: #fca5a5;
+  cursor: pointer;
+  font: inherit;
+  padding: 7px 10px;
+}
+
+.equipment-pack-remove:hover,
+.equipment-pack-remove:focus-visible {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: #f87171;
+  outline: none;
+}
+
+.equipment-pack-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .equipment-pack-history { margin: 12px 0 0; }
 
 #settingsPackHistory {
@@ -629,6 +657,8 @@ main {
   .equipment-pack-flow { grid-template-columns: minmax(0, 1fr); }
   .equipment-pack-create__wide { grid-column: auto; }
   .equipment-pack-flow .btn-primary { width: 100%; }
+  .equipment-pack-workspace__footer { align-items: stretch; flex-direction: column; }
+  .equipment-pack-workspace__actions { justify-content: flex-end; }
 }
 
 .device-enrollment-key {

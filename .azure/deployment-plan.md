@@ -2,7 +2,7 @@
 
 ## Conversation Isolation and Expandable Manual Sources — 2026-09-15
 
-> **Status:** Validated
+> **Status:** Validated — Awaiting Deployment
 
 This paired static/core release prevents a response shown in an earlier chat
 from being treated as context for a newly created conversation, and makes every
@@ -10,7 +10,9 @@ retrieved manual record an accessible disclosure so its section excerpt can be
 opened on demand. The browser clears its displayed-response state at thread,
 case, and new-conversation boundaries; the core independently removes that
 field whenever no persisted conversation exists and explicitly prohibits reuse
-of a prior registered figure when the current prompt has no register match.
+of a prior registered figure when the current prompt has no register match. It
+also completes the freeze-point drive cleanup with a manager-only, recoverable
+archive action that refuses to hide a drive still assigned to a Pi.
 
 ### Deployment scope
 
@@ -19,8 +21,12 @@ of a prior registered figure when the current prompt has no register match.
 - Build `services/mcp` from the exact committed source in the existing ACR and
   promote only the existing `mxg-core` Container App.
 - Preserve every environment setting, secret, identity, ingress and scale
-  setting, role assignment, database record, Search index, and Blob object.
-  No infrastructure, migration, data, or permission change is included.
+  setting, role assignment, schema, source Search index, and source manual
+  Blob. No infrastructure, migration, or permission change is included.
+- As a signed-in acceptance action, create one manuals-only Equipment Drive,
+  publish the frozen five-manual/five-image Azure library into it, assign that
+  version to the registered Pi, and only then archive the obsolete named test
+  drive. The archive retains its version metadata and Blob content.
 
 ### Validation plan
 
@@ -35,11 +41,15 @@ of a prior registered figure when the current prompt has no register match.
   Bombardier prompt cannot inherit the earlier registered figure, that the
   exact CL350 task still renders its registered image, and that the associated
   manual excerpt expands without blocking an ordinary follow-up question.
+- Verify the Pi receives a new desired generation for the manuals-only version,
+  then verify the drive list contains only the manuals drive. Never archive a
+  drive with a current Pi assignment.
 
 ### Validation proof
 
-- `npm test` passed 421/421 application and contract checks. `node --check
-  app.js` and `git diff --check` also passed.
+- `npm test` passed 422/422 application and contract checks. `node --check`
+  passed for `app.js`, `application-client.js`, and
+  `equipment-pack-workspace.js`; `git diff --check` also passed.
 - `cargo fmt --all --check`, the complete locked Rust workspace and all-target
   suite, warnings-denied workspace Clippy, and the locked optimized workspace
   build passed. The credential-gated live archive test remains intentionally
@@ -62,8 +72,10 @@ of a prior registered figure when the current prompt has no register match.
 
 Keep `mxg-core--imgroute94f` and its immutable image available. If any build,
 startup, readiness, model-routing, image, excerpt, or ordinary-chat gate fails,
-restore that revision and revert the paired Pages commit. No data repair or
-resource deletion is required.
+restore that revision and revert the paired Pages commit. The obsolete test
+drive is soft-archived rather than deleted and can be recovered from its
+retained row; the manuals-only drive/version can remain dormant without data
+repair or resource deletion.
 
 ## Parts and Maintenance Display Polish — 2026-09-15
 

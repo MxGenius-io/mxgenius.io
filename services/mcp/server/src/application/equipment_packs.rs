@@ -252,6 +252,51 @@ impl EquipmentPackRepository {
         .await?)
     }
 
+    pub async fn archive_pack(
+        &self,
+        context: &ExecutionContext,
+        pack_id: Uuid,
+    ) -> Result<EquipmentPackRow, EquipmentPackError> {
+        let mut transaction = self.pool.begin().await?;
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM equipment_packs WHERE organization_id=$1 AND id=$2 AND archived=false)",
+        )
+        .bind(context.organization_id.0)
+        .bind(pack_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if !exists {
+            return Err(EquipmentPackError::NotFound);
+        }
+        let assigned: bool = sqlx::query_scalar(
+            r#"SELECT EXISTS(
+                 SELECT 1 FROM edge_device_assignments a
+                 JOIN equipment_pack_versions v
+                   ON v.organization_id=a.organization_id AND v.id=a.version_id
+                 WHERE a.organization_id=$1 AND v.pack_id=$2
+               )"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(pack_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if assigned {
+            return Err(EquipmentPackError::Conflict);
+        }
+        let row = sqlx::query_as(
+            r#"UPDATE equipment_packs SET archived=true,updated_at=now()
+               WHERE organization_id=$1 AND id=$2 AND archived=false
+               RETURNING id,name,equipment_family,description,archived,created_at,updated_at"#,
+        )
+        .bind(context.organization_id.0)
+        .bind(pack_id)
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(EquipmentPackError::NotFound)?;
+        transaction.commit().await?;
+        Ok(row)
+    }
+
     pub async fn create_version(
         &self,
         context: &ExecutionContext,

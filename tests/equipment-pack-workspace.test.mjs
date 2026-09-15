@@ -59,3 +59,13 @@ test('browser Equipment Pack builder refuses paths that would be unsafe or colli
     /collide on a USB filesystem/,
   );
 });
+
+test('Equipment Drives expose a confirmed recoverable archive path', async () => {
+  const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
+  const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+  assert.match(client, /function archiveEquipmentPack/);
+  assert.match(client, /method: 'DELETE'/);
+  assert.match(source, /window\.confirm\(`Remove \"\$\{pack\.name\}\" from Equipment Drives\?/);
+  assert.match(source, /client\.archive\(pack\.id, session\)/);
+  assert.match(dashboard, /id="settingsPackArchive"[^>]*disabled>Remove selected drive/);
+});

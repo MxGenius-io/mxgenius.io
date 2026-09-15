@@ -137,6 +137,7 @@
     const publishButton = byId('settingsPackPublish');
     const publishManualsButton = byId('settingsPackPublishManuals');
     const assignButton = byId('settingsPackAssign');
+    const archiveButton = byId('settingsPackArchive');
     const status = byId('settingsPackStatus');
     const history = byId('settingsPackHistory');
     let packs = [];
@@ -148,6 +149,7 @@
       publishButton.disabled = !packSelect.value || !(folderInput.files || []).length;
       publishManualsButton.disabled = !packSelect.value;
       assignButton.disabled = !deviceSelect.value || !versionSelect.value;
+      archiveButton.disabled = !packSelect.value;
     };
 
     const setStatus = (message, state = '') => {
@@ -240,6 +242,23 @@
         setStatus(`${payload.pack.name} is ready for a folder.`, 'success');
       } catch (error) {
         setStatus(error.message || 'Unable to create Equipment Drive.', 'error');
+      }
+    });
+
+    archiveButton?.addEventListener('click', async () => {
+      const pack = packs.find((candidate) => candidate.id === packSelect.value);
+      if (!pack) return setStatus('Select an Equipment Drive to remove.', 'error');
+      if (!window.confirm(`Remove "${pack.name}" from Equipment Drives? Published files stay archived in Azure and the drive cannot be removed while assigned to a Pi.`)) return;
+      archiveButton.disabled = true;
+      setStatus(`Removing ${pack.name}…`);
+      try {
+        await run((session) => client.archive(pack.id, session));
+        await refresh();
+        setStatus(`${pack.name} was removed. Its published files remain archived in Azure.`, 'success');
+      } catch (error) {
+        setStatus(error.message || 'Unable to remove this Equipment Drive.', 'error');
+      } finally {
+        updateActions();
       }
     });
 

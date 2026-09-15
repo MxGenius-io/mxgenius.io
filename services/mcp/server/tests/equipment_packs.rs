@@ -40,6 +40,22 @@ fn device_credentials_are_revocable_and_enrollment_is_one_time() {
 }
 
 #[test]
+fn drive_archive_is_tenant_scoped_recoverable_and_refuses_active_assignments() {
+    let application = include_str!("../src/application/equipment_packs.rs");
+    assert!(HTTP.contains("/api/equipment-packs/:pack_id"));
+    assert!(HTTP.contains("archive_equipment_pack"));
+    let archive = application
+        .split("pub async fn archive_pack")
+        .nth(1)
+        .and_then(|value| value.split("pub async fn create_version").next())
+        .expect("archive repository method");
+    assert!(archive.contains("organization_id=$1 AND id=$2 AND archived=false"));
+    assert!(archive.contains("edge_device_assignments"));
+    assert!(archive.contains("SET archived=true"));
+    assert!(!archive.contains("DELETE FROM"));
+}
+
+#[test]
 fn device_claims_keep_the_credential_off_the_authenticated_browser() {
     assert!(CLAIM_MIGRATION.contains("CREATE TABLE IF NOT EXISTS edge_device_claims"));
     assert!(CLAIM_MIGRATION.contains("UNIQUE (claim_code_hash)"));

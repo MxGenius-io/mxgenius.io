@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=15">
+  <link rel="stylesheet" href="app-styles.css?v=16">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
@@ -519,8 +519,7 @@
           <div class="equipment-pack-workspace__body">
           <p class="settings-hint equipment-pack-workspace__summary">Publish one verified folder, then assign it to a registered Pi. The node downloads and switches its read-only USB library automatically.</p>
           <div class="equipment-pack-folder-picker">
-            <button id="settingsPackPublishManuals" class="equipment-pack-folder-button" type="button" disabled>Publish approved Azure library</button>
-            <span>Uses the same frozen CL350 text and linked diagrams as the model.</span>
+            <button id="settingsPackPublishManuals" class="equipment-pack-folder-button" type="button" disabled>Publish manuals</button>
           </div>
           <details class="equipment-pack-create">
             <summary>Create a drive</summary>
@@ -550,7 +549,10 @@
           </div>
           <div class="equipment-pack-workspace__footer">
             <p id="settingsPackStatus" class="settings-hint device-registry-status" role="status" aria-live="polite">Loading Equipment Drives…</p>
-            <button id="settingsPackRefresh" class="device-registry-refresh" type="button">Refresh</button>
+            <div class="equipment-pack-workspace__actions">
+              <button id="settingsPackArchive" class="equipment-pack-remove" type="button" disabled>Remove selected drive</button>
+              <button id="settingsPackRefresh" class="device-registry-refresh" type="button">Refresh</button>
+            </div>
           </div>
           <details class="equipment-pack-history">
             <summary>Recent device activity</summary>
@@ -855,7 +857,7 @@
   <script src="auth.js?v=13"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
-<script src="application-client.js?v=45"></script>
+<script src="application-client.js?v=46"></script>
   <script src="demo-visual-registry.js?v=4"></script>
   <script src="sound-storage.js?v=1"></script>
   <script src="xr-target-registry.js?v=1"></script>
@@ -871,7 +873,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="equipment-pack-workspace.js?v=4"></script>
+  <script src="equipment-pack-workspace.js?v=5"></script>
   <script src="app.js?v=70"></script>
   <div id="onboardingRoot"></div>
 </body>

@@ -250,6 +250,10 @@ pub fn router_with_health_and_manual(
             get(list_equipment_packs).post(create_equipment_pack),
         )
         .route(
+            "/api/equipment-packs/:pack_id",
+            axum::routing::delete(archive_equipment_pack),
+        )
+        .route(
             "/api/equipment-packs/:pack_id/versions",
             get(list_equipment_pack_versions).post(create_equipment_pack_version),
         )
@@ -1198,6 +1202,36 @@ async fn create_equipment_pack(
     };
     match repository.create_pack(&context, &input).await {
         Ok(pack) => (StatusCode::CREATED, Json(json!({ "pack": pack }))).into_response(),
+        Err(error) => equipment_pack_error(error),
+    }
+}
+
+async fn archive_equipment_pack(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(pack_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can remove equipment drives",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.archive_pack(&context, pack_id).await {
+        Ok(pack) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "pack": pack })),
+        )
+            .into_response(),
         Err(error) => equipment_pack_error(error),
     }
 }
