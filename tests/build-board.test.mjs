@@ -54,7 +54,7 @@ test('board lanes lead the composer and cards support private picture attachment
 test('the starter build list reflects the known apparatus work without live-test plumbing blockers', () => {
   assert.match(js, /Refine the apparatus mount and cable routing/);
   assert.match(js, /Run the integrated headset apparatus test/);
-  assert.match(js, /Smoke-check the recovered manual image path/);
+  assert.match(js, /Verify the registered manual image path/);
   assert.match(js, /Accept Quest Sensor Bridge poc\.12 on hardware/);
   assert.match(js, /Complete TestFlight Build 33 device acceptance/);
   assert.match(js, /Run Rocky acceptance on Feedback and Parts/);

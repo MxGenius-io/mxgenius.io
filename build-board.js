@@ -80,13 +80,13 @@
     },
     {
       id: 'sprint-manual-image-smoke',
-      lane: 'sprint',
-      title: 'Smoke-check the recovered manual image path',
-      message: 'Manual retrieval is healthy on the frozen CL350 v2 pack after restoring the missing deployment settings. Confirm one real page-linked image in the signed-in application.',
+      lane: 'complete',
+      title: 'Verify the registered manual image path',
+      message: 'The signed-in production copilot resolved CL350 AMM Task 31-31-01-000-801 through the deterministic image register, rendered the hash-verified flight data recorder figure from page 165, and returned one bounded manual record without model tool calls.',
       owner: 'Dwayne Tillman',
-      author: 'Team board starter',
+      author: 'September 15 release closeout',
       created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
+      updated_at: '2026-09-15T11:33:00Z',
       updates: []
     },
     {

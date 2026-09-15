@@ -135,6 +135,28 @@ requests continue to fail closed or use the existing semantic retrieval path.
   Contributor` scoped only to the private `mxgstorage50106/documents`
   container.
 
+#### Deployment Proof
+
+- Git commit `ec0f917` was pushed to canonical `main`. GitHub Pages run
+  `34962740870` completed successfully, and a cache-busted production request
+  confirmed `dashboard.html` serves frontend bundle `app.js?v=62`.
+- ACR run `cj2n` built the exact committed `services/mcp` source and published
+  `mxg-core:manual-register-ec0f917-20260915` with immutable digest
+  `sha256:d9785238c40eaba06f2ade5844a0f41c8c92187beaeba3e427a61827dc18bbe5`.
+- Container App revision `mxg-core--imgreg915` is Healthy, latest-ready, and
+  serves 100% traffic. Production `/healthz`, `/readyz`, and `/adapterz`
+  returned HTTP 200; readiness reports the manual library ready and the frozen
+  pack healthy. Revision `mxg-core--manuals915` remains available for rollback.
+- A fresh signed-in production conversation requested CL350 AMM Task
+  `31-31-01-000-801`. The copilot rendered the registered flight data recorder
+  image inline, labeled it as page 165, and briefly identified the download
+  display sequence. Revision logs recorded terminal status `success`,
+  `manual_record_count=1`, and `model_tool_calls=0` for correlation ID
+  `38044525-4a4a-4408-9eba-3f5210638204`.
+- Post-promotion role verification remains unchanged: the `mxg-core` identity
+  has `Storage Blob Data Contributor` only on the private
+  `mxgstorage50106/documents` container.
+
 #### Rollback
 
 Shift Container App traffic back to `mxg-core--manuals915` and revert the paired
