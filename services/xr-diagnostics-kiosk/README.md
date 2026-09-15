@@ -156,9 +156,11 @@ The diagnostic reports the boot target, installed version, systemd services,
 hardware identity, local HTTP/Equipment Pack state, ConfigFS, UDC, and current
 gadget binding. It never reads or prints `/etc/mxg-diagnostics-kiosk.env`.
 
-On Raspberry Pi 5, the USB-C connector is the OTG/peripheral data port. Power
-the appliance from its dedicated regulated GPIO supply when that port is
-connected to the headset; do not depend on the headset to power the Pi.
+On Raspberry Pi 5, the USB-C connector is the only OTG/peripheral data port;
+the four USB-A connectors are host-only and cannot impersonate a drive. Power
+the appliance separately through a supported regulated GPIO/PoE supply while
+USB-C is connected to the equipment. Do not depend on the equipment to power
+the Pi, and do not use a passive power/data splitter as a production design.
 
 The command validates the target as a Raspberry Pi boot partition, preserves
 device identity and networking, and leaves the operating-system lifecycle alone.

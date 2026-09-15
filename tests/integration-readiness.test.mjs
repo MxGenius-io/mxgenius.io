@@ -8,12 +8,12 @@ const css = await readFile(new URL('../integration-readiness.css', import.meta.u
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
-test('Settings exposes one authenticated Integration Readiness workspace', () => {
-  assert.equal((dashboard.match(/value="integration-readiness\.html"/g) || []).length, 1);
-  assert.match(dashboard, /value="integration-readiness\.html">Integration Readiness/);
-  assert.match(auth, /dashboard\|progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
-  assert.match(auth, /progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
-  assert.match(html, /src="auth\.js\?v=12"/);
+test('Integration Readiness stays authenticated behind the consolidated Operations Center', () => {
+  assert.doesNotMatch(dashboard, /value="integration-readiness\.html">Integration Readiness/);
+  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(auth, /dashboard\|operations-center\|progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
+  assert.match(auth, /operations-center\|progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
+  assert.match(html, /src="auth\.js\?v=\d+"/);
   assert.match(html, /src="application-client\.js\?v=\d+"/);
 });
 

@@ -84,6 +84,11 @@ ensure_env MXG_EDGE_CORE_URL https://mxg-core.kindbush-8fee3a17.centralus.azurec
 ensure_env MXG_EDGE_STATE_DIR /var/lib/mxg-diagnostics-kiosk
 ensure_env MXG_EDGE_POLL_SECONDS 60
 
+# Preserve the same deterministic first-start contract as a full install. This
+# also repairs older images where the kiosk happened to create the directory
+# only after the root USB emulator had already attempted to start.
+install -d -o mxgdiag -g mxgdiag -m 0700 /var/lib/mxg-diagnostics-kiosk
+
 systemctl stop mxg-diagnostics-kiosk.service mxg-edge-control.service 2>/dev/null || true
 rm -rf "$PREVIOUS_DIR"
 mv "$INSTALL_DIR" "$PREVIOUS_DIR"

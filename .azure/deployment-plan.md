@@ -2,7 +2,63 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Deployed
+> **Status:** Validated
+
+## Azure Manual Library and Operations Release Delta — 2026-09-15
+
+This release surfaces the frozen five-manual Azure Search corpus and its linked
+private Blob diagrams through the existing Equipment Drive control plane. A
+manager or administrator can build and publish the approved library directly
+into a selected drive without downloading or re-uploading the corpus through
+the browser. Relevant retrieved diagrams are also integrity-checked and added
+as bounded image input to the text model; text retrieval and the authoritative
+manual-pack boundary remain unchanged.
+
+The paired static release also consolidates reports, build status, readiness,
+features, feedback, and access management into the authenticated Operations
+Center; publishes the open-ended delivery extension draft and Pi power-harness
+wiring reference; and advances the Pi appliance UI to `0.3.1-poc.27` with an
+explicit USB-C Drive Emulator state and deterministic shared-state creation.
+
+### Deployment scope
+
+- Push the complete validated source state to canonical `main`, allowing the
+  existing GitHub Pages workflow to deploy the static application.
+- Build `services/mcp` from the exact committed source in the existing ACR and
+  promote only the existing `mxg-core` Container App.
+- Preserve every existing Container App environment setting, secret reference,
+  identity, replica setting, and ingress setting.
+- Create no Azure resource, database migration, role assignment, or Search/Blob
+  corpus mutation. Keep `mxg-core--casemedia1` available for rollback.
+
+### Validation Proof
+
+- 2026-09-15: `npm test` passed 411/411 browser and contract tests.
+- 2026-09-15: `cargo test --locked --workspace` passed the complete Rust
+  workspace; the credential-gated live exporter test remains intentionally
+  ignored by the ordinary suite.
+- 2026-09-15: the ignored live exporter test was run explicitly with temporary
+  read credentials and built the deterministic archive from 13,121 approved
+  Search chunks, 197 flattened source files, and five hash-verified Blob images.
+- 2026-09-15: `cargo fmt --all -- --check`, warnings-denied workspace Clippy,
+  and `cargo build --locked --release --workspace` passed.
+- 2026-09-15: the Pi backend suite passed 87/87 tests after its release-restart
+  ordering assertion was corrected to address the executable restart path.
+- 2026-09-15: changed and untracked release files contained no
+  credential-shaped values; `git diff --check` passed.
+- 2026-09-15: Azure CLI confirmed the enabled target subscription, Central US
+  resource group, healthy current Container App and ACR, zero policy
+  assignments, and all six required manual-library environment setting names.
+- 2026-09-15: live role verification confirmed the `mxg-core` identity retains
+  `Storage Blob Data Contributor` only on the private `documents` container.
+- 2026-09-15: the current production `/healthz`, `/readyz`, and `/adapterz`
+  endpoints returned HTTP 200 and reported the frozen v2 manual source healthy.
+
+### Rollback
+
+Shift Container App traffic to `mxg-core--casemedia1` and revert the GitHub
+Pages release to commit `3165f16`. The new route and archive builder are
+additive and do not mutate the source Search index or manual-image collection.
 
 ### 1. Project Overview
 

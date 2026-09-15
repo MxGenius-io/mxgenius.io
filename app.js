@@ -3409,103 +3409,6 @@ function initSettings() {
       }
     });
   }
-
-
-
-  // Beta Access Management
-  const betaInput = document.getElementById('betaWhitelistInput');
-  const betaAddBtn = document.getElementById('betaWhitelistAddBtn');
-  const betaTags = document.getElementById('betaWhitelistTags');
-  const betaStatus = document.getElementById('betaWhitelistStatus');
-  if (betaInput && betaAddBtn && betaTags) {
-    let accessRules = [];
-
-    const renderTags = () => {
-      betaTags.innerHTML = '';
-      accessRules.forEach(rule => {
-        const el = document.createElement('span');
-        el.className = 'badge';
-        el.style.fontSize = '0.75rem';
-        el.style.display = 'inline-flex';
-        el.style.alignItems = 'center';
-        el.style.gap = '4px';
-        el.style.background = rule.rule_type === 'domain' ? 'var(--bg-hover)' : 'rgba(34,211,238,0.1)';
-        el.style.color = rule.rule_type === 'domain' ? 'var(--text-secondary)' : 'var(--accent-cyan)';
-        el.style.border = '1px solid rgba(255,255,255,0.05)';
-        el.textContent = rule.rule;
-        const rmBtn = document.createElement('button');
-        rmBtn.innerHTML = '&times;';
-        rmBtn.style.background = 'none';
-        rmBtn.style.border = 'none';
-        rmBtn.style.color = 'inherit';
-        rmBtn.style.cursor = 'pointer';
-        rmBtn.style.fontSize = '1.1rem';
-        rmBtn.style.lineHeight = '1';
-        rmBtn.style.padding = '0 2px';
-        rmBtn.onclick = async () => {
-          rmBtn.disabled = true;
-          try {
-            await MXApplicationClient.betaAccess.delete(rule.id, serverSession);
-            accessRules = accessRules.filter(entry => entry.id !== rule.id);
-            renderTags();
-            if (betaStatus) betaStatus.textContent = 'Server-managed closed-beta access rules';
-          } catch (error) {
-            rmBtn.disabled = false;
-            if (betaStatus) betaStatus.textContent = error.message;
-          }
-        };
-        if (rule.locked) {
-          el.title = 'Baseline access rule';
-        } else {
-          el.appendChild(rmBtn);
-        }
-        betaTags.appendChild(el);
-      });
-    };
-
-    const refreshBetaAccess = async () => {
-      if (!session.accessToken) return;
-      try {
-        const result = await MXApplicationClient.betaAccess.list(serverSession);
-        accessRules = result.rules || [];
-        renderTags();
-        if (betaStatus) betaStatus.textContent = 'Email entries send an Entra guest invitation; domains authorize invited guests';
-      } catch (error) {
-        if (betaStatus) betaStatus.textContent = error.message;
-      }
-    };
-
-    const addTag = async () => {
-      const val = betaInput.value.trim().toLowerCase();
-      if (!val) return;
-      betaAddBtn.disabled = true;
-      if (betaStatus) betaStatus.textContent = val.startsWith('@') ? 'Adding domain rule…' : 'Creating Entra guest invitation…';
-      try {
-        const result = await MXApplicationClient.betaAccess.add(val, serverSession);
-        if (!accessRules.some(rule => rule.id === result.rule.id)) accessRules.push(result.rule);
-        accessRules.sort((left, right) => left.rule.localeCompare(right.rule));
-        renderTags();
-        if (betaStatus) betaStatus.textContent = result.invited
-          ? `Invitation sent to ${result.rule.rule}`
-          : `${result.rule.rule} is allowed`;
-        betaInput.value = '';
-      } catch (error) {
-        if (betaStatus) betaStatus.textContent = error.message;
-      } finally {
-        betaAddBtn.disabled = false;
-      }
-    };
-
-    betaAddBtn.addEventListener('click', () => void addTag());
-    betaInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        void addTag();
-      }
-    });
-    void refreshBetaAccess();
-  }
-
   loadDemoDataButton?.addEventListener('click', async () => {
     const approved = window.confirm(
       'Load the complete fictional demo dataset into this organization? Rerunning updates the same demo records.'
@@ -3538,20 +3441,25 @@ function closeModal(id) {
 function setOutreachMode(mode) {
   var companies = document.getElementById('outreach-companies');
   var contacts = document.getElementById('outreach-contacts');
+  var market = document.getElementById('outreach-market');
   var btnCompanies = document.getElementById('outreachModeCompanies');
   var btnContacts = document.getElementById('outreachModeContacts');
+  var btnMarket = document.getElementById('outreachModeMarket');
+  if (!companies || !contacts || !market || !btnCompanies || !btnContacts || !btnMarket) return;
+  companies.style.display = mode === 'companies' ? '' : 'none';
+  contacts.style.display = mode === 'contacts' ? '' : 'none';
+  market.style.display = mode === 'market' ? '' : 'none';
+  [[btnCompanies, 'companies'], [btnContacts, 'contacts'], [btnMarket, 'market']].forEach(([button, name]) => {
+    const active = mode === name;
+    button.classList.toggle('outreach-tab-active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
   if (mode === 'contacts') {
-    companies.style.display = 'none';
-    contacts.style.display = '';
-    btnCompanies.classList.remove('outreach-tab-active');
-    btnContacts.classList.add('outreach-tab-active');
     // Lazy-load contacts on first switch
     if (!isContactsInitialized) loadContacts();
+  } else if (mode === 'market') {
+    void loadMarketIntelCatalog();
   } else {
-    companies.style.display = '';
-    contacts.style.display = 'none';
-    btnCompanies.classList.add('outreach-tab-active');
-    btnContacts.classList.remove('outreach-tab-active');
     // Lazy-load companies on first switch
     if (!isCompaniesInitialized) loadCompanies();
   }
@@ -3568,15 +3476,10 @@ let marketIntelCatalogPromise = null;
 
 function setupMarketIntel() {
   const btn = document.getElementById('mktSearchBtn');
-  const panel = document.getElementById('marketIntelCollapsible');
   const makeSelect = document.getElementById('mktMake');
-  if (!btn || !panel || !makeSelect) return;
+  if (!btn || !makeSelect) return;
   btn.addEventListener('click', loadMarketIntel);
   makeSelect.addEventListener('change', updateMarketModelOptions);
-  panel.addEventListener('toggle', () => {
-    if (panel.open) loadMarketIntelCatalog();
-  });
-  if (panel.open) loadMarketIntelCatalog();
 }
 
 async function loadMarketIntelCatalog() {

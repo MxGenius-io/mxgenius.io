@@ -6,6 +6,7 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const rootReadme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
 const featureCatalog = await readFile(new URL('../FEATURES.md', import.meta.url), 'utf8');
 const featureCatalogPage = await readFile(new URL('../feature-catalog.html', import.meta.url), 'utf8');
+const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 const landing = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
@@ -165,13 +166,14 @@ test('report display preserves external image schemes and constrains report medi
   assert.match(reportDisplay, /\.report-image\s*\{[\s\S]*max-height:\s*72vh/);
 });
 
-test('progress banner identifies the latest published report', () => {
-  assert.match(progress, />Week 23 Ready</);
+test('progress tracker retires cleanly after the open-ended extension entry', () => {
+  assert.match(progress, /Weekly tracker retired · extension continues/);
   assert.match(progress, /Workflow Hardening &amp; Parts/);
   assert.match(progress, /Fleet, Market &amp; Demo Integration/);
   assert.doesNotMatch(progress, /viewReport\(20\)|viewReport\(21\)/);
   assert.match(progress, /viewReport\(22\)/);
   assert.match(progress, /viewReport\(23\)/);
+  assert.match(progress, /delivery-extension-2026-09-14\/delivery-extension-draft\.html/);
 });
 
 test('week 23 report credits the team and stays focused on completed weekly work', () => {
@@ -317,8 +319,8 @@ test('known POC-only data and loaders are absent', () => {
   assert.match(auth, /getCompatibilitySession/);
   assert.doesNotMatch(auth, /mx_beta_whitelist/);
   assert.match(auth, /\/api\/profile/);
-  assert.match(application, /MXApplicationClient\.betaAccess\.add/);
-  assert.match(dashboard, /@domain\.com/);
+  assert.match(operationsCenter, /MXApplicationClient|application-client\.js/);
+  assert.match(operationsCenter, /@domain\.com/);
   assert.doesNotMatch(dashboard, /Work Order Invoice|Email Invoice|Pending AI/i);
 });
 
@@ -376,10 +378,14 @@ test('maintenance case workspace is mounted through the canonical client boundar
 });
 
 test('fleet compatibility translation is scoped and market intelligence uses subscribed dropdown options', () => {
+  assert.match(dashboard, /id="outreachModeMarket"[^>]+setOutreachMode\('market'\)[^>]*>Market Intelligence<\/button>/);
+  assert.match(dashboard, /id="outreach-market"/);
+  assert.doesNotMatch(dashboard, /id="marketIntelCollapsible"/);
   assert.doesNotMatch(application, /window\.fetch\s*=/);
   assert.match(client, /method: method === 'PUT' \? 'POST' : method/);
   assert.match(client, /Model\/getModelIntelligence/);
   assert.match(application, /loadMarketIntelCatalog/);
+  assert.match(application, /mode === 'market'[\s\S]*loadMarketIntelCatalog/);
   assert.match(application, /updateMarketModelOptions/);
   assert.match(application, /Array\.isArray\(payload\?\.modelIntelligence\)/);
   assert.doesNotMatch(application, /modelOperationCosts|modelPerformanceSpecs|modelMarketTrends/);
@@ -557,8 +563,9 @@ test('root documentation exposes one status-marked product feature catalog', () 
   assert.match(featureCatalog, /\[-\]/);
 });
 
-test('Settings exposes a living, filterable feature catalog beside shared workspaces', () => {
-  assert.match(dashboard, /<option value="build-board\.html">Build Board<\/option>[\s\S]*<option value="integration-readiness\.html">Integration Readiness<\/option>[\s\S]*<option value="feature-catalog\.html">Feature Catalog<\/option>[\s\S]*<option value="progress\.html">Reports<\/option>/);
+test('Settings exposes one Operations Center while the living feature catalog remains available inside it', () => {
+  assert.match(dashboard, /<option value="operations-center\.html">Operations Center<\/option>/);
+  assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress)\.html">/);
   assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260902', \{ cache: 'no-store' \}\)/);
   assert.match(featureCatalogPage, /id="featureSearch"/);
   assert.match(featureCatalogPage, /id="featureStatus"/);
@@ -1075,11 +1082,11 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   const equipmentWorkspace = await readFile(new URL('../equipment-pack-workspace.js', import.meta.url), 'utf8');
   for (const id of [
     'settingsPacksCard', 'settingsPackCreate', 'settingsPackName', 'settingsPackFamily',
-    'settingsPackSelect', 'settingsPackFolder', 'settingsPackPublish', 'settingsPackVersion',
+    'settingsPackSelect', 'settingsPackFolder', 'settingsPackPublish', 'settingsPackPublishManuals', 'settingsPackVersion',
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=3/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=4/);
   assert.match(dashboard, />\s*Equipment Drives\s*</);
   assert.match(dashboard, />Create a drive<\/summary>/);
   assert.match(dashboard, /<span>1 · Drive<\/span>/);
@@ -1094,6 +1101,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   assert.match(equipmentWorkspace, /client\.uploadStatus/);
   assert.match(equipmentWorkspace, /storedBlocks/);
   assert.match(equipmentWorkspace, /client\.publishVersion/);
+  assert.match(equipmentWorkspace, /client\.publishManualLibrary/);
   assert.match(equipmentWorkspace, /client\.assignVersion/);
   assert.match(equipmentWorkspace, /edgeDevices\.deployments/);
   assert.match(equipmentWorkspace, /Loading Equipment Drives/);

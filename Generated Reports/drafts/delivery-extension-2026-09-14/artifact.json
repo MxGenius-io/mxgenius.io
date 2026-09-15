@@ -1,0 +1,251 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "MXGenius Delivery Extension — Draft",
+    "description": "A continuity update comparing the last published weekly report with the current source-controlled product state.",
+    "generatedAt": "2026-09-14T20:24:01Z",
+    "cards": [
+      {
+        "id": "commits",
+        "description": "Commits after the focused Week 23 reporting close.",
+        "dataset": "audit_summary",
+        "sourceId": "repository_audit",
+        "metrics": [
+          { "label": "Post-report commits", "field": "commits", "format": "number" }
+        ]
+      },
+      {
+        "id": "files",
+        "description": "Unique repository paths changed after the Week 23 reporting close.",
+        "dataset": "audit_summary",
+        "sourceId": "repository_audit",
+        "metrics": [
+          { "label": "Files changed", "field": "files_changed", "format": "number" }
+        ]
+      },
+      {
+        "id": "dates",
+        "description": "Distinct commit dates represented in the comparison range.",
+        "dataset": "audit_summary",
+        "sourceId": "repository_audit",
+        "metrics": [
+          { "label": "Development dates", "field": "development_dates", "format": "number" }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "commit_cadence",
+        "title": "Post–Week 23 commits by development date",
+        "subtitle": "Source-controlled activity from August 24 through September 14, 2026.",
+        "type": "bar",
+        "dataset": "commit_activity",
+        "sourceId": "repository_audit",
+        "valueFormat": "number",
+        "encodings": {
+          "x": { "field": "date_label", "type": "ordinal", "label": "Development date" },
+          "y": { "field": "commits", "type": "quantitative", "label": "Commits", "format": "number" },
+          "tooltip": [
+            { "field": "date", "type": "temporal", "label": "Date" },
+            { "field": "commits", "type": "quantitative", "label": "Commits", "format": "number" }
+          ]
+        },
+        "layout": "full"
+      }
+    ],
+    "tables": [],
+    "sources": [
+      {
+        "id": "repository_audit",
+        "label": "Post–Week 23 repository audit",
+        "path": "repository-audit.csv",
+        "query": {
+          "engine": "duckdb",
+          "id": "92e25da..9ccc75d",
+          "url": "https://github.com/MxGenius-io/mxgenius.io/compare/92e25da...9ccc75d",
+          "description": "Reads the reviewed summary and commit-by-date rows produced from the canonical Git comparison.",
+          "sql": "SELECT row_type, date, date_label, commits, files_changed, development_dates FROM read_csv_auto('repository-audit.csv')",
+          "executed_at": "2026-09-14T20:24:01Z",
+          "language": "sql",
+          "tables_used": ["repository-audit.csv"]
+        }
+      },
+      {
+        "id": "coverage_audit",
+        "label": "Product coverage comparison",
+        "path": "coverage-gap.json",
+        "query": {
+          "engine": "duckdb",
+          "description": "Reads the reviewed Week 23 versus current-state comparison assembled from project documents and commit history.",
+          "sql": "SELECT sequence, area, week_23, current, extension_position FROM read_json_auto('coverage-gap.json')",
+          "executed_at": "2026-09-14T20:24:01Z",
+          "language": "sql",
+          "tables_used": ["coverage-gap.json"]
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# MXGenius Delivery Extension — Draft"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "sourceId": "repository_audit",
+        "body": "## Executive Summary\n\n- **The published story stops too early.** Week 23 captured the public landing page, feedback and Parts foundations, early spatial work, iOS Build 33, and Quest thermal poc.12. The repository now contains **97 later commits across 355 changed files**, so the tracker needs one continuity entry before it is retired.\n- **The work shifted from feature breadth to operational maturity.** Subsequent changes tightened maintenance-case recall, mobile onboarding, Parts controls, FAA evidence presentation, MCP recovery, Remote Witness, the consolidated spatial workspace, and the Pi Equipment Pack lifecycle.\n- **The clearest extension narrative is one connected maintenance workflow.** Authenticated browser control, governed cloud services, XR evidence and collaboration, and a field Pi can be explained as one evolving system instead of a collection of experiments.\n- **The remaining validation work stays visible.** Physical USB-host enumeration for the Pi drive emulator and final headset acceptance remain open hardware gates; the guest microphone issue remains a known test item."
+      },
+      {
+        "id": "metrics",
+        "type": "metric-strip",
+        "cardIds": ["commits", "files", "dates"]
+      },
+      {
+        "id": "cadence_explanation",
+        "type": "markdown",
+        "sourceId": "repository_audit",
+        "body": "## Delivery continued in concentrated integration passes\n\nThe post-report work was not a single cleanup commit. Activity clustered around the Parts and XR hardening passes at the end of August, the maintenance and mobile lifecycle pass on September 7, and the Pi control work on September 13. The chart shows repository cadence only; it is evidence of continued implementation, not a productivity score."
+      },
+      {
+        "id": "cadence_chart",
+        "type": "chart",
+        "chartId": "commit_cadence",
+        "layout": "full"
+      },
+      {
+        "id": "coverage_intro",
+        "type": "markdown",
+        "body": "## The product moved well beyond the last published report\n\nThe comparison separates what Week 23 documented from the implementation evidence that followed. This extension entry records the continuity without pretending the work has reached a hard finish line."
+      },
+      {
+        "id": "coverage_comparison",
+        "type": "markdown",
+        "sourceId": "coverage_audit",
+        "body": "### Maintenance experience\n\n**Week 23:** not yet the primary lifecycle. **Now:** case recall and clearing, side-panel intake, images, Quest evidence, mobile fixes, and guided help are source-controlled. **Extension position:** use this as the demo spine and run one end-to-end regression.\n\n### Parts and procurement\n\n**Week 23:** the broad inventory and procurement foundation had shipped. **Now:** extraction review, reporting, pagination, interchangeability, quarantine evidence, confirmation grants, and receiving visibility are materially deeper. **Extension position:** demonstrate one bounded maintenance-to-part handoff.\n\n### XR and collaboration\n\n**Week 23:** separate fleet, sensor, and thermal candidates. **Now:** spatial targeting, case-linked capture, Remote Witness, audio controls, Alpha 23, durable MCP startup, and a consolidated two-mode shell are present. **Extension position:** treat this as a release candidate and keep the guest-microphone and final headset-acceptance limits visible.\n\n### Cloud, MCP, and FAA\n\n**Week 23:** Feedback and Parts migrations were healthy in Azure. **Now:** MCP startup is hardened, FAA DRS output is constrained to evidence-backed candidates, and the Equipment Pack control plane is deployed. **Extension position:** retain one authenticated live smoke.\n\n### Raspberry Pi edge node\n\n**Week 23:** an appliance candidate existed, but the field lifecycle was open. **Now:** seven-digit approval, stable identity, revocation, Wi-Fi persistence, immutable packs, assignment, verified downloads, A/B activation, rollback, and deterministic image assembly are implemented. **Extension position:** clean boot and enrollment are proven; physical host enumeration and the final power/data topology remain open.\n\n### Native iOS AR\n\n**Week 23:** Build 33 was accepted for TestFlight processing. **Now:** later bridge, globe, model-context, spatial-audio, and transport fixes reached Builds 34 and 35, with more source-controlled refinement afterward. **Extension position:** keep it distinct and capability-gated; do not make it a dependency of the unified Quest scene."
+      },
+      {
+        "id": "recommended_next_steps",
+        "type": "markdown",
+        "body": "## Keep the extension centered on one credible demonstration\n\n1. **Use the authenticated maintenance journey as the spine:** select an aircraft, open or create a case, gather evidence, consult approved technical sources, identify a part need, and preserve the record.\n2. **Present XR as a focused task surface:** one spatial shell, Operations and Maintenance modes, FLIR as the only optional head-follow surface, and detailed administration retained in 2D.\n3. **Present the Pi as governed edge delivery:** manager approval, immutable Equipment Pack publication, device assignment, verified A/B staging, and a read-only emulated drive—with the physical connector requirement stated explicitly.\n4. **Maintain a short acceptance matrix:** authenticated web, narrow viewport, Quest, Remote Witness, Pi enrollment/update, Azure recovery, and known degraded states.\n5. **Keep exploratory ideas in the working backlog.** The extension update should distinguish shipped, release-candidate, physically verified, and deferred work."
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Decisions to carry into the extension\n\n- Which hardware arrangement will free a USB device-mode connection for the Equipment Pack emulator?\n- Does the next demonstration require the known guest-microphone path, or should it remain a disclosed limitation?\n- Which production promotions need a fresh smoke check rather than relying on recorded deployment evidence?\n- Should future updates credit work by named contributor, by product area, or both?"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "sourceId": "repository_audit",
+        "body": "## Caveats and assumptions\n\nThis is a source-control continuity draft, not a final report. Commit counts measure repository activity rather than business value, generated assets inflate line totals, and a checked implementation task is not automatically proof of a production or physical-hardware pass. A separate model-session test could read the advertised MCP capability catalog but did not receive callable tools; that is a model-runtime handoff gate, not proof that the web container or MCP service was offline. This draft is the last entry in the retired weekly tracker while the extension continues elsewhere."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-09-14T20:24:01Z",
+    "status": "ready",
+    "datasets": {
+      "audit_summary": [
+        { "commits": 97, "files_changed": 355, "development_dates": 13 }
+      ],
+      "commit_activity": [
+        { "date": "2026-08-24", "date_label": "Aug 24", "commits": 11 },
+        { "date": "2026-08-25", "date_label": "Aug 25", "commits": 3 },
+        { "date": "2026-08-31", "date_label": "Aug 31", "commits": 15 },
+        { "date": "2026-09-01", "date_label": "Sep 1", "commits": 12 },
+        { "date": "2026-09-02", "date_label": "Sep 2", "commits": 7 },
+        { "date": "2026-09-03", "date_label": "Sep 3", "commits": 4 },
+        { "date": "2026-09-04", "date_label": "Sep 4", "commits": 2 },
+        { "date": "2026-09-07", "date_label": "Sep 7", "commits": 18 },
+        { "date": "2026-09-08", "date_label": "Sep 8", "commits": 7 },
+        { "date": "2026-09-10", "date_label": "Sep 10", "commits": 2 },
+        { "date": "2026-09-11", "date_label": "Sep 11", "commits": 5 },
+        { "date": "2026-09-13", "date_label": "Sep 13", "commits": 9 },
+        { "date": "2026-09-14", "date_label": "Sep 14", "commits": 2 }
+      ],
+      "coverage_gap": [
+        {
+          "sequence": 1,
+          "area": "Maintenance experience",
+          "week_23": "Not yet the report's primary lifecycle.",
+          "current": "Case default/history behavior, side-panel intake, image galleries, Quest evidence capture, mobile fixes, guided help, and cleaner landing/navigation behavior are source-controlled.",
+          "extension_position": "Strong demo spine; run one regression pass across create, recall, clear, evidence, and source retrieval."
+        },
+        {
+          "sequence": 2,
+          "area": "Parts and procurement",
+          "week_23": "Broad stock, procurement, traceability, OCR, and inventory workflow foundations shipped.",
+          "current": "Model-assisted extraction review, historical reporting, pagination, interchangeability, quarantine evidence, confirmation grants, receiving visibility, and focused QA fixes were added.",
+          "extension_position": "Mature supporting vertical; demonstrate a bounded maintenance-to-part handoff rather than every transaction type."
+        },
+        {
+          "sequence": 3,
+          "area": "XR and collaboration",
+          "week_23": "Separate fleet, sensor, and early thermal scenes; Quest poc.12 remained a hardware candidate.",
+          "current": "Spatial targeting, case-linked capture, consented Remote Witness, audio controls, Alpha 23, durable MCP startup, and a consolidated Operations/Maintenance shell are present; legacy cleanup and physical acceptance remain partial.",
+          "extension_position": "Demonstrable release candidate; keep microphone and headset-acceptance limits visible."
+        },
+        {
+          "sequence": 4,
+          "area": "Cloud, MCP, and FAA",
+          "week_23": "Feedback and Parts migrations were healthy in Azure.",
+          "current": "The frontend MCP connection lifecycle was hardened, FAA DRS results were constrained to evidence-backed candidates with bounded caching, and the Equipment Pack control plane and device registry were deployed.",
+          "extension_position": "Architecture is credible; retain one authenticated live smoke for FAA and the current application revision."
+        },
+        {
+          "sequence": 5,
+          "area": "Raspberry Pi edge node",
+          "week_23": "An appliance and USB-lifecycle candidate existed, but the field lifecycle was not closed.",
+          "current": "Seven-digit approval, stable hardware identity, revocation/reapproval, persistent Wi-Fi intent, immutable pack publication, assignment, verified downloads, A/B activation, rollback, and deterministic poc.26 image assembly are implemented.",
+          "extension_position": "Clean boot and enrollment are proven; physical host enumeration and the chosen power/data topology remain open."
+        },
+        {
+          "sequence": 6,
+          "area": "Native iOS AR",
+          "week_23": "Build 33 was accepted for TestFlight processing.",
+          "current": "Later bridge, globe, model-context, spatial-audio, and transport fixes were uploaded through Builds 34 and 35, with additional source-controlled refinement after those uploads.",
+          "extension_position": "Keep as a distinct capability-gated AR client; do not make its acceptance a dependency for the unified Quest scene."
+        }
+      ]
+    },
+    "accessIssues": []
+  },
+  "sources": [
+    {
+      "id": "repository_audit",
+      "label": "Post–Week 23 repository audit",
+      "path": "repository-audit.csv",
+      "query": {
+        "engine": "duckdb",
+        "id": "92e25da..9ccc75d",
+        "url": "https://github.com/MxGenius-io/mxgenius.io/compare/92e25da...9ccc75d",
+        "description": "Reads the reviewed summary and commit-by-date rows produced from the canonical Git comparison.",
+        "sql": "SELECT row_type, date, date_label, commits, files_changed, development_dates FROM read_csv_auto('repository-audit.csv')",
+        "executed_at": "2026-09-14T20:24:01Z",
+        "language": "sql",
+        "tables_used": ["repository-audit.csv"]
+      }
+    },
+    {
+      "id": "coverage_audit",
+      "label": "Product coverage comparison",
+      "path": "coverage-gap.json",
+      "query": {
+        "engine": "duckdb",
+        "description": "Reads the reviewed Week 23 versus current-state comparison assembled from project documents and commit history.",
+        "sql": "SELECT sequence, area, week_23, current, extension_position FROM read_json_auto('coverage-gap.json')",
+        "executed_at": "2026-09-14T20:24:01Z",
+        "language": "sql",
+        "tables_used": ["coverage-gap.json"]
+      }
+    }
+  ],
+  "package_info": {
+    "originUrl": "artifact://mxgenius-delivery-extension-draft",
+    "controls": { "edit": false, "refresh": false }
+  }
+}

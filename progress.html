@@ -723,6 +723,38 @@
             transform: rotate(180deg);
         }
 
+        .container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container > header { order: 0; }
+        .tracker-banner { order: 1; }
+        #weeklyReport { order: 2; margin-top: 0; }
+
+        .legacy-plan {
+            order: 3;
+            margin-top: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            background: var(--bg-card);
+        }
+
+        .legacy-plan > summary {
+            padding: 1rem 1.25rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .legacy-plan > .chart-section,
+        .legacy-plan > #phasesContainer {
+            margin: 0 1rem 1rem;
+        }
+
         /* Timeline Style */
         .timeline {
             position: relative;
@@ -1038,7 +1070,7 @@
     <div class="container">
         <header>
             <div class="logo">MX<span>GENIUS</span></div>
-            <div style="font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.25rem;">Last Updated: Aug 24, 2026 · 5:48 AM EDT</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.25rem;">Last Updated: Sep 14, 2026</div>
             <div class="header-right">
                 <div class="velocity-badge">
                     <i class="fas fa-tachometer-alt"></i>
@@ -1048,13 +1080,17 @@
         </header>
 
 
-        <!-- Report Ready Banner -->        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+        <!-- Report tracker status -->
+        <div class="tracker-banner" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
             <i class="fas fa-check-circle" style="color: var(--accent-green); font-size: 1.25rem;"></i>
             <div>
-                <div style="color: var(--accent-green); font-family: 'Rajdhani', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem;">Week 23 Ready</div>
+                <div style="color: var(--accent-green); font-family: 'Rajdhani', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem;">Weekly tracker retired · extension continues</div>
+                <div style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.2rem;">The final entry carries the work forward without implying a fixed end date.</div>
             </div>
         </div>
 
+        <details class="legacy-plan">
+        <summary>Legacy delivery plan and phase detail</summary>
         <!-- Project Velocity Chart -->
         <div class="chart-section">
             <div class="chart-header">
@@ -1079,15 +1115,16 @@
 
         <!-- Phases & Tasks -->
         <div id="phasesContainer"></div>
+        </details>
 
         <!-- Weekly Report Section -->
-        <div class="weekly-report-section" id="weeklyReport">
+        <div class="weekly-report-section expanded" id="weeklyReport">
             <div class="weekly-report-header" onclick="toggleWeeklyReport()">
                 <div class="weekly-report-title">
                 <i class="fas fa-calendar-alt"></i> Weekly Reports <span class="phase-update-dot amber" title="New updates"></span>
                 <i class="fas fa-chevron-down weekly-report-toggle"></i>
                 </div>
-                <div class="weekly-report-subtitle">Click to view weekly timeline and status</div>
+                <div class="weekly-report-subtitle">Retired after the extension entry; prior reports remain available for reference</div>
             </div>
             <div class="weekly-report-content">
                 <div class="timeline">
@@ -1550,12 +1587,12 @@
                             <div class="timeline-header">
                                 <span class="timeline-week">Week 24</span>
                                 <span class="timeline-dates">Aug 24 - Aug 30, 2026</span>
-                                <span class="week-status pending">Pending</span>
+                                <span class="week-status completed"><i class="fas fa-tools" style="margin-right:0.3rem;"></i>Integration pass</span>
                             </div>
                             <div class="timeline-body">
                                 <div class="timeline-row">
                                     <span class="timeline-label">Summary:</span>
-                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                    <span class="timeline-text">Deepened Parts controls and reporting while tightening XR input, targeting, and workspace behavior.</span>
                                 </div>
                             </div>
                         </div>
@@ -1568,12 +1605,12 @@
                             <div class="timeline-header">
                                 <span class="timeline-week">Week 25</span>
                                 <span class="timeline-dates">Aug 31 - Sep 6, 2026</span>
-                                <span class="week-status pending">Pending</span>
+                                <span class="week-status completed"><i class="fas fa-tools" style="margin-right:0.3rem;"></i>Workspace consolidation</span>
                             </div>
                             <div class="timeline-body">
                                 <div class="timeline-row">
                                     <span class="timeline-label">Summary:</span>
-                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                    <span class="timeline-text">Consolidated spatial work around Operations and Maintenance, hardened MCP startup, and advanced the native iOS and Quest candidates.</span>
                                 </div>
                             </div>
                         </div>
@@ -1586,12 +1623,32 @@
                             <div class="timeline-header">
                                 <span class="timeline-week">Week 26</span>
                                 <span class="timeline-dates">Sep 7 - Sep 13, 2026</span>
-                                <span class="week-status pending">Pending</span>
+                                <span class="week-status completed"><i class="fas fa-tools" style="margin-right:0.3rem;"></i>Lifecycle hardening</span>
                             </div>
                             <div class="timeline-body">
                                 <div class="timeline-row">
                                     <span class="timeline-label">Summary:</span>
-                                    <span class="timeline-text">[Weekly summary will appear here]</span>
+                                    <span class="timeline-text">Closed maintenance and mobile UX gaps, strengthened FAA evidence handling, and built the governed Pi enrollment and Equipment Pack lifecycle.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Extension update -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-week">Extension</span>
+                                <span class="timeline-dates">Sep 14, 2026 - Open ended</span>
+                                <a class="week-status report-ready" href="Generated Reports/drafts/delivery-extension-2026-09-14/delivery-extension-draft.html" target="_blank" rel="noopener" title="View delivery extension draft">
+                                    <i class="fas fa-file-alt"></i> Draft Update
+                                </a>
+                            </div>
+                            <div class="timeline-body">
+                                <div class="timeline-row">
+                                    <span class="timeline-label">Summary:</span>
+                                    <span class="timeline-text">Continued implementation and validation under an open-ended extension, centered on one connected maintenance workflow and its remaining physical acceptance checks.</span>
                                 </div>
                             </div>
                         </div>

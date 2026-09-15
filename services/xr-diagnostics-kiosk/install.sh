@@ -27,6 +27,11 @@ for group in dialout video render plugdev bluetooth; do
   getent group "$group" >/dev/null 2>&1 && usermod -a -G "$group" mxgdiag
 done
 
+# The privileged USB emulator starts before the unprivileged kiosk. Create the
+# shared state root during installation so systemd can construct both service
+# sandboxes deterministically on the first boot.
+install -d -o mxgdiag -g mxgdiag -m 0700 /var/lib/mxg-diagnostics-kiosk
+
 install -d -m 0755 "$INSTALL_DIR"
 cleanup_install() { rm -rf "$NEXT_DIR"; }
 trap cleanup_install EXIT

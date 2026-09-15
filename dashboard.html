@@ -247,9 +247,10 @@
           </svg>
         </summary>
         <div class="fleet-collapsible-body">
-          <div class="outreach-tabs">
-            <button id="outreachModeCompanies" class="outreach-tab outreach-tab-active" onclick="setOutreachMode('companies')">Companies</button>
-            <button id="outreachModeContacts" class="outreach-tab" onclick="setOutreachMode('contacts')">Contacts</button>
+          <div class="outreach-tabs" role="tablist" aria-label="Directory views">
+            <button type="button" role="tab" aria-selected="true" id="outreachModeCompanies" class="outreach-tab outreach-tab-active" onclick="setOutreachMode('companies')">Companies</button>
+            <button type="button" role="tab" aria-selected="false" id="outreachModeContacts" class="outreach-tab" onclick="setOutreachMode('contacts')">Contacts</button>
+            <button type="button" role="tab" aria-selected="false" id="outreachModeMarket" class="outreach-tab" onclick="setOutreachMode('market')">Market Intelligence</button>
           </div>
 
           <!-- Companies View -->
@@ -296,6 +297,32 @@
             <div id="contactsTable" class="table-container"></div>
           </div>
 
+          <!-- Market Intelligence View -->
+          <div id="outreach-market" style="display:none;">
+            <div class="tab-header" style="padding:0 0 16px;">
+              <h1 style="font-size:1.2rem;">Model Costs &amp; Performance</h1>
+              <p class="subtitle" style="font-size:0.8rem;color:var(--text-muted);">Operating costs, performance specs, and market trends by aircraft model</p>
+            </div>
+            <div class="search-bar search-bar-multi">
+              <div class="search-field">
+                <label for="mktMake">Make</label>
+                <select id="mktMake" class="search-select" disabled>
+                  <option value="">Loading available makes…</option>
+                </select>
+              </div>
+              <div class="search-field">
+                <label for="mktModel">Model</label>
+                <select id="mktModel" class="search-select" disabled>
+                  <option value="">Select a make first</option>
+                </select>
+              </div>
+              <button id="mktSearchBtn" class="btn-primary" disabled>View Intelligence</button>
+            </div>
+            <div id="mktResults" class="market-intel-results" role="status" aria-live="polite">
+              <div class="empty-state">Open Market Intelligence to load the aircraft models available to your account.</div>
+            </div>
+          </div>
+
           <div id="compDetailModal" class="modal hidden">
             <div class="modal-backdrop"></div>
             <div class="modal-content">
@@ -306,46 +333,6 @@
         </div>
       </details>
 
-
-
-
-
-      <!-- Market Intelligence Collapsible -->
-      <details class="fleet-collapsible" id="marketIntelCollapsible">
-        <summary class="fleet-collapsible-summary">
-          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" style="flex-shrink:0;">
-            <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-          <span>Market Intelligence</span>
-          <svg class="fleet-collapsible-chevron" viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-          </svg>
-        </summary>
-        <div class="fleet-collapsible-body">
-          <div class="tab-header" style="padding:0 0 16px;">
-            <h1 style="font-size:1.2rem;">Model Costs &amp; Performance</h1>
-            <p class="subtitle" style="font-size:0.8rem;color:var(--text-muted);">Operating costs, performance specs, and market trends by aircraft model</p>
-          </div>
-          <div class="search-bar search-bar-multi">
-            <div class="search-field">
-              <label for="mktMake">Make</label>
-              <select id="mktMake" class="search-select" disabled>
-                <option value="">Loading available makes…</option>
-              </select>
-            </div>
-            <div class="search-field">
-              <label for="mktModel">Model</label>
-              <select id="mktModel" class="search-select" disabled>
-                <option value="">Select a make first</option>
-              </select>
-            </div>
-            <button id="mktSearchBtn" class="btn-primary" disabled>View Intelligence</button>
-          </div>
-          <div id="mktResults" class="market-intel-results" role="status" aria-live="polite">
-            <div class="empty-state">Open this section to load the aircraft models available to your account.</div>
-          </div>
-        </div>
-      </details>
       <button type="button" class="case-focus" id="activeCaseCard" data-state="empty" style="margin-top: 16px;" aria-label="Open the latest maintenance case">
         <span class="case-focus__media" aria-hidden="true">
           <img id="activeCaseImage" src="media/deck-mechanic.jpg" alt="">
@@ -531,6 +518,10 @@
           </h3>
           <div class="equipment-pack-workspace__body">
           <p class="settings-hint equipment-pack-workspace__summary">Publish one verified folder, then assign it to a registered Pi. The node downloads and switches its read-only USB library automatically.</p>
+          <div class="equipment-pack-folder-picker">
+            <button id="settingsPackPublishManuals" class="equipment-pack-folder-button" type="button" disabled>Publish approved Azure library</button>
+            <span>Uses the same frozen CL350 text and linked diagrams as the model.</span>
+          </div>
           <details class="equipment-pack-create">
             <summary>Create a drive</summary>
             <form id="settingsPackCreate" class="equipment-pack-create__form">
@@ -694,20 +685,14 @@
           </h3>
           <div class="settings-row">
             <div class="settings-label">
-              <span>Team Document</span>
-              <span class="settings-hint" id="settingsWorkspaceStatus">Structured decisions, examples, and revision history shared across the organization</span>
+              <span>Operations Center</span>
+              <span class="settings-hint" id="settingsWorkspaceStatus">Reports, build activity, readiness, feedback, features, and access rules in one centered workspace</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               <select id="settingsWorkspaceSelect" class="search-input" style="width:auto;min-width:220px;">
-                <option value="patent-workspace.html">Provisional Patent Application</option>
-                <option value="build-board.html">Build Board</option>
-                <option value="integration-readiness.html">Integration Readiness</option>
-                <option value="feature-catalog.html">Feature Catalog</option>
-                <option value="progress.html">Reports</option>
-                <option value="feedback.html">My Feedback</option>
-                <option value="feedback-admin.html">Feedback Queue (Admin)</option>
+                <option value="operations-center.html">Operations Center</option>
               </select>
-              <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsWorkspaceOpen" type="button">Open</button>
+              <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsWorkspaceOpen" type="button">Open center</button>
             </div>
           </div>
         </div>
@@ -716,27 +701,6 @@
         <div class="settings-card">
           <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>Getting Started</h3>
           <div class="settings-row"><div class="settings-label"><span>Onboarding Walkthrough</span><span class="settings-hint">Replay the guided tour to learn the interface</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXOnboarding.restart()">Restart Tour</button></div>
-        </div>
-        <!-- Beta Management -->
-        <div class="settings-card">
-          <h3 class="settings-card-title">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-            Beta Access
-          </h3>
-          <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:12px;">
-            <div class="settings-label">
-              <span>Allowed Domains &amp; Emails</span>
-              <span class="settings-hint" id="betaWhitelistStatus">Loading server-managed access rules…</span>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="betaWhitelistInput" class="search-input" style="flex:1;" placeholder="e.g. user@domain.com or @domain.com">
-              <button type="button" class="btn-primary" style="padding:6px 16px;font-size:0.8rem;" id="betaWhitelistAddBtn">Add</button>
-            </div>
-            <div id="betaWhitelistTags" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-              <!-- Tags injected via JS -->
-            </div>
-          </div>
-          <div class="settings-row" style="display:none;"></div>
         </div>
       </div>
     </section>
@@ -886,7 +850,7 @@
 
 
   <script src="runtime-config.js?v=4"></script>
-  <script src="auth.js?v=12"></script>
+  <script src="auth.js?v=13"></script>
   <script src="globe.gl.js"></script>
   <script src="cache.js"></script>
 <script src="application-client.js?v=44"></script>
@@ -904,7 +868,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="equipment-pack-workspace.js?v=3"></script>
+  <script src="equipment-pack-workspace.js?v=4"></script>
   <script src="app.js?v=61"></script>
   <div id="onboardingRoot"></div>
 </body>

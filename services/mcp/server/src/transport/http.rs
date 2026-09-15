@@ -7,7 +7,7 @@
 // changing the HTTP wire contract.
 #![allow(clippy::result_large_err)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -38,9 +38,10 @@ use crate::application::cannibalizations::{
 use crate::application::equipment_packs::{
     ApproveEdgeClaimInput, AssignEquipmentPackInput, CreateEquipmentPackInput,
     CreateEquipmentPackVersionInput, DeviceIdentity, EdgeDeploymentStatusInput,
-    EdgeEnrollmentInput, EquipmentPackError, EquipmentPackRepository, RegisterEdgeDeviceInput,
-    RequestEdgeClaimInput, EQUIPMENT_PACK_BLOCK_BYTES,
+    EdgeEnrollmentInput, EquipmentPackError, EquipmentPackRepository, EquipmentPackVersionRow,
+    RegisterEdgeDeviceInput, RequestEdgeClaimInput, EQUIPMENT_PACK_BLOCK_BYTES,
 };
+use crate::application::manual_library::{AzureManualLibrary, ManualLibraryError};
 use crate::application::part_imports::{ImportRequestQuery, PartImportRepository};
 use crate::application::part_procurement::{
     CreateOrderInput, OrderStatusInput, PartProcurementRepository, RequestQueueQuery,
@@ -108,6 +109,7 @@ const MAX_PARTS_IMPORT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SPATIAL_SCAN_BODY_BYTES: usize = 1_500_000;
 const CHAT_MEMORY_TURN_LIMIT: i64 = 24;
 const MODEL_MANUAL_RECORD_LIMIT: usize = 12;
+const MODEL_MANUAL_IMAGE_LIMIT: usize = 2;
 
 #[derive(Clone)]
 struct AppState {
@@ -116,6 +118,7 @@ struct AppState {
     realtime_client: reqwest::Client,
     confirmation_issuer: Option<Arc<PostgresConfirmationGrantIssuer>>,
     manual: Arc<dyn ManualCorpusAdapter>,
+    manual_library: Option<Arc<AzureManualLibrary>>,
     parts_enabled: bool,
     equipment_packs_enabled: bool,
     edge_events: broadcast::Sender<EdgeAssignmentSignal>,
@@ -197,6 +200,13 @@ pub fn router_with_health_and_manual(
     };
     let spatial_scan_service = Arc::new(SpatialScanService::from_env(realtime_client.clone()));
     let remote_witness_service = Arc::new(RemoteWitnessService::from_env());
+    let manual_library = match AzureManualLibrary::from_env(realtime_client.clone()) {
+        Ok(value) => value.map(Arc::new),
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.manual_library", %error, "manual library export is unavailable");
+            None
+        }
+    };
     let (edge_events, _) = broadcast::channel(256);
     let state = AppState {
         dispatcher,
@@ -204,6 +214,7 @@ pub fn router_with_health_and_manual(
         realtime_client,
         confirmation_issuer,
         manual,
+        manual_library,
         parts_enabled: std::env::var("MXGENIUS_PARTS_ENABLED")
             .map(|value| {
                 matches!(
@@ -239,6 +250,10 @@ pub fn router_with_health_and_manual(
         .route(
             "/api/equipment-packs/:pack_id/versions",
             get(list_equipment_pack_versions).post(create_equipment_pack_version),
+        )
+        .route(
+            "/api/equipment-packs/:pack_id/manual-library",
+            post(publish_manual_library),
         )
         .route(
             "/api/equipment-pack-versions/:version_id/blocks/:block_index",
@@ -1253,6 +1268,140 @@ async fn list_equipment_pack_versions(
     }
 }
 
+fn manual_library_error(error: ManualLibraryError) -> Response {
+    match error {
+        ManualLibraryError::NotConfigured(_) => realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "MANUAL_LIBRARY_NOT_CONFIGURED",
+            "the approved Azure manual library is not configured",
+        ),
+        ManualLibraryError::Contract(message) => {
+            tracing::error!(target: "mxgenius.manual_library", %message, "manual library contract rejected export");
+            realtime_error(
+                StatusCode::CONFLICT,
+                "MANUAL_LIBRARY_CONTRACT_MISMATCH",
+                "the Azure manual library no longer matches the approved frozen pack",
+            )
+        }
+        ManualLibraryError::Unavailable(message) => {
+            tracing::warn!(target: "mxgenius.manual_library", %message, "manual library source unavailable");
+            realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "MANUAL_LIBRARY_UNAVAILABLE",
+                "the approved Azure manual library could not be read",
+            )
+        }
+        ManualLibraryError::Invalid(message) => {
+            tracing::error!(target: "mxgenius.manual_library", %message, "manual library export was invalid");
+            realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "MANUAL_LIBRARY_INVALID",
+                "the approved Azure manual library could not be packaged safely",
+            )
+        }
+    }
+}
+
+async fn publish_manual_library(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(pack_id): Path<Uuid>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !equipment_pack_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "EQUIPMENT_PACK_WRITE_DENIED",
+            "only managers and administrators can publish the approved manual library",
+        );
+    }
+    let repository = match equipment_pack_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let pack_exists = match repository.list_packs(&context).await {
+        Ok(packs) => packs.iter().any(|pack| pack.id == pack_id),
+        Err(error) => return equipment_pack_error(error),
+    };
+    if !pack_exists {
+        return equipment_pack_error(EquipmentPackError::NotFound);
+    }
+    let Some(library) = &state.manual_library else {
+        return manual_library_error(ManualLibraryError::NotConfigured("Azure manual library"));
+    };
+
+    let exported = match library.export_drive().await {
+        Ok(value) => value,
+        Err(error) => return manual_library_error(error),
+    };
+    let existing = match repository.list_versions(&context, pack_id).await {
+        Ok(versions) => versions.into_iter().find(|version| {
+            version.status == "published"
+                && version.content_hash == exported.content_hash
+                && version.byte_size == exported.bytes.len() as i64
+        }),
+        Err(error) => return equipment_pack_error(error),
+    };
+    if let Some(version) = existing {
+        return (
+            StatusCode::OK,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({
+                "version": version,
+                "source": exported.summary,
+                "reused": true
+            })),
+        )
+            .into_response();
+    }
+
+    let version = match repository
+        .create_version(
+            &context,
+            pack_id,
+            &CreateEquipmentPackVersionInput {
+                manifest: exported.manifest,
+                content_hash: exported.content_hash,
+                byte_size: exported.bytes.len() as i64,
+                file_count: exported.file_count,
+            },
+        )
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => return equipment_pack_error(error),
+    };
+    match store_and_publish_equipment_pack_archive(
+        &state,
+        &repository,
+        context.organization_id.0,
+        &version,
+        &exported.bytes,
+    )
+    .await
+    {
+        Ok(version) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({
+                "version": version,
+                "source": exported.summary,
+                "reused": false
+            })),
+        )
+            .into_response(),
+        Err(response) => {
+            repository
+                .mark_version_failed(context.organization_id.0, version.id)
+                .await;
+            response
+        }
+    }
+}
+
 async fn get_equipment_pack_upload(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1535,6 +1684,110 @@ async fn equipment_pack_blob_digest(
         format!("sha256:{}", hex::encode(digest.finalize())),
         byte_size,
     ))
+}
+
+async fn store_equipment_pack_block_internal(
+    state: &AppState,
+    repository: &EquipmentPackRepository,
+    organization_id: Uuid,
+    version: &EquipmentPackVersionRow,
+    block_index: i32,
+    body: &[u8],
+) -> Result<(), Response> {
+    if block_index == 0 && !body.starts_with(b"PK\x03\x04") {
+        return Err(equipment_pack_error(EquipmentPackError::Invalid(
+            "package must be a non-empty ZIP archive",
+        )));
+    }
+    let (block_id, encoded_block_id) = equipment_pack_block_id(block_index);
+    let access = workspace_read_blob_access(&state.realtime_client, &version.storage_key).await?;
+    let url = blob_query_url(
+        &access.url,
+        &format!("comp=block&blockid={encoded_block_id}"),
+    );
+    let mut request = state
+        .realtime_client
+        .put(url)
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .body(body.to_vec());
+    if let Some(token) = access.bearer_token {
+        request = request.bearer_auth(token);
+    }
+    match request.send().await {
+        Ok(value) if value.status().is_success() => {}
+        Ok(value) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", status=%value.status(), version_id=%version.id, block_index, "Blob rejected server-built equipment pack block");
+            return Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_STORAGE_REJECTED",
+                "package storage rejected the generated upload block",
+            ));
+        }
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.equipment_pack", %error, version_id=%version.id, block_index, "server-built equipment pack block upload failed");
+            return Err(realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "EQUIPMENT_PACK_STORAGE_FAILED",
+                "generated package upload could not be stored",
+            ));
+        }
+    }
+    repository
+        .record_upload_block(
+            organization_id,
+            version.id,
+            block_index,
+            &block_id,
+            body.len() as i32,
+            &sha256_prefixed(body),
+        )
+        .await
+        .map_err(equipment_pack_error)
+}
+
+async fn store_and_publish_equipment_pack_archive(
+    state: &AppState,
+    repository: &EquipmentPackRepository,
+    organization_id: Uuid,
+    version: &EquipmentPackVersionRow,
+    archive: &[u8],
+) -> Result<EquipmentPackVersionRow, Response> {
+    if archive.len() as i64 != version.byte_size || sha256_prefixed(archive) != version.content_hash
+    {
+        return Err(equipment_pack_error(EquipmentPackError::Invalid(
+            "generated package does not match its version record",
+        )));
+    }
+    for (index, block) in archive.chunks(EQUIPMENT_PACK_BLOCK_BYTES).enumerate() {
+        store_equipment_pack_block_internal(
+            state,
+            repository,
+            organization_id,
+            version,
+            index as i32,
+            block,
+        )
+        .await?;
+    }
+    let blocks = repository
+        .upload_blocks(organization_id, version.id)
+        .await
+        .map_err(equipment_pack_error)?;
+    commit_equipment_pack_blocks(state, &version.storage_key, &blocks).await?;
+    let (observed_hash, observed_size) =
+        equipment_pack_blob_digest(state, &version.storage_key, version.byte_size).await?;
+    if observed_size != version.byte_size || observed_hash != version.content_hash {
+        return Err(realtime_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "EQUIPMENT_PACK_HASH_MISMATCH",
+            "generated package did not match its stored bytes",
+        ));
+    }
+    repository
+        .publish_version(organization_id, version.id)
+        .await
+        .map_err(equipment_pack_error)
 }
 
 async fn publish_equipment_pack_version(
@@ -3838,6 +4091,7 @@ async fn readyz(State(state): State<AppState>) -> Response {
                         "database": "ready",
                         "manuals": manual.health,
                         "manual_source": manual.name,
+                        "manual_library": if state.manual_library.is_some() { "ready" } else { "unavailable" },
                         "reason": "authoritative manual retrieval is unavailable"
                     })),
                 )
@@ -3850,7 +4104,8 @@ async fn readyz(State(state): State<AppState>) -> Response {
                     "mode": mode,
                     "database": if mode == "local" { "not_required" } else { "ready" },
                     "manuals": manual.health,
-                    "manual_source": manual.name
+                    "manual_source": manual.name,
+                    "manual_library": if state.manual_library.is_some() { "ready" } else { "unavailable" }
                 })),
             )
                 .into_response()
@@ -3886,6 +4141,10 @@ async fn adapterz(State(state): State<AppState>) -> Response {
                         "aircraft": capability_state("mxg.aircraft.lookup"),
                         "manuals": manual.health,
                         "manual_source": manual.name,
+                        "manual_library": {
+                            "status": if state.manual_library.is_some() { "ready" } else { "unavailable" },
+                            "pack": state.manual_library.as_ref().map(|library| library.pack_id())
+                        },
                         "faa": capability_state("mxg.compliance.applicable_ads"),
                         "weather": capability_state("mxg.weather.airport_now"),
                         "parts": capability_state("mxg.parts.resolve"),
@@ -9243,13 +9502,23 @@ fn chat_conversation_input(
         "type": "input_text",
         "text": format!("User request:\n{message}\n\nMXGenius context (JSON):\n{grounded_context}")
     })];
-    current_content.extend(images.iter().map(|image| {
-        json!({
+    for image in images {
+        if let Some(name) = image
+            .name
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            current_content.push(json!({
+                "type": "input_text",
+                "text": format!("Attached image: {name}")
+            }));
+        }
+        current_content.push(json!({
             "type": "input_image",
             "image_url": image.data_url,
             "detail": image.detail.as_deref().unwrap_or("auto")
-        })
-    }));
+        }));
+    }
     input.push(json!({
         "role": "user",
         "content": current_content
@@ -9681,6 +9950,71 @@ fn manual_reference(evidence: &Evidence, index: usize, excerpt_limit: usize) -> 
     })
 }
 
+async fn model_manual_images(state: &AppState, evidence: &[Evidence]) -> Vec<ChatImage> {
+    let Some(library) = &state.manual_library else {
+        return Vec::new();
+    };
+    let mut seen = BTreeSet::new();
+    let mut images = Vec::new();
+    for (evidence_index, record) in evidence.iter().enumerate() {
+        for asset in &record.assets {
+            if images.len() >= MODEL_MANUAL_IMAGE_LIMIT {
+                return images;
+            }
+            if asset.availability != EvidenceAssetAvailability::Available
+                || !seen.insert(asset.source_reference.clone())
+            {
+                continue;
+            }
+            let Some(expected_hash) = asset.content_hash.as_deref() else {
+                tracing::warn!(target: "mxgenius.manual_library", reference=%asset.source_reference, "retrieved manual image lacks an integrity hash");
+                continue;
+            };
+            match library
+                .fetch_asset(
+                    &asset.source_reference,
+                    expected_hash,
+                    asset.media_type.as_deref(),
+                    MAX_CHAT_IMAGE_BYTES,
+                )
+                .await
+            {
+                Ok(image) => {
+                    let caption = asset
+                        .caption
+                        .as_deref()
+                        .unwrap_or("Retrieved manual figure");
+                    let page = asset
+                        .page
+                        .map_or(String::new(), |value| format!(" p.{value}"));
+                    images.push(ChatImage {
+                        name: Some(truncate_chars(
+                            &format!(
+                                "Manual citation M-{:02}{page}: {caption}",
+                                evidence_index + 1
+                            ),
+                            160,
+                        )),
+                        data_url: format!(
+                            "data:{};base64,{}",
+                            image.media_type,
+                            base64::engine::general_purpose::STANDARD.encode(image.bytes)
+                        ),
+                        detail: Some("high".into()),
+                    });
+                }
+                Err(error) => tracing::warn!(
+                    target: "mxgenius.manual_library",
+                    %error,
+                    reference=%asset.source_reference,
+                    "retrieved manual image could not be attached to model context"
+                ),
+            }
+        }
+    }
+    images
+}
+
 fn extract_ata_chapter(text: &str) -> Option<String> {
     let uppercase = text.to_ascii_uppercase();
     let mut remainder = uppercase.as_str();
@@ -10042,6 +10376,8 @@ async fn chat(
     let manual_retrieval_model = manual_result.aircraft_model.clone();
     let manual_retrieval_ata = manual_result.ata.clone();
     let manual_evidence = manual_result.evidence;
+    let manual_images = model_manual_images(&state, &manual_evidence).await;
+    let manual_image_count = manual_images.len();
     let manual_model_context = manual_evidence
         .iter()
         .take(MODEL_MANUAL_RECORD_LIMIT)
@@ -10119,11 +10455,13 @@ async fn chat(
             requested_model.clone()
         }
     };
+    let mut conversation_images = input.images.clone();
+    conversation_images.extend(manual_images);
     let conversation_input = chat_conversation_input(
         &conversation_history,
         message,
         &grounded_context,
-        &input.images,
+        &conversation_images,
     );
     let model_tools = state
         .dispatcher
@@ -10441,6 +10779,7 @@ async fn chat(
                     "requested": 33,
                     "returned": manual_record_count,
                     "model_context_records": manual_model_context.len(),
+                    "model_context_images": manual_image_count,
                     "warning": manual_warning
                 },
                 "model": payload.get("model"),
@@ -11192,10 +11531,12 @@ mod structured_advisory_tests {
         assert_eq!(input[1]["role"], "assistant");
         assert_eq!(input[1]["content"], "I will retain that in this thread.");
         assert_eq!(input[2]["role"], "user");
-        assert_eq!(input[2]["content"][1]["type"], "input_image");
-        assert_eq!(input[2]["content"][1]["detail"], "high");
+        assert_eq!(input[2]["content"][1]["type"], "input_text");
+        assert_eq!(input[2]["content"][1]["text"], "Attached image: panel.png");
+        assert_eq!(input[2]["content"][2]["type"], "input_image");
+        assert_eq!(input[2]["content"][2]["detail"], "high");
         assert_eq!(
-            input[2]["content"][1]["image_url"],
+            input[2]["content"][2]["image_url"],
             "data:image/png;base64,aGVsbG8="
         );
         assert_eq!(

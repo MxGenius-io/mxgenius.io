@@ -138,6 +138,8 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertNotIn("status.credential", JS)
         for marker in ("activePackName", "activeVersionNumber", "LOADED PACK"):
             self.assertIn(marker, JS + HTML)
+        self.assertIn("DRIVE EMULATOR", HTML)
+        self.assertIn("ready on USB-C", JS)
 
     def test_equipment_pack_cloud_is_preconfigured_for_appliance_enrollment(self):
         for script in (INSTALL, UPDATE):
@@ -157,6 +159,12 @@ class KioskUiContractTests(unittest.TestCase):
             self.assertIn("systemctl disable NetworkManager-wait-online.service", script)
             self.assertNotIn("rpi-splash-screen-support", script)
             self.assertNotIn("imagemagick", script)
+
+    def test_install_and_update_create_shared_state_before_services_start(self):
+        marker = "install -d -o mxgdiag -g mxgdiag -m 0700 /var/lib/mxg-diagnostics-kiosk"
+        for script in (INSTALL, UPDATE):
+            self.assertIn(marker, script)
+            self.assertLess(script.index(marker), script.rindex("systemctl restart mxg-edge-control.service"))
 
     def test_incremental_update_preserves_the_complete_boot_contract(self):
         for marker in (

@@ -575,6 +575,7 @@ test('equipment pack publishing and assignment stay behind the authenticated app
   await client.equipmentPacks.list(session);
   await client.equipmentPacks.create({ name: 'Jet manuals', equipmentFamily: 'Global 7500', session });
   await client.equipmentPacks.versions('pack/1', session);
+  await client.equipmentPacks.publishManualLibrary('pack/1', session);
   await client.equipmentPacks.createVersion('pack/1', {
     manifest: { schemaVersion: 1, files: [{ path: 'manual.pdf', sizeBytes: 10, sha256: `sha256:${'1'.repeat(64)}` }] },
     contentHash: `sha256:${'2'.repeat(64)}`,
@@ -593,6 +594,7 @@ test('equipment pack publishing and assignment stay behind the authenticated app
     ['/api/equipment-packs', 'GET'],
     ['/api/equipment-packs', 'POST'],
     ['/api/equipment-packs/pack%2F1/versions', 'GET'],
+    ['/api/equipment-packs/pack%2F1/manual-library', 'POST'],
     ['/api/equipment-packs/pack%2F1/versions', 'POST'],
     ['/api/equipment-pack-versions/version%2F1/blocks/0', 'PUT'],
     ['/api/equipment-pack-versions/version%2F1/upload', 'GET'],
@@ -601,7 +603,7 @@ test('equipment pack publishing and assignment stay behind the authenticated app
     ['/api/edge/devices/device%2F1/deployments', 'GET'],
     ['/api/edge/devices/device%2F1', 'DELETE']
   ]);
-  assert.equal(requests[4].request, block);
+  assert.equal(requests[5].request, block);
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 

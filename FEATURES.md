@@ -106,6 +106,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Grounded maintenance advisory with retrieval relevance and citations.
 - `[x]` Retrieval over the frozen starter manual corpus.
 - `[x]` Manual images remain behind the authenticated application boundary.
+- `[x]` Retrieved, hash-verified manual diagrams are attached as bounded multimodal model input alongside their citation metadata.
 - `[x]` Model output cannot declare transport or sensor readiness.
 - `[x]` User-visible rejection details with correlation IDs.
 - `[x]` OpenAI Realtime WebRTC negotiation through the application backend.
@@ -267,6 +268,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Active-case evidence tray with smooth captured-thumbnail transfer and shared Realtime voice presence.
 - `[x]` Maintenance case gallery and dashboard thumbnail recall stored images through tenant-scoped authenticated media routes.
 - `[x]` Equipment Drives package verified folders into deterministic private versions and assign a published version to an approved Pi.
+- `[x]` Managers can publish the frozen Azure CL350 corpus and its linked diagrams directly as a deterministic Equipment Drive version without downloading and re-uploading the source folder.
 - `[x]` Device-originated seven-digit approval, credential rotation/revocation, durable desired state, resumable transfer, and verified A/B activation.
 - `[x]` Product copy consistently calls the operator-facing workflow an Equipment Drive while preserving the internal package API contract.
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.

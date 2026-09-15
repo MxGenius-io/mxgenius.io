@@ -8,18 +8,18 @@ const css = await readFile(new URL('../build-board.css', import.meta.url), 'utf8
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
-test('Settings has one build-board entry and one Reports entry without a Getting Started duplicate', () => {
-  assert.match(dashboard, /value="build-board\.html">Build Board/);
-  assert.match(dashboard, /value="progress\.html">Reports/);
+test('Settings collapses shared workspaces into one Operations Center entry', () => {
+  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.doesNotMatch(dashboard, /value="build-board\.html">Build Board/);
+  assert.doesNotMatch(dashboard, /value="progress\.html">Reports/);
   assert.doesNotMatch(dashboard, /Open Tracker/);
   assert.doesNotMatch(dashboard, /Final Build Plan · coming next/);
-  assert.equal((dashboard.match(/value="build-board\.html"/g) || []).length, 1);
-  assert.equal((dashboard.match(/value="progress\.html"/g) || []).length, 1);
+  assert.equal((dashboard.match(/value="operations-center\.html"/g) || []).length, 1);
 });
 
 test('the board is authenticated and persists through the shared workspace boundary', () => {
-  assert.match(auth, /dashboard\|progress\|patent-workspace\|build-board/);
-  assert.match(auth, /progress\|patent-workspace\|build-board/);
+  assert.match(auth, /dashboard\|operations-center\|progress\|patent-workspace\|build-board/);
+  assert.match(auth, /operations-center\|progress\|patent-workspace\|build-board/);
   assert.match(html, /src="auth\.js\?v=\d+"/);
   assert.match(html, /src="application-client\.js\?v=\d+"/);
   assert.doesNotMatch(js, /fetch\(/);

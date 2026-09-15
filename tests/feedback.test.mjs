@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const reporterJs = await readFile(new URL('../feedback-reporter.js', import.meta.url), 'utf8');
@@ -11,14 +12,15 @@ const html = await readFile(new URL('../feedback.html', import.meta.url), 'utf8'
 const js = await readFile(new URL('../feedback.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../feedback.css', import.meta.url), 'utf8');
 
-test('Settings exposes the My Feedback workspace alongside the other shared workspaces', () => {
+test('Settings exposes My Feedback inside the consolidated Operations Center', () => {
   assert.match(dashboard, /id="settingsWorkspacesCard"/);
-  assert.match(dashboard, /value="feedback\.html">My Feedback/);
+  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(operationsCenter, /data-feedback-view="mine">My feedback/);
   assert.match(html, /Back to Settings/);
 });
 
 test('the feedback pages are authenticated and use only the application client boundary', () => {
-  assert.match(auth, /dashboard\|progress\|patent-workspace\|build-board\|feedback/);
+  assert.match(auth, /dashboard\|operations-center\|progress\|patent-workspace\|build-board\|feedback/);
   assert.match(auth, /mx_auth_protected_return/);
   assert.match(html, /src="auth\.js\?v=\d+"/);
   assert.match(html, /src="application-client\.js\?v=\d+"/);

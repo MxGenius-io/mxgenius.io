@@ -469,6 +469,14 @@ const MXApplicationClient = (() => {
     return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/versions`, { session });
   }
 
+  function publishManualLibrary(packId, session = {}) {
+    return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/manual-library`, {
+      session,
+      method: 'POST',
+      body: {}
+    });
+  }
+
   function createEquipmentPackVersion(packId, { manifest, contentHash, byteSize, fileCount, session = {} }) {
     return applicationJson(`/api/equipment-packs/${encodeURIComponent(packId)}/versions`, {
       session,
@@ -1739,6 +1747,7 @@ const MXApplicationClient = (() => {
       list: listEquipmentPacks,
       create: createEquipmentPack,
       versions: listEquipmentPackVersions,
+      publishManualLibrary,
       createVersion: createEquipmentPackVersion,
       uploadBlock: uploadEquipmentPackBlock,
       uploadStatus: equipmentPackUploadStatus,

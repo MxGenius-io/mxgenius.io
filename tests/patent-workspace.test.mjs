@@ -9,18 +9,19 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 
-test('Settings exposes the shared provisional patent workspace, build board, and reports', () => {
+test('Settings keeps the patent workspace private behind one Operations Center entry', () => {
   assert.match(dashboard, /id="settingsWorkspacesCard"/);
-  assert.match(dashboard, /value="patent-workspace\.html">Provisional Patent Application/);
-  assert.match(dashboard, /value="build-board\.html">Build Board/);
-  assert.match(dashboard, /value="progress\.html">Reports/);
+  assert.doesNotMatch(dashboard, /value="patent-workspace\.html">Provisional Patent Application/);
+  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.doesNotMatch(dashboard, /value="build-board\.html">Build Board/);
+  assert.doesNotMatch(dashboard, /value="progress\.html">Reports/);
   assert.match(html, /Back to Settings/);
 });
 
 test('the patent workspace is authenticated and uses only the application client boundary', () => {
-  assert.match(auth, /dashboard\|progress\|patent-workspace\|build-board/);
+  assert.match(auth, /dashboard\|operations-center\|progress\|patent-workspace\|build-board/);
   assert.match(auth, /mx_auth_protected_return/);
-  assert.match(auth, /progress\|patent-workspace\|build-board/);
+  assert.match(auth, /operations-center\|progress\|patent-workspace\|build-board/);
   assert.match(html, /src="auth\.js\?v=\d+"/);
   assert.match(html, /src="application-client\.js\?v=\d+"/);
   assert.doesNotMatch(js, /fetch\(/);

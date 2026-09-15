@@ -473,11 +473,11 @@ async function loadUsbGadgetStatus() {
     const status = await controlRequest('/api/v1/control/usb-gadget/status');
     const activeSlot = status.state?.activeSlot;
     $('packUsb').textContent = activeSlot && status.bound
-      ? `Slot ${activeSlot} · ${status.hostState === 'configured' ? 'connected' : 'ready'}`
-      : status.activationReady ? 'Ready' : status.supported ? 'Needs tools' : 'Not detected';
+      ? `Slot ${activeSlot} · ${status.hostState === 'configured' ? 'connected' : 'ready on USB-C'}`
+      : status.activationReady ? 'Waiting for a pack' : status.supported ? 'Needs tools' : 'Not detected';
     $('packUsb').title = activeSlot
-      ? `Controller ${status.state.controller || 'unknown'} · host ${status.hostState || 'unknown'}`
-      : (status.udcs || []).join(', ') || 'No USB device controller detected';
+      ? `USB-C drive emulator · controller ${status.state.controller || 'unknown'} · host ${status.hostState || 'unknown'}`
+      : (status.udcs || []).join(', ') || 'No USB-C device controller detected';
   } catch {
     $('packUsb').textContent = 'Unavailable';
   }

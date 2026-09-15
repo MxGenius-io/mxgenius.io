@@ -135,6 +135,7 @@
     const folderChoose = byId('settingsPackFolderChoose');
     const folderName = byId('settingsPackFolderName');
     const publishButton = byId('settingsPackPublish');
+    const publishManualsButton = byId('settingsPackPublishManuals');
     const assignButton = byId('settingsPackAssign');
     const status = byId('settingsPackStatus');
     const history = byId('settingsPackHistory');
@@ -145,6 +146,7 @@
 
     const updateActions = () => {
       publishButton.disabled = !packSelect.value || !(folderInput.files || []).length;
+      publishManualsButton.disabled = !packSelect.value;
       assignButton.disabled = !deviceSelect.value || !versionSelect.value;
     };
 
@@ -304,6 +306,26 @@
         setStatus(`Version ${version.versionNumber} published and ready to assign.`, 'success');
       } catch (error) {
         setStatus(error.message || 'Equipment Drive publication failed.', 'error');
+      } finally {
+        updateActions();
+      }
+    });
+
+    publishManualsButton?.addEventListener('click', async () => {
+      if (!packSelect.value) return setStatus('Select or create an Equipment Drive first.', 'error');
+      publishManualsButton.disabled = true;
+      setStatus('Packaging the approved Azure manuals and linked diagrams…');
+      try {
+        const payload = await run((session) => client.publishManualLibrary(packSelect.value, session));
+        await loadVersions();
+        versionSelect.value = payload.version.id;
+        const source = payload.source || {};
+        const detail = `${source.manualCount || 0} manuals · ${source.chunkCount || 0} searchable sections · ${source.imageCount || 0} linked diagrams`;
+        setStatus(payload.reused
+          ? `The current Azure library is already published · ${detail}`
+          : `Azure library published as version ${payload.version.versionNumber} · ${detail}`, 'success');
+      } catch (error) {
+        setStatus(error.message || 'Unable to publish the approved Azure library.', 'error');
       } finally {
         updateActions();
       }

@@ -1,0 +1,44 @@
+[
+  {
+    "sequence": 1,
+    "area": "Maintenance experience",
+    "week_23": "Not yet the report's primary lifecycle.",
+    "current": "Case default/history behavior, side-panel intake, image galleries, Quest evidence capture, mobile fixes, guided help, and cleaner landing/navigation behavior are source-controlled.",
+    "extension_position": "Strong demo spine; run one regression pass across create, recall, clear, evidence, and source retrieval."
+  },
+  {
+    "sequence": 2,
+    "area": "Parts and procurement",
+    "week_23": "Broad stock, procurement, traceability, OCR, and inventory workflow foundations shipped.",
+    "current": "Model-assisted extraction review, historical reporting, pagination, interchangeability, quarantine evidence, confirmation grants, receiving visibility, and focused QA fixes were added.",
+    "extension_position": "Mature supporting vertical; demonstrate a bounded maintenance-to-part handoff rather than every transaction type."
+  },
+  {
+    "sequence": 3,
+    "area": "XR and collaboration",
+    "week_23": "Separate fleet, sensor, and early thermal scenes; Quest poc.12 remained a hardware candidate.",
+    "current": "Spatial targeting, case-linked capture, consented Remote Witness, audio controls, Alpha 23, durable MCP startup, and a consolidated Operations/Maintenance shell are present; legacy cleanup and physical acceptance remain partial.",
+    "extension_position": "Demonstrable release candidate; keep microphone and headset-acceptance limits visible."
+  },
+  {
+    "sequence": 4,
+    "area": "Cloud, MCP, and FAA",
+    "week_23": "Feedback and Parts migrations were healthy in Azure.",
+    "current": "The frontend MCP connection lifecycle was hardened, FAA DRS results were constrained to evidence-backed candidates with bounded caching, and the Equipment Pack control plane and device registry were deployed.",
+    "extension_position": "Architecture is credible; retain one authenticated live smoke for FAA and the current application revision."
+  },
+  {
+    "sequence": 5,
+    "area": "Raspberry Pi edge node",
+    "week_23": "An appliance and USB-lifecycle candidate existed, but the field lifecycle was not closed.",
+    "current": "Seven-digit approval, stable hardware identity, revocation/reapproval, persistent Wi-Fi intent, immutable pack publication, assignment, verified downloads, A/B activation, rollback, and deterministic poc.26 image assembly are implemented.",
+    "extension_position": "Clean boot and enrollment are proven; physical host enumeration and the chosen power/data topology remain open."
+  },
+  {
+    "sequence": 6,
+    "area": "Native iOS AR",
+    "week_23": "Build 33 was accepted for TestFlight processing.",
+    "current": "Later bridge, globe, model-context, spatial-audio, and transport fixes were uploaded through Builds 34 and 35, with additional source-controlled refinement after those uploads.",
+    "extension_position": "Keep as a distinct capability-gated AR client; do not make its acceptance a dependency for the unified Quest scene."
+  }
+]

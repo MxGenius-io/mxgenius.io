@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../feedback-admin.html', import.meta.url), 'utf8');
@@ -17,9 +18,10 @@ const migration = await readFile(
 );
 const css = await readFile(new URL('../feedback.css', import.meta.url), 'utf8');
 
-test('Settings exposes the admin Feedback Queue alongside My Feedback', () => {
-  assert.match(dashboard, /value="feedback\.html">My Feedback/);
-  assert.match(dashboard, /value="feedback-admin\.html">Feedback Queue \(Admin\)/);
+test('Operations Center exposes the admin Feedback Queue alongside My Feedback', () => {
+  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(operationsCenter, /data-feedback-view="queue">Team queue/);
+  assert.match(operationsCenter, /data-feedback-view="mine">My feedback/);
 });
 
 test('the admin queue page is authenticated and uses only the application client boundary', () => {
