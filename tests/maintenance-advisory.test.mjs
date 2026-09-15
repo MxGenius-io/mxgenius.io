@@ -63,6 +63,8 @@ test('manual images stay behind the application API boundary', () => {
   assert.match(app, /image unavailable/);
   assert.match(app, /appendManualRecordImages\(streamTarget, data\?\.manual_records \|\| \[\]\)/);
   assert.match(app, /appendManualRecordImages\(bubble, manualRecords\)/);
+  assert.match(app, /figure\.classList\.add\('is-unavailable'\)/);
+  assert.match(backend, /registered_image\.is_some\(\)\s*\|\| manual_image_count > 0/);
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 

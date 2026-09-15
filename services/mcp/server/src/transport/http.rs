@@ -10855,6 +10855,7 @@ async fn chat(
         );
     }
     let include_references = registered_image.is_some()
+        || manual_image_count > 0
         || advisory.get("response_kind").and_then(Value::as_str) == Some("maintenance_advisory");
     let manual_records = if registered_image.is_some() {
         manual_model_context.clone()

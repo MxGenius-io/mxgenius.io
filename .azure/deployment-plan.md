@@ -1,5 +1,45 @@
 # MXGenius Azure Deployment Plan
 
+## Parts and Maintenance Display Polish — 2026-09-15
+
+> **Status:** Validated locally; release in progress
+
+This paired static/core release closes the narrow Parts-drawer layout fault,
+gives the fictional inventory family-specific presentation imagery, converts
+Settings to one non-destructive Show/Hide Demo Content toggle, and restores
+CL350 manual figures for conversational model responses. The manual Blob route
+and registered FDR image are healthy; the response layer was omitting manual
+records whenever a figure-bearing answer was classified as conversation rather
+than maintenance advisory.
+
+### Deployment scope
+
+- Publish the static application and ten new fictional JPEG assets through the
+  existing canonical `main` GitHub Pages workflow.
+- Build `services/mcp` from the exact committed source in the existing ACR and
+  promote only `mxg-core`; preserve every environment setting, secret,
+  identity, ingress, scale rule, role assignment, Search index, and Blob.
+- Reuse the existing idempotent `/api/demo-data`, case-media, and registered
+  manual-asset boundaries. No schema, migration, deletion, or infrastructure
+  creation is required.
+
+### Validation proof
+
+- 2026-09-15: the targeted Maintenance, Parts, structure, and target-registry
+  suite passed 214/214 checks; the complete application suite passed 419/419.
+- JavaScript syntax validation and `git diff --check` passed.
+- The targeted Rust manual-library suite passed 4/4 with the credential-gated
+  live archive test intentionally ignored.
+- Production resource inspection reports `mxg-core--demo065f8` Running with
+  provisioning Succeeded. The registered CL350 FDR-removal asset returned HTTP
+  200 as `image/png` with 517,796 bytes through `/manual-assets`.
+
+### Rollback
+
+Revert the paired commit through the normal `main` workflow and shift Container
+App traffic to `mxg-core--demo065f8`. The release does not delete records or
+alter schema, Blob content, Search content, identity, secrets, or RBAC.
+
 ## Equipment Pack Control Plane — 2026-09-13
 
 > **Status:** Deployed and live-verified
@@ -33,7 +73,7 @@ capabilities while the interface retains the friendly `N350MX` label.
 
 - 2026-09-15: `npm test` passed 419/419 application and contract tests. Targeted
   Maintenance, Parts, structure, and target-registry checks cover the automatic
-  demo scope, explicit return to all records, cache pins, and existing
+  demo scope, explicit return to operational records, cache pins, and existing
   application boundaries.
 - The full locked Rust workspace passed, strict Clippy completed with warnings
   denied, and the targeted demo-seed contract tests passed 4/4.
@@ -45,7 +85,8 @@ capabilities while the interface retains the friendly `N350MX` label.
 - The signed-in refresh completed idempotently with 1 demo aircraft, 4
   maintenance cases, 26 stock units, and 4 evidence records. Maintenance and
   Parts both present only the labeled fictional dataset while presentation mode
-  is active; operational records remain preserved behind **Show all records**.
+  is active; operational records remain preserved and return when demo content
+  is hidden.
 
 ### Deployment Proof
 

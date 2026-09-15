@@ -1086,6 +1086,11 @@ function setupChatPanel() {
       const caption = document.createElement('figcaption');
       caption.textContent = [asset.caption || asset.title, asset.page && `Page ${asset.page}`]
         .filter(Boolean).join(' - ');
+      image.addEventListener('error', () => {
+        image.remove();
+        figure.classList.add('is-unavailable');
+        caption.textContent = `${caption.textContent || 'Manual image'} - image unavailable`;
+      });
       figure.append(image, caption);
       grid.appendChild(figure);
     });
@@ -3025,7 +3030,6 @@ function initSettings() {
   const contentUploadStatus = document.getElementById('settingsContentUploadStatus');
   const loadDemoDataButton = document.getElementById('settingsLoadDemoData');
   const demoDataStatus = document.getElementById('settingsDemoDataStatus');
-  const showAllDataButton = document.getElementById('settingsShowAllData');
   const demoPresentation = window.MXDemoVisualRegistry?.presentation;
   const textModelSelect = document.getElementById('settingsTextModel');
   const workspaceSelect = document.getElementById('settingsWorkspaceSelect');
@@ -3043,9 +3047,15 @@ function initSettings() {
 
   function syncDemoPresentationControls(message = '') {
     const active = demoPresentation?.isEnabled?.() === true;
-    if (showAllDataButton) showAllDataButton.hidden = !active;
-    if (loadDemoDataButton) loadDemoDataButton.textContent = active ? 'Refresh Demo Data' : 'Load Demo Data';
-    if (message && demoDataStatus) demoDataStatus.textContent = message;
+    if (loadDemoDataButton) {
+      loadDemoDataButton.textContent = active ? 'Hide Demo Content' : 'Show Demo Content';
+      loadDemoDataButton.setAttribute('aria-pressed', String(active));
+    }
+    if (demoDataStatus) {
+      demoDataStatus.textContent = message || (active
+        ? 'Demo content is on. Maintenance and Parts show only fictional presentation records.'
+        : 'Demo content is off. Maintenance and Parts show only operational records.');
+    }
   }
 
   syncDemoPresentationControls();
@@ -3486,17 +3496,18 @@ function initSettings() {
     });
   }
   loadDemoDataButton?.addEventListener('click', async () => {
-    const approved = window.confirm(
-      'Load the complete fictional demo dataset into this organization? Rerunning updates the same demo records.'
-    );
-    if (!approved) return;
+    if (demoPresentation?.isEnabled?.()) {
+      demoPresentation.hide();
+      syncDemoPresentationControls('Demo content is hidden. Operational records are shown.');
+      return;
+    }
     loadDemoDataButton.disabled = true;
-    if (demoDataStatus) demoDataStatus.textContent = 'Loading the demo workspace...';
+    if (demoDataStatus) demoDataStatus.textContent = 'Showing the demo workspace…';
     try {
       const result = await MXApplicationClient.demoData.load(await settingsSession());
       demoPresentation?.enable?.({ announce: false });
       if (demoDataStatus) {
-        demoDataStatus.textContent = `Demo workspace ready: ${result.aircraft} aircraft, ${result.cases} maintenance cases, ${result.stock_units} stock units, and ${result.evidence} evidence records.`;
+        demoDataStatus.textContent = `Demo content is on: ${result.aircraft} aircraft, ${result.cases} maintenance cases, ${result.stock_units} stock units, and ${result.evidence} evidence records.`;
       }
       syncDemoPresentationControls();
       window.dispatchEvent(new CustomEvent('mxg:demo-data-loaded', { detail: result }));
@@ -3505,10 +3516,6 @@ function initSettings() {
     } finally {
       loadDemoDataButton.disabled = false;
     }
-  });
-  showAllDataButton?.addEventListener('click', () => {
-    demoPresentation?.showAll?.();
-    syncDemoPresentationControls('Showing all operational records. Demo records remain labeled.');
   });
   window.addEventListener('mxg:demo-presentation-changed', () => syncDemoPresentationControls());
 }

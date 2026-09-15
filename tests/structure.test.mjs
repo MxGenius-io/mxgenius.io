@@ -418,7 +418,10 @@ test('detailed JetNet success statuses remain renderable and cacheable', () => {
 
 test('complete demo data is explicit, tenant-authenticated, and user initiated', () => {
   assert.match(dashboard, /id="settingsLoadDemoData"/);
-  assert.match(dashboard, /Complete Demo Workspace/);
+  assert.match(dashboard, /Demo Content/);
+  assert.doesNotMatch(dashboard, /id="settingsShowAllData"/);
+  assert.match(application, /Hide Demo Content/);
+  assert.match(application, /demoPresentation\.hide\(\)/);
   assert.match(application, /MXApplicationClient\.demoData\.load\(await settingsSession\(\)\)/);
   assert.match(client, /\/api\/demo-data/);
   assert.match(client, /LOAD_DEMO_DATA/);
@@ -485,7 +488,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=67/);
+  assert.match(dashboard, /app\.js\?v=68/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);

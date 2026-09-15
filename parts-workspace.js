@@ -1904,7 +1904,12 @@ const MXPartsWorkspace = (() => {
     if (!content || !detail) return;
     const unit = detail.unit;
     if (tab === 'overview') {
+      const visual = globalThis.MXDemoVisualRegistry?.forPart?.(unit) || null;
       content.innerHTML = `
+        ${visual ? `<figure class="parts-detail-visual">
+          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}">
+          <figcaption>Demo visual</figcaption>
+        </figure>` : ''}
         <dl class="parts-detail-list">
           <dt>Part number</dt><dd>${escapeHtml(unit.partNumber)}</dd>
           <dt>Description</dt><dd>${escapeHtml(unit.description)}</dd>

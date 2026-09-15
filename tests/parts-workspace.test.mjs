@@ -35,8 +35,12 @@ test('demo visual registry keeps fictional imagery out of production records', (
   );
   assert.equal(
     registry.forPart({ part_number: 'MXG-DEMO-32', description: 'Wheel and brake', metadata: { demo: true } }).src,
-    'media/demo/part-wheel-brake.jpg'
+    'media/demo/part-brake-stack.jpg'
   );
+  assert.equal(registry.forPart({ part_number: 'MXG-DEMO-32-1301', description: '[DEMO] Main tire' }).src, 'media/demo/part-tires.jpg');
+  assert.equal(registry.forPart({ part_number: 'MXG-DEMO-32-1504', description: '[DEMO] Cotter pin' }).src, 'media/demo/part-wheel-hardware.jpg');
+  assert.equal(registry.forPart({ part_number: 'MXG-DEMO-24-3001', description: '[DEMO] Generator control unit' }).src, 'media/demo/part-electrical.jpg');
+  assert.equal(registry.forPart({ part_number: 'MXG-DEMO-34-6001', description: '[DEMO] Pitot probe' }).src, 'media/demo/part-pitot-probe.jpg');
 });
 
 test('demo presentation scopes maintenance and parts without deleting operational records', () => {
@@ -72,10 +76,10 @@ test('demo presentation scopes maintenance and parts without deleting operationa
   );
   assert.deepEqual(Array.from(presentation.scopeReportRows([{ eventType: 'receive' }], 'summary')), []);
 
-  presentation.showAll();
+  presentation.hide();
   assert.deepEqual(
     Array.from(presentation.scopeParts([productionPart, demoPart]), (row) => row.partNumber),
-    ['29-1001', 'MXG-DEMO-29-1001']
+    ['29-1001']
   );
   assert.equal(attributes.has('data-demo-presentation'), false);
 });
@@ -104,11 +108,14 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(demoVisuals, /part-consumables\.jpg/);
     assert.match(js, /scopeParts/);
     assert.match(js, /aircraftLabel\(row\)/);
-    assert.match(html, /id="settingsShowAllData"/);
+    assert.doesNotMatch(html, /id="settingsShowAllData"/);
+    assert.match(app, /Hide Demo Content/);
+    assert.match(app, /Show Demo Content/);
+    assert.match(app, /demoPresentation\.hide\(\)/);
     assert.match(app, /demoPresentation\?\.enable/);
     assert.match(app, /demoData\.load\(await settingsSession\(\)\)/);
     assert.doesNotMatch(app, /demoData\.load\(serverSession\)/);
-    assert.match(app, /Demo workspace ready:/);
+    assert.match(app, /Demo content is on:/);
     assert.doesNotMatch(app, /result\.facilities/);
   });
 
@@ -435,6 +442,9 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(css, /\.parts-workspace\s*\{[\s\S]*flex-direction:\s*row;/);
     assert.match(css, /\.parts-drawer\.open\s*\{[\s\S]*flex-basis:\s*var\(--parts-drawer-width\);/);
     assert.match(css, /@media \(max-width: 860px\)[\s\S]*\.parts-drawer\.open[\s\S]*transform:\s*translateX\(0\);/);
+    assert.match(css, /#tab-parts\.active\s*\{[\s\S]*height:\s*calc\(100dvh - 56px/);
+    assert.match(css, /\.drawer-content\s*\{[\s\S]*min-height:\s*0/);
+    assert.match(js, /parts-detail-visual/);
   });
 });
 
@@ -978,8 +988,8 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=28/);
-    assert.match(html, /parts-workspace\.css\?v=20/);
+    assert.match(html, /parts-workspace\.js\?v=29/);
+    assert.match(html, /parts-workspace\.css\?v=21/);
     assert.match(html, /application-client\.js\?v=45/);
   });
 });

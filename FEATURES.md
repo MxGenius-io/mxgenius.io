@@ -148,8 +148,8 @@ This is the canonical product inventory. It records what the current repository 
 
 - `[x]` Search by part number, description, serial number, status, and location.
 - `[x]` Responsive inventory grid with desktop dock and narrow-screen detail drawer.
-- `[x]` Fictional demo stock uses a labeled visual registry and dark-theme inventory cards without attaching illustrations to production stock.
-- `[x]` Inventory, shortages, requests, locations, rotables, cannibalizations, discrepancies, imports, and report displays share the same non-destructive demo presentation scope.
+- `[x]` Fictional demo stock uses a labeled, part-family-aware visual registry and dark-theme inventory/detail cards without attaching illustrations to production stock.
+- `[x]` Inventory, shortages, requests, locations, rotables, cannibalizations, discrepancies, imports, and report displays share one non-destructive Show/Hide Demo Content toggle; demo and operational records never mix in the presentation.
 - `[x]` Parts filters, checkboxes, and request paging controls share the application dark-theme interaction treatment.
 - `[x]` Versioned confirmed metadata corrections.
 - `[x]` Append-only inventory event history.
