@@ -2999,6 +2999,8 @@ function switchTab(tabId) {
       case '3d-viewer': break;
       case 'settings': initSettings(); break;
     }
+  } else if (tabId === 'parts') {
+    MXPartsWorkspace.activate();
   }
 }
 
@@ -3506,10 +3508,7 @@ function initSettings() {
     try {
       const result = await MXApplicationClient.demoData.load(await settingsSession());
       demoPresentation?.enable?.({ announce: false });
-      if (demoDataStatus) {
-        demoDataStatus.textContent = `Demo content is on: ${result.aircraft} aircraft, ${result.cases} maintenance cases, ${result.stock_units} stock units, and ${result.evidence} evidence records.`;
-      }
-      syncDemoPresentationControls();
+      syncDemoPresentationControls(`Demo content is on: ${result.aircraft} aircraft, ${result.cases} maintenance cases, ${result.stock_units} stock units, and ${result.evidence} evidence records.`);
       window.dispatchEvent(new CustomEvent('mxg:demo-data-loaded', { detail: result }));
     } catch (error) {
       if (demoDataStatus) demoDataStatus.textContent = error.message;

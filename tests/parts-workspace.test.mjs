@@ -159,6 +159,7 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.doesNotMatch(init, /performSearch\(\)|loadLocations\(\)|loadShortages\(\)|loadRequests\(\)/);
     assert.match(js, /function activate\(\)/);
     assert.match(app, /case 'parts': MXPartsWorkspace\.activate\(\); break;/);
+    assert.match(app, /else if \(tabId === 'parts'\) \{\s*MXPartsWorkspace\.activate\(\);/);
     assert.match(js, /if \(byId\('tab-parts'\)\?\.classList\.contains\('active'\)\) void activate\(\);/);
   });
 
@@ -445,6 +446,7 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(css, /#tab-parts\.active\s*\{[\s\S]*height:\s*calc\(100dvh - 56px/);
     assert.match(css, /\.drawer-content\s*\{[\s\S]*min-height:\s*0/);
     assert.match(js, /parts-detail-visual/);
+    assert.match(js, /function activate\(\)[\s\S]*currentIsDemo !== presentationEnabled\(\)[\s\S]*closeDrawer\(\)/);
     assert.match(js, /mxg:demo-presentation-changed[\s\S]*currentIsDemo !== presentationEnabled\(\)[\s\S]*void activate\(\)/);
     assert.doesNotMatch(js, /Show all records in Settings/);
   });
@@ -990,7 +992,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=30/);
+    assert.match(html, /parts-workspace\.js\?v=31/);
     assert.match(html, /parts-workspace\.css\?v=21/);
     assert.match(html, /application-client\.js\?v=45/);
   });

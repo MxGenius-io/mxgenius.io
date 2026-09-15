@@ -1711,6 +1711,10 @@ const MXPartsWorkspace = (() => {
   }
 
   function activate() {
+    if (state.currentUnit) {
+      const currentIsDemo = globalThis.MXDemoVisualRegistry?.isDemoPart?.(state.currentUnit.unit) === true;
+      if (currentIsDemo !== presentationEnabled()) closeDrawer();
+    }
     const reads = [loadLocations()];
     if (state.view === 'inventory') reads.push(performSearch());
     if (state.view === 'requests') reads.push(loadRequests());
@@ -2902,7 +2906,7 @@ const MXPartsWorkspace = (() => {
     }
     resetReportView();
     showReportControls();
-    void activate();
+    if (byId('tab-parts')?.classList.contains('active')) void activate();
   });
 
   return Object.freeze({ init, activate, refresh: activate });
