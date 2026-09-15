@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Deployed
+> **Status:** Validated
 
 ## Azure Manual Library and Operations Release Delta — 2026-09-15
 
@@ -76,6 +76,22 @@ additive and do not mutate the source Search index or manual-image collection.
 - Anonymous `POST /api/equipment-packs/{pack_id}/manual-library` returned HTTP
   401. The `mxg-core` identity still holds `Storage Blob Data Contributor` only
   on the private `mxgstorage50106/documents` container.
+
+### Manual-image Applicability Correction — 2026-09-15
+
+The first signed-in production request named the CL350 and exact FDR AMM task
+but returned zero manual records because retrieval accepted aircraft
+applicability only from an active case or aircraft profile. The correction
+allows an explicit supported `CL350`, `CL-350`, `Challenger 350`, or
+`BD-100-1A10` name in the bounded conversation query to seed the frozen-pack
+applicability filter. Unsupported and ambiguous models continue to return no
+manual evidence.
+
+Validation passed with 85 backend unit tests, one intentionally ignored
+credential-gated live exporter test, warnings-denied Clippy, Rust formatting,
+and a regression proving `Challenger 3500` and unspecified aircraft do not
+resolve to the CL350 pack. Promote only `mxg-core`; preserve all settings,
+roles, data, and the healthy `mxg-core--manuals915` rollback revision.
 
 ### 1. Project Overview
 

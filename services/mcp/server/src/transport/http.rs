@@ -10036,6 +10036,24 @@ fn extract_ata_chapter(text: &str) -> Option<String> {
     None
 }
 
+fn explicit_manual_aircraft_model(text: &str) -> Option<String> {
+    let tokens = text
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(str::to_ascii_uppercase)
+        .collect::<Vec<_>>();
+    let single_token_match = tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "CL350" | "CHALLENGER350" | "BD1001A10"));
+    let two_token_match = tokens.windows(2).any(|pair| {
+        matches!(pair, [family, model] if matches!(family.as_str(), "CL" | "CHALLENGER") && model == "350")
+    });
+    let three_token_match = tokens.windows(3).any(|triple| {
+        matches!(triple, [family, series, variant] if family == "BD" && series == "100" && variant == "1A10")
+    });
+    (single_token_match || two_token_match || three_token_match).then(|| "CL350".into())
+}
+
 fn should_search_manual(message: &str, case_id: Option<Uuid>) -> bool {
     if case_id.is_some() {
         return true;
@@ -10337,13 +10355,16 @@ async fn chat(
         .map(str::to_owned);
     let manual_search_query =
         build_manual_search_query(message, &conversation_history, &authoritative_case_context);
+    let manual_aircraft_model = aircraft_model
+        .clone()
+        .or_else(|| explicit_manual_aircraft_model(&manual_search_query));
     let (manual_result, manual_warning) =
         if should_search_manual(&manual_search_query, requested_case_id) {
             match state
                 .manual
                 .search(&ManualQuery {
                     aircraft_id,
-                    aircraft_model: aircraft_model.clone(),
+                    aircraft_model: manual_aircraft_model.clone(),
                     ata: extract_ata_chapter(&manual_search_query),
                     text: manual_search_query,
                     limit: Some(33),
@@ -10354,7 +10375,7 @@ async fn chat(
                 Err(error) => (
                     ManualSearchResult {
                         state: ManualRetrievalState::RetrievalUnavailable,
-                        aircraft_model: aircraft_model.clone(),
+                        aircraft_model: manual_aircraft_model.clone(),
                         ata: None,
                         evidence: vec![],
                     },
@@ -10365,7 +10386,7 @@ async fn chat(
             (
                 ManualSearchResult {
                     state: ManualRetrievalState::NotRequested,
-                    aircraft_model,
+                    aircraft_model: manual_aircraft_model,
                     ata: None,
                     evidence: vec![],
                 },
@@ -12040,6 +12061,29 @@ mod structured_advisory_tests {
             "What about that?",
             Some(Uuid::new_v4())
         ));
+    }
+
+    #[test]
+    fn explicit_supported_aircraft_names_seed_manual_applicability() {
+        for value in [
+            "Show the CL350 FDR removal figure",
+            "Search the CL-350 maintenance manual",
+            "Use the Challenger 350 AMM",
+            "Check BD-100-1A10 task 31-31-01",
+        ] {
+            assert_eq!(
+                explicit_manual_aircraft_model(value).as_deref(),
+                Some("CL350")
+            );
+        }
+        assert_eq!(
+            explicit_manual_aircraft_model("Challenger 3500 manual"),
+            None
+        );
+        assert_eq!(
+            explicit_manual_aircraft_model("Which aircraft applies?"),
+            None
+        );
     }
 
     #[test]
