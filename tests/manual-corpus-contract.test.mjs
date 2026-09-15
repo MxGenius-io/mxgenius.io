@@ -73,6 +73,32 @@ test('manual image references are content-addressed and remain inside the contro
   });
 });
 
+test('the five manual figures have a deterministic pre-model lookup register', () => {
+  assert.equal(manifest.assets.length, 5);
+  assert.equal(new Set(manifest.assets.map((asset) => asset.register_id)).size, 5);
+  assert.equal(new Set(manifest.assets.map((asset) => asset.source_reference)).size, 5);
+  assert.ok(manifest.assets.every((asset) => (
+    asset.record_id
+    && asset.document_id
+    && asset.title
+    && asset.ata
+    && Number.isInteger(asset.page)
+    && asset.asset_id
+    && asset.caption
+    && asset.description
+    && Array.isArray(asset.task_numbers)
+    && Array.isArray(asset.keywords)
+    && asset.keywords.length > 0
+  )));
+  const fdrRemoval = manifest.assets.find((asset) => (
+    asset.task_numbers.includes('31-31-01-000-801')
+  ));
+  assert.equal(fdrRemoval?.register_id, 'IMG-CL350-AMM-31-FDR-REMOVAL');
+  assert.match(coreHttp, /lookup_registered_image/);
+  assert.match(coreHttp, /"vector_search_skipped": registered_image\.is_some\(\)/);
+  assert.match(coreHttp, /"semantic_requests_made": if registered_image\.is_some\(\) \{ 0 \} else \{ 1 \}/);
+});
+
 test('supporting families are explicitly excluded instead of silently entering the starter pack', () => {
   assert.equal(manifest.excluded_sources.policy, 'excluded_from_starter_pack');
   assert.equal(

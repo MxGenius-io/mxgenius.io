@@ -1030,6 +1030,34 @@ function setupChatPanel() {
     container.appendChild(grid);
   };
 
+  const appendManualRecordImages = (container, records) => {
+    const images = (Array.isArray(records) ? records : [])
+      .flatMap((record) => (record?.images || []).map((image) => ({
+        ...image,
+        title: record?.title || 'Manual figure'
+      })))
+      .slice(0, 2);
+    if (!images.length) return;
+    const grid = document.createElement('div');
+    grid.className = 'chat-message-images';
+    images.forEach((asset) => {
+      const src = MXApplicationClient.evidence.manualAssetUrl(asset.source_reference);
+      if (!src) return;
+      const figure = document.createElement('figure');
+      const image = document.createElement('img');
+      image.src = src;
+      image.alt = asset.caption || asset.title;
+      image.loading = 'lazy';
+      image.addEventListener('click', () => openImageLightbox(src));
+      const caption = document.createElement('figcaption');
+      caption.textContent = [asset.caption || asset.title, asset.page && `Page ${asset.page}`]
+        .filter(Boolean).join(' - ');
+      figure.append(image, caption);
+      grid.appendChild(figure);
+    });
+    if (grid.childElementCount) container.appendChild(grid);
+  };
+
   const setChatBubbleContent = (bubble, text, images = []) => {
     bubble.replaceChildren();
     appendChatImages(bubble, images);
@@ -1188,6 +1216,7 @@ function setupChatPanel() {
         ? (advisory.conversation_answer || advisory.synthesis || message.content)
         : message.content;
       setChatBubbleContent(bubble, text, payload.images || []);
+      appendManualRecordImages(bubble, manualRecords);
       if (message.role === 'assistant') {
         lastDisplayedResponseContext = buildDisplayedResponseContext({
           advisory,
@@ -2081,6 +2110,7 @@ Rules:
         // Structured advisory is already mounted as safe DOM nodes.
       } else if (answerText) {
         streamTarget.innerHTML = formatMxResponse(answerText);
+        appendManualRecordImages(streamTarget, data?.manual_records || []);
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
       }

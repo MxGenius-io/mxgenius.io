@@ -107,6 +107,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Retrieval over the frozen starter manual corpus.
 - `[x]` Manual images remain behind the authenticated application boundary.
 - `[x]` Retrieved, hash-verified manual diagrams are attached as bounded multimodal model input alongside their citation metadata.
+- `[x]` Exact CL350 figure/task requests use a five-entry deterministic image register, skipping embeddings and semantic Search before one verified image is attached.
 - `[x]` Model output cannot declare transport or sensor readiness.
 - `[x]` User-visible rejection details with correlation IDs.
 - `[x]` OpenAI Realtime WebRTC negotiation through the application backend.

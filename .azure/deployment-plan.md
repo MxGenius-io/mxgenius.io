@@ -93,6 +93,54 @@ and a regression proving `Challenger 3500` and unspecified aircraft do not
 resolve to the CL350 pack. Promote only `mxg-core`; preserve all settings,
 roles, data, and the healthy `mxg-core--manuals915` rollback revision.
 
+### Deterministic Manual Image Register — 2026-09-15
+
+The five approved CL350 AMM figures now have a frozen, human-readable register
+inside the existing manual-pack manifest. Each entry joins its task terms,
+record identity, page, caption, content-addressed Blob reference, and SHA-256
+before model execution. An explicit, unambiguous image request is resolved in
+memory; Azure embeddings and Search are skipped, exactly one hash-verified
+image is attached to the model turn, and the same registered figure is rendered
+in ordinary and advisory chat responses. Generic, ambiguous, and non-CL350
+requests continue to fail closed or use the existing semantic retrieval path.
+
+#### Deployment scope
+
+- Promote the paired static `app.js`/`dashboard.html` change through the
+  existing GitHub Pages workflow and the existing `mxg-core` container image.
+- Create no Azure resource, index record, Blob object, role assignment,
+  database migration, secret, ingress rule, or scaling change.
+- Preserve every existing Container App setting and keep
+  `mxg-core--manuals915` available for rollback.
+
+#### Validation Proof
+
+- 2026-09-15: `npm test` passed 412/412 browser and contract tests, including
+  the five-entry register, zero-semantic-request direct path, inline figure
+  rendering, and paired frontend cache-version assertions.
+- 2026-09-15: `cargo test --locked --workspace` passed all ordinary Rust tests;
+  the one credential-gated live exporter test remained intentionally ignored.
+- 2026-09-15: `cargo fmt --all -- --check`, warnings-denied Clippy,
+  `cargo build --locked --release --workspace`, `node --check app.js`, and
+  `git diff --check` passed.
+- 2026-09-15: the direct-register regression resolved Task
+  `31-31-01-000-801` to `IMG-CL350-AMM-31-FDR-REMOVAL`; generic text,
+  `Challenger 3500`, and the ambiguous pitch-disconnect request did not resolve.
+- 2026-09-15: Azure CLI 2.86.0 confirmed the enabled target subscription, ACR
+  provisioning state `Succeeded`, and `mxg-core` running on healthy revision
+  `mxg-core--manuals915`. Live `/healthz`, `/readyz`, and `/adapterz` returned
+  HTTP 200 with the frozen manual source ready and healthy.
+- 2026-09-15: static role verification found no IaC or permission change. Live
+  verification confirmed the core identity retains `Storage Blob Data
+  Contributor` scoped only to the private `mxgstorage50106/documents`
+  container.
+
+#### Rollback
+
+Shift Container App traffic back to `mxg-core--manuals915` and revert the paired
+GitHub Pages commit. The register is additive metadata and makes no Search or
+Blob mutation, so rollback requires no data repair.
+
 ### 1. Project Overview
 
 **Goal:** Extend the existing MXGenius Azure core with a fast, durable control

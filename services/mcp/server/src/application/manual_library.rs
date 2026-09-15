@@ -80,6 +80,7 @@ struct ManualPackManifest {
     integrity: ManualPackIntegrity,
     currency_policy: CurrencyPolicy,
     manuals: Vec<ManifestManual>,
+    assets: Vec<ManualImageRegisterEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -106,6 +107,30 @@ struct ManifestManual {
     display_name: String,
     manual_type: String,
     document_ids: Vec<String>,
+}
+
+/// Frozen, human-readable metadata that maps an image request to one verified
+/// Blob asset without invoking embeddings or Azure AI Search.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManualImageRegisterEntry {
+    pub manual_id: String,
+    pub register_id: String,
+    pub record_id: String,
+    pub document_id: String,
+    pub title: String,
+    pub ata: String,
+    pub section: String,
+    pub page: u32,
+    pub asset_id: String,
+    pub caption: String,
+    pub description: String,
+    #[serde(default)]
+    pub task_numbers: Vec<String>,
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    pub source_reference: String,
+    pub media_type: String,
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,6 +218,7 @@ impl AzureManualLibrary {
                 "only the frozen schema-v1 manual pack can be exported".into(),
             ));
         }
+        validate_image_register(&manifest)?;
 
         Ok(Some(Self {
             http,
@@ -207,6 +233,17 @@ impl AzureManualLibrary {
 
     pub fn pack_id(&self) -> &str {
         &self.manifest.pack_id
+    }
+
+    /// Resolve a specific visual with a bounded in-memory lookup. A match is
+    /// returned only for an image-directed request and an approved aircraft
+    /// model; callers can then bypass semantic retrieval completely.
+    pub fn lookup_registered_image(
+        &self,
+        query: &str,
+        aircraft_model: Option<&str>,
+    ) -> Option<ManualImageRegisterEntry> {
+        lookup_registered_image(&self.manifest, query, aircraft_model)
     }
 
     pub async fn export_drive(&self) -> Result<ManualDriveArchive, ManualLibraryError> {
@@ -544,6 +581,130 @@ fn required_env(name: &'static str) -> Result<String, ManualLibraryError> {
         .ok_or(ManualLibraryError::NotConfigured(name))
 }
 
+fn validate_image_register(manifest: &ManualPackManifest) -> Result<(), ManualLibraryError> {
+    let mut register_ids = BTreeSet::new();
+    let mut references = BTreeSet::new();
+    let mut hashes = BTreeSet::new();
+    for entry in &manifest.assets {
+        let registered_manual = manifest
+            .manuals
+            .iter()
+            .find(|manual| manual.manual_id == entry.manual_id);
+        if !registered_manual.is_some_and(|manual| manual.document_ids.contains(&entry.document_id))
+            || !register_ids.insert(entry.register_id.as_str())
+            || !references.insert(entry.source_reference.as_str())
+            || !hashes.insert(entry.content_hash.as_str())
+            || entry.description.trim().is_empty()
+            || entry.keywords.is_empty()
+            || entry.media_type != "image/png"
+            || !entry
+                .source_reference
+                .starts_with("azure-blob://documents/manual-assets/legacy-rag/v2/")
+            || !entry.content_hash.starts_with("sha256:")
+        {
+            return Err(ManualLibraryError::Contract(
+                "manual image register is incomplete or contains duplicate identities".into(),
+            ));
+        }
+    }
+    if manifest.assets.len() != 5 {
+        return Err(ManualLibraryError::Contract(format!(
+            "expected 5 registered manual images, received {}",
+            manifest.assets.len()
+        )));
+    }
+    Ok(())
+}
+
+fn lookup_registered_image(
+    manifest: &ManualPackManifest,
+    query: &str,
+    aircraft_model: Option<&str>,
+) -> Option<ManualImageRegisterEntry> {
+    let model = compact_match_text(aircraft_model?);
+    if model.contains("challenger3500")
+        || !matches!(model.as_str(), "cl350" | "challenger350" | "bd1001a10")
+    {
+        return None;
+    }
+    let query_normalized = normalized_match_text(query);
+    let query_tokens = query_normalized.split_whitespace().collect::<BTreeSet<_>>();
+    if ![
+        "show",
+        "view",
+        "display",
+        "open",
+        "render",
+        "produce",
+        "image",
+        "figure",
+        "diagram",
+        "drawing",
+        "illustration",
+    ]
+    .iter()
+    .any(|token| query_tokens.contains(token))
+    {
+        return None;
+    }
+
+    let mut matches = manifest
+        .assets
+        .iter()
+        .filter_map(|entry| {
+            let exact_task = entry
+                .task_numbers
+                .iter()
+                .any(|task| query_normalized.contains(normalized_match_text(task).as_str()));
+            let keyword_hits = entry
+                .keywords
+                .iter()
+                .filter(|keyword| {
+                    query_normalized.contains(normalized_match_text(keyword).as_str())
+                })
+                .count();
+            if !exact_task && keyword_hits == 0 {
+                return None;
+            }
+            let score = usize::from(exact_task) * 10_000 + keyword_hits * 100;
+            Some((score, entry))
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|(left_score, left), (right_score, right)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| left.register_id.cmp(&right.register_id))
+    });
+    let (best_score, best) = matches.first()?;
+    if matches
+        .get(1)
+        .is_some_and(|(next_score, _)| next_score == best_score)
+    {
+        return None;
+    }
+    Some((*best).clone())
+}
+
+fn normalized_match_text(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn compact_match_text(value: &str) -> String {
+    normalized_match_text(value).replace(' ', "")
+}
+
 fn natural_chunk_key(value: &str) -> (String, u64, String) {
     let chunk = value
         .rsplit_once("_c")
@@ -688,6 +849,41 @@ mod tests {
             "IMAGES/hash.png"
         );
         assert_eq!(natural_chunk_key("manual_without_chunk").1, u64::MAX);
+    }
+
+    #[test]
+    fn frozen_image_register_is_unique_and_resolves_exact_tasks_without_search() {
+        let manifest: ManualPackManifest =
+            serde_json::from_str(MANUAL_PACK_MANIFEST).expect("manifest");
+        validate_image_register(&manifest).expect("valid image register");
+
+        let match_entry = lookup_registered_image(
+            &manifest,
+            "Show the CL350 AMM figure for Task 31-31-01-000-801, FDR removal and installation.",
+            Some("CL350"),
+        )
+        .expect("registered image");
+        assert_eq!(match_entry.register_id, "IMG-CL350-AMM-31-FDR-REMOVAL");
+        assert_eq!(match_entry.page, 165);
+    }
+
+    #[test]
+    fn image_register_fails_closed_for_generic_or_wrong_aircraft_requests() {
+        let manifest: ManualPackManifest =
+            serde_json::from_str(MANUAL_PACK_MANIFEST).expect("manifest");
+        assert!(lookup_registered_image(&manifest, "Explain FDR removal", Some("CL350")).is_none());
+        assert!(lookup_registered_image(
+            &manifest,
+            "Show the FDR removal figure",
+            Some("Challenger 3500")
+        )
+        .is_none());
+        assert!(lookup_registered_image(
+            &manifest,
+            "Show the pitch disconnect figure",
+            Some("CL350")
+        )
+        .is_none());
     }
 
     #[tokio::test]

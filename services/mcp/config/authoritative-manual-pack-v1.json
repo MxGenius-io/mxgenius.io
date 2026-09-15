@@ -151,30 +151,121 @@
   "assets": [
     {
       "manual_id": "cl350-amm",
+      "register_id": "IMG-CL350-AMM-27-ELEVATOR-SENSOR",
+      "record_id": "cl350_cl350_amm_pt_1_chapter_27_flight_controls_c30",
+      "document_id": "3578e9e8af080173614f3e6c113c4d985852a763b386d0a30027f9cdeb020d37",
+      "title": "CL350 AMM — Elevator Surface Position Sensor",
+      "ata": "27",
+      "section": "CHAPTER 27 FLIGHT CONTROLS",
+      "page": 54,
+      "asset_id": "611176d4fe799ceb8f533810c2ed08ba",
+      "caption": "Elevator-surface position sensor (RVDT) and pitch-disconnect arrangement",
+      "description": "CL350 AMM Chapter 27 figure showing the elevator-surface position sensors, RVDT, and pitch-disconnect arrangement.",
+      "task_numbers": [],
+      "keywords": [
+        "elevator surface position sensor",
+        "elevator position sensor",
+        "pitch disconnect",
+        "RVDT"
+      ],
       "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/611176d4fe799ceb8f533810c2ed08baf2633527319f7b04df0b773249e7655e.png",
       "media_type": "image/png",
       "content_hash": "sha256:611176d4fe799ceb8f533810c2ed08baf2633527319f7b04df0b773249e7655e"
     },
     {
       "manual_id": "cl350-amm",
+      "register_id": "IMG-CL350-AMM-27-ELEVATOR-CONTROL",
+      "record_id": "cl350_cl350_amm_pt_1_chapter_27_flight_controls_c28",
+      "document_id": "3578e9e8af080173614f3e6c113c4d985852a763b386d0a30027f9cdeb020d37",
+      "title": "CL350 AMM — Elevator Control System",
+      "ata": "27",
+      "section": "CHAPTER 27 FLIGHT CONTROLS",
+      "page": 53,
+      "asset_id": "6497f7ed5e945928f4930d1aae888d0a",
+      "caption": "Elevator control system and pitch-disconnect arrangement",
+      "description": "CL350 AMM Chapter 27 figure showing the elevator control system, control columns, pitch disconnect, elevator PCUs, and sensors.",
+      "task_numbers": [],
+      "keywords": [
+        "elevator control system",
+        "elevator PCU",
+        "control column",
+        "pitch disconnect"
+      ],
       "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/6497f7ed5e945928f4930d1aae888d0afc3f0cc4ff3a556fb646347e62f71243.png",
       "media_type": "image/png",
       "content_hash": "sha256:6497f7ed5e945928f4930d1aae888d0afc3f0cc4ff3a556fb646347e62f71243"
     },
     {
       "manual_id": "cl350-amm",
+      "register_id": "IMG-CL350-AMM-32-BRAKE-PRESSURE-TRANSDUCER",
+      "record_id": "cl350_cl350_amm_pt_2_chapter_32_landing_gear_c359",
+      "document_id": "e24e88c6733bc667588afdc4b020032dcd3453c92438b23b42fdd18d5b74c672",
+      "title": "CL350 AMM — Brake Pressure Transducer Removal/Installation",
+      "ata": "32",
+      "section": "CHAPTER 32 LANDING GEAR",
+      "page": 997,
+      "asset_id": "9ad7b62a05e14d0ae5fe13d80315a79f",
+      "caption": "Brake pressure transducer removal/installation — Figure 601, Sheet 3 of 3",
+      "description": "CL350 AMM Chapter 32 figure for brake pressure transducer removal/installation, Task 32-43-17-000-801, Figure 601 Sheet 3 of 3.",
+      "task_numbers": [
+        "32-43-17-000-801"
+      ],
+      "keywords": [
+        "brake pressure transducer",
+        "brake transducer removal",
+        "brake transducer installation",
+        "figure 601"
+      ],
       "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/9ad7b62a05e14d0ae5fe13d80315a79f5cb2e7a50be310ef4375a38342b14253.png",
       "media_type": "image/png",
       "content_hash": "sha256:9ad7b62a05e14d0ae5fe13d80315a79f5cb2e7a50be310ef4375a38342b14253"
     },
     {
       "manual_id": "cl350-amm",
+      "register_id": "IMG-CL350-AMM-31-FDR-DOWNLOAD",
+      "record_id": "cl350_cl350_amm_pt_2_chapter_31_indicating_recording_systems_c62",
+      "document_id": "e24e88c6733bc667588afdc4b020032dcd3453c92438b23b42fdd18d5b74c672",
+      "title": "CL350 AMM — Flight Data Recorder Data Download",
+      "ata": "31",
+      "section": "CHAPTER 31 INDICATING RECORDING SYSTEMS",
+      "page": 150,
+      "asset_id": "a60bebc1ac59d1e95352bf2f1c4aa49d",
+      "caption": "Flight data recorder data download — Figure 203, Sheet 2 of 2",
+      "description": "CL350 AMM Chapter 31 figure for downloading flight data recorder data with a Portable Interface Unit, Task 31-31-01-970-803, Figure 203 Sheet 2 of 2.",
+      "task_numbers": [
+        "31-31-01-970-803"
+      ],
+      "keywords": [
+        "flight data recorder data download",
+        "FDR data download",
+        "portable interface unit",
+        "figure 203"
+      ],
       "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/a60bebc1ac59d1e95352bf2f1c4aa49d7a3ed7d9c091409bef587d759bdc482d.png",
       "media_type": "image/png",
       "content_hash": "sha256:a60bebc1ac59d1e95352bf2f1c4aa49d7a3ed7d9c091409bef587d759bdc482d"
     },
     {
       "manual_id": "cl350-amm",
+      "register_id": "IMG-CL350-AMM-31-FDR-REMOVAL",
+      "record_id": "cl350_cl350_amm_pt_2_chapter_31_indicating_recording_systems_c68",
+      "document_id": "e24e88c6733bc667588afdc4b020032dcd3453c92438b23b42fdd18d5b74c672",
+      "title": "CL350 AMM — Flight Data Recorder Removal/Installation",
+      "ata": "31",
+      "section": "CHAPTER 31 INDICATING RECORDING SYSTEMS",
+      "page": 165,
+      "asset_id": "cd03b16b10f70240a5cd2ca0493079a3",
+      "caption": "Flight data recorder removal/installation",
+      "description": "CL350 AMM Chapter 31 figure for flight data recorder removal/installation, Task 31-31-01-000-801.",
+      "task_numbers": [
+        "31-31-01-000-801"
+      ],
+      "keywords": [
+        "flight data recorder removal",
+        "flight data recorder installation",
+        "FDR removal",
+        "FDR installation"
+      ],
       "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab.png",
       "media_type": "image/png",
       "content_hash": "sha256:cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab"

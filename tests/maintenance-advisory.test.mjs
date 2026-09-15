@@ -61,6 +61,8 @@ test('manual images stay behind the application API boundary', () => {
   assert.match(client, /\/manual-assets\?reference=/);
   assert.match(app, /MXApplicationClient\.evidence\.manualAssetUrl/);
   assert.match(app, /image unavailable/);
+  assert.match(app, /appendManualRecordImages\(streamTarget, data\?\.manual_records \|\| \[\]\)/);
+  assert.match(app, /appendManualRecordImages\(bubble, manualRecords\)/);
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 
