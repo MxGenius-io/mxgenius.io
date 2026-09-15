@@ -76,7 +76,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Create a case from an aircraft registration, priority, and observed discrepancy.
 - `[x]` Resolve a canonical aircraft before case mutation.
 - `[x]` Stop and request clarification when aircraft resolution is ambiguous.
-- `[x]` Open and refresh existing cases.
+- `[x]` Open and refresh existing cases; the newest case loads automatically after dashboard startup while Clear still returns to the intentional empty view.
 - `[x]` Stable human-readable case references in `MXG-CASE-YYYYMMDD-XXXXXXXX` format.
 - `[x]` New-case validation stays inside the intake drawer, identifies the missing field, and focuses it without creating a partial case.
 - `[x]` Optional intake and follow-up images persist in the private tenant-scoped evidence store and render when a case is recalled.

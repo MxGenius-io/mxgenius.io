@@ -335,7 +335,7 @@ const MXCaseWorkspace = (() => {
     globalThis.setTimeout(finish, 240);
   }
 
-  async function loadExistingCases() {
+  async function loadExistingCases({ openLatest = false } = {}) {
     const select = byId('caseExistingSelect');
     if (!select) return;
     const activeCaseId = activeCase?.caseId || '';
@@ -366,6 +366,9 @@ const MXCaseWorkspace = (() => {
         select.value = activeCaseId;
       } else if (activeCaseId) {
         clearActiveCase();
+      } else if (openLatest && cases[0]?.case_id) {
+        select.value = cases[0].case_id;
+        await openExistingCase(cases[0].case_id);
       }
     } catch (error) {
       select.replaceChildren(new Option('Cases unavailable', ''));
@@ -670,7 +673,7 @@ const MXCaseWorkspace = (() => {
     } else {
       clearActiveCase({ announce: false });
       setStatus('Default view. Select a case or open New maintenance case.', 'idle');
-      void loadExistingCases();
+      void loadExistingCases({ openLatest: true });
     }
   }
 

@@ -368,8 +368,8 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(caseWorkspace, /void openExistingCase\(event\.currentTarget\.value\)/);
   assert.match(caseWorkspace, /caseClearButton'\)\?\.addEventListener\('click', \(\) => clearActiveCase\(\)\)/);
   assert.doesNotMatch(caseWorkspace, /caseOpenButton|caseRefreshButton/);
-  assert.match(caseWorkspace, /void loadExistingCases\(\)/);
-  assert.doesNotMatch(caseWorkspace, /selectLatest/);
+  assert.match(caseWorkspace, /void loadExistingCases\(\{ openLatest: true \}\)/);
+  assert.match(caseWorkspace, /openLatest && cases\[0\]\?\.case_id[\s\S]*await openExistingCase\(cases\[0\]\.case_id\)/);
   assert.match(application, /clear\(\) \{[\s\S]*this\.active = null[\s\S]*No case available/);
   assert.match(application, /MXTargetContext\?\.clear\([\s\S]*maintenance-case-cleared/);
   assert.match(application, /No maintenance case is selected\./);
@@ -570,7 +570,7 @@ test('root documentation exposes one status-marked product feature catalog', () 
 test('Settings exposes one Operations Center while the living feature catalog remains available inside it', () => {
   assert.match(dashboard, /<option value="operations-center\.html">Operations Center<\/option>/);
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress)\.html">/);
-  assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260915', \{ cache: 'no-store' \}\)/);
+  assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260915b', \{ cache: 'no-store' \}\)/);
   assert.match(featureCatalogPage, /id="featureSearch"/);
   assert.match(featureCatalogPage, /id="featureStatus"/);
   assert.match(featureCatalogPage, /const escapeHtml =/);
