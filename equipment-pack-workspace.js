@@ -3,6 +3,13 @@
 
   const MAX_BROWSER_PACK_BYTES = 256 * 1024 * 1024;
   const MAX_BROWSER_PACK_FILES = 5000;
+  const APPROVED_MANUALS = Object.freeze({
+    'cl350-amm': Object.freeze({ displayName: 'CL350 Aircraft Maintenance Manual', manualType: 'AMM' }),
+    'cl350-ipc': Object.freeze({ displayName: 'CL350 Illustrated Parts Catalog', manualType: 'IPC' }),
+    'cl350-spm': Object.freeze({ displayName: 'CL350 Standard Practices Manual', manualType: 'SPM' }),
+    'cl350-ndt': Object.freeze({ displayName: 'CL350 Nondestructive Testing Manual', manualType: 'NDT' }),
+    'cl350-ssm': Object.freeze({ displayName: 'CL350 System Schematic Manual', manualType: 'SSM' })
+  });
   const textEncoder = new TextEncoder();
   const crcTable = new Uint32Array(256);
   for (let index = 0; index < 256; index += 1) {
@@ -124,12 +131,35 @@
     };
   }
 
+  function manualsFromVersion(version) {
+    const declared = version?.manifest?.source?.manuals;
+    if (Array.isArray(declared) && declared.length) {
+      return declared.map((manual) => ({
+        id: String(manual.id || manual.manualId || manual.manual_id || ''),
+        displayName: String(manual.displayName || manual.display_name || manual.name || ''),
+        manualType: String(manual.manualType || manual.manual_type || '')
+      })).filter((manual) => manual.id && manual.displayName);
+    }
+    const ids = new Set();
+    for (const file of version?.manifest?.files || []) {
+      const match = String(file?.path || '').match(/^LIBRARY\/([^/]+)\//);
+      if (match) ids.add(match[1]);
+    }
+    return Array.from(ids).sort().map((id) => ({ id, ...(APPROVED_MANUALS[id] || {
+      displayName: id.replace(/-/g, ' '),
+      manualType: 'Manual'
+    }) }));
+  }
+
   function init({ withSession }) {
     const client = window.MXApplicationClient?.equipmentPacks;
     if (!client || typeof withSession !== 'function') return;
     const byId = (id) => document.getElementById(id);
     const packSelect = byId('settingsPackSelect');
     const versionSelect = byId('settingsPackVersion');
+    const manualPanel = byId('settingsPackManuals');
+    const manualSelect = byId('settingsPackManualSelect');
+    const manualDetail = byId('settingsPackManualDetail');
     const deviceSelect = byId('settingsPackDevice');
     const folderInput = byId('settingsPackFolder');
     const folderChoose = byId('settingsPackFolderChoose');
@@ -174,17 +204,33 @@
       items.forEach((item) => select.appendChild(new Option(label(item), item.id)));
     };
 
+    const showManuals = (version) => {
+      const manuals = manualsFromVersion(version);
+      fill(manualSelect, manuals, manuals.length ? `All ${manuals.length} manuals` : 'No manual catalog in this version',
+        (manual) => `${manual.manualType} · ${manual.displayName}`);
+      manualPanel.hidden = !manuals.length;
+      if (manuals.length) {
+        manualDetail.textContent = `${manuals.length} verified manuals are included in Version ${version.versionNumber}. Assigning this version sends the complete library to the Pi.`;
+      }
+    };
+
     async function loadVersions() {
       const packId = packSelect.value;
       versions = [];
       uploadingVersions = [];
       fill(versionSelect, [], 'Select a published version', () => '');
+      fill(manualSelect, [], 'Select a published version', () => '');
+      manualPanel.hidden = true;
       if (!packId) return updateActions();
       const payload = await run((session) => client.versions(packId, session));
       versions = (payload.versions || []).filter((version) => version.status === 'published');
       uploadingVersions = (payload.versions || []).filter((version) => version.status === 'uploading');
       fill(versionSelect, versions, versions.length ? 'Select a published version' : 'No published versions',
         (version) => `Version ${version.versionNumber} · ${Math.ceil(version.byteSize / 1024)} KiB`);
+      if (versions.length === 1) {
+        versionSelect.value = versions[0].id;
+        showManuals(versions[0]);
+      }
       updateActions();
     }
 
@@ -215,6 +261,7 @@
         devices = (devicePayload.devices || []).filter((device) => device.status !== 'revoked');
         fill(packSelect, packs, packs.length ? 'Select a drive' : 'Create the first drive',
           (pack) => `${pack.name} · ${pack.equipmentFamily}`);
+        if (packs.length === 1) packSelect.value = packs[0].id;
         fill(deviceSelect, devices, devices.length ? 'Select a device' : 'Register a device first',
           (device) => `${device.displayName} · ${device.status}`);
         await loadVersions();
@@ -368,7 +415,10 @@
     });
 
     packSelect?.addEventListener('change', () => loadVersions().catch((error) => setStatus(error.message, 'error')));
-    versionSelect?.addEventListener('change', updateActions);
+    versionSelect?.addEventListener('change', () => {
+      showManuals(versions.find((version) => version.id === versionSelect.value));
+      updateActions();
+    });
     deviceSelect?.addEventListener('change', () => {
       updateActions();
       loadHistory().catch((error) => setStatus(error.message, 'error'));
@@ -378,5 +428,5 @@
     void refresh();
   }
 
-  window.MXEquipmentPacks = Object.freeze({ init, buildStoredZip });
+  window.MXEquipmentPacks = Object.freeze({ init, buildStoredZip, manualsFromVersion });
 })();

@@ -562,6 +562,33 @@ main {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
+.equipment-pack-manuals {
+  align-items: end;
+  background: rgba(0, 212, 255, 0.035);
+  border: 1px solid rgba(0, 212, 255, 0.16);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+  margin: 10px 0 0;
+  padding: 9px 10px;
+}
+
+.equipment-pack-manuals[hidden] { display: none; }
+
+.equipment-pack-manuals label {
+  color: var(--text-muted);
+  display: grid;
+  font-size: 0.7rem;
+  gap: 6px;
+  min-width: 0;
+}
+
+.equipment-pack-manuals p {
+  line-height: 1.45;
+  margin: 0 0 6px;
+}
+
 .equipment-pack-folder-picker {
   align-items: center;
   background: var(--bg-input);
@@ -654,7 +681,8 @@ main {
 
 @media (max-width: 640px) {
   .equipment-pack-create__form,
-  .equipment-pack-flow { grid-template-columns: minmax(0, 1fr); }
+  .equipment-pack-flow,
+  .equipment-pack-manuals { grid-template-columns: minmax(0, 1fr); }
   .equipment-pack-create__wide { grid-column: auto; }
   .equipment-pack-flow .btn-primary { width: 100%; }
   .equipment-pack-workspace__footer { align-items: stretch; flex-direction: column; }

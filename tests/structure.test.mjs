@@ -1098,10 +1098,11 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   for (const id of [
     'settingsPacksCard', 'settingsPackCreate', 'settingsPackName', 'settingsPackFamily',
     'settingsPackSelect', 'settingsPackFolder', 'settingsPackPublish', 'settingsPackPublishManuals', 'settingsPackVersion',
+    'settingsPackManuals', 'settingsPackManualSelect', 'settingsPackManualDetail',
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=6/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=7/);
   assert.match(dashboard, />\s*Equipment Drives\s*</);
   assert.match(dashboard, />Create a drive<\/summary>/);
   assert.match(dashboard, /<span>1 · Drive<\/span>/);
@@ -1117,6 +1118,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   assert.match(equipmentWorkspace, /storedBlocks/);
   assert.match(equipmentWorkspace, /client\.publishVersion/);
   assert.match(equipmentWorkspace, /client\.publishManualLibrary/);
+  assert.match(equipmentWorkspace, /manualsFromVersion/);
   assert.match(equipmentWorkspace, /client\.assignVersion/);
   assert.match(equipmentWorkspace, /edgeDevices\.deployments/);
   assert.match(equipmentWorkspace, /Loading Equipment Drives/);

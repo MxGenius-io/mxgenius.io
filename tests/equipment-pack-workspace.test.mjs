@@ -75,3 +75,25 @@ test('drive creation retains its form reference across the async request', () =>
   assert.match(source, /await run\([\s\S]*form\.reset\(\);/);
   assert.doesNotMatch(source, /event\.currentTarget\.reset\(\)/);
 });
+
+test('published manual drive versions expose every frozen manual in the UI catalog', async () => {
+  const approved = JSON.parse(await readFile(new URL(
+    '../services/mcp/config/authoritative-manual-pack-v1.json', import.meta.url
+  ), 'utf8'));
+  const version = {
+    manifest: {
+      files: approved.manuals.map((manual) => ({ path: `LIBRARY/${manual.manual_id}/manual.txt` }))
+    }
+  };
+  const displayed = workspace().manualsFromVersion(version);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(displayed.map((manual) => ({
+      id: manual.id,
+      name: manual.displayName,
+      type: manual.manualType
+    })))),
+    approved.manuals
+      .map((manual) => ({ id: manual.manual_id, name: manual.display_name, type: manual.manual_type }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+  );
+});
