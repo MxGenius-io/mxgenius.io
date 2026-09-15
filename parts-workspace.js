@@ -5,6 +5,11 @@
 const MXPartsWorkspace = (() => {
   const byId = (id) => document.getElementById(id);
   const client = globalThis.MXApplicationClient?.parts;
+  const presentation = () => globalThis.MXDemoVisualRegistry?.presentation;
+  const presentationEnabled = () => presentation()?.isEnabled?.() === true;
+  const scopeParts = (records) => presentation()?.scopeParts?.(records) || records || [];
+  const scopeLocations = (records) => presentation()?.scopeLocations?.(records) || records || [];
+  const scopeRecords = (records) => presentation()?.scopeRecords?.(records) || records || [];
   const state = {
     query: '',
     currentUnit: null,
@@ -187,6 +192,15 @@ const MXPartsWorkspace = (() => {
     element.textContent = message;
   }
 
+  function resetReportView() {
+    state.report = { ...state.report, rows: [], cursor: null, loading: false };
+    const results = byId('reportResults');
+    const more = byId('btnReportMore');
+    if (results) results.replaceChildren();
+    if (more) more.hidden = true;
+    reportStatusMessage('');
+  }
+
   // Renders the picker, the report-specific filter controls, and the scope
   // note. Called on tab entry and whenever the chosen report changes.
   function showReportControls() {
@@ -205,6 +219,13 @@ const MXPartsWorkspace = (() => {
       });
     }
     const spec = currentReport();
+    const exportButton = byId('btnExportReport');
+    if (exportButton) {
+      exportButton.disabled = presentationEnabled();
+      exportButton.title = presentationEnabled()
+        ? 'Demo presentation hides mixed operational exports. Show all records in Settings to export.'
+        : '';
+    }
     byId('reportScopeHint').textContent = spec.scope;
     byId('reportFilters').innerHTML = spec.filters.map((name) => {
       const filter = REPORT_FILTERS[name];
@@ -289,8 +310,9 @@ const MXPartsWorkspace = (() => {
         filters,
         session: await session()
       });
-      state.report.rows = append ? state.report.rows.concat(rows) : rows;
-      state.report.cursor = spec.paged ? nextCursor : null;
+      const scopedRows = presentation()?.scopeReportRows?.(rows, state.report.name) || rows;
+      state.report.rows = append ? state.report.rows.concat(scopedRows) : scopedRows;
+      state.report.cursor = presentationEnabled() ? null : (spec.paged ? nextCursor : null);
       reportStatusMessage(state.report.rows.length
         ? `${state.report.rows.length} row${state.report.rows.length === 1 ? '' : 's'}${state.report.cursor ? ', more available' : ''}`
         : '');
@@ -303,6 +325,10 @@ const MXPartsWorkspace = (() => {
   }
 
   async function exportReport() {
+    if (presentationEnabled()) {
+      reportStatusMessage('Demo presentation keeps exports free of older operational history. Show all records in Settings to export.');
+      return;
+    }
     reportStatusMessage('Preparing the export\u2026');
     try {
       // The export carries the same filters as the run, at the largest page
@@ -356,11 +382,14 @@ const MXPartsWorkspace = (() => {
         includeCovered: byId('shortageIncludeCovered')?.checked || false,
         session: await session()
       });
-      const rows = payload.shortages || [];
+      const rows = scopeParts(payload.shortages || []);
+      const outstanding = presentationEnabled()
+        ? rows.filter((row) => Number(row.shortfall || 0) > 0).length
+        : payload.outstanding;
       const badge = byId('shortageCount');
       if (badge) {
-        badge.hidden = !payload.outstanding;
-        badge.textContent = payload.outstanding || '';
+        badge.hidden = !outstanding;
+        badge.textContent = outstanding || '';
       }
       list.innerHTML = rows.length
         ? rows.map(shortageRow).join('')
@@ -382,10 +411,10 @@ const MXPartsWorkspace = (() => {
     if (!list) return;
     list.innerHTML = '<div class="empty-state">Loading locations…</div>';
     try {
-      const locations = await client.listLocations({
+      const locations = scopeLocations(await client.listLocations({
         includeInactive: byId('locationsIncludeInactive')?.checked || false,
         session: await session()
-      });
+      }));
       if (!locations.length) {
         list.innerHTML = '<div class="empty-state">No locations defined yet.</div>';
         return;
@@ -538,19 +567,31 @@ const MXPartsWorkspace = (() => {
         overdueOnly: byId('requestOverdueOnly')?.checked || false,
         missingNeedByOnly: byId('requestMissingNeedBy')?.checked || false,
         page: requestPage,
+        pageSize: presentationEnabled() ? 100 : undefined,
         session: await session()
       });
-      const rows = payload.requests || [];
-      renderRequestPager(payload);
+      const rows = scopeParts(payload.requests || []);
+      const visiblePayload = presentationEnabled()
+        ? {
+            ...payload,
+            page: 1,
+            pageSize: rows.length,
+            totalCount: rows.length,
+            hasMore: false,
+            overdue: rows.filter((row) => row.isOverdue).length,
+            missingNeedBy: rows.filter((row) => row.missingNeedBy).length
+          }
+        : payload;
+      renderRequestPager(visiblePayload);
       const badge = byId('overdueCount');
       if (badge) {
         // Server-derived and counted over every page, not just this one.
-        badge.hidden = !payload.overdue;
-        badge.textContent = payload.overdue || '';
+        badge.hidden = !visiblePayload.overdue;
+        badge.textContent = visiblePayload.overdue || '';
       }
       requestStatusMessage(
-        payload.missingNeedBy
-          ? `${payload.missingNeedBy} request(s) cannot be measured because nobody set a need-by date.`
+        visiblePayload.missingNeedBy
+          ? `${visiblePayload.missingNeedBy} request(s) cannot be measured because nobody set a need-by date.`
           : ''
       );
       list.innerHTML = rows.length
@@ -871,12 +912,12 @@ const MXPartsWorkspace = (() => {
     if (!list || !client.listRotables) return;
     list.innerHTML = '<div class="empty-state">Loading the rotable register…</div>';
     try {
-      const units = await client.listRotables({
+      const units = scopeParts(await client.listRotables({
         status: byId('rotableStatusFilter')?.value || undefined,
         aircraftId: byId('rotableAircraftFilter')?.value.trim() || undefined,
         includeRetired: byId('rotableIncludeRetired')?.checked || false,
         session: await session()
-      });
+      }));
       list.innerHTML = units.length
         ? units.map(rotableRow).join('')
         : '<div class="empty-state">No rotables match these filters.</div>';
@@ -1031,7 +1072,7 @@ const MXPartsWorkspace = (() => {
     if (!list || !client.listCannibalizations) return;
     list.innerHTML = '<div class="empty-state">Loading cannibalizations…</div>';
     try {
-      const rows = await client.listCannibalizations({ session: await session() });
+      const rows = scopeParts(await client.listCannibalizations({ session: await session() }));
       const open = rows.filter((rob) => rob.status === 'proposed' || rob.status === 'approved').length;
       const badge = byId('robCount');
       if (badge) {
@@ -1270,7 +1311,7 @@ const MXPartsWorkspace = (() => {
     if (!list || !client.listImportBatches) return;
     list.innerHTML = '<div class="empty-state">Loading import history…</div>';
     try {
-      const batches = await client.listImportBatches({ session: await session() });
+      const batches = scopeRecords(await client.listImportBatches({ session: await session() }));
       list.innerHTML = batches.length
         ? batches.map(importBatchRow).join('')
         : '<div class="empty-state">Nothing has been imported yet.</div>';
@@ -1772,12 +1813,12 @@ const MXPartsWorkspace = (() => {
     grid.innerHTML = '<div class="empty-state">Loading inventory…</div>';
     setStatus('');
     try {
-      const units = await client.search({
-        query: state.query,
+      const units = scopeParts(await client.search({
+        query: presentationEnabled() && !state.query ? 'MXG-DEMO-' : state.query,
         status: state.status,
         location: state.location,
         session: await session()
-      });
+      }));
       if (!units.length) {
         grid.innerHTML = `<div class="empty-state">${escapeHtml(emptyResultMessage())}</div>`;
         return;
@@ -1936,7 +1977,7 @@ const MXPartsWorkspace = (() => {
     const list = byId('partsLocationOptions');
     if (!list || !client.listLocations) return;
     try {
-      state.locations = await client.listLocations({ session: await session() });
+      state.locations = scopeLocations(await client.listLocations({ session: await session() }));
       list.replaceChildren(...state.locations.map((location) => {
         const option = document.createElement('option');
         option.value = location.code;
@@ -2313,13 +2354,13 @@ const MXPartsWorkspace = (() => {
         status: byId('discrepancyStatusFilter')?.value || undefined,
         session: await session()
       });
-      const rows = payload.discrepancies || [];
+      const rows = scopeRecords(payload.discrepancies || []);
       const badge = byId('discrepancyCount');
       if (badge) {
         // The badge counts what is open regardless of the filter being read,
         // so switching to Resolved does not make the backlog look cleared.
         const openCount = (byId('discrepancyStatusFilter')?.value || 'open') === 'open'
-          ? payload.totalCount
+          ? (presentationEnabled() ? rows.length : payload.totalCount)
           : null;
         badge.hidden = !openCount;
         badge.textContent = openCount || '';
@@ -2843,6 +2884,14 @@ const MXPartsWorkspace = (() => {
   }
 
   globalThis.addEventListener?.('mxg:demo-data-loaded', () => {
+    resetReportView();
+    if (byId('tab-parts')?.classList.contains('active')) void activate();
+  });
+  globalThis.addEventListener?.('mxg:demo-presentation-changed', () => {
+    if (presentationEnabled() && state.currentUnit
+      && !globalThis.MXDemoVisualRegistry?.isDemoPart?.(state.currentUnit.unit)) closeDrawer();
+    resetReportView();
+    showReportControls();
     if (byId('tab-parts')?.classList.contains('active')) void activate();
   });
 

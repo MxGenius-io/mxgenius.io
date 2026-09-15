@@ -4,6 +4,45 @@
 
 > **Status:** Validated
 
+## Demo Presentation Cleanup — 2026-09-15
+
+This static release turns the existing fictional Maintenance and Parts seed into
+a clean presentation workspace. When the browser detects the tenant's labeled
+demo cases or parts, it keeps stale test and operational history out of those
+views, opens the newest demo case, and applies the same scope across Parts tabs
+and reports. It does not delete, rewrite, or reclassify any stored record.
+
+### Deployment scope
+
+- Push the validated static application to canonical `main` and let the
+  existing GitHub Pages workflow publish it.
+- Reuse the already deployed authenticated `/api/demo-data` seed endpoint and
+  existing Azure data plane; no Container App image, infrastructure, migration,
+  secret, identity, role, Search index, or Blob change is required.
+- Refresh the idempotent fictional tenant seed through the signed-in Settings
+  action after the static release lands, then verify Maintenance and Parts in a
+  visible browser.
+
+### Validation proof
+
+- 2026-09-15: `npm test` passed 418/418 application and contract tests. Targeted
+  Maintenance, Parts, structure, and target-registry checks cover the automatic
+  demo scope, explicit return to all records, cache pins, and existing
+  application boundaries.
+- JavaScript syntax checks and `git diff --check` are clean.
+- Azure CLI confirmed the documented subscription, Central US resource group,
+  ACR, and existing `mxg-core--parts915` revision are healthy, Running, and
+  ready, with zero resource-group policy assignments. `/healthz`, `/readyz`,
+  and `/adapterz` each returned HTTP 200.
+- Live signed-in presentation checks must pass before this status is promoted
+  from validated deployment input to deployment proof.
+
+### Rollback
+
+Revert the static commit through the normal `main` workflow. No data repair or
+Azure rollback is required; the demo seed is idempotent and presentation mode
+does not remove operational records.
+
 ## Maintenance and Parts Presentation Stabilization — 2026-09-15
 
 This release separates maintenance model context from procurement state,

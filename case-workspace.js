@@ -345,7 +345,9 @@ const MXCaseWorkspace = (() => {
       const { value: result } = await authenticatedRequest((requestSession) => (
         MXApplicationClient.cases.list(requestSession)
       ));
-      const cases = [...(result.cases || [])].sort((left, right) => {
+      const returnedCases = [...(result.cases || [])];
+      const cases = (globalThis.MXDemoVisualRegistry?.presentation?.scopeCases?.(returnedCases)
+        || returnedCases).sort((left, right) => {
         const rightTime = Date.parse(right.updated_at || right.updatedAt || right.opened_at || right.openedAt || '') || 0;
         const leftTime = Date.parse(left.updated_at || left.updatedAt || left.opened_at || left.openedAt || '') || 0;
         return rightTime - leftTime || String(right.case_id || '').localeCompare(String(left.case_id || ''));
@@ -364,11 +366,12 @@ const MXCaseWorkspace = (() => {
       select.disabled = false;
       if (activeCaseId && cases.some((caseState) => caseState.case_id === activeCaseId)) {
         select.value = activeCaseId;
-      } else if (activeCaseId) {
-        clearActiveCase();
-      } else if (openLatest && cases[0]?.case_id) {
-        select.value = cases[0].case_id;
-        await openExistingCase(cases[0].case_id);
+      } else {
+        if (activeCaseId) clearActiveCase({ announce: false });
+        if (openLatest && cases[0]?.case_id) {
+          select.value = cases[0].case_id;
+          await openExistingCase(cases[0].case_id);
+        }
       }
     } catch (error) {
       select.replaceChildren(new Option('Cases unavailable', ''));
@@ -675,9 +678,15 @@ const MXCaseWorkspace = (() => {
       setStatus('Default view. Select a case or open New maintenance case.', 'idle');
       void loadExistingCases({ openLatest: true });
     }
+    globalThis.addEventListener?.('mxg:demo-data-loaded', () => {
+      void loadExistingCases({ openLatest: true });
+    });
+    globalThis.addEventListener?.('mxg:demo-presentation-changed', () => {
+      void loadExistingCases({ openLatest: true });
+    });
   }
 
-  return Object.freeze({ init });
+  return Object.freeze({ init, refresh: loadExistingCases });
 })();
 
 document.addEventListener('DOMContentLoaded', MXCaseWorkspace.init);

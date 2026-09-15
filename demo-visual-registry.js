@@ -34,6 +34,9 @@
     })
   });
 
+  const PRESENTATION_STORAGE_KEY = 'mxg_demo_presentation_mode';
+  const DEMO_DATASET = 'mxgenius_complete_demo';
+
   function value(record, snake, camel = snake) {
     return record?.[snake] ?? record?.[camel] ?? '';
   }
@@ -45,6 +48,35 @@
     return /^\[DEMO\]/i.test(discrepancy)
       || /^MXG-DEMO-/i.test(aircraftId)
       || /^d0000000-0000-4000-8000-/i.test(caseId);
+  }
+
+  function metadata(record = {}) {
+    return record?.metadata
+      || record?.normalized_discrepancy
+      || record?.normalizedDiscrepancy
+      || {};
+  }
+
+  function hasDemoMarker(record = {}) {
+    if (!record || typeof record !== 'object') return false;
+    const recordMetadata = metadata(record);
+    if (recordMetadata?.demo === true || recordMetadata?.dataset === DEMO_DATASET) return true;
+    const candidates = [
+      value(record, 'part_number', 'partNumber'),
+      value(record, 'aircraft_id', 'aircraftId'),
+      value(record, 'serial_number', 'serialNumber'),
+      value(record, 'location_code', 'locationCode'),
+      record.code,
+      record.name,
+      record.description,
+      record.summary,
+      value(record, 'raw_discrepancy', 'rawDiscrepancy'),
+      record.supplier,
+      value(record, 'from_location', 'fromLocation'),
+      value(record, 'to_location', 'toLocation'),
+      record.fileName
+    ].filter((candidate) => candidate !== null && candidate !== undefined);
+    return candidates.some((candidate) => /^(?:\[DEMO\]|MXG(?:-|\s)DEMO(?:-|\s)|DEMO-)/i.test(String(candidate)));
   }
 
   function forCase(caseState = {}) {
@@ -60,9 +92,67 @@
   }
 
   function isDemoPart(unit = {}) {
-    return unit?.metadata?.demo === true
+    return hasDemoMarker(unit)
       || /^MXG-DEMO-/i.test(String(value(unit, 'part_number', 'partNumber')));
   }
+
+  function isDemoLocation(location = {}) {
+    return hasDemoMarker(location)
+      || /^DEMO-/i.test(String(location?.code || ''));
+  }
+
+  function mode() {
+    try {
+      return localStorage.getItem(PRESENTATION_STORAGE_KEY) || 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  function updateDocumentState(active) {
+    if (!globalThis.document?.documentElement) return;
+    globalThis.document.documentElement.toggleAttribute('data-demo-presentation', active);
+  }
+
+  function setMode(nextMode, { announce = true } = {}) {
+    const normalized = nextMode === 'all' ? 'all' : 'demo';
+    try {
+      localStorage.setItem(PRESENTATION_STORAGE_KEY, normalized);
+    } catch {
+      // Storage can be unavailable in hardened browser contexts. The current
+      // render still scopes from the returned records in automatic mode.
+    }
+    updateDocumentState(normalized === 'demo');
+    if (announce) {
+      globalThis.dispatchEvent?.(new CustomEvent('mxg:demo-presentation-changed', {
+        detail: { mode: normalized }
+      }));
+    }
+    return normalized;
+  }
+
+  function isPresentationEnabled() {
+    return mode() === 'demo';
+  }
+
+  function scope(records, predicate = hasDemoMarker) {
+    const source = Array.isArray(records) ? records : [];
+    if (mode() === 'all') return source;
+    const demoRecords = source.filter(predicate);
+    if (mode() === 'auto' && demoRecords.length) setMode('demo', { announce: false });
+    return isPresentationEnabled() ? demoRecords : source;
+  }
+
+  function scopeReportRows(records, reportName) {
+    if (mode() === 'all') return Array.isArray(records) ? records : [];
+    // A movement summary is already aggregated before it reaches the browser,
+    // so it cannot be separated without inventing precision. Keep it clear in
+    // presentation mode rather than leaking totals from old test activity.
+    if (reportName === 'summary') return [];
+    return scope(records, hasDemoMarker);
+  }
+
+  updateDocumentState(isPresentationEnabled());
 
   function forPart(unit = {}) {
     if (!isDemoPart(unit)) return null;
@@ -78,7 +168,20 @@
 
   globalThis.MXDemoVisualRegistry = Object.freeze({
     assets: ASSETS,
+    isDemoCase,
+    isDemoPart,
     forCase,
-    forPart
+    forPart,
+    presentation: Object.freeze({
+      enable: (options) => setMode('demo', options),
+      showAll: () => setMode('all'),
+      mode,
+      isEnabled: isPresentationEnabled,
+      scopeCases: (records) => scope(records, isDemoCase),
+      scopeParts: (records) => scope(records, isDemoPart),
+      scopeLocations: (records) => scope(records, isDemoLocation),
+      scopeRecords: (records) => scope(records, hasDemoMarker),
+      scopeReportRows
+    })
   });
 })();

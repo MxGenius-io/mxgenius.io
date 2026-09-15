@@ -36,6 +36,47 @@ test('demo visual registry keeps fictional imagery out of production records', (
   );
 });
 
+test('demo presentation scopes maintenance and parts without deleting operational records', () => {
+  const stored = new Map();
+  const attributes = new Set();
+  const context = {
+    localStorage: {
+      getItem: (key) => stored.get(key) || null,
+      setItem: (key, value) => stored.set(key, value)
+    },
+    document: {
+      documentElement: {
+        toggleAttribute: (name, active) => active ? attributes.add(name) : attributes.delete(name)
+      }
+    }
+  };
+  vm.runInNewContext(demoVisuals, context);
+  const presentation = context.MXDemoVisualRegistry.presentation;
+  const productionCase = { case_id: 'case-production-1', raw_discrepancy: 'Routine inspection' };
+  const demoCase = { case_id: 'case-demo-1', raw_discrepancy: '[DEMO] Hydraulic pressure decay' };
+  const productionPart = { partNumber: '29-1001', description: 'Hydraulic pump' };
+  const demoPart = { partNumber: 'MXG-DEMO-29-1001', description: '[DEMO] Hydraulic pump' };
+
+  assert.deepEqual(
+    Array.from(presentation.scopeCases([productionCase, demoCase]), (row) => row.case_id),
+    ['case-demo-1']
+  );
+  assert.equal(presentation.isEnabled(), true);
+  assert.equal(attributes.has('data-demo-presentation'), true);
+  assert.deepEqual(
+    Array.from(presentation.scopeParts([productionPart, demoPart]), (row) => row.partNumber),
+    ['MXG-DEMO-29-1001']
+  );
+  assert.deepEqual(Array.from(presentation.scopeReportRows([{ eventType: 'receive' }], 'summary')), []);
+
+  presentation.showAll();
+  assert.deepEqual(
+    Array.from(presentation.scopeParts([productionPart, demoPart]), (row) => row.partNumber),
+    ['29-1001', 'MXG-DEMO-29-1001']
+  );
+  assert.equal(attributes.has('data-demo-presentation'), false);
+});
+
 test('Parts Frontend Shell requirements', async (t) => {
   await t.test('dashboard.html contains parts navigation', () => {
     assert.match(html, /data-tab="parts"/);
@@ -58,6 +99,11 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(demoVisuals, /part-hydraulic-pump\.jpg/);
     assert.match(demoVisuals, /part-wheel-brake\.jpg/);
     assert.match(demoVisuals, /part-consumables\.jpg/);
+    assert.match(js, /scopeParts/);
+    assert.match(html, /id="settingsShowAllData"/);
+    assert.match(app, /demoPresentation\?\.enable/);
+    assert.match(app, /demoData\.load\(await settingsSession\(\)\)/);
+    assert.doesNotMatch(app, /demoData\.load\(serverSession\)/);
   });
 
   await t.test('application-client.js exposes the production parts namespace', () => {
@@ -110,7 +156,7 @@ test('Parts Frontend Shell requirements', async (t) => {
 
   await t.test('parts-workspace.js implements authenticated routing, search, OCR review, and receiving', () => {
     assert.match(js, /switchTab\?\.\('parts'\)/);
-    assert.match(js, /client\.search\(\{[\s\S]*?query: state\.query,[\s\S]*?session: await session\(\)[\s\S]*?\}\)/);
+    assert.match(js, /client\.search\(\{[\s\S]*?query: presentationEnabled\(\) && !state\.query \? 'MXG-DEMO-' : state\.query,[\s\S]*?session: await session\(\)[\s\S]*?\}\)/);
     assert.match(js, /client\.reviewExtraction\(/);
     assert.match(js, /client\.confirmReceiving\(/);
     assert.match(js, /crypto\.subtle\.digest\('SHA-256'/);
@@ -920,7 +966,7 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=26/);
+    assert.match(html, /parts-workspace\.js\?v=27/);
     assert.match(html, /parts-workspace\.css\?v=20/);
     assert.match(html, /application-client\.js\?v=45/);
   });

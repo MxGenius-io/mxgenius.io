@@ -66,6 +66,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Subscribed make/model selectors for market-intelligence results.
 - `[x]` Operator/company and contact search surface.
 - `[x]` Explicit tenant-authenticated demo-data load with confirmation.
+- `[x]` Demo presentation mode automatically scopes Maintenance and Parts to fictional seeded records, preserves operational data underneath, and provides a Settings-only return to the full record set.
 - `[x]` Cache layer and detailed JetNet success-state rendering.
 - `[~]` Market cost and performance intelligence depends on subscribed source coverage.
 - `[!]` Decide whether the current "Operator & Facility Directory" label should be narrowed to company/contact coverage or backed by a canonical facility source.
@@ -82,6 +83,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Optional intake and follow-up images persist in the private tenant-scoped evidence store and render when a case is recalled.
 - `[x]` Case-media reads use the ordinary signed-in organization session; users do not need direct Azure Storage roles or Blob URLs.
 - `[x]` Recorded case media loads without a generic-image flash; fictional demo visuals come from an explicit registry, are labeled, and never replace uploaded evidence.
+- `[x]` When demo content is present, the maintenance selector and automatic latest-case recall exclude stale operational/test history from the presentation view.
 - `[x]` Persist case status and case-scoped context through the application API.
 - `[x]` Active-case focus card from the dashboard.
 - `[x]` Pass active case context into chat, Realtime voice, and the 3D viewer.
@@ -147,6 +149,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Search by part number, description, serial number, status, and location.
 - `[x]` Responsive inventory grid with desktop dock and narrow-screen detail drawer.
 - `[x]` Fictional demo stock uses a labeled visual registry and dark-theme inventory cards without attaching illustrations to production stock.
+- `[x]` Inventory, shortages, requests, locations, rotables, cannibalizations, discrepancies, imports, and report displays share the same non-destructive demo presentation scope.
 - `[x]` Parts filters, checkboxes, and request paging controls share the application dark-theme interaction treatment.
 - `[x]` Versioned confirmed metadata corrections.
 - `[x]` Append-only inventory event history.
