@@ -69,3 +69,9 @@ test('Equipment Drives expose a confirmed recoverable archive path', async () =>
   assert.match(source, /client\.archive\(pack\.id, session\)/);
   assert.match(dashboard, /id="settingsPackArchive"[^>]*disabled>Remove selected drive/);
 });
+
+test('drive creation retains its form reference across the async request', () => {
+  assert.match(source, /const form = event\.currentTarget;/);
+  assert.match(source, /await run\([\s\S]*form\.reset\(\);/);
+  assert.doesNotMatch(source, /event\.currentTarget\.reset\(\)/);
+});

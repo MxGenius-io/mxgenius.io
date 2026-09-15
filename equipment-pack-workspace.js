@@ -227,6 +227,7 @@
 
     byId('settingsPackCreate')?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const form = event.currentTarget;
       setStatus('Creating Equipment Drive…');
       try {
         const payload = await run((session) => client.create({
@@ -235,7 +236,7 @@
           description: byId('settingsPackDescription').value.trim() || null,
           session
         }));
-        event.currentTarget.reset();
+        form.reset();
         await refresh();
         packSelect.value = payload.pack.id;
         await loadVersions();

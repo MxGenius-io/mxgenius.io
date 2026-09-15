@@ -47,9 +47,12 @@ archive action that refuses to hide a drive still assigned to a Pi.
 
 ### Validation proof
 
-- `npm test` passed 422/422 application and contract checks. `node --check`
+- `npm test` passed 423/423 application and contract checks. `node --check`
   passed for `app.js`, `application-client.js`, and
   `equipment-pack-workspace.js`; `git diff --check` also passed.
+- Live creation exposed and corrected a post-success browser cleanup fault: the
+  asynchronous submit handler now retains the form reference before awaiting
+  the API, so a created drive no longer reports a false `.reset()` error.
 - `cargo fmt --all --check`, the complete locked Rust workspace and all-target
   suite, warnings-denied workspace Clippy, and the locked optimized workspace
   build passed. The credential-gated live archive test remains intentionally
