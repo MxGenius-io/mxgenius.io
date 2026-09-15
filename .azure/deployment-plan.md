@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Validated
+> **Status:** Deployed
 
 ## Azure Manual Library and Operations Release Delta — 2026-09-15
 
@@ -59,6 +59,23 @@ explicit USB-C Drive Emulator state and deterministic shared-state creation.
 Shift Container App traffic to `mxg-core--casemedia1` and revert the GitHub
 Pages release to commit `3165f16`. The new route and archive builder are
 additive and do not mutate the source Search index or manual-image collection.
+
+### Deployment Proof
+
+- Git commit `bdf3a70` was pushed to canonical `main`. GitHub Pages run
+  `34958638751` completed successfully, and live cache-busted requests confirmed
+  the manual-library control on `dashboard.html` and the authenticated
+  `operations-center.html` shell.
+- ACR run `cj2k` built the exact committed `services/mcp` source and published
+  `mxg-core:manual-library-bdf3a70-20260915` with immutable digest
+  `sha256:e45ebc431c19857265e6a9438fcd3206c604f6dba4c56e89d398a39c92e610c1`.
+- Container App revision `mxg-core--manuals915` is Healthy, latest-ready, and
+  serves 100% traffic. Production `/healthz`, `/readyz`, and `/adapterz`
+  returned HTTP 200; readiness reports `manual_library: ready`, and the adapter
+  reports frozen pack `mxg-cl350-starter-manuals-v1` ready.
+- Anonymous `POST /api/equipment-packs/{pack_id}/manual-library` returned HTTP
+  401. The `mxg-core` identity still holds `Storage Blob Data Contributor` only
+  on the private `mxgstorage50106/documents` container.
 
 ### 1. Project Overview
 
