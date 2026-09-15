@@ -2,7 +2,7 @@
 
 ## Equipment Pack Control Plane — 2026-09-13
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 
 ## Demo Presentation Cleanup — 2026-09-15
 
@@ -42,8 +42,36 @@ capabilities while the interface retains the friendly `N350MX` label.
   ACR, and existing `mxg-core--parts915` revision are healthy, Running, and
   ready, with zero resource-group policy assignments. `/healthz`, `/readyz`,
   and `/adapterz` each returned HTTP 200.
-- Live signed-in presentation checks must pass before this status is promoted
-  from validated deployment input to deployment proof.
+- The signed-in refresh completed idempotently with 1 demo aircraft, 4
+  maintenance cases, 26 stock units, and 4 evidence records. Maintenance and
+  Parts both present only the labeled fictional dataset while presentation mode
+  is active; operational records remain preserved behind **Show all records**.
+
+### Deployment Proof
+
+- Application commit `065f8be` was pushed to canonical `main`; GitHub Pages run
+  `34998084172` completed successfully with the full JavaScript and Rust gate.
+- ACR run `cj2q` built the committed MCP source as
+  `mxg-core:demo-clean-065f8be-20260915`, immutable digest
+  `sha256:4d27df2c9ff0346c3200356fb67b2395bad2194d12debf48be0ee93da357b93f`.
+- Container App revision `mxg-core--demo065f8` is Healthy, latest-ready, and
+  serves 100% traffic. The previous `mxg-core--parts915` revision remains
+  available for rollback. Production `/healthz`, `/readyz`, and `/adapterz`
+  each returned HTTP 200; readiness reports the database and manual library
+  ready, with Parts available.
+- The signed-in Settings refresh returned exactly 1 aircraft, 4 maintenance
+  cases, 26 stock units, and 4 evidence records; rerunning it updated the same
+  fictional records instead of creating duplicates.
+- The newest maintenance demo opens automatically with the stable N350MX
+  visual, friendly aircraft label, two case events, and CL350 manual evidence.
+  The earlier false supporting-details warning is absent after the capability
+  responses complete.
+- Parts live checks showed only `MXG-DEMO-*` inventory, six demo requests with
+  N350MX aircraft labels, and the three DEMO locations. The prior ordinary
+  stock record remains stored but is hidden by presentation mode.
+- No infrastructure, migration, identity, secret, RBAC, Search-index, or Blob
+  change was made. The existing service assignments and data-plane boundaries
+  are unchanged.
 
 ### Rollback
 
