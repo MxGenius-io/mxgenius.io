@@ -2,7 +2,7 @@
 
 ## Natural Registered-Image Intent — 2026-09-15
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 > **Recipe:** AZCLI (existing ACR + Container Apps release path)
 
 Extend the frozen CL350 AMM image register with explicit natural-language
@@ -55,6 +55,23 @@ and CL350 aircraft gates.
   `Cognitive Services User` on the existing Document Intelligence account.
   The established ACR registry secret remains in use, so the new-resource
   `AcrPull` propagation gate is not applicable.
+
+### Deployment proof
+
+- GitHub `main` contains source commit `131447d` (`Resolve natural registered
+  image requests`). ACR run `cj32` built and pushed
+  `mxgacr50106.azurecr.io/mxg-core:manual-final-131447d-20260915` with digest
+  `sha256:0de0abb4c1641cc3407e7fe61fe0379db82c41a93a96c4210bff3139c3815b42`.
+- Container Apps revision `mxg-core--fdr131447d` is healthy and provisioned
+  with one ready replica, zero restarts, and 100% traffic. Single-revision mode
+  retired the prior revision; only the accepted revision remains active.
+- Post-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200, and
+  readiness still reports the frozen five-manual Search pack healthy.
+- The visible authenticated production Copilot was tested with the natural
+  request, “Can you show me the manual diagram for removing the flight data
+  recorder from a CL350?” It returned one `[M-01]` pill, one registered page
+  165 removal/installation record, one fully loaded 8103×9903 image, and an
+  expandable source excerpt/hash. No page 150 data-download figure appeared.
 
 ## Five-Manual Retrieval Finalization — 2026-09-15
 
