@@ -2,7 +2,7 @@
 
 ## Five-Manual Retrieval Finalization — 2026-09-15
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 > **Recipe:** AZCLI (existing ACR + Container Apps release path)
 
 Finalize the frozen CL350 manual path vertically from the authoritative Azure
@@ -12,6 +12,12 @@ to their requested manual before hybrid retrieval. Chapter/ATA filtering is
 used only where that field is populated by the frozen index; SPM and NDT retain
 manual-only filtering. Any retrieved text evidence is returned to the browser
 even when the model classifies the answer as ordinary conversation.
+An aircraft explicitly named in a manual question takes precedence over an
+unrelated active demo case for retrieval, while that case remains available as
+case context. The bounded application-awareness manifest now mirrors the
+durable navigation, concise surface hints, and user-facing terms such as
+Equipment Drive, Content Upload, and Demo Content; product-orientation answers
+do not inherit irrelevant manual evidence from an active case or prior turn.
 
 ### Deployment scope
 
@@ -66,12 +72,36 @@ even when the model classifies the answer as ordinary conversation.
 
 ### Deployment proof
 
-- Pending validated release execution and five-manual live acceptance.
+- Commits `135d2a0`, `bb60c9f`, `f9abf92`, and `c43b3f8` were pushed to
+  canonical `main`. The last revision includes the live-found active-case
+  precedence fix and the application-help/manual-evidence isolation boundary.
+- Final ACR run `cj31` built
+  `mxg-core:manual-final-c43b3f8-20260916` with digest
+  `sha256:6eacd2ba2e209c5936039be0aedbe7d7a50a2c9e24afb6173430830ff74d70a3`.
+  Revision `mxg-core--manualsc43b3f8` is Healthy, Provisioned, running one
+  replica, and serving 100% of Single-mode traffic.
+- Post-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200;
+  Postgres and `manuals-authoritative-v2` pack
+  `mxg-cl350-starter-manuals-v1` report ready and healthy.
+- In one signed-in production Copilot conversation, natural AMM, IPC, SPM,
+  NDT, and SSM questions each returned 33 records from the requested manual.
+  Every response rendered citation pills, two excerpt previews, and 33
+  expandable source disclosures. The AMM response also rendered two verified
+  Azure manual images; both loaded at their intrinsic dimensions. Opening the
+  first SSM disclosure exposed its complete section text in place.
+- A production product-help question correctly routed to Settings, Equipment
+  Drives, and Content Upload using the awareness manifest. It rendered as a
+  clean conversational answer with zero manual pills, evidence cards, or
+  source disclosures, even while a maintenance case remained active.
+- Post-deployment Azure RBAC is unchanged: the core identity retains only its
+  existing private-Blob contributor and Document Intelligence user roles. No
+  infrastructure, data, Entra, Search, Blob, Pi-drive, or permission mutation
+  was made.
 
 ### Rollback
 
-Keep revision `mxg-core--rockyfffa8b4` available until all five production
-queries pass. If the new revision fails readiness or manual acceptance, restore
+Keep revision `mxg-core--manualsbb60c9f` available as the pre-awareness
+rollback target. If the final revision fails readiness or acceptance, restore
 100% traffic to that revision. No data or schema rollback is required.
 
 ## Rocky Administrator Promotion — 2026-09-15
