@@ -1160,9 +1160,12 @@ function setupChatPanel() {
   };
 
   const appendManualEvidencePreview = (container, records) => {
-    const evidenceRecords = (Array.isArray(records) ? records : [])
-      .filter((record) => record?.excerpt || record?.images?.length)
-      .slice(0, 2);
+    const candidates = (Array.isArray(records) ? records : [])
+      .filter((record) => record?.excerpt || record?.images?.length);
+    const imageRecord = candidates.find((record) => Array.isArray(record?.images) && record.images.length);
+    const evidenceRecords = imageRecord
+      ? [imageRecord, ...candidates.filter((record) => record !== imageRecord)].slice(0, 2)
+      : candidates.slice(0, 2);
     if (!evidenceRecords.length) return;
 
     const evidence = document.createElement('section');

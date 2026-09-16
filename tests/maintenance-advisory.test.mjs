@@ -90,6 +90,8 @@ test('conversation formatting is safe and only exact evidence ids become pills',
 
 test('conversation evidence visibly includes a snippet and diagram before expandable source text', () => {
   assert.match(app, /const appendManualEvidencePreview/);
+  assert.match(app, /const imageRecord = candidates\.find\(\(record\) => Array\.isArray\(record\?\.images\) && record\.images\.length\)/);
+  assert.match(app, /\[imageRecord, \.\.\.candidates\.filter\(\(record\) => record !== imageRecord\)\]\.slice\(0, 2\)/);
   assert.match(app, /evidenceLabel\.textContent = 'MANUAL EVIDENCE'/);
   assert.match(app, /snippet\.className = 'mx-manual-evidence__snippet'/);
   assert.match(app, /record\.images \|\| \[\]/);
