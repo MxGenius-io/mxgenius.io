@@ -1,5 +1,61 @@
 # MXGenius Azure Deployment Plan
 
+## Natural Registered-Image Intent — 2026-09-15
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Extend the frozen CL350 AMM image register with explicit natural-language
+aliases for removing or installing the flight data recorder. The change stays
+inside the existing deterministic register: it does not enable fuzzy matching,
+does not alter manual content or asset hashes, and preserves the visual-intent
+and CL350 aircraft gates.
+
+### Deployment scope
+
+- Build `services/mcp` from the exact committed source in the existing
+  `mxgacr50106` registry and promote only the existing `mxg-core` Container App.
+- Preserve the frozen Search index, Blob assets, Pi Equipment Drive, secrets,
+  identity, ingress, scale, database, Entra objects, RBAC, and frontend.
+- No infrastructure, data, permission, or cost-bearing resource change is
+  included.
+
+### Validation steps
+
+- Prove that the natural FDR-removal wording resolves only the registered page
+  165 asset while generic text and wrong-aircraft requests still fail closed.
+- Run Rust formatting, complete locked all-target workspace tests,
+  warnings-denied Clippy, the frontend/application contract suite, and
+  `git diff --check`.
+- Reconfirm the Azure deployment target, current readiness, identity/RBAC
+  posture, then promote through the established ACR and Container App path.
+- Repeat the natural production request and verify one removal image, the
+  correct source pill/excerpt, and no data-download figure.
+
+### Validation proof
+
+- The focused natural-language lookup resolved only
+  `IMG-CL350-AMM-31-FDR-REMOVAL` on page 165. Existing fail-closed coverage
+  still rejects generic text-only prompts, the wrong aircraft, and ambiguous
+  unregistered figures.
+- Rust formatting passed. The complete locked all-target workspace passed 299
+  tests with one credential-gated live exporter intentionally ignored; strict
+  Clippy passed with warnings denied; the locked optimized workspace build
+  passed. The complete application suite passed 425/425 and
+  `git diff --check` passed.
+- Azure CLI reconfirmed subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), resource group
+  `mxg-rg-50106`, Central US ACR `mxgacr50106`, and the running `mxg-core`
+  Container App. Subscription and resource-group policy assignment counts are
+  zero.
+- `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200. Readiness reports
+  PostgreSQL and the frozen `manuals-authoritative-v2` Search source healthy.
+- No RBAC change is required. The core system identity retains only
+  `Storage Blob Data Contributor` on the private `documents` container and
+  `Cognitive Services User` on the existing Document Intelligence account.
+  The established ACR registry secret remains in use, so the new-resource
+  `AcrPull` propagation gate is not applicable.
+
 ## Five-Manual Retrieval Finalization — 2026-09-15
 
 > **Status:** Deployed and live-verified

@@ -865,6 +865,15 @@ mod tests {
         .expect("registered image");
         assert_eq!(match_entry.register_id, "IMG-CL350-AMM-31-FDR-REMOVAL");
         assert_eq!(match_entry.page, 165);
+
+        let natural_match = lookup_registered_image(
+            &manifest,
+            "Can you show me the manual diagram for removing the flight data recorder from a CL350?",
+            Some("CL350"),
+        )
+        .expect("registered image from natural wording");
+        assert_eq!(natural_match.register_id, "IMG-CL350-AMM-31-FDR-REMOVAL");
+        assert_eq!(natural_match.page, 165);
     }
 
     #[test]
