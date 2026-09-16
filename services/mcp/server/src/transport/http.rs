@@ -9867,7 +9867,7 @@ fn assistant_memory_content(advisory: &Value) -> String {
 
 fn application_awareness_manifest() -> Value {
     json!({
-        "version": "2026-09-14",
+        "version": "2026-09-16",
         "product": "MXGenius aviation maintenance workspace",
         "navigation": [
             {"id": "dashboard", "label": "Dashboard", "purpose": "Fleet overview, aircraft explorer, organizations, contacts, market intelligence, and active-case entry."},
@@ -9879,6 +9879,19 @@ fn application_awareness_manifest() -> Value {
         "global_surfaces": [
             {"id": "copilot", "label": "MXGenius Copilot", "purpose": "Conversational and evidence-backed maintenance assistance available throughout the authenticated application."},
             {"id": "operations-center", "label": "Operations Center", "parent": "settings", "purpose": "Reports, build activity, integration readiness, feature catalog, feedback, and access management."}
+        ],
+        "surface_hints": [
+            {"surface": "dashboard", "hint": "Use the primary navigation Dashboard button for fleet, directory, contacts, and market-intelligence work."},
+            {"surface": "case", "hint": "The case button represents the active maintenance case. Case evidence, images, findings, approvals, and history stay with that case."},
+            {"surface": "parts", "hint": "Use Parts Management for inventory, serialized units, trace records, procurement, orders, and shipments."},
+            {"surface": "3d-viewer", "hint": "Use Maintenance Workspace for 3D inspection, component targets, Pi diagnostics, remote witness, and spatial case evidence."},
+            {"surface": "settings", "hint": "Equipment Drives, registered Pi devices, model preference, demo-content visibility, approved content upload, and shared workspaces live in Settings."},
+            {"surface": "copilot", "hint": "Copilot is global. The active tab, active case, visible response, selected aircraft, and current 3D target arrive separately as bounded display context."}
+        ],
+        "terminology": [
+            {"term": "Equipment Drive", "meaning": "A versioned approved library that can be assigned to a registered Pi."},
+            {"term": "Content Upload", "meaning": "Stores an approved source for later ingestion; an upload is not searchable until the ingestion pipeline promotes it."},
+            {"term": "Demo Content", "meaning": "A Settings toggle that shows or hides fictional presentation records in Maintenance and Parts."}
         ],
         "limits": [
             "The map describes product surfaces, not the current user's authorization to every operation.",
@@ -10263,7 +10276,7 @@ fn explicit_manual_aircraft_model(text: &str) -> Option<String> {
     (single_token_match || two_token_match || three_token_match).then(|| "CL350".into())
 }
 
-fn registered_image_aircraft_model(
+fn requested_manual_aircraft_model(
     text: &str,
     contextual_aircraft_model: Option<&str>,
 ) -> Option<String> {
@@ -10574,11 +10587,9 @@ async fn chat(
         build_manual_search_query(message, &conversation_history, &authoritative_case_context);
     let (requested_manual_type, requested_manual_ata) =
         requested_manual_scope(message, &manual_search_query);
-    let registered_image_aircraft_model =
-        registered_image_aircraft_model(&manual_search_query, aircraft_model.as_deref());
-    let manual_aircraft_model = aircraft_model
-        .clone()
-        .or_else(|| explicit_manual_aircraft_model(&manual_search_query));
+    let manual_aircraft_model =
+        requested_manual_aircraft_model(&manual_search_query, aircraft_model.as_deref());
+    let registered_image_aircraft_model = manual_aircraft_model.clone();
     let registered_image = state.manual_library.as_ref().and_then(|library| {
         library.lookup_registered_image(
             &manual_search_query,
@@ -11828,6 +11839,8 @@ mod structured_advisory_tests {
             vec!["dashboard", "case", "parts", "3d-viewer", "settings"]
         );
         assert_eq!(manifest["global_surfaces"][1]["id"], "operations-center");
+        assert_eq!(manifest["surface_hints"].as_array().unwrap().len(), 6);
+        assert_eq!(manifest["terminology"][0]["term"], "Equipment Drive");
     }
 
     #[test]
@@ -12445,15 +12458,15 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn explicit_aircraft_wins_for_registered_images_without_changing_case_retrieval() {
+    fn explicit_aircraft_wins_over_active_case_for_manual_retrieval() {
         let query =
             "Show the CL350 AMM figure for Task 31-31-01-000-801, FDR removal and installation.";
         assert_eq!(
-            registered_image_aircraft_model(query, Some("MATRIX")).as_deref(),
+            requested_manual_aircraft_model(query, Some("MATRIX")).as_deref(),
             Some("CL350")
         );
         assert_eq!(
-            registered_image_aircraft_model("Show the current case figure", Some("MATRIX"))
+            requested_manual_aircraft_model("Show the current case figure", Some("MATRIX"))
                 .as_deref(),
             Some("MATRIX")
         );
