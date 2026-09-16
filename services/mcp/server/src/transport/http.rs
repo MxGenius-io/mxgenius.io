@@ -10165,40 +10165,84 @@ fn extract_ata_chapter(text: &str) -> Option<String> {
 
 fn extract_manual_type(text: &str) -> Option<String> {
     let uppercase = text.to_ascii_uppercase();
-    let tokens = uppercase
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|token| !token.is_empty())
-        .collect::<std::collections::HashSet<_>>();
-    [
+    let manual_markers = [
         (
             "IPC",
-            ["ILLUSTRATED PARTS CATALOG", "ILLUSTRATED PARTS CATALOGUE"],
+            &[
+                "IPC",
+                "ILLUSTRATED PARTS CATALOG",
+                "ILLUSTRATED PARTS CATALOGUE",
+            ][..],
         ),
         (
             "SPM",
-            ["STANDARD PRACTICES MANUAL", "STANDARD PRACTICE MANUAL"],
+            &[
+                "SPM",
+                "STANDARD PRACTICES MANUAL",
+                "STANDARD PRACTICE MANUAL",
+            ][..],
         ),
         (
             "NDT",
-            [
+            &[
+                "NDT",
                 "NONDESTRUCTIVE TESTING MANUAL",
                 "NON-DESTRUCTIVE TESTING MANUAL",
-            ],
+            ][..],
         ),
         (
             "SSM",
-            ["SYSTEM SCHEMATIC MANUAL", "SYSTEM SCHEMATICS MANUAL"],
+            &["SSM", "SYSTEM SCHEMATIC MANUAL", "SYSTEM SCHEMATICS MANUAL"][..],
         ),
         (
             "AMM",
-            ["AIRCRAFT MAINTENANCE MANUAL", "AIRPLANE MAINTENANCE MANUAL"],
+            &[
+                "AMM",
+                "AIRCRAFT MAINTENANCE MANUAL",
+                "AIRPLANE MAINTENANCE MANUAL",
+            ][..],
         ),
-    ]
-    .into_iter()
-    .find_map(|(manual_type, names)| {
-        (tokens.contains(manual_type) || names.iter().any(|name| uppercase.contains(name)))
-            .then(|| manual_type.to_owned())
+    ];
+    let mut earliest: Option<(usize, &str)> = None;
+    for (manual_type, markers) in manual_markers {
+        for marker in markers {
+            let Some(position) = bounded_marker_position(&uppercase, marker) else {
+                continue;
+            };
+            if earliest.map_or(true, |(current, _)| position < current) {
+                earliest = Some((position, manual_type));
+            }
+        }
+    }
+    earliest.map(|(_, manual_type)| manual_type.to_owned())
+}
+
+fn bounded_marker_position(text: &str, marker: &str) -> Option<usize> {
+    text.match_indices(marker).find_map(|(position, _)| {
+        let before = text[..position].chars().next_back();
+        let after = text[position + marker.len()..].chars().next();
+        let starts_at_boundary =
+            before.map_or(true, |character| !character.is_ascii_alphanumeric());
+        let ends_at_boundary = after.map_or(true, |character| !character.is_ascii_alphanumeric());
+        (starts_at_boundary && ends_at_boundary).then_some(position)
     })
+}
+
+fn requested_manual_scope(
+    message: &str,
+    contextual_query: &str,
+) -> (Option<String>, Option<String>) {
+    let current_manual_type = extract_manual_type(message);
+    let current_ata = extract_ata_chapter(message);
+    let manual_type = current_manual_type
+        .clone()
+        .or_else(|| extract_manual_type(contextual_query));
+    let ata = if current_manual_type.is_some() {
+        current_ata
+    } else {
+        current_ata.or_else(|| extract_ata_chapter(contextual_query))
+    };
+    (manual_type, ata)
 }
 
 fn explicit_manual_aircraft_model(text: &str) -> Option<String> {
@@ -10528,6 +10572,8 @@ async fn chat(
         .map(str::to_owned);
     let manual_search_query =
         build_manual_search_query(message, &conversation_history, &authoritative_case_context);
+    let (requested_manual_type, requested_manual_ata) =
+        requested_manual_scope(message, &manual_search_query);
     let registered_image_aircraft_model =
         registered_image_aircraft_model(&manual_search_query, aircraft_model.as_deref());
     let manual_aircraft_model = aircraft_model
@@ -10555,8 +10601,8 @@ async fn chat(
             .search(&ManualQuery {
                 aircraft_id,
                 aircraft_model: manual_aircraft_model.clone(),
-                manual_type: extract_manual_type(&manual_search_query),
-                ata: extract_ata_chapter(&manual_search_query),
+                manual_type: requested_manual_type,
+                ata: requested_manual_ata,
                 text: manual_search_query,
                 limit: Some(33),
             })
@@ -12376,6 +12422,19 @@ mod structured_advisory_tests {
             Some("11".into())
         );
         assert_eq!(extract_ata_chapter("SSM ATA 23 audio"), Some("23".into()));
+    }
+
+    #[test]
+    fn current_manual_request_wins_over_prior_conversation_context() {
+        let contextual_query = "Use the SPM for this switch light.\nRecent user context:\nWhat did the IPC say in Chapter 11?";
+        assert_eq!(
+            requested_manual_scope("Use the SPM for this switch light.", contextual_query),
+            (Some("SPM".into()), None)
+        );
+        assert_eq!(
+            requested_manual_scope("What about that?", contextual_query),
+            (Some("SPM".into()), Some("11".into()))
+        );
     }
 
     #[test]

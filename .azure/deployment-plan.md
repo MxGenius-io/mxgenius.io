@@ -40,7 +40,7 @@ even when the model classifies the answer as ordinary conversation.
 ### Validation proof
 
 - `cargo fmt --all -- --check` passed. The complete locked all-target Rust
-  workspace passed 298 tests with one credential-gated live exporter
+  workspace passed 299 tests with one credential-gated live exporter
   intentionally ignored; strict Clippy passed with warnings denied; the locked
   optimized workspace build passed.
 - `npm test` passed 425/425 application and contract checks after updating the
