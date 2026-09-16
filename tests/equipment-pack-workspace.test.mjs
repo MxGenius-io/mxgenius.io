@@ -76,13 +76,26 @@ test('drive creation retains its form reference across the async request', () =>
   assert.doesNotMatch(source, /event\.currentTarget\.reset\(\)/);
 });
 
-test('published manual drive versions expose every frozen manual in the UI catalog', async () => {
-  const approved = JSON.parse(await readFile(new URL(
-    '../services/mcp/config/authoritative-manual-pack-v1.json', import.meta.url
-  ), 'utf8'));
+test('published manual drive versions expose their data-derived mixed-aircraft catalog', () => {
   const version = {
     manifest: {
-      files: approved.manuals.map((manual) => ({ path: `LIBRARY/${manual.manual_id}/manual.txt` }))
+      source: {
+        manuals: [
+          {
+            id: 'falcon-7x-amm-a1b2c3',
+            displayName: 'Falcon 7X Aircraft Maintenance Manual',
+            manualType: 'Aircraft Maintenance Manual',
+            aircraftModels: ['Falcon 7X']
+          },
+          {
+            id: 'g650-ipc-d4e5f6',
+            displayName: 'G650 Illustrated Parts Catalog',
+            manualType: 'Illustrated Parts Catalog',
+            aircraftModels: ['Gulfstream G650']
+          }
+        ]
+      },
+      files: []
     }
   };
   const displayed = workspace().manualsFromVersion(version);
@@ -92,8 +105,9 @@ test('published manual drive versions expose every frozen manual in the UI catal
       name: manual.displayName,
       type: manual.manualType
     })))),
-    approved.manuals
-      .map((manual) => ({ id: manual.manual_id, name: manual.display_name, type: manual.manual_type }))
-      .sort((left, right) => left.id.localeCompare(right.id))
+    [
+      { id: 'falcon-7x-amm-a1b2c3', name: 'Falcon 7X Aircraft Maintenance Manual', type: 'Aircraft Maintenance Manual' },
+      { id: 'g650-ipc-d4e5f6', name: 'G650 Illustrated Parts Catalog', type: 'Illustrated Parts Catalog' }
+    ]
   );
 });

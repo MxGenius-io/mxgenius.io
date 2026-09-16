@@ -1183,7 +1183,7 @@ function setupChatPanel() {
       const source = document.createElement('small');
       source.textContent = Number.isFinite(record.match_percent)
         ? `${record.match_percent}% retrieval relevance`
-        : (record.retrieval_basis === 'deterministic_image_register' ? 'Registered source' : 'Retrieved source');
+        : (record.retrieval_basis === 'catalog_image_register' ? 'Registered source' : 'Retrieved source');
       header.append(citation, title, source);
       card.appendChild(header);
 
@@ -1705,7 +1705,7 @@ Rules:
     score.className = 'mx-manual-record__score';
     score.textContent = Number.isFinite(record.match_percent)
       ? `${record.match_percent}% retrieval relevance`
-      : (record.retrieval_basis === 'deterministic_image_register'
+      : (record.retrieval_basis === 'catalog_image_register'
         ? 'registered source'
         : 'ranked retrieval result');
     recordHeader.append(rank, recordTitle, score);
@@ -3493,7 +3493,7 @@ function initSettings() {
     try {
       const result = await withSettingsSession((requestSession) => MXApplicationClient.content.upload(file, requestSession));
       if (contentUploadStatus) {
-        contentUploadStatus.textContent = `${result.filename} stored for ingestion`;
+        contentUploadStatus.textContent = `${result.filename} normalized and ready for model-context indexing`;
       }
     } catch (error) {
       if (contentUploadStatus) contentUploadStatus.textContent = error.message;

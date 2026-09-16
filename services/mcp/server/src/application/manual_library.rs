@@ -1,8 +1,9 @@
 //! Azure-backed authoritative manual library export for Equipment Drives.
 //!
-//! The cloud model and the Pi export deliberately share the same frozen pack
-//! manifest. Search remains the source of flattened text while Blob Storage is
-//! the source of page-linked figures.
+//! Search remains the source of flattened text while Blob Storage is the
+//! source of page-linked figures. The export contract is compiled from that
+//! catalog at publication time, so aircraft and manual membership are data,
+//! not application constants.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Write};
@@ -14,14 +15,14 @@ use sha2::{Digest, Sha256};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
-use super::equipment_packs::validate_pack_path;
+use super::corpus_release::{compile_release_manifest, ReleaseFile, EDGE_DRIVE_PROFILE};
+use super::equipment_packs::{validate_pack_path, EQUIPMENT_PACK_MAX_BYTES};
 
-const MANUAL_PACK_MANIFEST: &str =
-    include_str!("../../../config/authoritative-manual-pack-v1.json");
 const SEARCH_API_VERSION: &str = "2024-07-01";
 const SEARCH_PAGE_SIZE: usize = 1_000;
-const MAX_SEARCH_RECORDS: usize = 50_000;
+const MAX_SEARCH_RECORDS_PER_AIRCRAFT: usize = 100_000;
 const MAX_ASSET_BYTES: usize = 20 * 1024 * 1024;
+const RELEASE_PROFILE: &str = EDGE_DRIVE_PROFILE;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ManualLibraryError {
@@ -43,19 +44,33 @@ pub struct AzureManualLibrary {
     index_name: String,
     asset_origin: String,
     asset_sas: String,
-    manifest: ManualPackManifest,
+    pack_id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ManualDriveSummary {
+    pub profile: String,
     pub pack_id: String,
     pub index_name: String,
+    pub aircraft_count: usize,
     pub manual_count: usize,
     pub source_file_count: usize,
     pub chunk_count: usize,
     pub image_count: usize,
     pub content_set_hash: String,
+    pub manuals: Vec<ReleaseManualSummary>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseManualSummary {
+    pub id: String,
+    pub display_name: String,
+    pub manual_type: String,
+    pub aircraft_models: Vec<String>,
+    pub chunk_count: usize,
+    pub source_file_count: usize,
 }
 
 pub struct ManualDriveArchive {
@@ -71,46 +86,8 @@ pub struct ManualAssetBytes {
     pub media_type: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct ManualPackManifest {
-    schema_version: u32,
-    pack_id: String,
-    release_state: String,
-    index_contract: ManualIndexContract,
-    integrity: ManualPackIntegrity,
-    currency_policy: CurrencyPolicy,
-    manuals: Vec<ManifestManual>,
-    assets: Vec<ManualImageRegisterEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct ManualIndexContract {
-    index_name: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct ManualPackIntegrity {
-    chunk_count: usize,
-    logical_manual_count: usize,
-    content_set_hash: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct CurrencyPolicy {
-    state: String,
-    reason: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct ManifestManual {
-    manual_id: String,
-    display_name: String,
-    manual_type: String,
-    document_ids: Vec<String>,
-}
-
-/// Frozen, human-readable metadata that maps an image request to one verified
-/// Blob asset without invoking embeddings or Azure AI Search.
+/// Data-derived metadata that maps an image-directed request to one verified
+/// Blob asset without invoking the embedding service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManualImageRegisterEntry {
     pub manual_id: String,
@@ -135,6 +112,8 @@ pub struct ManualImageRegisterEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SearchHit {
+    #[serde(rename = "@search.score", default)]
+    score: Option<f32>,
     id: String,
     document_id: String,
     content: String,
@@ -142,6 +121,7 @@ struct SearchHit {
     source_name: String,
     title: String,
     manual_type: Option<String>,
+    aircraft_model: Option<String>,
     ata: Option<String>,
     section: Option<String>,
     #[serde(default)]
@@ -156,6 +136,20 @@ struct SearchResponse {
     value: Vec<SearchHit>,
 }
 
+#[derive(Debug, Deserialize)]
+struct SearchFacet {
+    value: Option<String>,
+    count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct FacetResponse {
+    #[serde(rename = "@odata.count")]
+    count: Option<usize>,
+    #[serde(rename = "@search.facets", default)]
+    facets: BTreeMap<String, Vec<SearchFacet>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SearchAsset {
     asset_id: String,
@@ -166,6 +160,8 @@ struct SearchAsset {
     caption: String,
     content_hash: String,
     availability: String,
+    #[serde(default)]
+    size_bytes: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -190,36 +186,12 @@ impl AzureManualLibrary {
             return Ok(None);
         }
 
-        let manifest: ManualPackManifest = serde_json::from_str(MANUAL_PACK_MANIFEST)
-            .map_err(|error| ManualLibraryError::Contract(error.to_string()))?;
         let search_endpoint = required_env("AZURE_SEARCH_ENDPOINT")?;
         let search_key = required_env("AZURE_SEARCH_KEY")?;
         let index_name = required_env("AZURE_SEARCH_INDEX")?;
         let pack_id = required_env("MXGENIUS_MANUAL_PACK_ID")?;
         let asset_origin = required_env("MXGENIUS_MANUAL_ASSET_ORIGIN")?;
         let asset_sas = required_env("MXGENIUS_MANUAL_ASSET_SAS")?.replace("%26", "&");
-        if index_name != manifest.index_contract.index_name {
-            return Err(ManualLibraryError::Contract(format!(
-                "configured index {index_name} does not match {}",
-                manifest.index_contract.index_name
-            )));
-        }
-        if pack_id != manifest.pack_id {
-            return Err(ManualLibraryError::Contract(format!(
-                "configured pack {pack_id} does not match {}",
-                manifest.pack_id
-            )));
-        }
-        if manifest.release_state != "frozen"
-            || manifest.integrity.logical_manual_count != manifest.manuals.len()
-            || manifest.schema_version != 1
-        {
-            return Err(ManualLibraryError::Contract(
-                "only the frozen schema-v1 manual pack can be exported".into(),
-            ));
-        }
-        validate_image_register(&manifest)?;
-
         Ok(Some(Self {
             http,
             search_endpoint: search_endpoint.trim_end_matches('/').into(),
@@ -227,74 +199,89 @@ impl AzureManualLibrary {
             index_name,
             asset_origin: asset_origin.trim_end_matches('/').into(),
             asset_sas,
-            manifest,
+            pack_id,
         }))
     }
 
     pub fn pack_id(&self) -> &str {
-        &self.manifest.pack_id
+        &self.pack_id
     }
 
-    /// Resolve a specific visual with a bounded in-memory lookup. A match is
-    /// returned only for an image-directed request and an approved aircraft
-    /// model; callers can then bypass semantic retrieval completely.
-    pub fn lookup_registered_image(
+    /// Resolve a specific visual with a bounded lexical Search lookup. This
+    /// path uses the release's own aircraft and asset metadata and never calls
+    /// the embedding service.
+    pub async fn lookup_registered_image(
         &self,
         query: &str,
         aircraft_model: Option<&str>,
-    ) -> Option<ManualImageRegisterEntry> {
-        lookup_registered_image(&self.manifest, query, aircraft_model)
+    ) -> Result<Option<ManualImageRegisterEntry>, ManualLibraryError> {
+        lookup_registered_image(self, query, aircraft_model).await
     }
 
     pub async fn export_drive(&self) -> Result<ManualDriveArchive, ManualLibraryError> {
-        let mut hits = self.search_records().await?;
-        hits.sort_by_key(|hit| natural_chunk_key(&hit.id));
-        self.validate_content_set(&hits)?;
+        self.export_drive_scope(None).await
+    }
 
-        let manual_by_document = self
-            .manifest
-            .manuals
-            .iter()
-            .flat_map(|manual| {
-                manual
-                    .document_ids
-                    .iter()
-                    .map(move |document_id| (document_id.clone(), manual))
-            })
-            .collect::<BTreeMap<_, _>>();
+    /// Compile one aircraft family for an Equipment Drive. This keeps the
+    /// physical A/B package bounded while the model-facing Search index can
+    /// retain the complete multi-aircraft catalog.
+    pub async fn export_drive_for_aircraft(
+        &self,
+        aircraft_model: &str,
+    ) -> Result<ManualDriveArchive, ManualLibraryError> {
+        let model = aircraft_model.trim();
+        if model.is_empty() || model.chars().count() > 120 {
+            return Err(ManualLibraryError::Invalid(
+                "Equipment Drive aircraft family is invalid".into(),
+            ));
+        }
+        self.export_drive_scope(Some(model)).await
+    }
+
+    async fn export_drive_scope(
+        &self,
+        aircraft_model: Option<&str>,
+    ) -> Result<ManualDriveArchive, ManualLibraryError> {
+        let mut hits = self.search_records(aircraft_model).await?;
+        hits.sort_by_key(|hit| natural_chunk_key(&hit.id));
+        let content_set_hash = self.validate_content_set(&hits)?;
+        let (manuals, manual_ids) = release_manual_catalog(&hits);
         let mut files = Vec::new();
-        let mut sources = BTreeMap::<String, Vec<&SearchHit>>::new();
+        let mut sources = BTreeMap::<(String, String), Vec<&SearchHit>>::new();
         let mut assets = BTreeMap::<String, SearchAsset>::new();
         for hit in &hits {
             sources
-                .entry(hit.source_name.clone())
+                .entry((hit.document_id.clone(), hit.source_name.clone()))
                 .or_default()
                 .push(hit);
             for asset in parse_assets(hit)? {
                 if asset.availability == "available" {
-                    assets
-                        .entry(asset.source_reference.clone())
-                        .or_insert(asset);
+                    assets.entry(asset.content_hash.clone()).or_insert(asset);
                 }
             }
         }
 
-        for (source_name, mut chunks) in sources.clone() {
+        for ((document_id, source_name), mut chunks) in sources.clone() {
             chunks.sort_by_key(|hit| natural_chunk_key(&hit.id));
-            let manual = manual_by_document
-                .get(&chunks[0].document_id)
+            let fallback_id = chunks[0].id.clone();
+            let manual_id = manual_ids.get(&document_id).ok_or_else(|| {
+                ManualLibraryError::Invalid(format!(
+                    "source {source_name} has no generated manual identity"
+                ))
+            })?;
+            let manual = manuals
+                .iter()
+                .find(|manual| &manual.id == manual_id)
                 .ok_or_else(|| {
-                    ManualLibraryError::Invalid(format!(
-                        "source {source_name} is outside the frozen pack"
-                    ))
+                    ManualLibraryError::Invalid("manual catalog is incomplete".into())
                 })?;
             let mut body = format!(
                 "# {}\n\nSource: {}\nManual type: {}\nCurrency: {} — {}\n\n",
                 manual.display_name,
                 source_name,
                 manual.manual_type,
-                self.manifest.currency_policy.state,
-                self.manifest.currency_policy.reason
+                "unverified",
+                "revision and effective-date metadata were not supplied by the source"
             );
             for hit in chunks {
                 body.push_str(&format!(
@@ -303,7 +290,11 @@ impl AzureManualLibrary {
                 ));
             }
             files.push(DriveFile {
-                path: format!("LIBRARY/{}/{}", manual.manual_id, source_name),
+                path: format!(
+                    "LIBRARY/{}/{}",
+                    manual_id,
+                    safe_source_path(&source_name, &fallback_id)
+                ),
                 bytes: body.into_bytes(),
             });
         }
@@ -319,7 +310,8 @@ impl AzureManualLibrary {
                     "mediaType": asset.media_type,
                     "page": asset.page,
                     "caption": asset.caption,
-                    "contentHash": asset.content_hash
+                    "contentHash": asset.content_hash,
+                    "sizeBytes": asset.size_bytes
                 })
             })
             .collect::<Vec<_>>();
@@ -363,44 +355,94 @@ impl AzureManualLibrary {
             bytes: serde_json::to_vec_pretty(&image_map)
                 .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?,
         });
+        let release_manifest = json!({
+            "schemaVersion": 2,
+            "profile": RELEASE_PROFILE,
+            "releaseId": self.pack_id,
+            "indexName": self.index_name,
+            "contentSetHash": content_set_hash,
+            "currencyPolicy": {
+                "state": "unverified",
+                "reason": "Revision and effective-date metadata were not supplied by the source."
+            },
+            "manuals": manuals.clone()
+        });
         files.push(DriveFile {
             path: "MXG/manual-pack.json".into(),
-            bytes: MANUAL_PACK_MANIFEST.as_bytes().to_vec(),
+            bytes: serde_json::to_vec_pretty(&release_manifest)
+                .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?,
         });
         files.push(DriveFile {
             path: "README.TXT".into(),
             bytes: format!(
-                "MXGenius CL350 Technical Library\r\nPack: {}\r\n\r\nThis drive contains the same frozen flattened manual corpus used by MXGenius model retrieval. Linked figures are stored in IMAGES and mapped in INDEX/image-map.json. Manual currency is {}: {}\r\n",
-                self.manifest.pack_id,
-                self.manifest.currency_policy.state,
-                self.manifest.currency_policy.reason
+                "MXGenius Technical Library\r\nRelease: {}\r\n\r\nThis drive was compiled from the same versioned manual records used by MXGenius model retrieval. Linked figures are content-addressed in IMAGES and mapped in INDEX/image-map.json. Manual currency is unverified when revision metadata is absent.\r\n",
+                self.pack_id
             )
             .into_bytes(),
         });
 
+        let archive_overhead = (files.len() + assets.len()).saturating_mul(1_024);
+        let mut staged_bytes = files
+            .iter()
+            .map(|file| file.bytes.len())
+            .sum::<usize>()
+            .saturating_add(archive_overhead);
+        let maximum_archive_bytes = usize::try_from(EQUIPMENT_PACK_MAX_BYTES).map_err(|_| {
+            ManualLibraryError::Invalid("Equipment Drive size limit is invalid".into())
+        })?;
+        if assets.values().all(|asset| asset.size_bytes.is_some()) {
+            let projected_bytes = staged_bytes.saturating_add(
+                assets
+                    .values()
+                    .filter_map(|asset| asset.size_bytes)
+                    .sum::<usize>(),
+            );
+            if projected_bytes > maximum_archive_bytes {
+                return Err(ManualLibraryError::Contract(
+                    "this aircraft library exceeds the 2 GiB Equipment Drive limit; publish a narrower equipment family"
+                        .into(),
+                ));
+            }
+        }
         for asset in assets.values() {
+            let remaining_bytes = maximum_archive_bytes.saturating_sub(staged_bytes);
+            if remaining_bytes == 0 {
+                return Err(ManualLibraryError::Contract(
+                    "this aircraft library exceeds the 2 GiB Equipment Drive limit; publish a narrower equipment family"
+                        .into(),
+                ));
+            }
             let fetched = self
                 .fetch_asset(
                     &asset.source_reference,
                     &asset.content_hash,
                     Some(&asset.media_type),
-                    MAX_ASSET_BYTES,
+                    MAX_ASSET_BYTES.min(remaining_bytes),
                 )
                 .await?;
+            staged_bytes = staged_bytes.saturating_add(fetched.bytes.len());
             files.push(DriveFile {
                 path: asset_drive_path(&asset.source_reference),
                 bytes: fetched.bytes,
             });
         }
 
+        let aircraft_count = hits
+            .iter()
+            .filter_map(|hit| hit.aircraft_model.as_deref())
+            .collect::<BTreeSet<_>>()
+            .len();
         let summary = ManualDriveSummary {
-            pack_id: self.manifest.pack_id.clone(),
+            profile: RELEASE_PROFILE.into(),
+            pack_id: self.pack_id.clone(),
             index_name: self.index_name.clone(),
-            manual_count: self.manifest.manuals.len(),
+            aircraft_count,
+            manual_count: manuals.len(),
             source_file_count: sources.len(),
             chunk_count: hits.len(),
             image_count: assets.len(),
-            content_set_hash: self.manifest.integrity.content_set_hash.clone(),
+            content_set_hash,
+            manuals,
         };
         files.push(DriveFile {
             path: "MXG/export.json".into(),
@@ -443,6 +485,14 @@ impl AzureManualLibrary {
             .map_err(|_| ManualLibraryError::Unavailable("manual image request failed".into()))?
             .error_for_status()
             .map_err(|_| ManualLibraryError::Unavailable("manual image was rejected".into()))?;
+        if response
+            .content_length()
+            .is_some_and(|length| length == 0 || length > maximum_bytes as u64)
+        {
+            return Err(ManualLibraryError::Invalid(
+                "manual image is outside the allowed size".into(),
+            ));
+        }
         let response_media_type = response
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
@@ -476,100 +526,171 @@ impl AzureManualLibrary {
         })
     }
 
-    async fn search_records(&self) -> Result<Vec<SearchHit>, ManualLibraryError> {
-        let document_ids = self
-            .manifest
-            .manuals
-            .iter()
-            .flat_map(|manual| manual.document_ids.iter())
-            .cloned()
-            .collect::<Vec<_>>();
-        let filter = format!(
-            "source_class eq 'manual' and search.in(document_id, '{}', ',')",
-            document_ids.join(",")
-        );
+    async fn search_records(
+        &self,
+        aircraft_scope: Option<&str>,
+    ) -> Result<Vec<SearchHit>, ManualLibraryError> {
         let url = format!(
             "{}/indexes/{}/docs/search?api-version={SEARCH_API_VERSION}",
             self.search_endpoint, self.index_name
         );
-        let mut records = Vec::new();
-        let mut expected = None;
-        while records.len() < MAX_SEARCH_RECORDS {
-            let response = self
-                .http
-                .post(&url)
-                .header("api-key", &self.search_key)
-                .json(&json!({
-                    "search": "*",
-                    "filter": filter,
-                    "count": records.is_empty(),
-                    "top": SEARCH_PAGE_SIZE,
-                    "skip": records.len(),
-                    "select": "id,document_id,content,content_hash,source_name,title,manual_type,ata,section,assets_json"
-                }))
-                .send()
-                .await
-                .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
-                .error_for_status()
-                .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?;
-            let page: SearchResponse = response
-                .json()
-                .await
-                .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?;
-            expected = expected.or(page.count);
-            let page_size = page.value.len();
-            records.extend(page.value);
-            if page_size < SEARCH_PAGE_SIZE {
-                break;
-            }
+        let facet_response = self
+            .http
+            .post(&url)
+            .header("api-key", &self.search_key)
+            .json(&json!({
+                "search": "*",
+                "filter": "source_class eq 'manual'",
+                "count": true,
+                "top": 0,
+                "facets": ["aircraft_model,count:1000"]
+            }))
+            .send()
+            .await
+            .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
+            .error_for_status()
+            .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
+            .json::<FacetResponse>()
+            .await
+            .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?;
+        let mut aircraft = facet_response
+            .facets
+            .get("aircraft_model")
+            .into_iter()
+            .flatten()
+            .filter_map(|facet| {
+                facet
+                    .value
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+            })
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if aircraft.is_empty() {
+            return Err(ManualLibraryError::Invalid(
+                "manual Search contains no aircraft catalog".into(),
+            ));
         }
-        if records.len() >= MAX_SEARCH_RECORDS
-            || expected.is_some_and(|count| count != records.len())
+        let faceted_count = facet_response
+            .facets
+            .get("aircraft_model")
+            .into_iter()
+            .flatten()
+            .map(|facet| facet.count)
+            .sum::<usize>();
+        if facet_response
+            .count
+            .is_some_and(|count| count != faceted_count)
         {
             return Err(ManualLibraryError::Invalid(
-                "manual Search pagination did not return the complete frozen pack".into(),
+                "manual Search contains records without an aircraft identity".into(),
+            ));
+        }
+        if let Some(scope) = aircraft_scope {
+            let normalized_scope = compact_match_text(scope);
+            aircraft.retain(|model| compact_match_text(model) == normalized_scope);
+            if aircraft.is_empty() {
+                return Err(ManualLibraryError::Contract(format!(
+                    "the manual catalog has no aircraft family matching {scope}"
+                )));
+            }
+        }
+
+        let mut records = Vec::new();
+        for model in aircraft {
+            let filter = format!(
+                "source_class eq 'manual' and aircraft_model eq '{}'",
+                odata_string(&model)
+            );
+            let mut model_records = Vec::new();
+            let mut expected = None;
+            while model_records.len() < MAX_SEARCH_RECORDS_PER_AIRCRAFT {
+                let response = self
+                    .http
+                    .post(&url)
+                    .header("api-key", &self.search_key)
+                    .json(&json!({
+                        "search": "*",
+                        "filter": filter,
+                        "count": model_records.is_empty(),
+                        "top": SEARCH_PAGE_SIZE,
+                        "skip": model_records.len(),
+                        "select": "id,document_id,content,content_hash,source_name,title,aircraft_model,manual_type,ata,section,assets_json"
+                    }))
+                    .send()
+                    .await
+                    .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
+                    .error_for_status()
+                    .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?;
+                let page: SearchResponse = response
+                    .json()
+                    .await
+                    .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?;
+                expected = expected.or(page.count);
+                let page_size = page.value.len();
+                model_records.extend(page.value);
+                if page_size < SEARCH_PAGE_SIZE {
+                    break;
+                }
+            }
+            if model_records.len() >= MAX_SEARCH_RECORDS_PER_AIRCRAFT
+                || expected.is_some_and(|count| count != model_records.len())
+            {
+                return Err(ManualLibraryError::Invalid(format!(
+                    "manual Search pagination did not return the complete {model} catalog"
+                )));
+            }
+            records.extend(model_records);
+        }
+        if aircraft_scope.is_none()
+            && facet_response
+                .count
+                .is_some_and(|count| count != records.len())
+        {
+            return Err(ManualLibraryError::Invalid(
+                "manual Search pagination did not return the complete catalog".into(),
             ));
         }
         Ok(records)
     }
 
-    fn validate_content_set(&self, hits: &[SearchHit]) -> Result<(), ManualLibraryError> {
-        if hits.len() != self.manifest.integrity.chunk_count {
-            return Err(ManualLibraryError::Contract(format!(
-                "expected {} chunks, received {}",
-                self.manifest.integrity.chunk_count,
-                hits.len()
-            )));
-        }
-        let approved = self
-            .manifest
-            .manuals
-            .iter()
-            .flat_map(|manual| manual.document_ids.iter().cloned())
-            .collect::<BTreeSet<_>>();
-        let observed = hits
-            .iter()
-            .map(|hit| hit.document_id.clone())
-            .collect::<BTreeSet<_>>();
-        if approved != observed {
+    fn validate_content_set(&self, hits: &[SearchHit]) -> Result<String, ManualLibraryError> {
+        if hits.is_empty() {
             return Err(ManualLibraryError::Contract(
-                "Search document identities do not match the frozen pack".into(),
+                "manual catalog contains no chunks".into(),
             ));
         }
-        let mut content_lines = hits
-            .iter()
-            .map(|hit| format!("{}|{}", hit.id, hit.content_hash))
-            .collect::<Vec<_>>();
-        content_lines.sort();
-        let content_set = content_lines.join("\n");
-        let observed_hash = sha256_prefixed(content_set.as_bytes());
-        if observed_hash != self.manifest.integrity.content_set_hash {
-            return Err(ManualLibraryError::Contract(format!(
-                "content set hash mismatch: expected {}, received {observed_hash}",
-                self.manifest.integrity.content_set_hash
-            )));
+        let mut ids = BTreeSet::new();
+        let mut content_lines = Vec::with_capacity(hits.len());
+        for hit in hits {
+            if !ids.insert(hit.id.as_str())
+                || hit.document_id.trim().is_empty()
+                || hit.source_name.trim().is_empty()
+                || hit
+                    .aircraft_model
+                    .as_deref()
+                    .map_or(true, |value| value.is_empty())
+                || hit.content.trim().is_empty()
+            {
+                return Err(ManualLibraryError::Contract(format!(
+                    "manual chunk {} has incomplete or duplicate identity metadata",
+                    hit.id
+                )));
+            }
+            let observed_hash = sha256_prefixed(hit.content.as_bytes());
+            if observed_hash != hit.content_hash {
+                return Err(ManualLibraryError::Contract(format!(
+                    "manual chunk {} has a content hash mismatch",
+                    hit.id
+                )));
+            }
+            for asset in parse_assets(hit)? {
+                validate_search_asset(&asset)?;
+            }
+            content_lines.push(format!("{}|{}", hit.id, hit.content_hash));
         }
-        Ok(())
+        content_lines.sort();
+        Ok(sha256_prefixed(content_lines.join("\n").as_bytes()))
     }
 }
 
@@ -581,52 +702,17 @@ fn required_env(name: &'static str) -> Result<String, ManualLibraryError> {
         .ok_or(ManualLibraryError::NotConfigured(name))
 }
 
-fn validate_image_register(manifest: &ManualPackManifest) -> Result<(), ManualLibraryError> {
-    let mut register_ids = BTreeSet::new();
-    let mut references = BTreeSet::new();
-    let mut hashes = BTreeSet::new();
-    for entry in &manifest.assets {
-        let registered_manual = manifest
-            .manuals
-            .iter()
-            .find(|manual| manual.manual_id == entry.manual_id);
-        if !registered_manual.is_some_and(|manual| manual.document_ids.contains(&entry.document_id))
-            || !register_ids.insert(entry.register_id.as_str())
-            || !references.insert(entry.source_reference.as_str())
-            || !hashes.insert(entry.content_hash.as_str())
-            || entry.description.trim().is_empty()
-            || entry.keywords.is_empty()
-            || entry.media_type != "image/png"
-            || !entry
-                .source_reference
-                .starts_with("azure-blob://documents/manual-assets/legacy-rag/v2/")
-            || !entry.content_hash.starts_with("sha256:")
-        {
-            return Err(ManualLibraryError::Contract(
-                "manual image register is incomplete or contains duplicate identities".into(),
-            ));
-        }
-    }
-    if manifest.assets.len() != 5 {
-        return Err(ManualLibraryError::Contract(format!(
-            "expected 5 registered manual images, received {}",
-            manifest.assets.len()
-        )));
-    }
-    Ok(())
-}
-
-fn lookup_registered_image(
-    manifest: &ManualPackManifest,
+async fn lookup_registered_image(
+    library: &AzureManualLibrary,
     query: &str,
     aircraft_model: Option<&str>,
-) -> Option<ManualImageRegisterEntry> {
-    let model = compact_match_text(aircraft_model?);
-    if model.contains("challenger3500")
-        || !matches!(model.as_str(), "cl350" | "challenger350" | "bd1001a10")
-    {
-        return None;
-    }
+) -> Result<Option<ManualImageRegisterEntry>, ManualLibraryError> {
+    let Some(model) = aircraft_model
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
     let query_normalized = normalized_match_text(query);
     let query_tokens = query_normalized.split_whitespace().collect::<BTreeSet<_>>();
     if ![
@@ -645,44 +731,104 @@ fn lookup_registered_image(
     .iter()
     .any(|token| query_tokens.contains(token))
     {
-        return None;
+        return Ok(None);
     }
+    let url = format!(
+        "{}/indexes/{}/docs/search?api-version={SEARCH_API_VERSION}",
+        library.search_endpoint, library.index_name
+    );
+    let response = library
+        .http
+        .post(url)
+        .header("api-key", &library.search_key)
+        .json(&json!({
+            "search": query,
+            "searchFields": "title,section,content,aircraft_model",
+            "filter": format!(
+                "source_class eq 'manual' and search.ismatch('{}', 'aircraft_model', 'simple', 'all')",
+                odata_search_query(model)
+            ),
+            "top": 12,
+            "select": "id,document_id,content,content_hash,source_name,title,aircraft_model,manual_type,ata,section,assets_json"
+        }))
+        .send()
+        .await
+        .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
+        .error_for_status()
+        .map_err(|error| ManualLibraryError::Unavailable(error.to_string()))?
+        .json::<SearchResponse>()
+        .await
+        .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?;
 
-    let mut matches = manifest
-        .assets
-        .iter()
-        .filter_map(|entry| {
-            let exact_task = entry
-                .task_numbers
-                .iter()
-                .any(|task| query_normalized.contains(normalized_match_text(task).as_str()));
-            let keyword_hits = entry
-                .keywords
-                .iter()
-                .filter(|keyword| {
-                    query_normalized.contains(normalized_match_text(keyword).as_str())
-                })
-                .count();
-            if !exact_task && keyword_hits == 0 {
-                return None;
+    let query_terms = meaningful_terms(&query_normalized);
+    let mut matches = Vec::new();
+    for hit in response.value {
+        if !hit
+            .aircraft_model
+            .as_deref()
+            .is_some_and(|candidate| compact_match_text(candidate) == compact_match_text(model))
+        {
+            continue;
+        }
+        for asset in parse_assets(&hit)? {
+            if asset.availability != "available" {
+                continue;
             }
-            let score = usize::from(exact_task) * 10_000 + keyword_hits * 100;
-            Some((score, entry))
-        })
-        .collect::<Vec<_>>();
+            validate_search_asset(&asset)?;
+            let candidate_text = normalized_match_text(&format!(
+                "{} {} {} {}",
+                hit.title,
+                hit.section.as_deref().unwrap_or_default(),
+                asset.caption,
+                hit.content
+            ));
+            let term_hits = query_terms
+                .iter()
+                .filter(|term| candidate_text.contains(term.as_str()))
+                .count();
+            if term_hits == 0 {
+                continue;
+            }
+            let score = (term_hits, hit.score.unwrap_or_default().to_bits());
+            let entry = ManualImageRegisterEntry {
+                manual_id: hit.document_id.clone(),
+                register_id: asset.asset_id.clone(),
+                record_id: hit.id.clone(),
+                document_id: hit.document_id.clone(),
+                title: hit.title.clone(),
+                ata: hit.ata.clone().unwrap_or_else(|| "unknown".into()),
+                section: hit
+                    .section
+                    .clone()
+                    .unwrap_or_else(|| "Manual figure".into()),
+                page: asset.page.unwrap_or_default(),
+                asset_id: asset.asset_id,
+                caption: asset.caption,
+                description: truncate_text(&hit.content, 1_200),
+                task_numbers: Vec::new(),
+                keywords: query_terms.iter().cloned().collect(),
+                source_reference: asset.source_reference,
+                media_type: asset.media_type,
+                content_hash: asset.content_hash,
+            };
+            matches.push((score, entry));
+        }
+    }
     matches.sort_by(|(left_score, left), (right_score, right)| {
         right_score
             .cmp(left_score)
             .then_with(|| left.register_id.cmp(&right.register_id))
     });
-    let (best_score, best) = matches.first()?;
+    let Some((best_score, best)) = matches.first() else {
+        return Ok(None);
+    };
     if matches
         .get(1)
         .is_some_and(|(next_score, _)| next_score == best_score)
     {
-        return None;
+        return Ok(None);
     }
-    Some((*best).clone())
+    Ok(Some(best.clone()))
 }
 
 fn normalized_match_text(value: &str) -> String {
@@ -703,6 +849,170 @@ fn normalized_match_text(value: &str) -> String {
 
 fn compact_match_text(value: &str) -> String {
     normalized_match_text(value).replace(' ', "")
+}
+
+fn meaningful_terms(value: &str) -> BTreeSet<String> {
+    const INTENT_WORDS: &[&str] = &[
+        "show",
+        "view",
+        "display",
+        "open",
+        "render",
+        "produce",
+        "image",
+        "figure",
+        "diagram",
+        "drawing",
+        "illustration",
+        "manual",
+        "please",
+        "the",
+        "for",
+        "from",
+        "with",
+        "this",
+        "that",
+    ];
+    value
+        .split_whitespace()
+        .filter(|term| term.len() > 2 && !INTENT_WORDS.contains(term))
+        .map(str::to_owned)
+        .collect()
+}
+
+fn truncate_text(value: &str, limit: usize) -> String {
+    let mut output = value.chars().take(limit).collect::<String>();
+    if value.chars().count() > limit {
+        output.push('…');
+    }
+    output
+}
+
+fn odata_string(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+fn odata_search_query(value: &str) -> String {
+    odata_string(&value.replace('"', " "))
+}
+
+fn release_manual_catalog(
+    hits: &[SearchHit],
+) -> (Vec<ReleaseManualSummary>, BTreeMap<String, String>) {
+    #[derive(Default)]
+    struct Accumulator {
+        display_name: String,
+        manual_type: String,
+        aircraft_models: BTreeSet<String>,
+        source_files: BTreeSet<String>,
+        chunk_count: usize,
+    }
+
+    let mut catalog = BTreeMap::<String, Accumulator>::new();
+    for hit in hits {
+        let entry = catalog.entry(hit.document_id.clone()).or_default();
+        if entry.display_name.is_empty() {
+            entry.display_name = manual_display_name(hit);
+        }
+        if entry.manual_type.is_empty() {
+            entry.manual_type = hit.manual_type.clone().unwrap_or_else(|| "Manual".into());
+        }
+        if let Some(model) = hit
+            .aircraft_model
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            entry.aircraft_models.insert(model.to_owned());
+        }
+        entry.source_files.insert(hit.source_name.clone());
+        entry.chunk_count += 1;
+    }
+
+    let mut ids = BTreeMap::new();
+    let manuals = catalog
+        .into_iter()
+        .map(|(document_id, entry)| {
+            let suffix = &document_id[..document_id.len().min(12)];
+            let id = format!("{}-{suffix}", slug(&entry.display_name));
+            ids.insert(document_id, id.clone());
+            ReleaseManualSummary {
+                id,
+                display_name: entry.display_name,
+                manual_type: entry.manual_type,
+                aircraft_models: entry.aircraft_models.into_iter().collect(),
+                chunk_count: entry.chunk_count,
+                source_file_count: entry.source_files.len(),
+            }
+        })
+        .collect::<Vec<_>>();
+    (manuals, ids)
+}
+
+fn manual_display_name(hit: &SearchHit) -> String {
+    hit.title
+        .split_once(" — ")
+        .map(|(value, _)| value)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(&hit.source_name)
+        .trim()
+        .to_owned()
+}
+
+fn slug(value: &str) -> String {
+    let output = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .take(12)
+        .collect::<Vec<_>>()
+        .join("-");
+    if output.is_empty() {
+        "manual".into()
+    } else {
+        output
+    }
+}
+
+fn safe_source_path(source_name: &str, fallback_id: &str) -> String {
+    let parts = source_name
+        .replace('\\', "/")
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .map(|part| {
+            let sanitized = part
+                .chars()
+                .map(|character| {
+                    if character.is_ascii_alphanumeric()
+                        || matches!(character, ' ' | '.' | '-' | '_' | '(' | ')')
+                    {
+                        character
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>()
+                .trim_matches([' ', '.'])
+                .to_owned();
+            if sanitized.is_empty() {
+                "source".into()
+            } else {
+                sanitized
+            }
+        })
+        .collect::<Vec<String>>();
+    if parts.is_empty() {
+        format!("{}.md", slug(fallback_id))
+    } else {
+        parts.join("/")
+    }
 }
 
 fn natural_chunk_key(value: &str) -> (String, u64, String) {
@@ -730,6 +1040,32 @@ fn parse_assets(hit: &SearchHit) -> Result<Vec<SearchAsset>, ManualLibraryError>
     }
 }
 
+fn validate_search_asset(asset: &SearchAsset) -> Result<(), ManualLibraryError> {
+    let hash = asset.content_hash.strip_prefix("sha256:");
+    if asset.asset_id.trim().is_empty()
+        || asset.caption.trim().is_empty()
+        || !asset
+            .source_reference
+            .starts_with("azure-blob://documents/manual-assets/legacy-rag/")
+        || !matches!(
+            asset.media_type.as_str(),
+            "image/jpeg" | "image/png" | "image/webp"
+        )
+        || !hash.is_some_and(|value| {
+            value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit())
+        })
+        || asset
+            .size_bytes
+            .is_some_and(|size| size == 0 || size > MAX_ASSET_BYTES)
+    {
+        return Err(ManualLibraryError::Contract(format!(
+            "manual asset {} has invalid release metadata",
+            asset.asset_id
+        )));
+    }
+    Ok(())
+}
+
 fn asset_drive_path(source_reference: &str) -> String {
     let filename = source_reference
         .rsplit('/')
@@ -755,18 +1091,22 @@ fn build_archive(
                     file.path
                 )));
             }
-            Ok(json!({
-                "path": file.path,
-                "sizeBytes": file.bytes.len(),
-                "sha256": sha256_prefixed(&file.bytes)
-            }))
+            Ok(ReleaseFile {
+                path: file.path.clone(),
+                size_bytes: file.bytes.len(),
+                sha256: sha256_prefixed(&file.bytes),
+            })
         })
         .collect::<Result<Vec<_>, ManualLibraryError>>()?;
-    let manifest = json!({
-        "schemaVersion": 1,
-        "source": summary,
-        "files": manifest_files
-    });
+    let manifest = compile_release_manifest(
+        &summary.profile,
+        &summary.pack_id,
+        &summary.content_set_hash,
+        serde_json::to_value(&summary)
+            .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?,
+        manifest_files,
+    )
+    .map_err(ManualLibraryError::Invalid)?;
 
     let cursor = Cursor::new(Vec::new());
     let mut writer = ZipWriter::new(cursor);
@@ -805,6 +1145,30 @@ fn sha256_prefixed(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    fn search_hit(
+        id: &str,
+        document_id: &str,
+        model: &str,
+        title: &str,
+        source_name: &str,
+    ) -> SearchHit {
+        let content = format!("Service instructions for {title}");
+        SearchHit {
+            score: Some(1.0),
+            id: id.into(),
+            document_id: document_id.into(),
+            content_hash: sha256_prefixed(content.as_bytes()),
+            content,
+            source_name: source_name.into(),
+            title: title.into(),
+            manual_type: Some("Aircraft Maintenance Manual".into()),
+            aircraft_model: Some(model.into()),
+            ata: Some("32".into()),
+            section: Some("Landing gear".into()),
+            assets_json: None,
+        }
+    }
+
     #[test]
     fn chunk_keys_sort_numerically_and_drive_archive_is_deterministic() {
         let mut ids = vec!["manual_c11", "manual_c2", "manual_c1"];
@@ -812,13 +1176,23 @@ mod tests {
         assert_eq!(ids, vec!["manual_c1", "manual_c2", "manual_c11"]);
 
         let summary = ManualDriveSummary {
+            profile: RELEASE_PROFILE.into(),
             pack_id: "pack-v1".into(),
             index_name: "manuals-v1".into(),
+            aircraft_count: 1,
             manual_count: 1,
             source_file_count: 1,
             chunk_count: 1,
             image_count: 0,
             content_set_hash: format!("sha256:{}", "a".repeat(64)),
+            manuals: vec![ReleaseManualSummary {
+                id: "amm-a1b2c3".into(),
+                display_name: "Maintenance Manual".into(),
+                manual_type: "Aircraft Maintenance Manual".into(),
+                aircraft_models: vec!["Example 100".into()],
+                chunk_count: 1,
+                source_file_count: 1,
+            }],
         };
         let first = build_archive(
             vec![DriveFile {
@@ -843,7 +1217,25 @@ mod tests {
     }
 
     #[test]
-    fn assets_are_restricted_to_the_controlled_blob_collection() {
+    fn asset_contract_is_format_agnostic_but_restricted_to_the_controlled_collection() {
+        let asset = SearchAsset {
+            asset_id: "figure-1".into(),
+            kind: "figure".into(),
+            source_reference:
+                "azure-blob://documents/manual-assets/legacy-rag/v2/aircraft/figure-1.webp".into(),
+            media_type: "image/webp".into(),
+            page: Some(42),
+            caption: "Hydraulic routing".into(),
+            content_hash: format!("sha256:{}", "a".repeat(64)),
+            availability: "available".into(),
+            size_bytes: Some(42),
+        };
+        validate_search_asset(&asset).expect("valid catalog asset");
+
+        let mut invalid = asset.clone();
+        invalid.source_reference = "azure-blob://documents/uncontrolled/figure-1.webp".into();
+        assert!(validate_search_asset(&invalid).is_err());
+
         assert_eq!(
             asset_drive_path("azure-blob://documents/manual-assets/legacy-rag/v2/hash.png"),
             "IMAGES/hash.png"
@@ -852,52 +1244,52 @@ mod tests {
     }
 
     #[test]
-    fn frozen_image_register_is_unique_and_resolves_exact_tasks_without_search() {
-        let manifest: ManualPackManifest =
-            serde_json::from_str(MANUAL_PACK_MANIFEST).expect("manifest");
-        validate_image_register(&manifest).expect("valid image register");
+    fn release_catalog_is_derived_from_mixed_aircraft_records() {
+        let hits = vec![
+            search_hit(
+                "falcon-amm_c1",
+                "doc-falcon-amm",
+                "Falcon 7X",
+                "Falcon 7X AMM — Landing gear",
+                "falcon/amm/chapter-32.md",
+            ),
+            search_hit(
+                "g650-amm_c1",
+                "doc-g650-amm",
+                "Gulfstream G650",
+                "G650 AMM — Landing gear",
+                "g650/amm/chapter-32.md",
+            ),
+        ];
 
-        let match_entry = lookup_registered_image(
-            &manifest,
-            "Show the CL350 AMM figure for Task 31-31-01-000-801, FDR removal and installation.",
-            Some("CL350"),
-        )
-        .expect("registered image");
-        assert_eq!(match_entry.register_id, "IMG-CL350-AMM-31-FDR-REMOVAL");
-        assert_eq!(match_entry.page, 165);
-
-        let natural_match = lookup_registered_image(
-            &manifest,
-            "Can you show me the manual diagram for removing the flight data recorder from a CL350?",
-            Some("CL350"),
-        )
-        .expect("registered image from natural wording");
-        assert_eq!(natural_match.register_id, "IMG-CL350-AMM-31-FDR-REMOVAL");
-        assert_eq!(natural_match.page, 165);
+        let (manuals, ids) = release_manual_catalog(&hits);
+        assert_eq!(manuals.len(), 2);
+        assert_eq!(ids.len(), 2);
+        assert_eq!(manuals[0].aircraft_models, vec!["Falcon 7X"]);
+        assert_eq!(manuals[1].aircraft_models, vec!["Gulfstream G650"]);
+        assert_eq!(
+            safe_source_path("../falcon\\amm/chapter:32.md", "fallback"),
+            "falcon/amm/chapter_32.md"
+        );
     }
 
     #[test]
-    fn image_register_fails_closed_for_generic_or_wrong_aircraft_requests() {
-        let manifest: ManualPackManifest =
-            serde_json::from_str(MANUAL_PACK_MANIFEST).expect("manifest");
-        assert!(lookup_registered_image(&manifest, "Explain FDR removal", Some("CL350")).is_none());
-        assert!(lookup_registered_image(
-            &manifest,
-            "Show the FDR removal figure",
-            Some("Challenger 3500")
-        )
-        .is_none());
-        assert!(lookup_registered_image(
-            &manifest,
-            "Show the pitch disconnect figure",
-            Some("CL350")
-        )
-        .is_none());
+    fn lexical_image_terms_remove_intent_words_without_aircraft_overfitting() {
+        let normalized =
+            normalized_match_text("Please show the Bombardier Global 7500 hydraulic-pump diagram");
+        let terms = meaningful_terms(&normalized);
+        assert!(!terms.contains("show"));
+        assert!(!terms.contains("diagram"));
+        assert!(terms.contains("bombardier"));
+        assert!(terms.contains("global"));
+        assert!(terms.contains("7500"));
+        assert!(terms.contains("hydraulic"));
+        assert!(terms.contains("pump"));
     }
 
     #[tokio::test]
     #[ignore = "requires the live Azure Search and Blob read credentials"]
-    async fn live_frozen_pack_builds_a_complete_edge_archive() {
+    async fn live_catalog_builds_a_complete_edge_archive() {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(90))
             .build()
@@ -907,10 +1299,11 @@ mod tests {
             .expect("configured live library");
         let archive = library.export_drive().await.expect("live drive export");
         assert!(archive.bytes.starts_with(b"PK\x03\x04"));
-        assert_eq!(archive.summary.manual_count, 5);
-        assert_eq!(archive.summary.chunk_count, 13_121);
-        assert_eq!(archive.summary.image_count, 5);
-        assert!(archive.file_count > 5);
+        assert_eq!(archive.summary.profile, RELEASE_PROFILE);
+        assert!(archive.summary.aircraft_count > 0);
+        assert!(archive.summary.manual_count > 0);
+        assert!(archive.summary.chunk_count >= archive.summary.manual_count);
+        assert!(archive.file_count as usize > archive.summary.manual_count);
         assert_eq!(
             archive.manifest["files"].as_array().unwrap().len(),
             archive.file_count as usize

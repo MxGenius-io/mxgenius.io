@@ -371,7 +371,7 @@ test('chat sends bounded image inputs and content uploads use the authenticated 
 
   assert.equal(requests[0].request.images[0].data_url, 'data:image/png;base64,aGVsbG8=');
   assert.equal(requests[0].request.images[0].detail, 'high');
-  assert.match(requests[1].url, /\/api\/content\/uploads\?filename=ATA%2029\.pdf$/);
+  assert.match(requests[1].url, /\/api\/content\/uploads\?filename=ATA%2029\.pdf&profile=model-context$/);
   assert.equal(requests[1].options.headers.Authorization, 'Bearer oidc-token');
   assert.equal(requests[1].options.headers['Content-Type'], 'application/pdf');
   assert.equal(requests[1].request, file);

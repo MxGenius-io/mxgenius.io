@@ -489,7 +489,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=71/);
+  assert.match(dashboard, /app\.js\?v=72/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -1102,7 +1102,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=7/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=8/);
   assert.match(dashboard, />\s*Equipment Drives\s*</);
   assert.match(dashboard, />Create a drive<\/summary>/);
   assert.match(dashboard, /<span>1 · Drive<\/span>/);

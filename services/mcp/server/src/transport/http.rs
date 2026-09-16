@@ -35,6 +35,9 @@ use crate::application::cannibalizations::{
     CannibalizationQuery, CannibalizationRepository, DecideCannibalizationInput,
     ProposeCannibalizationInput,
 };
+use crate::application::corpus_release::{
+    compile_release_manifest, ReleaseFile, MODEL_CONTEXT_PROFILE,
+};
 use crate::application::equipment_packs::{
     ApproveEdgeClaimInput, AssignEquipmentPackInput, CreateEquipmentPackInput,
     CreateEquipmentPackVersionInput, DeviceIdentity, EdgeDeploymentStatusInput,
@@ -725,6 +728,8 @@ async fn manual_asset(
 #[derive(Debug, Deserialize)]
 struct ContentUploadQuery {
     filename: String,
+    #[serde(default)]
+    profile: Option<String>,
 }
 
 fn safe_upload_filename(value: &str) -> Option<String> {
@@ -814,6 +819,14 @@ async fn upload_content(
             "content filename is invalid",
         );
     };
+    let profile = input.profile.as_deref().unwrap_or(MODEL_CONTEXT_PROFILE);
+    if profile != MODEL_CONTEXT_PROFILE {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_CONTENT_UPLOAD_PROFILE",
+            "content uploads support the model-context publication profile",
+        );
+    }
     let supplied_media_type = headers
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
@@ -829,7 +842,7 @@ async fn upload_content(
     };
     let upload_id = Uuid::new_v4();
     let blob_path = format!(
-        "documents/content-uploads/{}/{}-{}",
+        "documents/model-context-releases/{}/{}/source/{}",
         context.organization_id.0, upload_id, filename
     );
     let access = match workspace_read_blob_access(&state.realtime_client, &blob_path).await {
@@ -876,16 +889,94 @@ async fn upload_content(
         );
     }
     let content_hash = format!("sha256:{}", hex::encode(sha2::Sha256::digest(&body)));
+    let source_reference = format!("azure-blob://{blob_path}");
+    let manifest_path = format!(
+        "documents/model-context-releases/{}/{}/release.json",
+        context.organization_id.0, upload_id
+    );
+    let manifest = match compile_release_manifest(
+        profile,
+        &upload_id.to_string(),
+        &content_hash,
+        json!({
+            "filename": filename,
+            "mediaType": media_type,
+            "sourceReference": source_reference,
+            "indexingState": "ready"
+        }),
+        vec![ReleaseFile {
+            path: format!("source/{filename}"),
+            size_bytes: body.len(),
+            sha256: content_hash.clone(),
+        }],
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::error!(target: "mxgenius.content_upload", %error, upload_id = %upload_id, "model-context release compilation failed");
+            return realtime_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "CONTENT_RELEASE_INVALID",
+                "content could not be normalized for model context",
+            );
+        }
+    };
+    let manifest_bytes = match serde_json::to_vec_pretty(&manifest) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::error!(target: "mxgenius.content_upload", %error, upload_id = %upload_id, "model-context manifest serialization failed");
+            return realtime_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "CONTENT_RELEASE_INVALID",
+                "content could not be normalized for model context",
+            );
+        }
+    };
+    let manifest_access =
+        match workspace_read_blob_access(&state.realtime_client, &manifest_path).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+    let mut manifest_request = state
+        .realtime_client
+        .put(manifest_access.url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("x-ms-version", "2023-11-03")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(manifest_bytes);
+    if let Some(token) = manifest_access.bearer_token {
+        manifest_request = manifest_request.bearer_auth(token);
+    }
+    let manifest_upstream = match manifest_request.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(target: "mxgenius.content_upload", %error, upload_id = %upload_id, "model-context manifest upload failed");
+            return realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "CONTENT_RELEASE_FAILED",
+                "content was stored but its model-context release could not be finalized",
+            );
+        }
+    };
+    if !manifest_upstream.status().is_success() {
+        return realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "CONTENT_RELEASE_REJECTED",
+            "content was stored but its model-context release was rejected",
+        );
+    }
     (
         StatusCode::CREATED,
         Json(json!({
+            "release_id": upload_id,
             "upload_id": upload_id,
+            "profile": profile,
             "filename": filename,
             "media_type": media_type,
             "size_bytes": body.len(),
             "content_hash": content_hash,
-            "source_reference": format!("azure-blob://{blob_path}"),
-            "status": "stored_for_ingestion"
+            "source_reference": source_reference,
+            "manifest_reference": format!("azure-blob://{manifest_path}"),
+            "status": "ready_for_model_context_ingestion"
         })),
     )
         .into_response()
@@ -1316,7 +1407,7 @@ fn manual_library_error(error: ManualLibraryError) -> Response {
             realtime_error(
                 StatusCode::CONFLICT,
                 "MANUAL_LIBRARY_CONTRACT_MISMATCH",
-                "the Azure manual library no longer matches the approved frozen pack",
+                "the Azure manual library contains records that cannot be published safely",
             )
         }
         ManualLibraryError::Unavailable(message) => {
@@ -1358,18 +1449,21 @@ async fn publish_manual_library(
         Ok(value) => value,
         Err(response) => return response,
     };
-    let pack_exists = match repository.list_packs(&context).await {
-        Ok(packs) => packs.iter().any(|pack| pack.id == pack_id),
+    let pack = match repository.list_packs(&context).await {
+        Ok(packs) => packs.into_iter().find(|pack| pack.id == pack_id),
         Err(error) => return equipment_pack_error(error),
     };
-    if !pack_exists {
+    let Some(pack) = pack else {
         return equipment_pack_error(EquipmentPackError::NotFound);
-    }
+    };
     let Some(library) = &state.manual_library else {
         return manual_library_error(ManualLibraryError::NotConfigured("Azure manual library"));
     };
 
-    let exported = match library.export_drive().await {
+    let exported = match library
+        .export_drive_for_aircraft(&pack.equipment_family)
+        .await
+    {
         Ok(value) => value,
         Err(error) => return manual_library_error(error),
     };
@@ -10014,7 +10108,7 @@ fn registered_manual_reference(entry: &ManualImageRegisterEntry, index: usize) -
         "citation": format!("M-{:02}", index + 1),
         "rank": index + 1,
         "match_percent": Value::Null,
-        "retrieval_basis": "deterministic_image_register",
+        "retrieval_basis": "catalog_image_register",
         "register_id": entry.register_id,
         "manual_id": entry.manual_id,
         "record_id": entry.record_id,
@@ -10023,10 +10117,7 @@ fn registered_manual_reference(entry: &ManualImageRegisterEntry, index: usize) -
         "excerpt": entry.description,
         "revision": Value::Null,
         "effective_at": Value::Null,
-        "source_reference": format!(
-            "azure-search://manuals-authoritative-v2/{}",
-            entry.record_id
-        ),
+        "source_reference": format!("azure-search://manual-catalog/{}", entry.record_id),
         "content_hash": entry.content_hash,
         "retrieved_at": OffsetDateTime::now_utc(),
         "license_scope": Value::Null,
@@ -10258,29 +10349,14 @@ fn requested_manual_scope(
     (manual_type, ata)
 }
 
-fn explicit_manual_aircraft_model(text: &str) -> Option<String> {
-    let tokens = text
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|token| !token.is_empty())
-        .map(str::to_ascii_uppercase)
-        .collect::<Vec<_>>();
-    let single_token_match = tokens
-        .iter()
-        .any(|token| matches!(token.as_str(), "CL350" | "CHALLENGER350" | "BD1001A10"));
-    let two_token_match = tokens.windows(2).any(|pair| {
-        matches!(pair, [family, model] if matches!(family.as_str(), "CL" | "CHALLENGER") && model == "350")
-    });
-    let three_token_match = tokens.windows(3).any(|triple| {
-        matches!(triple, [family, series, variant] if family == "BD" && series == "100" && variant == "1A10")
-    });
-    (single_token_match || two_token_match || three_token_match).then(|| "CL350".into())
-}
-
 fn requested_manual_aircraft_model(
-    text: &str,
+    _text: &str,
     contextual_aircraft_model: Option<&str>,
 ) -> Option<String> {
-    explicit_manual_aircraft_model(text).or_else(|| contextual_aircraft_model.map(str::to_owned))
+    contextual_aircraft_model
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .map(str::to_owned)
 }
 
 fn is_application_orientation_query(message: &str) -> bool {
@@ -10623,12 +10699,27 @@ async fn chat(
     let manual_aircraft_model =
         requested_manual_aircraft_model(&manual_search_query, aircraft_model.as_deref());
     let registered_image_aircraft_model = manual_aircraft_model.clone();
-    let registered_image = state.manual_library.as_ref().and_then(|library| {
-        library.lookup_registered_image(
-            &manual_search_query,
-            registered_image_aircraft_model.as_deref(),
-        )
-    });
+    let registered_image = if let Some(library) = state.manual_library.as_ref() {
+        match library
+            .lookup_registered_image(
+                &manual_search_query,
+                registered_image_aircraft_model.as_deref(),
+            )
+            .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(
+                    target: "mxgenius.manual_library",
+                    %error,
+                    "catalog image lookup was unavailable; continuing with semantic retrieval"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
     let (manual_result, manual_warning) = if let Some(entry) = registered_image.as_ref() {
         (
             ManualSearchResult {
@@ -10726,7 +10817,7 @@ async fn chat(
         "authoritative_manual_records": manual_model_context,
         "manual_image_register_match": manual_image_register_match,
         "manual_lookup_path": if registered_image.is_some() {
-            "deterministic_image_register"
+            "catalog_image_register"
         } else {
             "semantic_manual_retrieval"
         },
@@ -11107,7 +11198,7 @@ async fn chat(
                     "aircraft_model": manual_retrieval_model,
                     "ata": manual_retrieval_ata,
                     "path": if registered_image.is_some() {
-                        "deterministic_image_register"
+                        "catalog_image_register"
                     } else {
                         "semantic_manual_retrieval"
                     },
@@ -12434,24 +12525,14 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn explicit_supported_aircraft_names_seed_manual_applicability() {
-        for value in [
-            "Show the CL350 FDR removal figure",
-            "Search the CL-350 maintenance manual",
-            "Use the Challenger 350 AMM",
-            "Check BD-100-1A10 task 31-31-01",
-        ] {
-            assert_eq!(
-                explicit_manual_aircraft_model(value).as_deref(),
-                Some("CL350")
-            );
-        }
+    fn aircraft_applicability_uses_authoritative_context_without_name_allowlists() {
         assert_eq!(
-            explicit_manual_aircraft_model("Challenger 3500 manual"),
-            None
+            requested_manual_aircraft_model("Show the current figure", Some("Global 7500"))
+                .as_deref(),
+            Some("Global 7500")
         );
         assert_eq!(
-            explicit_manual_aircraft_model("Which aircraft applies?"),
+            requested_manual_aircraft_model("Search a Falcon manual", None),
             None
         );
     }
@@ -12495,12 +12576,11 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn explicit_aircraft_wins_over_active_case_for_manual_retrieval() {
-        let query =
-            "Show the CL350 AMM figure for Task 31-31-01-000-801, FDR removal and installation.";
+    fn active_case_aircraft_scopes_manual_retrieval() {
+        let query = "Show the AMM figure for this task.";
         assert_eq!(
             requested_manual_aircraft_model(query, Some("MATRIX")).as_deref(),
-            Some("CL350")
+            Some("MATRIX")
         );
         assert_eq!(
             requested_manual_aircraft_model("Show the current case figure", Some("MATRIX"))

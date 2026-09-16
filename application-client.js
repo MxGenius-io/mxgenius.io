@@ -529,7 +529,7 @@ const MXApplicationClient = (() => {
   function uploadContent(file, session = {}) {
     if (!(file instanceof Blob)) throw new TypeError('Content upload must be a Blob or File');
     const filename = String(file.name || 'uploaded-content').slice(0, 180);
-    return applicationJson(`/api/content/uploads?filename=${encodeURIComponent(filename)}`, {
+    return applicationJson(`/api/content/uploads?filename=${encodeURIComponent(filename)}&profile=model-context`, {
       session,
       method: 'POST',
       body: file,

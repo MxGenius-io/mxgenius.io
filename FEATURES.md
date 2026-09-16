@@ -108,10 +108,10 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Image attachments through authenticated content upload.
 - `[x]` Multimodal questions with structured maintenance output.
 - `[x]` Grounded maintenance advisory with retrieval relevance and citations.
-- `[x]` Retrieval over the frozen starter manual corpus.
+- `[x]` Runtime-configured retrieval over the indexed Azure manual catalog, with aircraft applicability inferred only when the evidence is unambiguous.
 - `[x]` Manual images remain behind the authenticated application boundary.
 - `[x]` Retrieved, hash-verified manual diagrams are attached as bounded multimodal model input alongside their citation metadata.
-- `[x]` Exact CL350 figure/task requests use a five-entry deterministic image register, skipping embeddings and semantic Search before one verified image is attached.
+- `[x]` Image-directed manual requests use catalog-derived aircraft and asset metadata for a bounded lexical lookup, skipping embeddings before one hash-verified image is attached.
 - `[x]` Model output cannot declare transport or sensor readiness.
 - `[x]` User-visible rejection details with correlation IDs.
 - `[x]` OpenAI Realtime WebRTC negotiation through the application backend.
@@ -276,7 +276,9 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Active-case evidence tray with smooth captured-thumbnail transfer and shared Realtime voice presence.
 - `[x]` Maintenance case gallery and dashboard thumbnail recall stored images through tenant-scoped authenticated media routes.
 - `[x]` Equipment Drives package verified folders into deterministic private versions and assign a published version to an approved Pi.
-- `[x]` Managers can publish the frozen Azure CL350 corpus and its linked diagrams directly as a deterministic Equipment Drive version without downloading and re-uploading the source folder.
+- `[x]` Managers can compile indexed Azure manual records and linked diagrams into a deterministic Equipment Drive release without downloading and re-uploading source PDFs.
+- `[x]` Equipment Drive and model-context publication share a profile-aware release envelope derived at the publication boundary rather than a hard-coded aircraft list.
+- `[x]` Content Upload normalizes each approved source into a versioned release ready for model-context indexing.
 - `[x]` Device-originated seven-digit approval, credential rotation/revocation, durable desired state, resumable transfer, and verified A/B activation.
 - `[x]` Product copy consistently calls the operator-facing workflow an Equipment Drive while preserving the internal package API contract.
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
@@ -354,7 +356,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` FAA result states distinguish candidates, no candidates, incomplete identifiers, unconfigured, unavailable, and rejected source states.
 - `[x]` FAA candidates retain source URL, normalized identifiers, retrieval time, and provenance.
 - `[x]` Candidate language avoids making an airworthiness determination.
-- `[x]` Frozen starter corpus of five classified CL350 manual families.
+- `[x]` The five-family CL350 pilot manifest remains as an auditable migration fixture; production retrieval and publication are catalog-driven.
 - `[x]` Content-addressed manual images under a controlled prefix.
 - `[x]` Manual-corpus reconciliation utility is read-only against Azure.
 - `[x]` Currency remains explicitly unverified until authoritative source metadata is supplied.

@@ -1,5 +1,66 @@
 # MXGenius Azure Deployment Plan
 
+## Canonical Manual Catalog v3 — 2026-09-16
+
+> **Status:** Validated; deployment pending
+> **Recipe:** AZCLI (existing Azure AI Search + Blob Storage + ACR + Container Apps release path)
+
+Promote the complete canonical `D:\Data\mxgenius` flattened manual catalog as
+the single source for both model retrieval and Equipment Drive publication.
+The model receives the full multi-aircraft Search catalog. Each physical Pi
+release is compiled from the same records and content-addressed images, scoped
+to the selected drive's aircraft family so it remains inside the agent's 2 GiB
+single-slot contract. No source PDFs are copied.
+
+### Deployment scope
+
+- Create and verify the additive `manuals-catalog-v3` Azure AI Search index and
+  the deduplicated `documents/manual-assets/legacy-rag/v3/` image prefix before
+  changing production retrieval.
+- Build the exact committed `services/mcp` source in the existing
+  `mxgacr50106` registry, promote only the existing `mxg-core` Container App,
+  and point it at `manuals-catalog-v3` after corpus verification succeeds.
+- Update the static application terminology and settings copy to describe the
+  shared, profile-aware model-context and Equipment Drive release boundary.
+- Preserve the existing resource group, identities, secrets, networking,
+  database, Pi agent, Entra configuration, and cost-bearing resource SKUs.
+
+### Validation steps
+
+- Reconcile v3 to 91 aircraft, 106,967 shards, and 1,060,418 source chunks;
+  verify image Blob names and hashes, accepted media types, and the absence of
+  copied PDFs.
+- Run Rust formatting, locked all-target workspace tests, warnings-denied
+  Clippy, an optimized build, the complete application suite, Python compile
+  checks, ingestion dry-run coverage, and `git diff --check`.
+- Reconfirm the approved Azure subscription, existing resource health,
+  identity/RBAC posture, Search capacity, and current service endpoints.
+- After promotion, test broad natural questions against more than one aircraft
+  family and verify evidence pills, expandable excerpts, and catalog images.
+- Publish and inspect one CL350 Equipment Drive release from the same v3
+  catalog, confirming its manifest, aircraft scope, asset hashes, and 2 GiB
+  limit before assignment to the Pi.
+
+### Validation proof
+
+- The canonical source reconciles to 91 aircraft, 106,967 shards, and
+  1,060,418 unique chunk IDs. Azure Search v3 reports exactly 1,060,418 manual
+  records across the same 91 aircraft: 967,371 text-only and 93,047 page-linked.
+- Azure Blob contains 42,407 unique content-addressed PNG/JPEG figures totaling
+  9,671,431,504 bytes under the v3 prefix, with zero PDFs. A downloaded sample
+  re-hashed to its Blob filename. The formerly failing 38,938-byte G500 image
+  register is retrievable with all 86 linked assets available and hash-matched.
+- The v3 schema keeps `assets_json` retrievable but out of the term/facet/sort
+  indexes and keeps the 384-dimension vector non-retrievable. The Basic Search
+  service remains healthy at one partition/replica; v3 consumes 5,885,896,147
+  bytes plus a 1,686,813,012-byte vector index.
+- The complete browser suite passes 428/428. The locked Rust workspace passes
+  301/301 executable checks with one credential-gated live exporter ignored;
+  formatting, warnings-denied Clippy, release build, Python compile, focused
+  corpus contracts, and `git diff --check` also pass.
+- Production remains on `manuals-authoritative-v2` until the immutable image is
+  built and promoted from the validated commit.
+
 ## Natural Registered-Image Intent — 2026-09-15
 
 > **Status:** Deployed and live-verified

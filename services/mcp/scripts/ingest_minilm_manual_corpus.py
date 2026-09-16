@@ -8,6 +8,8 @@ The existing source corpus and existing Search indexes are never modified.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+from collections import Counter
 import hashlib
 import json
 import mimetypes
@@ -15,8 +17,10 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
@@ -33,13 +37,19 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--search-service", default="mxg-search-50106")
     parser.add_argument("--storage-account", default="mxgstorage50106")
     parser.add_argument("--container", default="documents")
-    parser.add_argument("--target-index", default="manuals-authoritative-v2")
+    parser.add_argument("--target-index", default="manuals-catalog-v3")
     parser.add_argument("--aircraft", help="Exact aircraft name for a bounded pilot")
     parser.add_argument("--shard", help="Exact shard ID for a surgical validation or retry")
     parser.add_argument("--max-shards", type=int)
     parser.add_argument("--batch-size", type=int, default=50)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--upload-assets", action="store_true")
+    parser.add_argument("--asset-workers", type=int, default=12)
+    parser.add_argument(
+        "--repair-collisions",
+        action="store_true",
+        help="Replace only source chunk IDs that collide across canonical shards",
+    )
     return parser.parse_args()
 
 
@@ -64,7 +74,7 @@ def search_request(
     method: str,
     path: str,
     payload: dict[str, Any] | None = None,
-    attempts: int = 5,
+    attempts: int = 10,
 ) -> dict[str, Any]:
     uri = f"https://{service}.search.windows.net{path}"
     body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
@@ -92,7 +102,17 @@ def search_request(
 
 def index_definition(name: str) -> dict[str, Any]:
     def field(field_name: str, field_type: str, **options: Any) -> dict[str, Any]:
-        return {"name": field_name, "type": field_type, **options}
+        definition = {
+            "name": field_name,
+            "type": field_type,
+            "searchable": False,
+            "filterable": False,
+            "retrievable": True,
+            "sortable": False,
+            "facetable": False,
+        }
+        definition.update(options)
+        return definition
 
     return {
         "name": name,
@@ -104,17 +124,18 @@ def index_definition(name: str) -> dict[str, Any]:
                 "content_vector",
                 "Collection(Edm.Single)",
                 searchable=True,
+                retrievable=False,
                 dimensions=VECTOR_DIMENSIONS,
                 vectorSearchProfile="manualHnswProfile",
             ),
             field("source_class", "Edm.String", filterable=True, facetable=True),
             field("source_name", "Edm.String", searchable=True, filterable=True),
-            field("source_blob", "Edm.String", filterable=True),
-            field("source_content_md5", "Edm.String", filterable=True),
-            field("title", "Edm.String", searchable=True, filterable=True),
+            field("source_blob", "Edm.String"),
+            field("source_content_md5", "Edm.String"),
+            field("title", "Edm.String", searchable=True),
             field("aircraft_model", "Edm.String", searchable=True, filterable=True, facetable=True),
-            field("manual_type", "Edm.String", filterable=True, facetable=True),
-            field("ata", "Edm.String", filterable=True, facetable=True),
+            field("manual_type", "Edm.String", searchable=True, filterable=True, facetable=True),
+            field("ata", "Edm.String", searchable=True, filterable=True, facetable=True),
             field("section", "Edm.String", searchable=True, filterable=True),
             field("revision", "Edm.String", filterable=True),
             field("effective_date", "Edm.DateTimeOffset", filterable=True, sortable=True),
@@ -132,6 +153,14 @@ def index_definition(name: str) -> dict[str, Any]:
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def manual_type(value: str) -> str | None:
@@ -158,55 +187,321 @@ def selected_shards(
     return shards
 
 
-def asset_records(
+def shard_chunk_id_counts(
+    corpus_root: Path,
+    shard_entries: Iterable[dict[str, Any]],
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for entry in shard_entries:
+        shard_path = corpus_root / "rag_index" / Path(entry["file"])
+        with shard_path.open(encoding="utf-8") as handle:
+            shard = json.load(handle)
+        counts.update(chunk["id"] for chunk in shard["chunks"])
+    return counts
+
+
+def build_chunk_id_counts(
+    corpus_root: Path,
+    shard_entries: list[dict[str, Any]],
+    workers: int,
+) -> Counter[str]:
+    batches = [
+        shard_entries[offset : offset + 250]
+        for offset in range(0, len(shard_entries), 250)
+    ]
+    counts: Counter[str] = Counter()
+    scanned_shards = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(shard_chunk_id_counts, corpus_root, batch): len(batch)
+            for batch in batches
+        }
+        for future in concurrent.futures.as_completed(futures):
+            counts.update(future.result())
+            scanned_shards += futures[future]
+            if scanned_shards % 10_000 < 250 or scanned_shards == len(shard_entries):
+                print(
+                    f"audited chunk identities {scanned_shards}/{len(shard_entries)}",
+                    flush=True,
+                )
+    return counts
+
+
+def search_record_id(
+    shard_id: str,
+    source_record_id: str,
+    chunk_index: int,
+    collision_ids: set[str],
+) -> str:
+    if source_record_id not in collision_ids:
+        return source_record_id
+    shard_namespace = sha256_bytes(shard_id.encode())
+    return f"{shard_namespace}_r{chunk_index}_{source_record_id}"
+
+
+def shard_image_paths(
+    corpus_root: Path,
+    shard_entries: Iterable[dict[str, Any]],
+) -> set[str]:
+    paths: set[str] = set()
+    for entry in shard_entries:
+        shard_path = corpus_root / "rag_index" / Path(entry["file"])
+        with shard_path.open(encoding="utf-8") as handle:
+            shard = json.load(handle)
+        for chunk in shard["chunks"]:
+            paths.update(chunk.get("images", []))
+    return paths
+
+
+def asset_catalog_records(
     corpus_root: Path,
     image_paths: Iterable[str],
     container: str,
-    upload_assets: bool,
-    apply: bool,
-    storage_account: str,
-) -> list[dict[str, Any]]:
+) -> list[tuple[str, dict[str, Any]]]:
     records = []
     for relative in image_paths:
         source = corpus_root / "ingest_dumps" / Path(relative)
         if not source.is_file():
             continue
-        digest = sha256_bytes(source.read_bytes())
+        media_type = mimetypes.guess_type(source.name)[0]
+        if media_type not in {"image/jpeg", "image/png", "image/webp"}:
+            continue
+        digest = sha256_file(source)
         extension = source.suffix.lower()
-        blob_name = f"manual-assets/legacy-rag/v2/{digest}{extension}"
-        if apply and upload_assets:
-            run_az(
-                "storage",
-                "blob",
-                "upload",
-                "--account-name",
-                storage_account,
-                "--container-name",
-                container,
-                "--name",
-                blob_name,
-                "--file",
-                str(source),
-                "--auth-mode",
-                "login",
-                "--overwrite",
-                "true",
-                "-o",
-                "none",
-                capture=False,
-            )
+        blob_name = f"manual-assets/legacy-rag/v3/{digest}{extension}"
         records.append(
-            {
-                "asset_id": digest[:32],
-                "kind": "diagram",
-                "source_reference": f"azure-blob://{container}/{blob_name}",
-                "media_type": mimetypes.guess_type(source.name)[0],
-                "page": None,
-                "caption": f"Manual figure from {source.name}",
-                "content_hash": f"sha256:{digest}",
-                "availability": "available" if apply and upload_assets else "missing",
-            }
+            (
+                relative,
+                {
+                    "source_path": source,
+                    "blob_name": blob_name,
+                    "asset_id": digest[:32],
+                    "kind": "diagram",
+                    "source_reference": f"azure-blob://{container}/{blob_name}",
+                    "media_type": media_type,
+                    "page": None,
+                    "caption": f"Manual figure from {source.name}",
+                    "content_hash": f"sha256:{digest}",
+                    "size_bytes": source.stat().st_size,
+                },
+            )
         )
+    return records
+
+
+def build_asset_catalog(
+    corpus_root: Path,
+    shard_entries: list[dict[str, Any]],
+    container: str,
+    workers: int,
+) -> dict[str, dict[str, Any]]:
+    shard_batches = [
+        shard_entries[offset : offset + 250]
+        for offset in range(0, len(shard_entries), 250)
+    ]
+    image_paths: set[str] = set()
+    scanned_shards = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(shard_image_paths, corpus_root, batch): len(batch)
+            for batch in shard_batches
+        }
+        for future in concurrent.futures.as_completed(futures):
+            image_paths.update(future.result())
+            scanned_shards += futures[future]
+            if scanned_shards % 10_000 < 250 or scanned_shards == len(shard_entries):
+                print(
+                    f"scanned shards {scanned_shards}/{len(shard_entries)}",
+                    flush=True,
+                )
+
+    sorted_paths = sorted(image_paths)
+    image_batches = [
+        sorted_paths[offset : offset + 250]
+        for offset in range(0, len(sorted_paths), 250)
+    ]
+    catalog: dict[str, dict[str, Any]] = {}
+    hashed_images = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(asset_catalog_records, corpus_root, batch, container): len(batch)
+            for batch in image_batches
+        }
+        for future in concurrent.futures.as_completed(futures):
+            for relative, record in future.result():
+                catalog[relative] = record
+            hashed_images += futures[future]
+            if hashed_images % 10_000 < 250 or hashed_images == len(sorted_paths):
+                print(
+                    f"hashed linked images {hashed_images}/{len(sorted_paths)}",
+                    flush=True,
+                )
+    return catalog
+
+
+def existing_asset_names(storage_account: str, container: str) -> set[str]:
+    output = run_az(
+        "storage",
+        "blob",
+        "list",
+        "--account-name",
+        storage_account,
+        "--container-name",
+        container,
+        "--prefix",
+        "manual-assets/legacy-rag/v3/",
+        "--num-results",
+        "100000",
+        "--auth-mode",
+        "login",
+        "--query",
+        "[].name",
+        "-o",
+        "json",
+    )
+    return set(json.loads(output or "[]"))
+
+
+def storage_token() -> str:
+    return run_az(
+        "account",
+        "get-access-token",
+        "--resource",
+        "https://storage.azure.com/",
+        "--query",
+        "accessToken",
+        "-o",
+        "tsv",
+    )
+
+
+class StorageTokenProvider:
+    """Share a renewable Storage bearer across concurrent Blob uploads."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._token = ""
+        self._refresh_at = 0.0
+
+    def get(self) -> str:
+        with self._lock:
+            now = time.monotonic()
+            if not self._token or now >= self._refresh_at:
+                self._token = storage_token()
+                # Azure CLI tokens commonly live for an hour. Refresh early so
+                # a large corpus upload cannot cross the expiry boundary.
+                self._refresh_at = now + (40 * 60)
+            return self._token
+
+    def invalidate(self, token: str) -> None:
+        with self._lock:
+            if self._token == token:
+                self._token = ""
+                self._refresh_at = 0.0
+
+
+def upload_asset(
+    storage_account: str,
+    container: str,
+    token_provider: StorageTokenProvider,
+    record: dict[str, Any],
+) -> None:
+    blob_name = urllib.parse.quote(record["blob_name"], safe="/")
+    body = record["source_path"].read_bytes()
+    for attempt in range(1, 6):
+        token = token_provider.get()
+        request = urllib.request.Request(
+            f"https://{storage_account}.blob.core.windows.net/{container}/{blob_name}",
+            data=body,
+            method="PUT",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "x-ms-version": "2023-11-03",
+                "x-ms-blob-type": "BlockBlob",
+                "Content-Type": record["media_type"],
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=180):
+                return
+        except urllib.error.HTTPError as error:
+            if error.code == 401:
+                token_provider.invalidate(token)
+            if attempt == 5:
+                raise
+            time.sleep(min(60, attempt * attempt))
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == 5:
+                raise
+            time.sleep(min(60, attempt * attempt))
+
+
+def upload_asset_catalog(
+    storage_account: str,
+    container: str,
+    catalog: dict[str, dict[str, Any]],
+    workers: int,
+) -> None:
+    existing = existing_asset_names(storage_account, container)
+    unique_blobs = {
+        record["blob_name"]: record
+        for record in catalog.values()
+    }
+    pending = [
+        record
+        for blob_name, record in unique_blobs.items()
+        if blob_name not in existing
+    ]
+    print(
+        json.dumps(
+            {
+                "catalog_asset_references": len(catalog),
+                "catalog_assets": len(unique_blobs),
+                "existing_assets": len(unique_blobs) - len(pending),
+                "pending_assets": len(pending),
+            },
+            indent=2,
+        )
+    )
+    if not pending:
+        return
+    token_provider = StorageTokenProvider()
+    completed = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            executor.submit(
+                upload_asset,
+                storage_account,
+                container,
+                token_provider,
+                record,
+            )
+            for record in pending
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+            completed += 1
+            if completed % 1_000 == 0 or completed == len(pending):
+                print(f"uploaded assets {completed}/{len(pending)}", flush=True)
+
+
+def asset_records(
+    image_paths: Iterable[str],
+    asset_catalog: dict[str, dict[str, Any]],
+    available: bool,
+) -> list[dict[str, Any]]:
+    records = []
+    for relative in image_paths:
+        registered = asset_catalog.get(relative)
+        if registered is None:
+            continue
+        record = {
+            key: value
+            for key, value in registered.items()
+            if key not in {"source_path", "blob_name"}
+        }
+        record["availability"] = "available" if available else "missing"
+        records.append(record)
     return records
 
 
@@ -214,6 +509,9 @@ def document_actions(
     corpus_root: Path,
     shard_entries: Iterable[dict[str, Any]],
     args: argparse.Namespace,
+    asset_catalog: dict[str, dict[str, Any]],
+    collision_ids: set[str],
+    collision_only: bool = False,
 ) -> Iterable[dict[str, Any]]:
     ingested_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     for entry in shard_entries:
@@ -223,7 +521,10 @@ def document_actions(
         document_key = sha256_bytes(
             f"{shard['manufacturer']}|{shard['aircraft']}|{shard['manual']}".encode()
         )
-        for chunk in shard["chunks"]:
+        for chunk_index, chunk in enumerate(shard["chunks"]):
+            source_record_id = chunk["id"]
+            if collision_only and source_record_id not in collision_ids:
+                continue
             vector = chunk.get("embedding") or []
             if len(vector) != VECTOR_DIMENSIONS:
                 raise ValueError(f"{chunk.get('id')} has {len(vector)} vector dimensions")
@@ -232,25 +533,26 @@ def document_actions(
                 continue
             content_hash = sha256_bytes(text.encode())
             assets = asset_records(
-                corpus_root,
                 chunk.get("images", []),
-                args.container,
-                args.upload_assets,
-                args.apply,
-                args.storage_account,
+                asset_catalog,
+                args.apply and args.upload_assets,
             )
             for asset in assets:
                 asset["page"] = chunk.get("page")
             source = chunk.get("source", "")
             yield {
                 "@search.action": "mergeOrUpload",
-                "id": chunk["id"],
+                "id": search_record_id(
+                    entry["id"], source_record_id, chunk_index, collision_ids
+                ),
                 "document_id": document_key,
                 "content": text,
                 "content_vector": vector,
                 "source_class": "manual",
                 "source_name": source,
-                "source_blob": f"{args.container}/manual-corpus-v2/{source}",
+                # The flattened section is stored directly in Search. Do not
+                # invent a Blob reference or copy the much larger source PDF.
+                "source_blob": None,
                 "source_content_md5": None,
                 "title": f"{shard['manual']} — {shard['chapter']} p.{chunk.get('page', 1)}",
                 "aircraft_model": shard["aircraft"],
@@ -282,8 +584,12 @@ def main() -> int:
     manifest_path = args.corpus_root / "rag_index" / "manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(manifest_path)
-    if args.batch_size < 1 or args.batch_size > 250:
-        raise ValueError("--batch-size must be between 1 and 250")
+    if args.batch_size < 1 or args.batch_size > 1_000:
+        raise ValueError("--batch-size must be between 1 and 1000")
+    if args.asset_workers < 1 or args.asset_workers > 32:
+        raise ValueError("--asset-workers must be between 1 and 32")
+    if args.repair_collisions and not args.apply:
+        raise ValueError("--repair-collisions requires --apply")
 
     with manifest_path.open(encoding="utf-8") as handle:
         manifest = json.load(handle)
@@ -294,6 +600,27 @@ def main() -> int:
     if not shards:
         raise ValueError("selection contains no shards")
     planned_chunks = sum(int(item.get("chunk_count", 0)) for item in shards)
+    chunk_id_counts = build_chunk_id_counts(
+        args.corpus_root,
+        manifest["shards"],
+        args.asset_workers,
+    )
+    collision_ids = {
+        record_id for record_id, count in chunk_id_counts.items() if count > 1
+    }
+    collision_occurrences = sum(chunk_id_counts[record_id] for record_id in collision_ids)
+    print(
+        json.dumps(
+            {
+                "canonical_chunk_ids": sum(chunk_id_counts.values()),
+                "unique_source_chunk_ids": len(chunk_id_counts),
+                "colliding_source_chunk_ids": len(collision_ids),
+                "collision_occurrences": collision_occurrences,
+                "collision_excess": collision_occurrences - len(collision_ids),
+            },
+            indent=2,
+        )
+    )
     print(
         json.dumps(
             {
@@ -308,15 +635,47 @@ def main() -> int:
             indent=2,
         )
     )
+    asset_catalog = build_asset_catalog(
+        args.corpus_root,
+        shards,
+        args.container,
+        args.asset_workers,
+    )
+    unique_assets = {
+        record["blob_name"]: record
+        for record in asset_catalog.values()
+    }
+    print(
+        json.dumps(
+            {
+                "catalog_asset_references": len(asset_catalog),
+                "catalog_assets": len(unique_assets),
+                "catalog_asset_bytes": sum(
+                    record["size_bytes"] for record in unique_assets.values()
+                ),
+            },
+            indent=2,
+        )
+    )
 
     if not args.apply:
         validated = 0
         images = 0
-        for action in document_actions(args.corpus_root, shards, args):
+        for action in document_actions(
+            args.corpus_root, shards, args, asset_catalog, collision_ids
+        ):
             validated += 1
             images += len(json.loads(action["assets_json"]))
         print(json.dumps({"validated_chunks": validated, "linked_images": images}, indent=2))
         return 0
+
+    if args.upload_assets:
+        upload_asset_catalog(
+            args.storage_account,
+            args.container,
+            asset_catalog,
+            args.asset_workers,
+        )
 
     search_key = os.environ.get("AZURE_SEARCH_ADMIN_KEY") or run_az(
         "search",
@@ -339,9 +698,44 @@ def main() -> int:
         index_definition(args.target_index),
     )
 
+    if args.repair_collisions:
+        delete_path = f"/indexes/{args.target_index}/docs/index?api-version={API_VERSION}"
+        deleted = 0
+        for batch in batches(
+            (
+                {"@search.action": "delete", "id": record_id}
+                for record_id in sorted(collision_ids)
+            ),
+            args.batch_size,
+        ):
+            response = search_request(
+                args.search_service,
+                search_key,
+                "POST",
+                delete_path,
+                {"value": batch},
+            )
+            failures = [item for item in response.get("value", []) if not item.get("status")]
+            if failures:
+                raise RuntimeError(
+                    f"{len(failures)} collision deletes failed: {failures[:3]}"
+                )
+            deleted += len(batch)
+        print(f"deleted {deleted} ambiguous source keys", flush=True)
+
     uploaded = 0
     upload_path = f"/indexes/{args.target_index}/docs/index?api-version={API_VERSION}"
-    for batch in batches(document_actions(args.corpus_root, shards, args), args.batch_size):
+    for batch in batches(
+        document_actions(
+            args.corpus_root,
+            shards,
+            args,
+            asset_catalog,
+            collision_ids,
+            collision_only=args.repair_collisions,
+        ),
+        args.batch_size,
+    ):
         response = search_request(
             args.search_service,
             search_key,
@@ -353,7 +747,8 @@ def main() -> int:
         if failures:
             raise RuntimeError(f"{len(failures)} indexing actions failed: {failures[:3]}")
         uploaded += len(batch)
-        print(f"uploaded {uploaded}/{planned_chunks}", flush=True)
+        if uploaded % 10_000 < len(batch) or uploaded == planned_chunks:
+            print(f"uploaded {uploaded}/{planned_chunks}", flush=True)
 
     stats = search_request(
         args.search_service,

@@ -3,13 +3,6 @@
 
   const MAX_BROWSER_PACK_BYTES = 256 * 1024 * 1024;
   const MAX_BROWSER_PACK_FILES = 5000;
-  const APPROVED_MANUALS = Object.freeze({
-    'cl350-amm': Object.freeze({ displayName: 'CL350 Aircraft Maintenance Manual', manualType: 'AMM' }),
-    'cl350-ipc': Object.freeze({ displayName: 'CL350 Illustrated Parts Catalog', manualType: 'IPC' }),
-    'cl350-spm': Object.freeze({ displayName: 'CL350 Standard Practices Manual', manualType: 'SPM' }),
-    'cl350-ndt': Object.freeze({ displayName: 'CL350 Nondestructive Testing Manual', manualType: 'NDT' }),
-    'cl350-ssm': Object.freeze({ displayName: 'CL350 System Schematic Manual', manualType: 'SSM' })
-  });
   const textEncoder = new TextEncoder();
   const crcTable = new Uint32Array(256);
   for (let index = 0; index < 256; index += 1) {
@@ -145,10 +138,11 @@
       const match = String(file?.path || '').match(/^LIBRARY\/([^/]+)\//);
       if (match) ids.add(match[1]);
     }
-    return Array.from(ids).sort().map((id) => ({ id, ...(APPROVED_MANUALS[id] || {
+    return Array.from(ids).sort().map((id) => ({
+      id,
       displayName: id.replace(/-/g, ' '),
       manualType: 'Manual'
-    }) }));
+    }));
   }
 
   function init({ withSession }) {
@@ -381,7 +375,8 @@
     publishManualsButton?.addEventListener('click', async () => {
       if (!packSelect.value) return setStatus('Select or create an Equipment Drive first.', 'error');
       publishManualsButton.disabled = true;
-      setStatus('Packaging the approved Azure manuals and linked diagrams…');
+      const selectedDrive = packs.find((pack) => pack.id === packSelect.value);
+      setStatus(`Packaging ${selectedDrive?.equipmentFamily || 'the selected aircraft'} manuals and linked diagrams…`);
       try {
         const payload = await run((session) => client.publishManualLibrary(packSelect.value, session));
         await loadVersions();
