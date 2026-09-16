@@ -8,20 +8,23 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const productionStyles = await readFile(new URL('../production-ui.css', import.meta.url), 'utf8');
 const backend = await readFile(new URL('../services/mcp/server/src/transport/http.rs', import.meta.url), 'utf8');
 const manualAdapter = await readFile(new URL('../services/mcp/server/src/adapters/manual.rs', import.meta.url), 'utf8');
+const manualHandler = await readFile(new URL('../services/mcp/server/src/handlers/manual.rs', import.meta.url), 'utf8');
 
-test('chat uses a compact conversation envelope with a strict nested advisory and retrieves 33 manual records', () => {
+test('chat uses a compact conversation envelope with model-selected, bounded manual retrieval', () => {
   assert.match(backend, /"type": "json_schema"/);
   assert.match(backend, /"strict": true/);
   assert.match(backend, /chat_response_schema\(\)/);
   assert.match(backend, /"advisory": advisory/);
-  assert.match(backend, /limit: Some\(33\)/);
-  assert.match(backend, /MODEL_MANUAL_RECORD_LIMIT: usize = 12/);
-  assert.match(backend, /build_manual_search_query/);
+  assert.match(backend, /mxg\.manual\.search/);
+  assert.match(backend, /merge_manual_tool_records/);
+  assert.match(backend, /model_selected_manual_tool/);
+  assert.match(manualHandler, /"mxg\.manual\.search"/);
+  assert.match(manualHandler, /unwrap_or\(8\)\.clamp\(1, 12\)/);
   assert.match(manualAdapter, /"searchFields": "title,section,content,aircraft_model"/);
   assert.match(manualAdapter, /"vectorFilterMode": "preFilter"/);
   assert.match(manualAdapter, /ata eq/);
   assert.match(backend, /Every technical procedure, limit, interval, or part claim must cite/);
-  assert.match(backend, /"requested": 33/);
+  assert.match(backend, /"semantic_requests_made": manual_tool_calls/);
 });
 
 test('structured advisory keeps chat and labels retrieval relevance without diagnostic claims', () => {
@@ -65,7 +68,7 @@ test('manual evidence cards keep images behind the application API boundary', ()
   assert.match(app, /appendManualEvidencePreview\(bubble, manualRecords\)/);
   assert.match(app, /figure\.classList\.add\('is-unavailable'\)/);
   assert.match(backend, /fn should_include_manual_references/);
-  assert.match(backend, /should_include_manual_references\(registered_image\.is_some\(\), manual_evidence\.len\(\)\)/);
+  assert.match(backend, /should_include_manual_references\([\s\S]*registered_image\.is_some\(\),[\s\S]*retrieved_manual_records\.len\(\)/);
   assert.match(dashboard, /app\.js\?v=\d+/);
 });
 
@@ -123,7 +126,8 @@ test('text model selection preserves orchestration and realtime exchanges persis
 });
 
 test('model awareness distinguishes verified runtime facts from mounted capabilities', () => {
-  assert.match(backend, /application_awareness_manifest/);
+  assert.match(backend, /application_environment_manifest/);
+  assert.match(backend, /mxg\.environment\.describe/);
   assert.match(backend, /"request_reached_core": true/);
   assert.match(backend, /"mounted_read_only_capabilities"/);
   assert.match(backend, /Never imply that nothing is connected/);
@@ -131,8 +135,9 @@ test('model awareness distinguishes verified runtime facts from mounted capabili
 });
 
 test('ordinary conversation is natural and does not populate maintenance sections', () => {
-  assert.match(backend, /response_kind=conversation with advisory=null/);
-  assert.match(backend, /Be direct, natural, and transparent/);
+  assert.match(backend, /Put the useful response to the user's actual question in answer/);
+  assert.match(backend, /Set advisory=null for greetings, product questions/);
+  assert.match(backend, /never manufacture an advisory merely to display evidence/);
   assert.match(backend, /normalize_chat_response/);
   assert.match(backend, /assistant_memory_content/);
   assert.doesNotMatch(backend, /persist_chat_exchange\([\s\S]{0,400}&answer,/);
@@ -144,6 +149,15 @@ test('new conversation boundaries clear visible-response context before the next
   assert.match(app, /mxg:case-selected[\s\S]{0,260}lastDisplayedResponseContext = null/);
   assert.match(backend, /input\.thread_id\.is_some\(\) \|\| !conversation_history\.is_empty\(\)/);
   assert.match(backend, /never reuse a prior manual figure for a broad aircraft image request/);
+});
+
+test('the last retrieved manual scope is working conversation state for follow-ups', () => {
+  assert.match(app, /retrieval: data\?\.retrieval \? \{/);
+  assert.match(app, /aircraft_model: boundedDisplayText\(data\.retrieval\.aircraft_model, 120\)/);
+  assert.match(app, /retrieval: payload\.retrieval \|\| null/);
+  assert.match(backend, /recent_manual_aircraft_model/);
+  assert.match(backend, /visible_response\/retrieval\/aircraft_model/);
+  assert.match(backend, /resolved_manual_aircraft_model\([\s\S]*recent_manual_aircraft_model\.as_deref\(\),[\s\S]*aircraft_model\.as_deref\(\)/);
 });
 
 test('retrieved manual records expose expandable section text in advisory and conversation views', () => {

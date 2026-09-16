@@ -1,8 +1,9 @@
 (() => {
   'use strict';
 
-  const WORKSPACE_KEY = 'provisional-patent';
-  const WORKSPACE_TITLE = 'Provisional Patent Application';
+  const LEGACY_WORKSPACE_KEY = 'provisional-patent';
+  const DEFAULT_WORKSPACE_TITLE = 'Provisional Patent Application';
+  const TECHNOLOGY_AREAS = new Set(['software', 'hardware', 'process', 'other']);
   const ANSWER_STATES = [
     ['needs_input', 'Needs input'],
     ['proposed', 'Proposed'],
@@ -230,6 +231,9 @@
   ];
 
   const state = {
+    workspaceKey: LEGACY_WORKSPACE_KEY,
+    title: DEFAULT_WORKSPACE_TITLE,
+    portfolio: [],
     activeSection: 'people',
     version: 0,
     status: 'collecting',
@@ -242,7 +246,7 @@
 
   const elements = {};
 
-  function defaultDocument() {
+  function defaultDocument(technologyArea = 'other') {
     const answers = {};
     for (const section of sections) {
       for (const question of section.questions || []) {
@@ -262,7 +266,9 @@
         .map(([key]) => [key, { complete: false, reviewer: '' }])
     );
     return {
-      schema_version: 1,
+      schema_version: 2,
+      workspace_family: 'patent',
+      technology_area: TECHNOLOGY_AREAS.has(technologyArea) ? technologyArea : 'other',
       source_draft: { label: 'Current provisional draft', draft_date: '2026-08-14' },
       answers,
       drawings,
@@ -275,7 +281,9 @@
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const document = {
       ...input,
-      schema_version: 1,
+      schema_version: 2,
+      workspace_family: 'patent',
+      technology_area: TECHNOLOGY_AREAS.has(input.technology_area) ? input.technology_area : base.technology_area,
       source_draft: { ...base.source_draft, ...(input.source_draft || {}) },
       answers: { ...base.answers, ...(input.answers || {}) },
       drawings: { ...base.drawings, ...(input.drawings || {}) },
@@ -623,20 +631,54 @@
     }
   }
 
+  function portfolioLabel(workspace) {
+    const suffix = workspace.status === 'archived' ? ' · archived' : '';
+    return `${workspace.title || DEFAULT_WORKSPACE_TITLE}${suffix}`;
+  }
+
+  function renderPortfolio() {
+    elements.projectSelect.replaceChildren();
+    const entries = state.portfolio.length
+      ? state.portfolio
+      : [{ workspace_key: LEGACY_WORKSPACE_KEY, title: DEFAULT_WORKSPACE_TITLE, status: 'collecting', version: 0 }];
+    for (const workspace of entries) {
+      elements.projectSelect.append(makeOption(
+        workspace.workspace_key,
+        portfolioLabel(workspace),
+        state.workspaceKey
+      ));
+    }
+    elements.projectSelect.value = state.workspaceKey;
+  }
+
+  function replaceWorkspaceQuery() {
+    const next = new URL(window.location.href);
+    next.searchParams.set('workspace', state.workspaceKey);
+    history.replaceState(null, '', `${next.pathname}${next.search}${next.hash}`);
+  }
+
   function applyPayload(payload) {
     const workspace = payload?.workspace;
+    const summary = state.portfolio.find((item) => item.workspace_key === state.workspaceKey);
+    state.workspaceKey = workspace?.workspace_key || state.workspaceKey;
+    state.title = workspace?.title || summary?.title || DEFAULT_WORKSPACE_TITLE;
     state.version = Number(workspace?.version || 0);
     state.status = workspace?.status || 'collecting';
     state.document = normalizeDocument(workspace?.document);
     state.assets = Array.isArray(payload?.assets) ? payload.assets : [];
     state.revisions = Array.isArray(payload?.revisions) ? payload.revisions : [];
     state.dirty = false;
+    elements.workspaceTitle.textContent = state.title;
     elements.status.value = state.status;
+    elements.technologyArea.value = state.document.technology_area;
+    elements.archive.disabled = state.status === 'archived' || state.version === 0;
     elements.save.disabled = true;
     setSaveState(
       state.version ? `Team version ${state.version} · saved ${formatDate(workspace.updated_at)}` : 'New workspace · not saved yet',
       state.version ? 'saved' : ''
     );
+    renderPortfolio();
+    replaceWorkspaceQuery();
     renderSection();
     renderRevisions();
   }
@@ -648,18 +690,39 @@
     setSaveState(error?.code === 'WORKSPACE_VERSION_CONFLICT' ? 'Newer team version available' : 'Save failed', 'error');
   }
 
-  async function loadWorkspace() {
+  async function refreshPortfolio() {
+    const payload = await globalThis.MXApplicationClient.projectWorkspaces.list(
+      'patent',
+      await authenticatedSession()
+    );
+    state.portfolio = Array.isArray(payload?.workspaces) ? payload.workspaces : [];
+    if (!state.portfolio.some((workspace) => workspace.workspace_key === LEGACY_WORKSPACE_KEY)) {
+      state.portfolio.push({
+        workspace_key: LEGACY_WORKSPACE_KEY,
+        title: DEFAULT_WORKSPACE_TITLE,
+        status: 'collecting',
+        version: 0,
+        technology_area: 'other'
+      });
+    }
+    renderPortfolio();
+  }
+
+  async function loadWorkspace(workspaceKey = state.workspaceKey) {
     elements.error.hidden = true;
     setSaveState('Loading team workspace…');
     try {
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.get(
-        WORKSPACE_KEY,
+        workspaceKey,
         await authenticatedSession()
       );
+      state.workspaceKey = workspaceKey;
       applyPayload(payload);
+      return true;
     } catch (error) {
       showError(error);
-      if (!state.document) applyPayload({ workspace: null, assets: [], revisions: [] });
+      renderPortfolio();
+      return false;
     }
   }
 
@@ -670,9 +733,9 @@
     setSaveState('Saving team version…');
     try {
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.save(
-        WORKSPACE_KEY,
+        state.workspaceKey,
         {
-          title: WORKSPACE_TITLE,
+          title: state.title,
           status: state.status,
           expectedVersion: state.version,
           document: state.document
@@ -680,6 +743,7 @@
         await authenticatedSession()
       );
       applyPayload(payload);
+      await refreshPortfolio();
       return true;
     } catch (error) {
       state.dirty = true;
@@ -699,7 +763,7 @@
     try {
       if (state.version === 0 && !(await saveWorkspace())) return;
       await globalThis.MXApplicationClient.projectWorkspaces.uploadAsset(
-        WORKSPACE_KEY,
+        state.workspaceKey,
         file,
         {
           section: elements.referenceSection.value,
@@ -709,7 +773,7 @@
       );
       elements.referenceNote.value = '';
       const payload = await globalThis.MXApplicationClient.projectWorkspaces.get(
-        WORKSPACE_KEY,
+        state.workspaceKey,
         await authenticatedSession()
       );
       applyPayload(payload);
@@ -729,7 +793,7 @@
     button.textContent = 'Opening…';
     try {
       const blob = await globalThis.MXApplicationClient.projectWorkspaces.getAsset(
-        WORKSPACE_KEY,
+        state.workspaceKey,
         asset.id,
         await authenticatedSession()
       );
@@ -747,6 +811,15 @@
   }
 
   function captureElements() {
+    elements.projectSelect = document.getElementById('workspaceProjectSelect');
+    elements.newProject = document.getElementById('workspaceNew');
+    elements.archive = document.getElementById('workspaceArchive');
+    elements.createForm = document.getElementById('workspaceCreateForm');
+    elements.newTitle = document.getElementById('workspaceNewTitle');
+    elements.newTechnologyArea = document.getElementById('workspaceNewTechnologyArea');
+    elements.createCancel = document.getElementById('workspaceCreateCancel');
+    elements.workspaceTitle = document.getElementById('workspaceTitle');
+    elements.technologyArea = document.getElementById('workspaceTechnologyArea');
     elements.save = document.getElementById('workspaceSave');
     elements.saveState = document.getElementById('workspaceSaveState');
     elements.status = document.getElementById('workspaceStatus');
@@ -775,7 +848,70 @@
       elements.referenceSection.append(makeOption(section.key, section.title, state.activeSection));
     }
     elements.save.addEventListener('click', saveWorkspace);
-    elements.reload.addEventListener('click', loadWorkspace);
+    elements.reload.addEventListener('click', () => loadWorkspace());
+    elements.projectSelect.addEventListener('change', async () => {
+      const nextKey = elements.projectSelect.value;
+      if (nextKey === state.workspaceKey) return;
+      if (state.dirty && !window.confirm('Discard unsaved changes and switch patent projects?')) {
+        elements.projectSelect.value = state.workspaceKey;
+        return;
+      }
+      state.activeSection = 'people';
+      await loadWorkspace(nextKey);
+    });
+    elements.newProject.addEventListener('click', () => {
+      elements.createForm.hidden = false;
+      elements.newTitle.focus();
+    });
+    elements.createCancel.addEventListener('click', () => {
+      elements.createForm.hidden = true;
+      elements.createForm.reset();
+    });
+    elements.createForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const title = elements.newTitle.value.trim();
+      const technologyArea = elements.newTechnologyArea.value;
+      if (!title || !TECHNOLOGY_AREAS.has(technologyArea)) return;
+      if (state.dirty && !window.confirm('Discard unsaved changes and create a new patent project?')) return;
+      const workspaceKey = `patent-${globalThis.crypto.randomUUID()}`;
+      elements.newProject.disabled = true;
+      setSaveState('Creating patent project…');
+      try {
+        const document = defaultDocument(technologyArea);
+        const payload = await globalThis.MXApplicationClient.projectWorkspaces.save(
+          workspaceKey,
+          {
+            title,
+            status: 'collecting',
+            expectedVersion: 0,
+            document
+          },
+          await authenticatedSession()
+        );
+        state.workspaceKey = workspaceKey;
+        state.title = title;
+        applyPayload(payload);
+        await refreshPortfolio();
+        elements.createForm.hidden = true;
+        elements.createForm.reset();
+      } catch (error) {
+        showError(error);
+      } finally {
+        elements.newProject.disabled = false;
+      }
+    });
+    elements.archive.addEventListener('click', async () => {
+      if (state.status === 'archived' || state.version === 0) return;
+      if (!window.confirm(`Archive “${state.title}”? Its document, references, and revision history will remain available.`)) return;
+      state.status = 'archived';
+      elements.status.value = state.status;
+      markDirty();
+      await saveWorkspace();
+    });
+    elements.technologyArea.addEventListener('change', () => {
+      state.document.technology_area = elements.technologyArea.value;
+      markDirty();
+    });
     elements.status.addEventListener('change', () => {
       state.status = elements.status.value;
       markDirty();
@@ -795,11 +931,23 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     captureElements();
     state.document = defaultDocument();
     bindEvents();
     renderSection();
-    loadWorkspace();
+    try {
+      await refreshPortfolio();
+      const requested = new URLSearchParams(window.location.search).get('workspace');
+      const requestedEntry = state.portfolio.find((workspace) => workspace.workspace_key === requested);
+      const activeEntry = requestedEntry
+        || state.portfolio.find((workspace) => workspace.status !== 'archived')
+        || state.portfolio[0];
+      await loadWorkspace(activeEntry?.workspace_key || LEGACY_WORKSPACE_KEY);
+    } catch (error) {
+      applyPayload({ workspace: null, assets: [], revisions: [] });
+      showError(error);
+      elements.save.disabled = true;
+    }
   });
 })();

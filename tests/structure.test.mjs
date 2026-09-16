@@ -36,7 +36,7 @@ const guidedTooltip = await readFile(new URL('../guided-tooltip.js', import.meta
 const guidedTooltipStyles = await readFile(new URL('../guided-tooltip.css', import.meta.url), 'utf8');
 const partsWorkspace = await readFile(new URL('../parts-workspace.js', import.meta.url), 'utf8');
 const tooltipManifest = JSON.parse(
-  await readFile(new URL('../assets/xr-ui-fx/audio/tooltips/scripts/manifest.json', import.meta.url), 'utf8')
+  await readFile(new URL('../services/mcp/config/environment-manifest.json', import.meta.url), 'utf8')
 );
 const tooltipVoiceoverMaster = await readFile(
   new URL('../assets/xr-ui-fx/audio/tooltips/scripts/voiceover-master.txt', import.meta.url),
@@ -154,6 +154,11 @@ test('Pages validation uses supported and reproducible toolchains', () => {
     'the Pages release must not download multi-gigabyte report videos when only tooltip media changed'
   );
   assert.match(pagesWorkflow, /toolchain: 1\.98\.0/);
+  assert.match(
+    pagesWorkflow,
+    /cp -- services\/mcp\/config\/environment-manifest\.json _site\/services\/mcp\/config\/environment-manifest\.json/,
+    'the Pages release must publish the same environment manifest compiled by the server'
+  );
   assert.match(rustToolchain, /channel = "1\.98\.0"/);
   assert.doesNotMatch(pagesWorkflow, /node-version: '20'/);
 });
@@ -489,7 +494,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
   assert.match(dashboard, /realtime-client\.js\?v=7/);
-  assert.match(dashboard, /app\.js\?v=72/);
+  assert.match(dashboard, /app\.js\?v=74/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
   assert.match(realtimeClient, /localCandidateCount/);
@@ -572,7 +577,8 @@ test('root documentation exposes one status-marked product feature catalog', () 
 });
 
 test('Settings exposes one Operations Center while the living feature catalog remains available inside it', () => {
-  assert.match(dashboard, /<option value="operations-center\.html">Operations Center<\/option>/);
+  assert.match(dashboard, /id="settingsOperationsCenterOpen"[^>]*>Open Operations Center/);
+  assert.doesNotMatch(dashboard, /id="settingsWorkspacesCard"|id="settingsWorkspaceSelect"/);
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress)\.html">/);
   assert.match(featureCatalogPage, /fetch\('FEATURES\.md\?v=20260915b', \{ cache: 'no-store' \}\)/);
   assert.match(featureCatalogPage, /id="featureSearch"/);
@@ -913,14 +919,14 @@ test('maintenance cases use a stable human-readable display name', () => {
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=9"></script>');
+  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=12"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=10"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
-  assert.match(dashboard, /guided-tooltip\.css\?v=5/);
+  assert.match(dashboard, /guided-tooltip\.css\?v=6/);
   assert.match(dashboard, /onboarding\.css\?v=6/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
@@ -1172,7 +1178,7 @@ test('context help binds accessible anchored popovers across product surfaces', 
   assert.match(guidedTooltip, /function bind\(root = document\)/);
   assert.match(guidedTooltip, /\[data-guide-id\]/);
   assert.match(guidedTooltip, /setAttribute\('role', 'dialog'\)/);
-  assert.match(guidedTooltip, /event\.key === 'Escape'/);
+  assert.match(guidedTooltip, /event\.key !== 'Escape'/);
   assert.match(guidedTooltip, /document\.addEventListener\('pointerdown'/);
   assert.match(guidedTooltipStyles, /\.guided-help-trigger/);
   assert.match(guidedTooltipStyles, /\.guided-tooltip-popover/);
@@ -1186,14 +1192,28 @@ test('context help binds accessible anchored popovers across product surfaces', 
   assert.ok(declaredIds.length >= 7, 'expected contextual help on browser, parts, globe/sensor, and viewer surfaces');
   declaredIds.forEach((id) => assert.ok(manifestIds.has(id), `${id} needs a tooltip manifest entry`));
   tooltipManifest.tooltips
-    .filter((item) => item.status !== 'retired' && item.activation !== 'planned')
+    .filter((item) => item.status !== 'retired' && !['planned', 'semantic'].includes(item.activation))
     .forEach((item) => assert.ok(reachableIds.has(item.id), `${item.id} needs a trigger or onboarding step`));
   assert.match(globeVr, /sensorOnlyScene \? 'sensor-bridge-flow' : 'fleet-globe-controls'/);
   assert.match(application, /guide\.hidden = false/);
 });
 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
-  assert.equal(tooltipManifest.version, 4);
+  assert.equal(tooltipManifest.manifest_kind, 'mxgenius_environment');
+  assert.equal(tooltipManifest.schema_version, '1.0.0');
+  assert.equal(tooltipManifest.version, 7);
+  assert.ok(Array.isArray(tooltipManifest.surfaces));
+  assert.equal(tooltipManifest.surfaces.length, 9);
+  const surfaceIds = tooltipManifest.surfaces.map((surface) => surface.id);
+  assert.equal(new Set(surfaceIds).size, surfaceIds.length, 'environment surface IDs must be unique');
+  const surfaceById = new Map(tooltipManifest.surfaces.map((surface) => [surface.id, surface]));
+  for (const surfaceId of tooltipManifest.navigation_order) {
+    assert.equal(surfaceById.get(surfaceId)?.kind, 'tab', `${surfaceId} must be a canonical tab surface`);
+  }
+  assert.equal(surfaceById.get('settings')?.capabilities.some((item) => item.id === 'equipment-drives'), true);
+  assert.match(surfaceById.get('settings')?.purpose || '', /Equipment Drives/);
+  assert.equal(tooltipManifest.terminology.some((item) => item.term === 'Equipment Drive'), true);
+  assert.match(tooltipManifest.state_boundary.live_context, /Current tab/);
   assert.ok(Array.isArray(tooltipManifest.tooltips));
   assert.ok(tooltipManifest.tooltips.length >= 25);
   assert.deepEqual(
@@ -1212,7 +1232,8 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       'model-context'
     ]
   );
-  assert.match(guidedTooltip, /manifest\.json\?v=4/);
+  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=7/);
+  assert.match(guidedTooltip, /function loadEnvironmentManifest\(\)/);
   assert.match(viewerNavigationCaptions, /^WEBVTT\r?\n/);
   assert.match(viewerNavigationCaptions, /00:00:00\.400 --> 00:00:05\.850/);
   assert.match(viewerNavigationCaptions, /Desktop HUD Preview mirrors the spatial interface/);
@@ -1220,10 +1241,20 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
   assert.equal(new Set(ids).size, ids.length, 'tooltip IDs must be unique');
 
   for (const item of tooltipManifest.tooltips) {
+    assert.ok(surfaceById.has(item.surface), `${item.id} must reference a canonical environment surface`);
+    const owners = tooltipManifest.surfaces.filter((surface) => surface.target_ids.includes(item.id));
+    assert.equal(owners.length, 1, `${item.id} must have exactly one environment-surface owner`);
+    assert.equal(owners[0].id, item.surface, `${item.id} owner must match its declared surface`);
+  }
+  for (const surface of tooltipManifest.surfaces) {
+    surface.target_ids.forEach((targetId) => assert.ok(ids.includes(targetId), `${surface.id} references unknown target ${targetId}`));
+  }
+
+  for (const item of tooltipManifest.tooltips) {
     assert.match(item.id, /^[a-z0-9-]+$/);
     assert.ok(item.title && item.script, `${item.id} needs a title and narration script`);
     assert.ok(['scripted', 'recording', 'ready', 'retired'].includes(item.status), `${item.id} has an unsupported status`);
-    if (item.activation) assert.ok(['planned'].includes(item.activation), `${item.id} has an unsupported activation`);
+    if (item.activation) assert.ok(['planned', 'semantic'].includes(item.activation), `${item.id} has an unsupported activation`);
     if (item.status === 'recording') {
       await access(new URL(`../assets/xr-ui-fx/audio/tooltips/scripts/${item.voiceover}`, import.meta.url));
     }
@@ -1238,7 +1269,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
     await Promise.all(requiredMedia);
   }
 
-  const productionGuides = tooltipManifest.tooltips.filter((item) => item.status !== 'retired');
+  const productionGuides = tooltipManifest.tooltips.filter((item) => item.status !== 'retired' && item.activation !== 'semantic');
   assert.equal(productionGuides.length, 25);
   productionGuides.forEach((item) => {
     assert.ok(item.surface, `${item.id} needs a surface`);

@@ -111,8 +111,9 @@ test('the pilot figures retain their audit register while production lookup is c
   assert.equal(fdrRemoval?.register_id, 'IMG-CL350-AMM-31-FDR-REMOVAL');
   assert.match(coreHttp, /lookup_registered_image/);
   assert.match(coreHttp, /"catalog_image_register"/);
-  assert.match(coreHttp, /"vector_search_skipped": registered_image\.is_some\(\)/);
-  assert.match(coreHttp, /"semantic_requests_made": if registered_image\.is_some\(\) \{ 0 \} else \{ 1 \}/);
+  assert.match(coreHttp, /mxg\.manual\.search/);
+  assert.match(coreHttp, /"vector_search_skipped": manual_tool_calls == 0/);
+  assert.match(coreHttp, /"semantic_requests_made": manual_tool_calls/);
 });
 
 test('supporting families are explicitly excluded instead of silently entering the starter pack', () => {

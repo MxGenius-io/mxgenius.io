@@ -81,6 +81,42 @@ button, input, textarea, select { font: inherit; }
 
 .patent-shell { width: min(1640px, 100%); margin: 0 auto; padding: clamp(20px, 3vw, 42px); }
 
+.patent-portfolio {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(480px, auto);
+  gap: 18px 28px;
+  align-items: end;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(52, 120, 229, 0.12), rgba(17, 27, 45, 0.74));
+}
+
+.patent-portfolio h2 { margin: 0; font-size: 1.08rem; line-height: 1.35; }
+.patent-portfolio__controls {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+.patent-portfolio__controls label { grid-column: 1 / -1; }
+.patent-create {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 260px) auto;
+  gap: 8px 12px;
+  align-items: end;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.patent-create[hidden] { display: none; }
+.patent-create label:nth-of-type(1) { grid-column: 1; }
+.patent-create label:nth-of-type(2) { grid-column: 2; }
+.patent-create input { grid-column: 1; }
+.patent-create select { grid-column: 2; }
+.patent-create__actions { grid-column: 3; display: flex; gap: 8px; }
+
 .patent-intro {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(250px, 350px);
@@ -220,6 +256,14 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); box-sha
   .patent-header__actions { flex-wrap: wrap; }
   .save-state { width: 100%; text-align: right; }
   .patent-shell { padding: 18px 13px 36px; }
+  .patent-portfolio { grid-template-columns: 1fr; align-items: stretch; }
+  .patent-portfolio__controls, .patent-create { grid-template-columns: 1fr; }
+  .patent-create label:nth-of-type(1),
+  .patent-create label:nth-of-type(2),
+  .patent-create input,
+  .patent-create select,
+  .patent-create__actions { grid-column: 1; }
+  .patent-create__actions .button { flex: 1; }
   .patent-intro { grid-template-columns: 1fr; gap: 18px; }
   .patent-layout { grid-template-columns: 1fr; }
   .section-nav { position: static; display: flex; overflow-x: auto; }

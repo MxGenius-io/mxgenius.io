@@ -13,8 +13,8 @@ const js = await readFile(new URL('../feedback.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../feedback.css', import.meta.url), 'utf8');
 
 test('Settings exposes My Feedback inside the consolidated Operations Center', () => {
-  assert.match(dashboard, /id="settingsWorkspacesCard"/);
-  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(dashboard, /id="settingsOperationsCenterEntry"/);
+  assert.match(dashboard, /id="settingsOperationsCenterOpen"[^>]*>Open Operations Center/);
   assert.match(operationsCenter, /data-feedback-view="mine">My feedback/);
   assert.match(html, /Back to Settings/);
 });

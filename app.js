@@ -1287,6 +1287,12 @@ function setupChatPanel() {
       what_worked: citedItems(advisory.what_worked),
       limitations: (advisory.limitations || []).slice(0, 6).map((value) => boundedDisplayText(value, 500)),
       follow_up_question: boundedDisplayText(advisory.follow_up_question, 500),
+      retrieval: data?.retrieval ? {
+        state: data.retrieval.state || null,
+        aircraft_model: boundedDisplayText(data.retrieval.aircraft_model, 120),
+        ata: boundedDisplayText(data.retrieval.ata, 16),
+        path: data.retrieval.path || null
+      } : null,
       manual_records: (data?.manual_records || []).slice(0, 12).map((record) => ({
         citation: record.citation || null,
         title: boundedDisplayText(record.title, 240),
@@ -1336,6 +1342,39 @@ function setupChatPanel() {
     renderAttachmentPreview();
   };
 
+  const appendClientActions = (container, actions, { allowAuto = false } = {}) => {
+    if (!container) return;
+    (Array.isArray(actions) ? actions : []).slice(0, 6).forEach((action) => {
+      if (action?.type === 'digital_twin.highlight' && allowAuto) {
+        applyCapabilityUiEffect('mxg.digital_twin.highlight_zone', action.payload);
+        return;
+      }
+      if (action?.type !== 'ui.guide' || !action.payload) return;
+      const payload = action.payload;
+      if (payload.behavior === 'auto' && allowAuto) {
+        setTimeout(() => { void window.MXGuidedTooltip?.guide(payload); }, 0);
+        return;
+      }
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'mx-chat-client-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mx-chat-client-action';
+      button.textContent = 'Show me';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        const shown = await window.MXGuidedTooltip?.guide(payload);
+        if (shown) actionsRow.remove();
+        else {
+          button.textContent = 'Area unavailable in this view';
+          button.disabled = true;
+        }
+      });
+      actionsRow.appendChild(button);
+      container.appendChild(actionsRow);
+    });
+  };
+
   const syncAdvisoryPanelState = () => {
     panel.classList.toggle('advisory-open', Boolean(history.querySelector('.mx-advisory')));
   };
@@ -1379,6 +1418,7 @@ function setupChatPanel() {
       lastDisplayedResponseContext = buildDisplayedResponseContext({
         advisory,
         manual_records: manualRecords,
+        retrieval: payload.retrieval || null,
         client_actions: payload.client_actions || []
       });
     } else {
@@ -1392,9 +1432,13 @@ function setupChatPanel() {
         lastDisplayedResponseContext = buildDisplayedResponseContext({
           advisory,
           manual_records: manualRecords,
+          retrieval: payload.retrieval || null,
           client_actions: payload.client_actions || []
         });
       }
+    }
+    if (message.role === 'assistant') {
+      appendClientActions(bubble, payload.client_actions || [], { allowAuto: false });
     }
     turn.appendChild(bubble);
     history.appendChild(turn);
@@ -2213,11 +2257,6 @@ Rules:
           elapsedMs: Math.round(performance.now() - chatStartedAt)
         });
         lastDisplayedResponseContext = buildDisplayedResponseContext(data);
-        (data?.client_actions || []).forEach((action) => {
-          if (action?.type === 'digital_twin.highlight') {
-            applyCapabilityUiEffect('mxg.digital_twin.highlight_zone', action.payload);
-          }
-        });
         if (data?.thread_id) {
           activeThreadId = data.thread_id;
           localStorage.setItem('mxg_active_thread_id', activeThreadId);
@@ -2258,6 +2297,7 @@ Rules:
       } else {
         streamTarget.innerHTML = '<span style="color:#8b949e;font-style:italic;">The service returned an empty response. Try rephrasing or check the backend logs.</span>';
       }
+      appendClientActions(streamTarget, data?.client_actions || [], { allowAuto: true });
       const assistantTurn = answerText || data?.advisory?.synthesis || data?.advisory?.conversation_answer || '';
       chatTurns.push({ role: 'user', content: text }, { role: 'assistant', content: assistantTurn });
       if (chatTurns.length > 12) chatTurns.splice(0, chatTurns.length - 12);
@@ -3144,8 +3184,7 @@ function initSettings() {
   const demoDataStatus = document.getElementById('settingsDemoDataStatus');
   const demoPresentation = window.MXDemoVisualRegistry?.presentation;
   const textModelSelect = document.getElementById('settingsTextModel');
-  const workspaceSelect = document.getElementById('settingsWorkspaceSelect');
-  const workspaceOpen = document.getElementById('settingsWorkspaceOpen');
+  const operationsCenterOpen = document.getElementById('settingsOperationsCenterOpen');
   const deviceForm = document.getElementById('settingsDeviceForm');
   const deviceNameInput = document.getElementById('settingsDeviceName');
   const deviceClaimCodeInput = document.getElementById('settingsDeviceClaimCode');
@@ -3351,9 +3390,8 @@ function initSettings() {
   if (acct || window.MXGENIUS_CONFIG?.allowInsecurePilot) void loadEdgeDevices();
   window.MXEquipmentPacks?.init?.({ withSession: withSettingsSession });
 
-  workspaceOpen?.addEventListener('click', () => {
-    const destination = workspaceSelect?.value;
-    if (destination) window.location.href = destination;
+  operationsCenterOpen?.addEventListener('click', () => {
+    window.location.href = 'operations-center.html';
   });
 
   if (acct) {

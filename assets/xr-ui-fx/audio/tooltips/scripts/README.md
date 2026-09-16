@@ -1,6 +1,6 @@
 # Tooltip script workflow
 
-`manifest.json` is both the narration inventory and runtime manifest. Each item
+`../../../../../services/mcp/config/environment-manifest.json` is both the shared narration inventory and runtime environment manifest. Each tooltip item
 must have a stable ID, title, approved narration, media paths, and status.
 
 `voiceover-master.txt` contains the same narration in manifest order with no

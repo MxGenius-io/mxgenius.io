@@ -624,6 +624,11 @@ const MXApplicationClient = (() => {
     return applicationJson(`/api/project-workspaces/${encodeURIComponent(workspaceKey)}`, { session });
   }
 
+  function listProjectWorkspaces(family, session = {}) {
+    const query = new URLSearchParams({ family: String(family || '') });
+    return applicationJson(`/api/project-workspaces?${query}`, { session });
+  }
+
   function saveProjectWorkspace(workspaceKey, workspace, session = {}) {
     return applicationJson(`/api/project-workspaces/${encodeURIComponent(workspaceKey)}`, {
       session,
@@ -1718,6 +1723,7 @@ const MXApplicationClient = (() => {
       upload: uploadContent
     }),
     projectWorkspaces: Object.freeze({
+      list: listProjectWorkspaces,
       get: getProjectWorkspace,
       save: saveProjectWorkspace,
       uploadAsset: uploadProjectWorkspaceAsset,

@@ -10,7 +10,8 @@ const progress = await readFile(new URL('../progress.html', import.meta.url), 'u
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
 test('Operations Center is the one Settings workspace destination and Reports is centered first', () => {
-  assert.equal((dashboard.match(/<option value="operations-center\.html">Operations Center<\/option>/g) || []).length, 1);
+  assert.equal((dashboard.match(/id="settingsOperationsCenterOpen"/g) || []).length, 1);
+  assert.doesNotMatch(dashboard, /id="settingsWorkspacesCard"|id="settingsWorkspaceSelect"/);
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress|feedback|feedback-admin)\.html">/);
   assert.match(html, /id="tab-reports"[\s\S]*aria-selected="true"/);
   assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1"/);
@@ -18,11 +19,11 @@ test('Operations Center is the one Settings workspace destination and Reports is
 });
 
 test('the consolidated tabs preserve every existing operational workspace', () => {
-  for (const tab of ['reports', 'build', 'readiness', 'features', 'feedback', 'access']) {
+  for (const tab of ['reports', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
     assert.match(html, new RegExp(`data-tab="${tab}"`));
     assert.match(html, new RegExp(`data-panel="${tab}"`));
   }
-  for (const path of ['build-board.html?embed=1', 'integration-readiness.html?embed=1', 'feature-catalog.html?embed=1']) {
+  for (const path of ['build-board.html?embed=1', 'integration-readiness.html?embed=1', 'feature-catalog.html?embed=1', 'patent-workspace.html?embed=1']) {
     assert.match(html, new RegExp(path.replace(/[.?]/g, '\\$&')));
   }
   assert.match(js, /feedback-admin\.html\?embed=1/);

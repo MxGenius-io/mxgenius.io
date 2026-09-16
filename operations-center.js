@@ -8,6 +8,7 @@
     build: 'Build board active',
     readiness: 'Readiness record active',
     features: 'Feature inventory active',
+    patents: 'Patent portfolio active',
     feedback: 'Feedback queue active',
     access: 'Access registry active'
   };
@@ -20,6 +21,7 @@
       .board-header,
       .workspace-header,
       .catalog-header,
+      .patent-header,
       .feedback-page__header { display: none !important; }
       html, body { min-height: auto !important; background: transparent !important; }
       body > .container,

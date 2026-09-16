@@ -19,7 +19,7 @@ const migration = await readFile(
 const css = await readFile(new URL('../feedback.css', import.meta.url), 'utf8');
 
 test('Operations Center exposes the admin Feedback Queue alongside My Feedback', () => {
-  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(dashboard, /id="settingsOperationsCenterOpen"[^>]*>Open Operations Center/);
   assert.match(operationsCenter, /data-feedback-view="queue">Team queue/);
   assert.match(operationsCenter, /data-feedback-view="mine">My feedback/);
 });

@@ -209,3 +209,56 @@
   .guided-tour-launch,
   .guided-tooltip-popover { animation: none; transition: none; }
 }
+
+.mx-ui-guide-spotlight {
+  outline: 3px solid #5ce1e6 !important;
+  outline-offset: 5px;
+  box-shadow: 0 0 0 7px rgba(92, 225, 230, 0.2), 0 0 34px rgba(92, 225, 230, 0.48) !important;
+  transition: outline-color 0.6s ease, box-shadow 0.6s ease;
+}
+
+.mx-ui-guide-spotlight.is-fading {
+  outline-color: transparent !important;
+  box-shadow: 0 0 0 7px transparent, 0 0 34px transparent !important;
+}
+
+.mx-ui-guide-spotlight.is-reduced-motion {
+  transition: none;
+}
+
+.mx-ui-guide-note {
+  position: fixed;
+  z-index: 10020;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(440px, calc(100vw - 36px));
+  padding: 13px 14px;
+  border: 1px solid rgba(92, 225, 230, 0.6);
+  border-radius: 12px;
+  color: #e8fcff;
+  background: rgba(7, 18, 34, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.mx-ui-guide-note button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(92, 225, 230, 0.5);
+  border-radius: 8px;
+  padding: 6px 9px;
+  color: #9df7fb;
+  background: transparent;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mx-ui-guide-spotlight,
+  .mx-ui-guide-note {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -11,12 +11,12 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=17">
+  <link rel="stylesheet" href="app-styles.css?v=19">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=12">
-  <link rel="stylesheet" href="guided-tooltip.css?v=5">
+  <link rel="stylesheet" href="guided-tooltip.css?v=6">
   <link rel="stylesheet" href="onboarding.css?v=6">
   <link rel="stylesheet" href="dashboard-splash.css?v=1">
   <link rel="stylesheet" href="feedback-reporter.css?v=1">
@@ -433,6 +433,15 @@
       </div>
 
       <div class="settings-grid">
+        <div class="settings-entry" id="settingsOperationsCenterEntry">
+          <div>
+            <span class="settings-entry__eyebrow">Team workspace</span>
+            <strong>Operations Center</strong>
+            <span>Reports, builds, readiness, patents, feedback, features, and access controls.</span>
+          </div>
+          <button class="btn-primary" id="settingsOperationsCenterOpen" type="button">Open Operations Center</button>
+        </div>
+
         <!-- Account & Identity -->
         <div class="settings-card" id="settingsAccountCard">
           <h3 class="settings-card-title">
@@ -510,7 +519,7 @@
           </div>
         </div>
 
-        <!-- Equipment Pack publishing and assignment -->
+        <!-- Equipment Drive publishing and assignment -->
         <div class="settings-card equipment-pack-workspace" id="settingsPacksCard">
           <h3 class="settings-card-title">
             <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M10 2 2.5 5.75v8.5L10 18l7.5-3.75v-8.5L10 2Zm0 1.9 5.25 2.63L10 9.15 4.75 6.53 10 3.9Zm-6 3.85 5.25 2.62v5.53L4 13.28V7.75Zm6.75 8.15v-5.53L16 7.75v5.53l-5.25 2.62Z"/></svg>
@@ -688,26 +697,6 @@
           <div class="settings-row"><div class="settings-label"><span>Fleet compatibility source</span><span class="settings-hint">Aerodex Live &middot; discovery context only</span></div><span class="badge badge-jet" style="font-size:0.7rem;">Aerodex</span></div>
         </div>
 
-        <!-- Shared Workspaces -->
-        <div class="settings-card" id="settingsWorkspacesCard">
-          <h3 class="settings-card-title">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M4 2h8l4 4v12H4V2zm7 1.5V7h3.5L11 3.5zM7 10h6v1.5H7V10zm0 3h6v1.5H7V13z"/></svg>
-            Shared Workspaces
-          </h3>
-          <div class="settings-row">
-            <div class="settings-label">
-              <span>Operations Center</span>
-              <span class="settings-hint" id="settingsWorkspaceStatus">Reports, build activity, readiness, feedback, features, and access rules in one centered workspace</span>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-              <select id="settingsWorkspaceSelect" class="search-input" style="width:auto;min-width:220px;">
-                <option value="operations-center.html">Operations Center</option>
-              </select>
-              <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsWorkspaceOpen" type="button">Open center</button>
-            </div>
-          </div>
-        </div>
-
         <!-- Onboarding -->
         <div class="settings-card">
           <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>Getting Started</h3>
@@ -874,14 +863,14 @@
   <script src="case-workspace.js?v=20"></script>
   <script src="parts-workspace.js?v=31"></script>
   <script src="capability-workbench.js?v=6"></script>
-  <script src="guided-tooltip.js?v=9"></script>
+  <script src="guided-tooltip.js?v=12"></script>
   <script src="dashboard-splash.js?v=4"></script>
       <script src="onboarding.js?v=10"></script>
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
   <script src="equipment-pack-workspace.js?v=8"></script>
-  <script src="app.js?v=72"></script>
+  <script src="app.js?v=74"></script>
   <div id="onboardingRoot"></div>
 </body>
 

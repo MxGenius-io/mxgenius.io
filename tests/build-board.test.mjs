@@ -9,12 +9,13 @@ const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
 test('Settings collapses shared workspaces into one Operations Center entry', () => {
-  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(dashboard, /id="settingsOperationsCenterOpen"[^>]*>Open Operations Center/);
+  assert.doesNotMatch(dashboard, /id="settingsWorkspacesCard"|id="settingsWorkspaceSelect"/);
   assert.doesNotMatch(dashboard, /value="build-board\.html">Build Board/);
   assert.doesNotMatch(dashboard, /value="progress\.html">Reports/);
   assert.doesNotMatch(dashboard, /Open Tracker/);
   assert.doesNotMatch(dashboard, /Final Build Plan · coming next/);
-  assert.equal((dashboard.match(/value="operations-center\.html"/g) || []).length, 1);
+  assert.equal((dashboard.match(/id="settingsOperationsCenterOpen"/g) || []).length, 1);
 });
 
 test('the board is authenticated and persists through the shared workspace boundary', () => {

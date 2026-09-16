@@ -1,6 +1,6 @@
 # Guided tooltip touchpoint map
 
-This map is the recording and implementation contract for contextual help. Each guide ID resolves through `assets/xr-ui-fx/audio/tooltips/scripts/manifest.json`, where the narration draft, interface selectors, and visual beats live together.
+This map is the recording and implementation contract for contextual help. Each guide ID resolves through `services/mcp/config/environment-manifest.json`, the shared browser-and-model environment manifest where the narration draft, interface selectors, and visual beats live together.
 
 ## Interaction pattern
 

@@ -10,7 +10,7 @@ const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
 test('Integration Readiness stays authenticated behind the consolidated Operations Center', () => {
   assert.doesNotMatch(dashboard, /value="integration-readiness\.html">Integration Readiness/);
-  assert.match(dashboard, /value="operations-center\.html">Operations Center/);
+  assert.match(dashboard, /id="settingsOperationsCenterOpen"[^>]*>Open Operations Center/);
   assert.match(auth, /dashboard\|operations-center\|progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
   assert.match(auth, /operations-center\|progress\|patent-workspace\|build-board\|feedback\|feedback-admin\|integration-readiness/);
   assert.match(html, /src="auth\.js\?v=\d+"/);

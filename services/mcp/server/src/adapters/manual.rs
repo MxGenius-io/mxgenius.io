@@ -559,12 +559,34 @@ fn compact_aircraft_model(value: &str) -> String {
 
 fn normalize_aircraft_model(requested: &str) -> Option<String> {
     let value = requested.trim();
-    (!value.is_empty() && value.chars().count() <= 120).then(|| value.to_owned())
+    if value.is_empty() || value.chars().count() > 120 {
+        return None;
+    }
+    let mut compact = compact_aircraft_model(value);
+    if let Some(without_manufacturer) = compact.strip_prefix("BOMBARDIER") {
+        compact = without_manufacturer.to_owned();
+    }
+    if let Some(variant) = compact.strip_prefix("GLOBAL") {
+        if !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit()) {
+            return Some(format!("GL{variant}"));
+        }
+    }
+    if let Some(variant) = compact.strip_prefix("CHALLENGER") {
+        if !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit()) {
+            return Some(format!("CL{variant}"));
+        }
+    }
+    Some(value.to_owned())
 }
 
 fn aircraft_models_match(left: &str, right: &str) -> bool {
-    let left = compact_aircraft_model(left);
-    !left.is_empty() && left == compact_aircraft_model(right)
+    let left = normalize_aircraft_model(left)
+        .map(|value| compact_aircraft_model(&value))
+        .unwrap_or_default();
+    let right = normalize_aircraft_model(right)
+        .map(|value| compact_aircraft_model(&value))
+        .unwrap_or_default();
+    !left.is_empty() && left == right
 }
 
 fn odata_string(value: &str) -> String {
@@ -656,9 +678,12 @@ mod contract_tests {
     }
 
     #[test]
-    fn aircraft_matching_is_generic_and_punctuation_insensitive() {
+    fn aircraft_matching_normalizes_punctuation_and_common_family_names() {
         for (left, right) in [
             ("CL350", "CL-350"),
+            ("Global 7500", "GL7500"),
+            ("Bombardier Global 7500", "GL7500"),
+            ("Challenger 350", "CL350"),
             ("Falcon 7X", "falcon-7x"),
             ("G 650", "G650"),
         ] {

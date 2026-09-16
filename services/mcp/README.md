@@ -2,8 +2,8 @@
 
 Standalone Rust capability service for the locked MXGenius v1 catalog:
 
-- exactly 46 active typed tools after the five retired `mxg.mro.*` capabilities
-  and the bounded `mxg.parts.order_history` read capability;
+- exactly 49 active typed tools after the five retired `mxg.mro.*` capabilities,
+  including bounded manual retrieval and product-environment description;
 - 15 resources and 8 prompts;
 - MCP Streamable HTTP (`POST /mcp`) and local stdio;
 - canonical domain/contracts in `shared`;
@@ -33,7 +33,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo build --workspace
 ```
 
-The current workspace gate covers the locked 46-tool schema and RBAC snapshots, transport and application-orchestration black-box cases, tenant isolation, confirmation binding, case rollback, digital-twin marker persistence, production-adapter behavior, and datetime wire-format tests.
+The current workspace gate covers the locked 49-tool schema and RBAC snapshots, transport and application-orchestration black-box cases, tenant isolation, confirmation binding, case rollback, digital-twin marker persistence, production-adapter behavior, and datetime wire-format tests.
+
+The versioned environment manifest lives in `config` so the browser and server
+consume the same source without expanding the container build context:
+
+```powershell
+docker build -f services/mcp/Dockerfile services/mcp
+```
 
 ## Local development
 

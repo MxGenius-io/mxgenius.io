@@ -17,12 +17,40 @@
     </a>
     <div class="patent-header__actions">
       <span id="workspaceSaveState" class="save-state" role="status" aria-live="polite">Loading…</span>
-      <a class="button button--quiet" href="dashboard.html#settings">Back to Settings</a>
+      <a class="button button--quiet" href="operations-center.html#patents">Back to Operations Center</a>
       <button id="workspaceSave" class="button button--primary" type="button" disabled>Save progress</button>
     </div>
   </header>
 
   <main class="patent-shell">
+    <section class="patent-portfolio" aria-labelledby="portfolioTitle">
+      <div>
+        <p class="eyebrow">Patent portfolio</p>
+        <h2 id="portfolioTitle">Work on more than one idea without mixing the records.</h2>
+      </div>
+      <div class="patent-portfolio__controls">
+        <label for="workspaceProjectSelect">Current project</label>
+        <select id="workspaceProjectSelect" aria-label="Current patent project"></select>
+        <button id="workspaceNew" class="button button--primary" type="button">New project</button>
+        <button id="workspaceArchive" class="button button--quiet" type="button">Archive</button>
+      </div>
+      <form id="workspaceCreateForm" class="patent-create" hidden>
+        <label for="workspaceNewTitle">Project title</label>
+        <input id="workspaceNewTitle" type="text" maxlength="160" required placeholder="Describe the invention or working concept">
+        <label for="workspaceNewTechnologyArea">Technology area</label>
+        <select id="workspaceNewTechnologyArea">
+          <option value="software">Software</option>
+          <option value="hardware">Hardware</option>
+          <option value="process">Process</option>
+          <option value="other">Other</option>
+        </select>
+        <div class="patent-create__actions">
+          <button class="button button--primary" type="submit">Create project</button>
+          <button id="workspaceCreateCancel" class="button button--quiet" type="button">Cancel</button>
+        </div>
+      </form>
+    </section>
+
     <section class="patent-intro" aria-labelledby="workspaceTitle">
       <div>
         <p class="eyebrow">Shared team document</p>
@@ -30,6 +58,13 @@
         <p>Collect the missing decisions around the existing draft. Answer what you know, name an owner for what you do not, and mark an answer confirmed only when the team can rely on it.</p>
       </div>
       <div class="patent-intro__controls">
+        <label for="workspaceTechnologyArea">Technology area</label>
+        <select id="workspaceTechnologyArea">
+          <option value="software">Software</option>
+          <option value="hardware">Hardware</option>
+          <option value="process">Process</option>
+          <option value="other">Other</option>
+        </select>
         <label for="workspaceStatus">Document stage</label>
         <select id="workspaceStatus">
           <option value="collecting">Collecting input</option>
@@ -89,7 +124,7 @@
 
   <script src="runtime-config.js?v=3"></script>
   <script src="auth.js?v=13"></script>
-  <script src="application-client.js?v=33"></script>
-  <script src="patent-workspace.js?v=1"></script>
+  <script src="application-client.js?v=34"></script>
+  <script src="patent-workspace.js?v=2"></script>
 </body>
 </html>

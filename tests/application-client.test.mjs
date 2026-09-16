@@ -450,6 +450,7 @@ test('project workspaces use tenant-authenticated versioned saves and private as
   const file = new Blob(['drawing'], { type: 'image/png' });
   Object.defineProperty(file, 'name', { value: 'FIG 1.png' });
 
+  await client.projectWorkspaces.list('patent', session);
   await client.projectWorkspaces.get('provisional-patent', session);
   await client.projectWorkspaces.save('provisional-patent', {
     title: 'Provisional Patent Application',
@@ -465,13 +466,14 @@ test('project workspaces use tenant-authenticated versioned saves and private as
   const blob = await client.projectWorkspaces.getAsset('provisional-patent', 'asset-1', session);
 
   assert.equal(blob.type, 'application/pdf');
-  assert.deepEqual(requests.map(({ options }) => options.method), ['GET', 'PUT', 'POST', 'GET']);
-  assert.equal(requests[1].request.expected_version, 3);
-  assert.deepEqual(requests[1].request.document, { schema_version: 1 });
-  assert.match(requests[2].url, /\/api\/project-workspaces\/provisional-patent\/assets\?/);
-  assert.match(requests[2].url, /section=drawings/);
-  assert.match(requests[2].url, /note=Perspective\+example/);
-  assert.equal(requests[2].request, file);
+  assert.deepEqual(requests.map(({ options }) => options.method), ['GET', 'GET', 'PUT', 'POST', 'GET']);
+  assert.match(requests[0].url, /\/api\/project-workspaces\?family=patent/);
+  assert.equal(requests[2].request.expected_version, 3);
+  assert.deepEqual(requests[2].request.document, { schema_version: 1 });
+  assert.match(requests[3].url, /\/api\/project-workspaces\/provisional-patent\/assets\?/);
+  assert.match(requests[3].url, /section=drawings/);
+  assert.match(requests[3].url, /note=Perspective\+example/);
+  assert.equal(requests[3].request, file);
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
 });
 

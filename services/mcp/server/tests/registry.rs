@@ -61,22 +61,22 @@ async fn dispatch(d: &Dispatcher, method: &str, params: serde_json::Value) -> se
 }
 
 #[test]
-fn registry_has_46_unique_tools() {
+fn registry_has_49_unique_tools() {
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 46);
+    assert_eq!(info.tool_count, 49);
     assert_eq!(info.resource_count, 15);
     assert_eq!(info.prompt_count, 8);
 
     let names: std::collections::BTreeSet<String> =
         reg.list_tools().into_iter().map(|t| t.name).collect();
-    assert_eq!(names.len(), 46, "tool names must be unique");
+    assert_eq!(names.len(), 49, "tool names must be unique");
 }
 
 #[test]
-fn all_46_tool_names_match_the_locked_catalog() {
+fn all_49_tool_names_match_the_locked_catalog() {
     use std::collections::BTreeSet;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -95,6 +95,9 @@ fn all_46_tool_names_match_the_locked_catalog() {
         "mxg.maintenance_case.similar_cases",
         "mxg.maintenance_case.update_status",
         "mxg.maintenance_case.attach_observation",
+        "mxg.environment.describe",
+        "mxg.ui.guide",
+        "mxg.manual.search",
         "mxg.parts.resolve",
         "mxg.parts.alternates",
         "mxg.parts.inventory",
@@ -138,6 +141,105 @@ fn all_46_tool_names_match_the_locked_catalog() {
     }
 }
 
+#[tokio::test]
+async fn environment_describe_uses_the_shared_stable_manifest() {
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let result = dispatch(
+        &dispatcher,
+        "tools/call",
+        serde_json::json!({
+            "name": "mxg.environment.describe",
+            "arguments": { "surface_id": "settings" }
+        }),
+    )
+    .await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["output"]["manifest_version"], "1.0.0+7");
+    assert_eq!(result["output"]["surfaces"].as_array().unwrap().len(), 1);
+    assert_eq!(result["output"]["surfaces"][0]["label"], "Settings");
+    assert!(result["output"]["surfaces"][0]["capabilities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|capability| capability["id"] == "equipment-drives"));
+    assert!(result["output"]["terminology"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|term| term["term"] == "Equipment Drive"));
+}
+
+#[tokio::test]
+async fn ui_guide_accepts_only_manifest_owned_semantic_targets() {
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let result = dispatch(
+        &dispatcher,
+        "tools/call",
+        serde_json::json!({
+            "name": "mxg.ui.guide",
+            "arguments": {
+                "surface_id": "parts",
+                "target_id": "parts-inventory",
+                "guidance": "Inventory and trace records live here.",
+                "behavior": "offer"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["output"]["surface_id"], "parts");
+    assert_eq!(result["output"]["target_id"], "parts-inventory");
+    assert_eq!(result["output"]["behavior"], "offer");
+    assert!(result["output"].get("selector").is_none());
+    assert!(result["output"].get("script").is_none());
+
+    let mismatch = dispatcher
+        .dispatch(rpc(
+            "tools/call",
+            serde_json::json!({
+                "name": "mxg.ui.guide",
+                "arguments": {
+                    "surface_id": "settings",
+                    "target_id": "parts-inventory",
+                    "guidance": "This target does not belong here.",
+                    "behavior": "auto"
+                }
+            }),
+        ))
+        .await
+        .expect("mismatch response");
+    let error = mismatch.error.expect("mismatch should fail closed");
+    assert!(error.message.contains("INVALID_INPUT"));
+    assert!(error.message.contains("does not belong"));
+}
+
+#[tokio::test]
+async fn manual_search_is_model_callable_and_returns_bounded_evidence() {
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let result = dispatch(
+        &dispatcher,
+        "tools/call",
+        serde_json::json!({
+            "name": "mxg.manual.search",
+            "arguments": {
+                "question": "What hydraulic pressure check applies?",
+                "aircraft_model": "CL350",
+                "include_images": true,
+                "limit": 8
+            }
+        }),
+    )
+    .await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["output"]["state"], "verified_match");
+    assert_eq!(result["output"]["aircraft_model"], "CL350");
+    assert_eq!(result["output"]["returned"], 1);
+    assert_eq!(result["output"]["records"][0]["citation"], "M-01");
+    assert!(result["output"]["records"][0]["excerpt"]
+        .as_str()
+        .is_some_and(|excerpt| excerpt.contains("ATA-32-50-00")));
+}
+
 #[test]
 fn role_action_matrix_for_all_capabilities_matches_the_locked_snapshot() {
     use mxgenius_shared::application::policy::PolicyMatrix;
@@ -171,7 +273,7 @@ fn role_action_matrix_for_all_capabilities_matches_the_locked_snapshot() {
     snapshot.sort_by_key(serde_json::Value::to_string);
     let actual = hex::encode(sha2::Sha256::digest(serde_json::to_vec(&snapshot).unwrap()));
     assert_eq!(
-        actual, "cfc6e53f38213ffc5ee8fabe9efbebe591f2dcab5337af6a599a5f6a2ac9dab3",
+        actual, "a0f837077fe8883bd89ef5b1fdda30312981bd82a214d1533d40dc4a51a54f71",
         "RBAC snapshot changed: {actual}"
     );
 }
@@ -486,7 +588,7 @@ async fn aircraft_lookup_conflicting_identifiers_returns_ambiguous_match() {
 }
 
 #[test]
-fn all_46_tool_schemas_match_the_locked_snapshot() {
+fn all_49_tool_schemas_match_the_locked_snapshot() {
     use sha2::Digest;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -508,7 +610,7 @@ fn all_46_tool_schemas_match_the_locked_snapshot() {
     let encoded = serde_json::to_vec(&snapshot).unwrap();
     let actual = hex::encode(sha2::Sha256::digest(encoded));
     assert_eq!(
-        actual, "ac17b55301bf75a141eac158d612269cbf9b2640e36ada4d51996beea19049a8",
+        actual, "6c52c3528d1c406ef4a4de9f2ded384e439f8172f91d677f6689847524685f47",
         "schema snapshot changed: {actual}"
     );
 }
