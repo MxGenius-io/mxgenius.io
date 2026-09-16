@@ -34,6 +34,12 @@ test('structured advisory keeps chat and labels retrieval relevance without diag
   assert.match(app, /What Worked in Retrieved Records/);
 });
 
+test('structured advisory tolerates null optional arrays', () => {
+  assert.match(app, /const safeCitations = Array\.isArray\(citations\) \? citations : \[\]/);
+  assert.match(app, /const safeItems = Array\.isArray\(items\) \? items : \[\]/);
+  assert.match(app, /safeItems\.forEach\(\(item\) =>/);
+});
+
 test('first structured advisory immediately activates the expanded advisory layout', () => {
   assert.match(app, /const syncAdvisoryPanelState = \(\) =>/);
   assert.match(app, /history\.querySelector\('\.mx-advisory'\)/);

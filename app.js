@@ -1834,7 +1834,8 @@ Rules:
     const citationRow = (citations = []) => {
       const row = document.createElement('span');
       row.className = 'mx-citations';
-      citations.forEach((citation) => {
+      const safeCitations = Array.isArray(citations) ? citations : [];
+      safeCitations.forEach((citation) => {
         const pill = document.createElement('span');
         pill.textContent = `[${citation}]`;
         row.appendChild(pill);
@@ -1842,12 +1843,13 @@ Rules:
       return row;
     };
     const citedList = (heading, items = []) => {
-      if (!items.length) return;
+      const safeItems = Array.isArray(items) ? items : [];
+      if (!safeItems.length) return;
       const section = document.createElement('section');
       const h = document.createElement('h4');
       h.textContent = heading;
       const list = document.createElement('ul');
-      items.forEach((item) => {
+      safeItems.forEach((item) => {
         const li = document.createElement('li');
         const text = document.createElement('span');
         text.textContent = item.text || '';
