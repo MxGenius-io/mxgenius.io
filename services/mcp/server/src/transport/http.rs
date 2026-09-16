@@ -10283,7 +10283,40 @@ fn requested_manual_aircraft_model(
     explicit_manual_aircraft_model(text).or_else(|| contextual_aircraft_model.map(str::to_owned))
 }
 
+fn is_application_orientation_query(message: &str) -> bool {
+    let text = message.to_ascii_lowercase();
+    let names_product_surface = [
+        "mxgenius",
+        "equipment drive",
+        "content upload",
+        "demo content",
+        "operations center",
+        "parts management",
+        "maintenance workspace",
+        "registered pi",
+    ]
+    .iter()
+    .any(|term| text.contains(term));
+    let asks_for_orientation = [
+        "where",
+        "which tab",
+        "which page",
+        "which screen",
+        "how do i get",
+        "how do i find",
+        "what is",
+        "what does",
+        "what's",
+    ]
+    .iter()
+    .any(|term| text.contains(term));
+    names_product_surface && asks_for_orientation
+}
+
 fn should_search_manual(message: &str, case_id: Option<Uuid>) -> bool {
+    if is_application_orientation_query(message) {
+        return false;
+    }
     if case_id.is_some() {
         return true;
     }
@@ -12386,6 +12419,10 @@ mod structured_advisory_tests {
     #[test]
     fn obvious_general_conversation_skips_manual_retrieval() {
         assert!(!should_search_manual("Hello, thanks for the help", None));
+        assert!(!should_search_manual(
+            "Where should I go in MXGenius to publish manuals to the Pi, and what is Content Upload for?\nRecent user context:\nUse the CL350 SSM for cockpit audio.",
+            Some(Uuid::new_v4())
+        ));
         assert!(should_search_manual(
             "What inspection applies to this hydraulic fault?",
             None
