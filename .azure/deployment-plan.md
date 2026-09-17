@@ -2,7 +2,7 @@
 
 ## Tenant-owned JetNet connections — 2026-09-17
 
-> **Status:** Validated locally; release pending
+> **Status:** Deployed and live-verified
 > **Recipe:** AZCLI (existing ACR + Container Apps release path)
 
 Add an organization-scoped JetNet connection card to Settings and keep Restart
@@ -22,11 +22,30 @@ MXGenius service connection.
   deletes no existing account, fleet, manual, image, case, part, or device data.
 - [x] Existing Azure resources, revisions, environment names, and secret
   references were inspected without disclosing credential values.
-- [ ] Commit and push the exact source to canonical `main`; confirm Pages.
-- [ ] Add the provider-encryption key and existing private fleet bearer to
+- [x] Commit and push the exact source to canonical `main`; confirm Pages.
+- [x] Add the provider-encryption key and existing private fleet bearer to
   `mxg-core`, then promote and probe the core revision.
-- [ ] Promote `mxg-fleet`, verify the tenant credential-broker path, and perform
+- [x] Promote `mxg-fleet`, verify the tenant credential-broker path, and perform
   signed-in read-only visual acceptance without entering a real credential.
+
+### Deployment proof
+
+- Canonical source commit `d85cc2726d8382b5f5c018bd57ca7dab4cd2df69`
+  was published by successful GitHub Pages run `35244733557`.
+- ACR runs `cj3t` and `cj3s` published
+  `mxg-core:tenant-jetnet-d85cc27-20260917` at digest
+  `sha256:dfb8e350a65ce091067489171b4286cdbc307cc529f4fd5f4a7a1d81ed620bef`
+  and `mxg-fleet:tenant-jetnet-d85cc27-20260917` at digest
+  `sha256:6bcdebcad8df62c3fe2a94e0ed2fcd2512f1888ff6d5b67f50af32c8a165f69b`.
+- Revisions `mxg-core--jetd85cc27` and `mxg-fleet--jetd85cc27` are Healthy,
+  latest-ready, Running, and provisioned with one replica. Core health,
+  readiness, and adapter probes and fleet health/status returned HTTP 200.
+- The internal credential broker authenticated with the existing private
+  service bearer and returned the expected HTTP 404 for an organization with
+  no override; anonymous core and fleet mutation requests returned HTTP 401.
+- Signed-in browser acceptance displayed the unconfigured JetNet card without
+  a returned secret and showed equal-width Restart Tour and Sign Out buttons in
+  one row. No real JetNet credential was entered or persisted during acceptance.
 
 ### Rollback
 
