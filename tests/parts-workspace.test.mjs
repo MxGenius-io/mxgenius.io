@@ -75,12 +75,30 @@ test('demo presentation scopes maintenance and parts without deleting operationa
     raw_discrepancy: '[DEMO] Archived hydraulic example',
     normalized_discrepancy: { demo: true, presentation_hidden: true }
   };
+  const fridayCase = {
+    case_id: 'case-demo-friday',
+    raw_discrepancy: '[DEMO] Friday strobe case',
+    normalized_discrepancy: { demo: true, demo_suite: 'friday_funding_demo' }
+  };
   const productionPart = { partNumber: '29-1001', description: 'Hydraulic pump' };
   const demoPart = { partNumber: 'MXG-DEMO-29-1001', description: '[DEMO] Hydraulic pump' };
 
   assert.deepEqual(
     Array.from(presentation.scopeCases([productionCase, demoCase, hiddenLegacyCase]), (row) => row.case_id),
     ['case-demo-1']
+  );
+  assert.deepEqual(
+    Array.from(presentation.scopeCases([productionCase, demoCase, hiddenLegacyCase, fridayCase]), (row) => row.case_id),
+    ['case-demo-friday']
+  );
+  assert.deepEqual(
+    Array.from(presentation.scopeParts([
+      productionPart,
+      demoPart,
+      { partNumber: 'MXG-DEMO-33-5101', description: '[DEMO] Strobe light assembly' },
+      { partNumber: 'MXG-DEMO-32-1101', description: '[DEMO] Main wheel assembly' }
+    ]), (row) => row.partNumber),
+    ['MXG-DEMO-33-5101', 'MXG-DEMO-32-1101']
   );
   assert.equal(presentation.isEnabled(), true);
   assert.equal(attributes.has('data-demo-presentation'), true);

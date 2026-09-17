@@ -101,6 +101,15 @@
 
   const PRESENTATION_STORAGE_KEY = 'mxg_demo_presentation_mode';
   const DEMO_DATASET = 'mxgenius_complete_demo';
+  const FRIDAY_DEMO_SUITE = 'friday_funding_demo';
+  const FRIDAY_DEMO_PARTS = new Set([
+    'MXG-DEMO-33-5101',
+    'MXG-DEMO-32-1101',
+    'MXG-DEMO-32-1301',
+    'MXG-DEMO-32-1202',
+    'MXG-DEMO-32-1504',
+    'MXG-DEMO-32-1601'
+  ]);
 
   function value(record, snake, camel = snake) {
     return record?.[snake] ?? record?.[camel] ?? '';
@@ -165,6 +174,15 @@
       || /^MXG-DEMO-/i.test(String(value(unit, 'part_number', 'partNumber')));
   }
 
+  function isFridayDemoCase(caseState = {}) {
+    return metadata(caseState)?.demo_suite === FRIDAY_DEMO_SUITE;
+  }
+
+  function isFridayDemoPart(unit = {}) {
+    return metadata(unit)?.demo_suite === FRIDAY_DEMO_SUITE
+      || FRIDAY_DEMO_PARTS.has(String(value(unit, 'part_number', 'partNumber')).toUpperCase());
+  }
+
   function isDemoLocation(location = {}) {
     return hasDemoMarker(location)
       || /^DEMO-/i.test(String(location?.code || ''));
@@ -217,6 +235,13 @@
     return isPresentationEnabled() ? demoRecords : source;
   }
 
+  function scopeFocused(records, predicate, focusPredicate) {
+    const scoped = scope(records, predicate);
+    if (!isPresentationEnabled()) return scoped;
+    const focused = scoped.filter(focusPredicate);
+    return focused.length ? focused : scoped;
+  }
+
   function scopeReportRows(records, reportName) {
     if (mode() === 'operational') return scope(records, hasDemoMarker);
     // A movement summary is already aggregated before it reaches the browser,
@@ -263,8 +288,8 @@
       showAll: () => setMode('operational'),
       mode,
       isEnabled: isPresentationEnabled,
-      scopeCases: (records) => scope(records, isDemoCase),
-      scopeParts: (records) => scope(records, isDemoPart),
+      scopeCases: (records) => scopeFocused(records, isDemoCase, isFridayDemoCase),
+      scopeParts: (records) => scopeFocused(records, isDemoPart, isFridayDemoPart),
       scopeLocations: (records) => scope(records, isDemoLocation),
       scopeRecords: (records) => scope(records, hasDemoMarker),
       scopeReportRows
