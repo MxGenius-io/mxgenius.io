@@ -984,8 +984,9 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
   assert.doesNotMatch(dashboard, /id="guidedTourButton"/);
   assert.doesNotMatch(dashboard, /guided-tour-launch/);
-  assert.match(dashboard, /Onboarding Walkthrough[\s\S]*>Restart Tour<\/button>/);
+  assert.match(dashboard, /class="settings-actions"[\s\S]*>Restart Tour<\/button>[\s\S]*id="settingsSignOutBtn"[^>]*>Sign Out<\/button>/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
+  assert.doesNotMatch(dashboard, /Getting Started|Onboarding Walkthrough/);
   assert.doesNotMatch(guidedTooltipStyles, /\.guided-tour-launch/);
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
   assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
@@ -1107,6 +1108,12 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(applicationStyles, /\.settings-sound-families\s*\{[\s\S]*max-height: min\(58vh, 560px\);[\s\S]*overflow-y: auto;/);
   assert.match(applicationStyles, /\.settings-sound-families:focus-visible/);
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
+});
+
+test('Settings groups model controls under AI and appearance plus sounds under Customize', () => {
+  assert.match(dashboard, /id="settingsOperationsCard"[\s\S]*class="settings-card-title"[\s\S]*AI[\s\S]*Data &amp; Cache[\s\S]*id="settingsTextModel"/);
+  assert.match(dashboard, /id="settingsCustomizeCard"[\s\S]*class="settings-card-title"[\s\S]*Customize[\s\S]*id="settingsSoundsCard"[\s\S]*Interface Sounds/);
+  assert.equal((dashboard.match(/id="settingsSignOutBtn"/g) || []).length, 1);
 });
 
 test('Customer Operations exposes the complete Equipment Drive publish and assign lifecycle', async () => {

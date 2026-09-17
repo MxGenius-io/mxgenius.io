@@ -17,6 +17,11 @@ test('Operations Center owns one modular customer dashboard', () => {
     'customerTelemetryList'
   ]) assert.match(html, new RegExp(`id="${id}"`));
   assert.doesNotMatch(dashboard, /id="settingsDevicesCard"|id="settingsPacksCard"/);
+  assert.match(html, /id="customerDetail">/);
+  assert.doesNotMatch(html, /id="customerDetail" hidden/);
+  assert.match(html, /id="settingsDeviceCustomerScope"/);
+  assert.match(html, /id="settingsPackCustomerScope"/);
+  assert.match(js, /__no_customer_selected__/);
 });
 
 test('customer dashboard reuses the real device and Equipment Drive clients', () => {

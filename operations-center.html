@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
   <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=3">
+  <link rel="stylesheet" href="operations-center.css?v=4">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -94,8 +94,8 @@
           <p id="customerStatus" class="customer-status" role="status" aria-live="polite">Loading customer operations…</p>
         </aside>
 
-        <div class="customer-detail" id="customerDetail" hidden>
-          <header class="customer-detail__heading">
+        <div class="customer-detail" id="customerDetail">
+          <header class="customer-detail__heading" data-customer-required hidden>
             <div>
               <div class="customer-title-line">
                 <h3 id="customerName">Customer</h3>
@@ -117,7 +117,7 @@
             </details>
           </header>
 
-          <div class="customer-detail__metrics">
+          <div class="customer-detail__metrics" data-customer-required hidden>
             <div><strong id="customerDeviceCount">0</strong><span>Devices</span></div>
             <div><strong id="customerActiveDeviceCount">0</strong><span>Authorized</span></div>
             <div><strong id="customerAttentionCount">0</strong><span>Attention</span></div>
@@ -131,6 +131,7 @@
                 <button id="settingsDeviceRefresh" class="button button--quiet" type="button">Refresh</button>
               </div>
               <p>Approve the seven-digit code shown on a Pi. Its credential remains device-bound and revocable.</p>
+              <p class="customer-scope" id="settingsDeviceCustomerScope">Select or create a customer to approve a device.</p>
               <form id="settingsDeviceForm" class="customer-device-form">
                 <label>Device name<input id="settingsDeviceName" type="text" maxlength="120" autocomplete="off" placeholder="Hangar Pi 01" required></label>
                 <label>Setup code<input id="settingsDeviceClaimCode" type="text" maxlength="7" inputmode="numeric" pattern="[0-9]{7}" autocomplete="one-time-code" placeholder="1234567" required></label>
@@ -144,7 +145,7 @@
               </details>
             </section>
 
-            <section class="customer-module customer-module--billing">
+            <section class="customer-module customer-module--billing" data-customer-required hidden>
               <div class="customer-module__heading"><div><span class="customer-kicker">Account</span><h4>Payment history</h4></div></div>
               <p>This is an operational ledger only. MXGenius stores no card or processor credentials here.</p>
               <form id="customerPaymentForm" class="customer-payment-form">
@@ -158,7 +159,7 @@
               <div id="customerPaymentList" class="customer-payment-list" aria-live="polite"></div>
             </section>
 
-            <section class="customer-module customer-module--telemetry">
+            <section class="customer-module customer-module--telemetry" data-customer-required hidden>
               <div class="customer-module__heading"><div><span class="customer-kicker">Service</span><h4>Device health</h4></div></div>
               <p>Heartbeat, assigned drive, deployment state, and the latest reported error from the existing device ledger.</p>
               <div id="customerTelemetryList" class="customer-telemetry-list" aria-live="polite"></div>
@@ -170,6 +171,7 @@
                 <button id="settingsPackRefresh" class="button button--quiet" type="button">Refresh</button>
               </div>
               <p class="equipment-pack-workspace__summary">Publish an approved Azure aircraft library, then assign its frozen version to one of this customer's devices.</p>
+              <p class="customer-scope" id="settingsPackCustomerScope">Select or create a customer to assign an Equipment Drive.</p>
               <div class="equipment-pack-folder-picker">
                 <button id="settingsPackPublishManuals" class="button button--quiet" type="button" disabled>Publish manuals</button>
               </div>
@@ -205,7 +207,7 @@
           </div>
         </div>
 
-        <div class="customer-empty" id="customerEmpty">
+        <div class="customer-empty" id="customerEmpty" hidden>
           <strong>No customer selected</strong>
           <span>Create or choose a customer to manage its devices and delivery history.</span>
         </div>
@@ -270,7 +272,7 @@
   <script src="application-client.js?v=48"></script>
   <script src="guided-tooltip.js?v=12"></script>
   <script src="equipment-pack-workspace.js?v=12"></script>
-  <script src="customer-operations.js?v=1"></script>
+  <script src="customer-operations.js?v=2"></script>
   <script src="operations-center.js?v=3"></script>
 </body>
 </html>

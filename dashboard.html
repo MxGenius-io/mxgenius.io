@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=19">
+  <link rel="stylesheet" href="app-styles.css?v=20">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
@@ -473,15 +473,14 @@
               <span>Session</span>
               <span class="settings-hint" id="settingsSessionStatus">Checking&hellip;</span>
             </div>
-            <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;background:#ef4444;" id="settingsSignOutBtn" type="button">Sign Out</button>
           </div>
         </div>
 
-        <!-- Operations -->
+        <!-- AI -->
         <div class="settings-card capability-workbench" id="settingsOperationsCard">
           <h3 class="settings-card-title">
             <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M3 3h6v6H3V3zm8 0h6v6h-6V3zM3 11h6v6H3v-6zm8 0h6v6h-6v-6z"/></svg>
-            Operations
+            AI
           </h3>
           <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:16px; padding: 16px; max-height: 400px; overflow-y: auto;">
             <div class="capability-toolbar">
@@ -519,48 +518,7 @@
               </details>
             </section>
           </div>
-          <div class="settings-row" style="display:none;"></div>
-        </div>
-
-        <!-- Appearance -->
-        <div class="settings-card">
-          <h3 class="settings-card-title">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clip-rule="evenodd"/></svg>
-            Appearance
-          </h3>
-          <div class="settings-row"><div class="settings-label"><span>Accent Color</span><span class="settings-hint">Customize the primary UI accent color</span></div><input type="color" id="settingsAccentColor" value="#3b82f6" class="settings-color-picker"></div>
-          <div class="settings-row"><div class="settings-label"><span>Background Color</span><span class="settings-hint">Main page background</span></div><input type="color" id="settingsBgColor" value="#0a0e1a" class="settings-color-picker"></div>
-          <div class="settings-row"><div class="settings-label"><span>Text Color</span><span class="settings-hint">Primary text color</span></div><input type="color" id="settingsTextColor" value="#e8ecf4" class="settings-color-picker"></div>
-          <div class="settings-row"><div class="settings-label"><span>Card Background</span><span class="settings-hint">Panel and card fill color</span></div><input type="color" id="settingsCardColor" value="#1a1f35" class="settings-color-picker"></div>
-          <div class="settings-row"><div class="settings-label"><span>Theme Preset</span><span class="settings-hint">Quick-switch color palettes</span></div><select id="settingsTheme" class="search-input" style="width:auto;min-width:140px;"><option value="">Custom</option><option value="midnight">Midnight</option><option value="slate">Slate</option><option value="ember">Ember</option><option value="ocean">Ocean</option></select></div>
-        </div>
-
-        <!-- Interface Sounds -->
-        <div class="settings-card" id="settingsSoundsCard">
-          <h3 class="settings-card-title">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8.5 4.25a1 1 0 011.5.866v9.768a1 1 0 01-1.5.866L5.72 14H3.5A1.5 1.5 0 012 12.5v-5A1.5 1.5 0 013.5 6h2.22L8.5 4.25zM13.3 7.1a1 1 0 011.414 0 4.1 4.1 0 010 5.8 1 1 0 01-1.414-1.414 2.1 2.1 0 000-2.972 1 1 0 010-1.414z"/></svg>
-            Interface Sounds
-          </h3>
-          <div class="settings-row settings-sound-summary">
-            <div class="settings-label">
-              <span>Sound Library</span>
-              <span class="settings-hint" id="settingsSoundStatus" role="status" aria-live="polite">Loading the sound manifest…</span>
-            </div>
-            <span class="source-readiness" data-state="limited" id="settingsSoundStorageState">Azure next</span>
-          </div>
-          <div class="settings-row settings-sound-manager">
-            <div class="settings-sound-families" id="settingsSoundFamilies" role="region" aria-label="Scrollable interface sound families" tabindex="0"></div>
-            <div class="settings-sound-savebar">
-              <span id="settingsSoundPending" class="settings-hint">No staged changes</span>
-              <button class="btn-primary" id="settingsSoundSave" type="button" disabled>Save changes</button>
-            </div>
-            <input id="settingsSoundFileInput" type="file" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4" hidden>
-          </div>
-        </div>
-
-        <!-- Data &amp; Cache -->
-        <div class="settings-card">
-          <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/><path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/><path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"/></svg>Data &amp; Cache</h3>
+          <h4 class="settings-subsection-title">Data &amp; Cache</h4>
           <div class="settings-row">
             <div class="settings-label">
               <span>Text Chat Model</span>
@@ -597,10 +555,39 @@
           <div class="settings-row"><div class="settings-label"><span>Fleet compatibility source</span><span class="settings-hint">Aerodex Live &middot; discovery context only</span></div><span class="badge badge-jet" style="font-size:0.7rem;">Aerodex</span></div>
         </div>
 
-        <!-- Onboarding -->
-        <div class="settings-card">
-          <h3 class="settings-card-title"><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>Getting Started</h3>
-          <div class="settings-row"><div class="settings-label"><span>Onboarding Walkthrough</span><span class="settings-hint">Replay the guided tour to learn the interface</span></div><button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" onclick="MXOnboarding.restart()">Restart Tour</button></div>
+        <!-- Customize -->
+        <div class="settings-card" id="settingsCustomizeCard">
+          <h3 class="settings-card-title">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clip-rule="evenodd"/></svg>
+            Customize
+          </h3>
+          <div class="settings-row"><div class="settings-label"><span>Accent Color</span><span class="settings-hint">Customize the primary UI accent color</span></div><input type="color" id="settingsAccentColor" value="#3b82f6" class="settings-color-picker"></div>
+          <div class="settings-row"><div class="settings-label"><span>Background Color</span><span class="settings-hint">Main page background</span></div><input type="color" id="settingsBgColor" value="#0a0e1a" class="settings-color-picker"></div>
+          <div class="settings-row"><div class="settings-label"><span>Text Color</span><span class="settings-hint">Primary text color</span></div><input type="color" id="settingsTextColor" value="#e8ecf4" class="settings-color-picker"></div>
+          <div class="settings-row"><div class="settings-label"><span>Card Background</span><span class="settings-hint">Panel and card fill color</span></div><input type="color" id="settingsCardColor" value="#1a1f35" class="settings-color-picker"></div>
+          <div class="settings-row"><div class="settings-label"><span>Theme Preset</span><span class="settings-hint">Quick-switch color palettes</span></div><select id="settingsTheme" class="search-input" style="width:auto;min-width:140px;"><option value="">Custom</option><option value="midnight">Midnight</option><option value="slate">Slate</option><option value="ember">Ember</option><option value="ocean">Ocean</option></select></div>
+          <section id="settingsSoundsCard" class="settings-subsection" aria-labelledby="settingsSoundsTitle">
+          <h4 class="settings-subsection-title" id="settingsSoundsTitle">Interface Sounds</h4>
+          <div class="settings-row settings-sound-summary">
+            <div class="settings-label">
+              <span>Sound Library</span>
+              <span class="settings-hint" id="settingsSoundStatus" role="status" aria-live="polite">Loading the sound manifest…</span>
+            </div>
+            <span class="source-readiness" data-state="limited" id="settingsSoundStorageState">Azure next</span>
+          </div>
+          <div class="settings-row settings-sound-manager">
+            <div class="settings-sound-families" id="settingsSoundFamilies" role="region" aria-label="Scrollable interface sound families" tabindex="0"></div>
+            <div class="settings-sound-savebar">
+              <span id="settingsSoundPending" class="settings-hint">No staged changes</span>
+              <button class="btn-primary" id="settingsSoundSave" type="button" disabled>Save changes</button>
+            </div>
+            <input id="settingsSoundFileInput" type="file" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4" hidden>
+          </div>
+          </section>
+        </div>
+        <div class="settings-actions" aria-label="Session and onboarding actions">
+          <button class="btn-primary settings-action-button" type="button" onclick="MXOnboarding.restart()">Restart Tour</button>
+          <button class="btn-primary settings-action-button settings-action-button--danger" id="settingsSignOutBtn" type="button">Sign Out</button>
         </div>
       </div>
     </section>

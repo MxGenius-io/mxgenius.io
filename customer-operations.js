@@ -30,6 +30,8 @@
     deviceRegister: byId('settingsDeviceRegister'),
     deviceRefresh: byId('settingsDeviceRefresh'),
     deviceStatus: byId('settingsDeviceStatus'),
+    deviceScope: byId('settingsDeviceCustomerScope'),
+    driveScope: byId('settingsPackCustomerScope'),
     deviceList: byId('settingsDeviceList'),
     revokedList: byId('settingsDeviceRevokedList'),
     revokedCount: byId('settingsDeviceRevokedCount')
@@ -85,6 +87,25 @@
 
   function statusLabel(value) {
     return String(value || 'active').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function selectedCustomer() {
+    return state.customers.find((customer) => customer.id === state.selectedCustomerId) || null;
+  }
+
+  function syncCustomerScope() {
+    const customer = selectedCustomer();
+    const selectedLabel = customer ? `Managing ${customer.name}` : 'Select or create a customer first';
+    if (elements.deviceScope) elements.deviceScope.textContent = customer
+      ? `${selectedLabel} · new devices are assigned to this account automatically.`
+      : 'Select or create a customer to approve a device.';
+    if (elements.driveScope) elements.driveScope.textContent = customer
+      ? `${selectedLabel} · only this account's devices are available for assignment.`
+      : 'Select or create a customer to assign an Equipment Drive.';
+    elements.deviceForm?.querySelectorAll('input, button').forEach((control) => {
+      control.disabled = !customer;
+    });
+    if (!customer) setDeviceStatus('Choose a customer, then enter the seven-digit code shown on the Pi.');
   }
 
   function text(tag, className, value) {
@@ -295,9 +316,18 @@
 
   function renderOverview() {
     const overview = state.overview;
-    elements.detail.hidden = !overview;
-    elements.empty.hidden = Boolean(overview);
-    if (!overview) return;
+    elements.detail.hidden = false;
+    elements.empty.hidden = true;
+    elements.detail.querySelectorAll('[data-customer-required]').forEach((section) => {
+      section.hidden = !overview;
+    });
+    syncCustomerScope();
+    if (!overview) {
+      renderDevices([]);
+      renderPayments([]);
+      renderTelemetry([]);
+      return;
+    }
     const customer = overview.customer;
     byId('customerName').textContent = customer.name;
     byId('customerState').textContent = statusLabel(customer.status);
@@ -479,6 +509,6 @@
 
   window.MXEquipmentPacks?.init?.({
     withSession,
-    getDeviceFilter: () => state.selectedCustomerId
+    getDeviceFilter: () => state.selectedCustomerId || '__no_customer_selected__'
   });
 })();
