@@ -1,5 +1,6 @@
 //! Model-callable manual retrieval: `mxg.manual.search`.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -40,6 +41,66 @@ fn truncate_chars(value: &str, limit: usize) -> String {
 
 fn retrieval_percent(score: Option<f32>) -> Option<u8> {
     score.map(|value| (value.clamp(0.0, 1.0) * 100.0).round() as u8)
+}
+
+fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
+    const GENERIC_TERMS: &[&str] = &[
+        "aircraft",
+        "amm",
+        "bombardier",
+        "challenger",
+        "chapter",
+        "dassault",
+        "diagram",
+        "falcon",
+        "figure",
+        "from",
+        "gulfstream",
+        "image",
+        "include",
+        "inspect",
+        "issue",
+        "manual",
+        "most",
+        "page",
+        "please",
+        "show",
+        "task",
+        "that",
+        "this",
+        "useful",
+        "what",
+        "with",
+    ];
+    value
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|term| term.len() > 2)
+        .map(str::to_ascii_lowercase)
+        .map(|term| {
+            if term.len() > 4 && term.ends_with('s') {
+                term[..term.len() - 1].to_owned()
+            } else {
+                term
+            }
+        })
+        .filter(|term| !GENERIC_TERMS.contains(&term.as_str()))
+        .filter(|term| {
+            !(term.starts_with("cl") || term.starts_with("gl"))
+                || !term[2..]
+                    .chars()
+                    .all(|character| character.is_ascii_digit())
+        })
+        .collect()
+}
+
+fn image_is_relevant_to_question(question: &str, title: &str, caption: &str) -> bool {
+    let question_terms = normalized_topic_terms(question);
+    if question_terms.len() < 2 {
+        return false;
+    }
+    let candidate_terms = normalized_topic_terms(&format!("{title} {caption}"));
+    let matched = question_terms.intersection(&candidate_terms).count();
+    matched >= 2 && matched * 4 >= question_terms.len() * 3
 }
 
 fn adapter_error_code(error: &AdapterError) -> StableErrorCode {
@@ -161,6 +222,13 @@ impl Tool for ManualSearchTool {
                         .assets
                         .iter()
                         .filter(|asset| asset.availability == EvidenceAssetAvailability::Available)
+                        .filter(|asset| {
+                            image_is_relevant_to_question(
+                                &query.text,
+                                &evidence.title,
+                                asset.caption.as_deref().unwrap_or_default(),
+                            )
+                        })
                         .map(|asset| ManualSearchAsset {
                             asset_id: asset.asset_id.clone(),
                             kind: format!("{:?}", asset.kind).to_ascii_lowercase(),
@@ -199,5 +267,29 @@ impl Tool for ManualSearchTool {
                 "ranked excerpts came from the configured approved manual corpus".into();
         }
         Ok(envelope)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linked_images_require_specific_topical_alignment() {
+        assert!(!image_is_relevant_to_question(
+            "What should I inspect for a Challenger 350 flight data recorder issue? Include a useful diagram.",
+            "CL350 AMM PT 2 — CHAPTER 31 INDICATING RECORDING SYSTEMS p.165",
+            "Manual figure from CHAPTER 31 INDICATING RECORDING SYSTEMS_p165_img1.png",
+        ));
+        assert!(!image_is_relevant_to_question(
+            "Show the Falcon 8X main landing gear wheel removal torque figure",
+            "8X AMM — Removal / installation of the main landing gear main doors",
+            "Main landing gear main doors figure",
+        ));
+        assert!(image_is_relevant_to_question(
+            "Show the Falcon 8X main landing gear main door removal figure",
+            "8X AMM — Removal / installation of the main landing gear main doors",
+            "Main landing gear main doors figure",
+        ));
     }
 }

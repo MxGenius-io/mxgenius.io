@@ -51,7 +51,7 @@
       "currency_state": "unverified",
       "page_linked_chunk_count": 6,
       "asset_reference_count": 5,
-      "asset_reference_set_hash": "sha256:12d870ba5936b13d6a84aa9ca784df319420044fbba68e9a991015bd13d713d1"
+      "asset_reference_set_hash": "sha256:784359460962394ae52aad8eacb396e752c76195d8a84bbe2789f052b54d3b39"
     },
     {
       "manual_id": "cl350-ipc",
@@ -253,10 +253,10 @@
       "title": "CL350 AMM — Flight Data Recorder Removal/Installation",
       "ata": "31",
       "section": "CHAPTER 31 INDICATING RECORDING SYSTEMS",
-      "page": 165,
-      "asset_id": "cd03b16b10f70240a5cd2ca0493079a3",
-      "caption": "Flight data recorder removal/installation",
-      "description": "CL350 AMM Chapter 31 figure for flight data recorder removal/installation, Task 31-31-01-000-801.",
+      "page": 403,
+      "asset_id": "74c13c22b4c9c56a6fd0ccac3204a4cf",
+      "caption": "Flight data recorder removal/installation — Figure 401",
+      "description": "CL350 AMM Chapter 31 Figure 401 showing the flight data recorder, FDR tray, and retainers for Task 31-31-01-000-801.",
       "task_numbers": [
         "31-31-01-000-801"
       ],
@@ -266,11 +266,23 @@
         "removing the flight data recorder",
         "installing the flight data recorder",
         "FDR removal",
-        "FDR installation"
+        "FDR installation",
+        "FDR tray retainers",
+        "recorder tray retainers",
+        "figure 401"
       ],
-      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v2/cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab.png",
+      "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v3/74c13c22b4c9c56a6fd0ccac3204a4cf49c9ed6ae57a0d9280112a5409501152.png",
       "media_type": "image/png",
-      "content_hash": "sha256:cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab"
+      "content_hash": "sha256:74c13c22b4c9c56a6fd0ccac3204a4cf49c9ed6ae57a0d9280112a5409501152",
+      "verification": {
+        "source_pdf": "Bombardier Manuals/CL350/CL350 AMM PT 2/CHAPTER 31  INDICATING RECORDING SYSTEMS.pdf",
+        "source_pdf_page": 169,
+        "manual_page": 403,
+        "figure": "401",
+        "render_dpi": 150,
+        "verified_at": "2026-09-16",
+        "method": "Rendered from the source vector page; the source PDF is not published."
+      }
     }
   ],
   "excluded_sources": {

@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -45,6 +46,14 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--upload-assets", action="store_true")
     parser.add_argument("--asset-workers", type=int, default=12)
+    parser.add_argument(
+        "--verified-image-register",
+        type=Path,
+        default=Path(__file__).resolve().parents[1]
+        / "config"
+        / "authoritative-manual-pack-v1.json",
+        help="Verified figure overrides applied by record ID after generic page linking",
+    )
     parser.add_argument(
         "--repair-collisions",
         action="store_true",
@@ -505,11 +514,110 @@ def asset_records(
     return records
 
 
+def load_verified_image_overrides(
+    register_path: Path,
+    corpus_root: Path,
+    container: str,
+    staging_dir: Path | None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+    """Load curated figure links and optionally render/upload their page derivative.
+
+    The source PDF remains local. Only a content-addressed PNG derivative enters
+    Blob Storage, and its observed hash must match the frozen register.
+    """
+    if not register_path.is_file():
+        raise FileNotFoundError(register_path)
+    with register_path.open(encoding="utf-8") as handle:
+        register = json.load(handle)
+
+    overrides: dict[str, list[dict[str, Any]]] = {}
+    upload_catalog: dict[str, dict[str, Any]] = {}
+    controlled_prefix = f"azure-blob://{container}/manual-assets/legacy-rag/"
+    for entry in register.get("assets", []):
+        verification = entry.get("verification")
+        if not isinstance(verification, dict) or not verification.get("source_pdf"):
+            continue
+        record_id = str(entry.get("record_id") or "").strip()
+        source_reference = str(entry.get("source_reference") or "").strip()
+        content_hash = str(entry.get("content_hash") or "").strip()
+        media_type = str(entry.get("media_type") or "").strip()
+        if (
+            not record_id
+            or record_id in overrides
+            or not source_reference.startswith(controlled_prefix)
+            or media_type != "image/png"
+            or not content_hash.startswith("sha256:")
+        ):
+            raise ValueError(f"invalid verified image override for {record_id or 'unknown'}")
+        digest = content_hash.removeprefix("sha256:")
+        blob_name = source_reference.removeprefix(f"azure-blob://{container}/")
+        if Path(blob_name).stem != digest:
+            raise ValueError(f"verified image filename/hash mismatch for {record_id}")
+
+        asset = {
+            "asset_id": entry["asset_id"],
+            "kind": "diagram",
+            "source_reference": source_reference,
+            "media_type": media_type,
+            "page": entry["page"],
+            "caption": entry["caption"],
+            "content_hash": content_hash,
+            "availability": "available",
+            "verified": True,
+            "register_id": entry["register_id"],
+            "task_numbers": entry.get("task_numbers", []),
+            "keywords": entry.get("keywords", []),
+        }
+        overrides[record_id] = [asset]
+
+        if staging_dir is None:
+            continue
+        renderer = shutil.which("pdftoppm") or shutil.which("pdftoppm.exe")
+        if not renderer:
+            raise FileNotFoundError("pdftoppm is required to render verified figures")
+        source_pdf = corpus_root / "pdfs_to_ingest" / Path(verification["source_pdf"])
+        if not source_pdf.is_file():
+            raise FileNotFoundError(source_pdf)
+        source_page = int(verification["source_pdf_page"])
+        render_dpi = int(verification.get("render_dpi", 150))
+        if source_page < 1 or render_dpi < 72 or render_dpi > 600:
+            raise ValueError(f"invalid render recipe for {record_id}")
+        output_prefix = staging_dir / entry["register_id"]
+        subprocess.run(
+            [
+                renderer,
+                "-f",
+                str(source_page),
+                "-l",
+                str(source_page),
+                "-singlefile",
+                "-r",
+                str(render_dpi),
+                "-png",
+                str(source_pdf),
+                str(output_prefix),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        rendered = output_prefix.with_suffix(".png")
+        if sha256_file(rendered) != digest:
+            raise ValueError(f"verified figure render hash mismatch for {record_id}")
+        asset["size_bytes"] = rendered.stat().st_size
+        upload_catalog[entry["register_id"]] = {
+            **asset,
+            "source_path": rendered,
+            "blob_name": blob_name,
+        }
+    return overrides, upload_catalog
+
+
 def document_actions(
     corpus_root: Path,
     shard_entries: Iterable[dict[str, Any]],
     args: argparse.Namespace,
     asset_catalog: dict[str, dict[str, Any]],
+    verified_overrides: dict[str, list[dict[str, Any]]],
     collision_ids: set[str],
     collision_only: bool = False,
 ) -> Iterable[dict[str, Any]]:
@@ -532,6 +640,9 @@ def document_actions(
             if not text:
                 continue
             content_hash = sha256_bytes(text.encode())
+            record_id = search_record_id(
+                entry["id"], source_record_id, chunk_index, collision_ids
+            )
             assets = asset_records(
                 chunk.get("images", []),
                 asset_catalog,
@@ -539,12 +650,12 @@ def document_actions(
             )
             for asset in assets:
                 asset["page"] = chunk.get("page")
+            if record_id in verified_overrides:
+                assets = verified_overrides[record_id]
             source = chunk.get("source", "")
             yield {
                 "@search.action": "mergeOrUpload",
-                "id": search_record_id(
-                    entry["id"], source_record_id, chunk_index, collision_ids
-                ),
+                "id": record_id,
                 "document_id": document_key,
                 "content": text,
                 "content_vector": vector,
@@ -563,7 +674,13 @@ def document_actions(
                 "effective_date": None,
                 "content_hash": f"sha256:{content_hash}",
                 "assets_json": json.dumps(assets, separators=(",", ":")),
-                "lineage_state": "page_linked" if assets else "text_only",
+                "lineage_state": (
+                    "verified_image_override"
+                    if record_id in verified_overrides
+                    else "page_linked"
+                    if assets
+                    else "text_only"
+                ),
                 "ingested_at": ingested_at,
             }
 
@@ -641,9 +758,20 @@ def main() -> int:
         args.container,
         args.asset_workers,
     )
+    staging = (
+        tempfile.TemporaryDirectory(prefix="mxg-verified-figures-")
+        if args.apply and args.upload_assets
+        else None
+    )
+    verified_overrides, verified_asset_catalog = load_verified_image_overrides(
+        args.verified_image_register,
+        args.corpus_root,
+        args.container,
+        Path(staging.name) if staging else None,
+    )
     unique_assets = {
         record["blob_name"]: record
-        for record in asset_catalog.values()
+        for record in [*asset_catalog.values(), *verified_asset_catalog.values()]
     }
     print(
         json.dumps(
@@ -662,7 +790,12 @@ def main() -> int:
         validated = 0
         images = 0
         for action in document_actions(
-            args.corpus_root, shards, args, asset_catalog, collision_ids
+            args.corpus_root,
+            shards,
+            args,
+            asset_catalog,
+            verified_overrides,
+            collision_ids,
         ):
             validated += 1
             images += len(json.loads(action["assets_json"]))
@@ -673,7 +806,7 @@ def main() -> int:
         upload_asset_catalog(
             args.storage_account,
             args.container,
-            asset_catalog,
+            {**asset_catalog, **verified_asset_catalog},
             args.asset_workers,
         )
 
@@ -731,6 +864,7 @@ def main() -> int:
             shards,
             args,
             asset_catalog,
+            verified_overrides,
             collision_ids,
             collision_only=args.repair_collisions,
         ),

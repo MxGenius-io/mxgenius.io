@@ -162,6 +162,14 @@ struct SearchAsset {
     availability: String,
     #[serde(default)]
     size_bytes: Option<usize>,
+    #[serde(default)]
+    verified: bool,
+    #[serde(default)]
+    register_id: Option<String>,
+    #[serde(default)]
+    task_numbers: Vec<String>,
+    #[serde(default)]
+    keywords: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -775,24 +783,44 @@ async fn lookup_registered_image(
                 continue;
             }
             validate_search_asset(&asset)?;
+            // Search chunks can span several source pages. Restrict the
+            // generic fallback to the asset's own title, section, and caption
+            // so nearby task text cannot falsely rename an unrelated figure.
             let candidate_text = normalized_match_text(&format!(
-                "{} {} {} {}",
+                "{} {} {}",
                 hit.title,
                 hit.section.as_deref().unwrap_or_default(),
-                asset.caption,
-                hit.content
+                asset.caption
             ));
             let term_hits = query_terms
                 .iter()
                 .filter(|term| candidate_text.contains(term.as_str()))
                 .count();
-            if term_hits == 0 {
+            let verified_score = verified_asset_match_score(
+                &query_normalized,
+                &query_terms,
+                &asset.task_numbers,
+                &asset.keywords,
+            );
+            if (asset.verified && verified_score == 0)
+                || (!asset.verified && (term_hits < 2 || term_hits * 4 < query_terms.len() * 3))
+            {
                 continue;
             }
-            let score = (term_hits, hit.score.unwrap_or_default().to_bits());
+            let score = (
+                if asset.verified {
+                    10_000 + verified_score
+                } else {
+                    term_hits
+                },
+                hit.score.unwrap_or_default().to_bits(),
+            );
             let entry = ManualImageRegisterEntry {
                 manual_id: hit.document_id.clone(),
-                register_id: asset.asset_id.clone(),
+                register_id: asset
+                    .register_id
+                    .clone()
+                    .unwrap_or_else(|| asset.asset_id.clone()),
                 record_id: hit.id.clone(),
                 document_id: hit.document_id.clone(),
                 title: hit.title.clone(),
@@ -805,8 +833,8 @@ async fn lookup_registered_image(
                 asset_id: asset.asset_id,
                 caption: asset.caption,
                 description: truncate_text(&hit.content, 1_200),
-                task_numbers: Vec::new(),
-                keywords: query_terms.iter().cloned().collect(),
+                task_numbers: asset.task_numbers,
+                keywords: asset.keywords,
                 source_reference: asset.source_reference,
                 media_type: asset.media_type,
                 content_hash: asset.content_hash,
@@ -829,6 +857,31 @@ async fn lookup_registered_image(
         return Ok(None);
     }
     Ok(Some(best.clone()))
+}
+
+fn verified_asset_match_score(
+    query_normalized: &str,
+    query_terms: &BTreeSet<String>,
+    task_numbers: &[String],
+    keywords: &[String],
+) -> usize {
+    let query_compact = compact_match_text(query_normalized);
+    let task_score = task_numbers
+        .iter()
+        .filter(|task| query_compact.contains(&compact_match_text(task)))
+        .map(|task| 1_000 + meaningful_terms(&normalized_match_text(task)).len())
+        .max()
+        .unwrap_or_default();
+    let keyword_score = keywords
+        .iter()
+        .filter_map(|keyword| {
+            let terms = meaningful_terms(&normalized_match_text(keyword));
+            (terms.len() >= 2 && terms.iter().all(|term| query_terms.contains(term)))
+                .then_some(terms.len())
+        })
+        .max()
+        .unwrap_or_default();
+    task_score.max(keyword_score)
 }
 
 fn normalized_match_text(value: &str) -> String {
@@ -866,9 +919,26 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "illustration",
         "manual",
         "please",
+        "aircraft",
+        "bombardier",
+        "challenger",
+        "dassault",
+        "exact",
+        "falcon",
         "the",
         "for",
         "from",
+        "guidance",
+        "global",
+        "gulfstream",
+        "include",
+        "inspect",
+        "issue",
+        "most",
+        "should",
+        "useful",
+        "what",
+        "where",
         "with",
         "this",
         "that",
@@ -876,7 +946,19 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
     value
         .split_whitespace()
         .filter(|term| term.len() > 2 && !INTENT_WORDS.contains(term))
-        .map(str::to_owned)
+        .filter(|term| {
+            !(term.starts_with("cl") || term.starts_with("gl"))
+                || !term[2..]
+                    .chars()
+                    .all(|character| character.is_ascii_digit())
+        })
+        .map(|term| {
+            if term.len() > 4 && term.ends_with('s') {
+                term[..term.len() - 1].to_owned()
+            } else {
+                term.to_owned()
+            }
+        })
         .collect()
 }
 
@@ -1057,6 +1139,13 @@ fn validate_search_asset(asset: &SearchAsset) -> Result<(), ManualLibraryError> 
         || asset
             .size_bytes
             .is_some_and(|size| size == 0 || size > MAX_ASSET_BYTES)
+        || (asset.verified
+            && (asset
+                .register_id
+                .as_deref()
+                .map(str::trim)
+                .map_or(true, str::is_empty)
+                || asset.keywords.is_empty()))
     {
         return Err(ManualLibraryError::Contract(format!(
             "manual asset {} has invalid release metadata",
@@ -1229,12 +1318,23 @@ mod tests {
             content_hash: format!("sha256:{}", "a".repeat(64)),
             availability: "available".into(),
             size_bytes: Some(42),
+            verified: false,
+            register_id: None,
+            task_numbers: Vec::new(),
+            keywords: Vec::new(),
         };
         validate_search_asset(&asset).expect("valid catalog asset");
 
         let mut invalid = asset.clone();
         invalid.source_reference = "azure-blob://documents/uncontrolled/figure-1.webp".into();
         assert!(validate_search_asset(&invalid).is_err());
+
+        let mut unregistered_verified = asset.clone();
+        unregistered_verified.verified = true;
+        assert!(validate_search_asset(&unregistered_verified).is_err());
+        unregistered_verified.register_id = Some("IMG-EXAMPLE-001".into());
+        unregistered_verified.keywords = vec!["hydraulic routing".into()];
+        validate_search_asset(&unregistered_verified).expect("verified catalog asset");
 
         assert_eq!(
             asset_drive_path("azure-blob://documents/manual-assets/legacy-rag/v2/hash.png"),
@@ -1280,11 +1380,36 @@ mod tests {
         let terms = meaningful_terms(&normalized);
         assert!(!terms.contains("show"));
         assert!(!terms.contains("diagram"));
-        assert!(terms.contains("bombardier"));
-        assert!(terms.contains("global"));
+        assert!(!terms.contains("bombardier"));
+        assert!(!terms.contains("global"));
         assert!(terms.contains("7500"));
         assert!(terms.contains("hydraulic"));
         assert!(terms.contains("pump"));
+    }
+
+    #[test]
+    fn verified_asset_matching_requires_specific_figure_intent() {
+        let tasks = vec!["31-31-01-000-801".to_owned()];
+        let keywords = vec![
+            "FDR removal".to_owned(),
+            "flight data recorder removal".to_owned(),
+            "FDR tray retainers".to_owned(),
+        ];
+        let exact = normalized_match_text(
+            "Show the Challenger 350 FDR removal and installation figure with the tray and retainers",
+        );
+        assert!(
+            verified_asset_match_score(&exact, &meaningful_terms(&exact), &tasks, &keywords) > 0
+        );
+
+        let broad = normalized_match_text(
+            "I have a Challenger 350 flight data recorder issue; include a useful diagram",
+        );
+        assert_eq!(
+            verified_asset_match_score(&broad, &meaningful_terms(&broad), &tasks, &keywords),
+            0,
+            "a broad request must not guess a figure"
+        );
     }
 
     #[tokio::test]

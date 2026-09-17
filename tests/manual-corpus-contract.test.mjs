@@ -43,7 +43,7 @@ const manualLibrary = await readFile(manualLibraryUrl, 'utf8');
 const releaseCompiler = await readFile(releaseCompilerUrl, 'utf8');
 const sha256 = /^sha256:[a-f0-9]{64}$/;
 
-test('the retired pilot manifest remains an auditable five-manual CL350 fixture', () => {
+test('the frozen starter manifest remains an auditable five-manual CL350 fixture', () => {
   assert.equal(manifest.release_state, 'frozen');
   assert.equal(manifest.integrity.logical_manual_count, 5);
   assert.deepEqual(
@@ -73,7 +73,7 @@ test('manual currency remains explicitly unverified until source metadata exists
 });
 
 test('manual image references are content-addressed and remain inside the controlled prefix', () => {
-  const controlledPrefix = 'azure-blob://documents/manual-assets/legacy-rag/v2/';
+  const controlledPrefix = /^azure-blob:\/\/documents\/manual-assets\/legacy-rag\/v[23]\//;
   const expectedAssetCount = manifest.manuals.reduce(
     (total, manual) => total + manual.asset_reference_count,
     0
@@ -82,13 +82,13 @@ test('manual image references are content-addressed and remain inside the contro
   manifest.assets.forEach((asset) => {
     assert.equal(asset.media_type, 'image/png');
     assert.match(asset.content_hash, sha256);
-    assert.ok(asset.source_reference.startsWith(controlledPrefix));
-    const filenameHash = asset.source_reference.slice(controlledPrefix.length, -'.png'.length);
+    assert.match(asset.source_reference, controlledPrefix);
+    const filenameHash = asset.source_reference.split('/').at(-1).slice(0, -'.png'.length);
     assert.equal(asset.content_hash, `sha256:${filenameHash}`);
   });
 });
 
-test('the pilot figures retain their audit register while production lookup is catalog-driven', () => {
+test('verified figure overrides remain data-driven and auditable', () => {
   assert.equal(manifest.assets.length, 5);
   assert.equal(new Set(manifest.assets.map((asset) => asset.register_id)).size, 5);
   assert.equal(new Set(manifest.assets.map((asset) => asset.source_reference)).size, 5);
@@ -109,9 +109,20 @@ test('the pilot figures retain their audit register while production lookup is c
     asset.task_numbers.includes('31-31-01-000-801')
   ));
   assert.equal(fdrRemoval?.register_id, 'IMG-CL350-AMM-31-FDR-REMOVAL');
+  assert.equal(fdrRemoval?.page, 403);
+  assert.match(fdrRemoval?.caption || '', /Figure 401/);
+  assert.notEqual(
+    fdrRemoval?.content_hash,
+    'sha256:cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab',
+    'the removal register must never point at the FDR data-download screen'
+  );
   assert.match(coreHttp, /lookup_registered_image/);
   assert.match(coreHttp, /"catalog_image_register"/);
   assert.match(coreHttp, /mxg\.manual\.search/);
+  assert.match(ingestion, /def load_verified_image_overrides\(/);
+  assert.match(ingestion, /"verified_image_override"/);
+  assert.match(ingestion, /pdftoppm/);
+  assert.match(manualLibrary, /verified_asset_match_score/);
   assert.match(coreHttp, /"vector_search_skipped": manual_tool_calls == 0/);
   assert.match(coreHttp, /"semantic_requests_made": manual_tool_calls/);
 });
