@@ -14,8 +14,10 @@ visibly marked as demonstration data.
   sourcing option.
 - [x] Connect the case to a short fictional work-card summary without inventing
   approved torque or maintenance limits.
-- [ ] Cold-test: latest case opens, image is immediate, matching part is easy to
-  find, and model guidance reaches the headset workflow.
+- [x] Cold-test the web path: latest case opens, image is immediate, the matched
+  strobe assembly is stageable, and the model returns the installation torque,
+  bonding test, and operational check.
+- [ ] Confirm the same strobe guidance in the physical headset workflow.
 
 ## 2. High-stakes job — main wheel
 
@@ -23,8 +25,10 @@ visibly marked as demonstration data.
 - [x] Link the case to the wheel assembly, tire, brake lining, cotter pins, and
   thermal fuse plugs already present in demo inventory.
 - [x] Preserve trace/certificate state and distinct wheel/brake imagery.
-- [ ] Cold-test: case, Parts, model retrieval, diagram, part numbers, and current
-  approved torque/procedure references stay on the same aircraft and job.
+- [x] Cold-test the web path: case, Parts, model retrieval, demo SKUs, on-hand
+  quantities, and current approved torque/procedure references stay on the same
+  aircraft and job.
+- [ ] Confirm the wheel diagram and step sequence in the physical headset.
 
 ## 3. Remote decision — windshield limits
 
@@ -85,3 +89,20 @@ beat requires.
   and kept the evidence pill and expandable record together. The wheel replay
   stated that labor hours were not established by the retrieved material and
   did not render a literal `null` value.
+- Final model/web replay (`5b17355`, Azure revision
+  `mxg-core--final5b17355`):
+  - The strobe case identified the stageable `MXG-DEMO-33-5101` assembly and
+    returned the 20–25 lbf-in installation torque, bonding test, and operational
+    check from the registered source.
+  - The wheel case staged all five case-linked requirements from current
+    tenant inventory: one OH outboard wheel, one NE tire, one NE brake-lining
+    set, two NE cotter pins, and four NE thermal fuse plugs. It returned the
+    brake-unit torque of 55–57 lbf-ft (74.57–77.28 Nm) and the applicable wheel,
+    brake, bleed, leak-check, transducer, hub-cap, and operational-test tasks.
+  - The windshield case rendered Figure 601 Sheet 1 as a registered manual
+    image with its source pill and expandable section text.
+  - Opening Copilot collapsed the hamburger menu as expected.
+  - `/healthz`, `/readyz`, and `/adapterz` returned 200; the database, frozen
+    `manuals-catalog-v3` pack, Parts, remote witness, and spatial scan reported
+    ready or available. The Rust workspace passed 313 executable checks with
+    one intentional live-cloud test ignored, and Clippy was clean.
