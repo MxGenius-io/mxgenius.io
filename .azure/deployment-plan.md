@@ -2,7 +2,7 @@
 
 ## Deterministic OpenSky Live Traffic — 2026-09-17
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 > **Recipe:** AZCLI (existing ACR + Container Apps + GitHub Pages release path)
 
 ### Objective and approved scope
@@ -92,26 +92,49 @@ stored in Git, browser code, or the deployment plan.
   zero. Static review found no infrastructure/RBAC delta: OpenSky uses an
   outbound HTTPS credential, not a managed-identity data-plane operation.
 - A diff-level credential scan confirmed that neither the OpenSky client ID nor
-  client secret appears in tracked changes. The production credential will be
+  client secret appears in tracked changes. The production credential is
   stored only as a Container Apps secret and secret reference.
+- Canonical service source commit `155f23d78c10fc2e451803457b6117b70ddab4c5`
+  was published by successful GitHub Pages run `35266552407`. A live field
+  check then exposed and corrected one frontend coupling: a degraded JetNet
+  registry could return before the independent OpenSky controls were bound.
+  Hardening commit `31b3ec4d0c27fa169abb9b3037698b1de27395a5`
+  keeps the globe and Live Traffic mode available with an empty registry; its
+  successful Pages run is `35268407394`.
+- ACR runs `cj3v` and `cj3u` published
+  `mxg-core:live-traffic-155f23d-20260917` at digest
+  `sha256:3b78a56881571ec067d57c7860a5367d7321a5efd6972378a9f83b0f1c4f41bc`
+  and `mxg-fleet:live-traffic-155f23d-20260917` at digest
+  `sha256:f48bcc9dca5c2e6d2f9a1c5f0546a0134e4723bfdb446c2ac233ead975000e03`.
+- Revisions `mxg-core--flt155f23d` and `mxg-fleet--flt155f23d` are Healthy,
+  latest-ready, RunningAtMaxScale, provisioned with one replica, and serving
+  100% traffic. Core health, readiness, and adapter probes and fleet health and
+  status probes returned HTTP 200. Fleet status reported OpenSky configured and
+  its shared server snapshot ready.
+- Signed-in production acceptance started Live Traffic from the globe, visibly
+  rendered the Pull/List/Render ribbon and aircraft layer, and returned 12,739
+  listed aircraft with the deterministic 3,000-point display cap. The next
+  bounded refresh returned 12,724 listed and 3,000 rendered at the displayed
+  30-second cadence. Stopping the mode immediately hid the ribbon and reset the
+  control; restarting restored the cached live snapshot. The verified browser
+  was left on Live Traffic mode for owner review.
 
 ### Promotion and acceptance
 
-1. Commit and push the exact validated source to canonical `main`; confirm the
-   matching GitHub Pages run succeeds.
-2. Build `services/mcp` and `services/fleet-proxy` in ACR with immutable
-   source-tagged images.
-3. Promote `mxg-core`, then confirm health, readiness, adapter state, image
-   digest, one-replica scale, and the absence of a migration delta.
-4. Configure the existing `mxg-fleet` secret reference and non-secret OpenSky
-   environment values, promote one new fleet revision, and retain the current
-   ready revision for rollback.
-5. Confirm revision health, one-replica scale, ingress, image digest, and live
-   `/health` status without returning secret values.
-6. In a signed-in production session, start Live Traffic, observe the
-   Pull/List/Render ribbon and current aircraft points, wait through one
-   30-second refresh, stop the mode, and confirm requests cease away from the
-   globe.
+- [x] Commit and push the exact validated source to canonical `main`; confirm
+  the matching GitHub Pages run succeeds.
+- [x] Build `services/mcp` and `services/fleet-proxy` in ACR with immutable
+  source-tagged images.
+- [x] Promote `mxg-core`, then confirm health, readiness, adapter state, image
+  digest, one-replica scale, and the absence of a migration delta.
+- [x] Configure the existing `mxg-fleet` secret reference and non-secret
+  OpenSky environment values, promote one new fleet revision, and retain the
+  previous ready revision for rollback.
+- [x] Confirm revision health, one-replica scale, ingress, image digest, and
+  live health/status without returning secret values.
+- [x] In a signed-in production session, start Live Traffic, observe the
+  Pull/List/Render ribbon and current aircraft points, wait through one
+  30-second refresh, stop the mode, and restart it cleanly.
 
 ### Rollback
 
