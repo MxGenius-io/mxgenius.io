@@ -1,5 +1,125 @@
 # MXGenius Azure Deployment Plan
 
+## Deterministic OpenSky Live Traffic — 2026-09-17
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps + GitHub Pages release path)
+
+### Objective and approved scope
+
+Add a user-started real-time aircraft-position layer to the existing fleet globe
+without changing the current JetNet fleet-location layer. The browser requests a
+shared server snapshot only while the dashboard globe is visible. The fleet proxy
+authenticates to OpenSky with OAuth2 client credentials, performs no more than one
+upstream state-vector request every 30 seconds per running replica, and returns a
+bounded normalized aircraft list. The browser renders a clearly labeled
+Pull/List/Render ribbon, current-position points, source-aware hover detail, and
+stale-snapshot status. A separate on-demand JetNet route button displays recent
+origin-to-destination records and never represents those arcs as live positions.
+
+The user approved this path by requesting the deterministic OpenSky mode and
+providing a dedicated API client for server-side configuration. No credential is
+stored in Git, browser code, or the deployment plan.
+
+### Architecture and release delta
+
+- **Static application:** publish the updated dashboard, application client,
+  globe controller/styling, environment manifest, tests, and feature catalog.
+- **Fleet proxy:** build `services/fleet-proxy` in existing ACR and promote one
+  immutable image to the existing `mxg-fleet` Container App.
+- **Application core:** build the exact `services/mcp` source and promote one
+  immutable image to the existing `mxg-core` Container App so the server-owned
+  model site map matches the moved Settings controls and new globe layers. The
+  same core delta keeps an explicitly requested AMM/IPC/NDT/SPM/SSM family
+  primary rather than blending supporting manual families into it.
+- **Secrets:** add the OpenSky client secret as a Container Apps secret; bind
+  `OPENSKY_CLIENT_SECRET` through a secret reference. Configure the client ID
+  and 30-second poll interval as non-secret environment values.
+- **Provider boundary:** OAuth token and OpenSky REST calls remain server-only.
+  The browser uses the existing authenticated fleet-proxy boundary.
+- **Infrastructure:** no new Azure resource, SKU, identity, role assignment,
+  database migration, network path, or storage object is introduced.
+- **Scale assumption:** the current `mxg-fleet` single-replica setting is
+  retained so the in-memory shared snapshot is also the deployment-wide
+  deterministic throttle for this demo release.
+
+### All validation checks pass
+
+- [x] Azure CLI is installed and the expected subscription is authenticated.
+- [x] Existing resource group, ACR, Container Apps environment, `mxg-fleet`
+  app, active revision, scale, secrets, and environment-key names are inspected
+  without printing secret values.
+- [x] Bicep compilation, template validation, and what-if are confirmed not
+  applicable because this release changes no infrastructure template.
+- [x] JavaScript syntax, complete application tests, focused proxy tests,
+  whitespace validation, and fleet-proxy container build inputs pass.
+- [x] Rust workspace tests, formatting, warnings-denied Clippy, and locked
+  optimized `mxgenius-mcp` build pass for the exact application-core source.
+- [x] A real OpenSky OAuth exchange and one state-vector request succeed without
+  printing or persisting the access token.
+- [x] Subscription and resource-group Azure Policy assignments introduce no
+  blocker.
+- [x] Static role review confirms no RBAC delta and no new managed-identity data
+  operation.
+
+### Validation Proof
+
+- Azure CLI `2.86.0` authenticated to enabled subscription
+  `d1a68ed7-2983-4a86-ab0e-e56df9e2e325` in the expected tenant. Resource
+  group `mxg-rg-50106` and ACR `mxgacr50106` both reported `Succeeded`.
+- `mxg-fleet` reported `Succeeded`, single-revision mode, minimum and maximum
+  replica counts of one, and active healthy revision `mxg-fleet--jetd85cc27`
+  serving 100% traffic. Existing environment inspection returned names and
+  secret-reference names only; no secret values were queried.
+- `node --check` passed for `app.js`, `application-client.js`, and
+  `services/fleet-proxy/server.js`; `git diff --check` passed. The focused
+  client/proxy/structure run passed 107/107 checks and `npm test` passed all
+  467 checks.
+- `cargo fmt --all -- --check` passed. The locked all-target workspace suite
+  passed 325 executable Rust checks with one live Azure credential-gated test
+  intentionally ignored. Warnings-denied workspace Clippy passed, followed by
+  a successful locked optimized `mxgenius-mcp` release build. Validation caught
+  and corrected two stale manifest-version assertions before the final pass.
+- The fleet-proxy Dockerfile remains a bounded Node 22 Alpine image containing
+  only `server.js`, running as the non-root `node` user. Local Docker is not
+  installed, so the existing ACR remote build remains the authoritative image
+  build during deployment.
+- One direct OAuth client-credentials exchange succeeded, followed by one
+  authenticated OpenSky `/states/all?extended=1` request returning HTTP 200,
+  12,646 positioned aircraft, and 3,996 remaining credits. Neither access token
+  nor client credential was printed or persisted in repository files.
+- Subscription and resource-group Azure Policy assignment counts were both
+  zero. Static review found no infrastructure/RBAC delta: OpenSky uses an
+  outbound HTTPS credential, not a managed-identity data-plane operation.
+- A diff-level credential scan confirmed that neither the OpenSky client ID nor
+  client secret appears in tracked changes. The production credential will be
+  stored only as a Container Apps secret and secret reference.
+
+### Promotion and acceptance
+
+1. Commit and push the exact validated source to canonical `main`; confirm the
+   matching GitHub Pages run succeeds.
+2. Build `services/mcp` and `services/fleet-proxy` in ACR with immutable
+   source-tagged images.
+3. Promote `mxg-core`, then confirm health, readiness, adapter state, image
+   digest, one-replica scale, and the absence of a migration delta.
+4. Configure the existing `mxg-fleet` secret reference and non-secret OpenSky
+   environment values, promote one new fleet revision, and retain the current
+   ready revision for rollback.
+5. Confirm revision health, one-replica scale, ingress, image digest, and live
+   `/health` status without returning secret values.
+6. In a signed-in production session, start Live Traffic, observe the
+   Pull/List/Render ribbon and current aircraft points, wait through one
+   30-second refresh, stop the mode, and confirm requests cease away from the
+   globe.
+
+### Rollback
+
+Shift `mxg-core` and `mxg-fleet` traffic to their preceding healthy revisions
+and restore the previous static commit if acceptance fails. The new Container
+Apps secret may remain dormant or be rotated; rollback deletes no customer,
+fleet, manual, image, case, part, device, or payment data.
+
 ## Tenant-owned JetNet connections — 2026-09-17
 
 > **Status:** Deployed and live-verified

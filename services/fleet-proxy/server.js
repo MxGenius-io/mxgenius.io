@@ -15,6 +15,13 @@ const providerCredentialsUrl = process.env.MXGENIUS_PROVIDER_CREDENTIALS_URL
 const authzCacheTtlMs = Math.max(0, Number(process.env.MXGENIUS_AUTHZ_CACHE_SECONDS || 10)) * 1000;
 const rateLimitPerMinute = Math.max(10, Number(process.env.FLEET_RATE_LIMIT_PER_MINUTE || 180));
 const internalBearerToken = process.env.MXGENIUS_INTERNAL_BEARER_TOKEN || '';
+const openSkyApiUrl = String(process.env.OPENSKY_API_URL || 'https://opensky-network.org/api').replace(/\/$/, '');
+const openSkyTokenUrl = String(process.env.OPENSKY_TOKEN_URL
+  || 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token');
+const openSkyClientId = String(process.env.OPENSKY_CLIENT_ID || '');
+const openSkyClientSecret = String(process.env.OPENSKY_CLIENT_SECRET || '');
+const openSkyPollMs = Math.max(30, Number(process.env.OPENSKY_POLL_SECONDS || 30)) * 1000;
+const openSkyMaxAircraft = Math.max(100, Number(process.env.OPENSKY_MAX_AIRCRAFT || 3000));
 const allowedOrigins = new Set([
   'https://mxgenius.io',
   'https://www.mxgenius.io'
@@ -23,10 +30,19 @@ const allowedOrigins = new Set([
 const providerSessions = new Map();
 const tenantSnapshots = new Map();
 const fleetSnapshotTtlMs = 30 * 60 * 1000;
+const flightSnapshotTtlMs = Math.max(60, Number(process.env.FLEET_FLIGHT_SNAPSHOT_SECONDS || 600)) * 1000;
 const imageHosts = new Set(['evo-assets-3wl.s3.us-west-2.amazonaws.com']);
 const maxImageBytes = 15 * 1024 * 1024;
 const authzCache = new Map();
 const rateWindows = new Map();
+const openSkyState = {
+  result: null,
+  loadedAt: 0,
+  inFlight: null,
+  token: '',
+  tokenExpiresAt: 0,
+  retryAfter: 0
+};
 
 function tenantKey(organizationId) {
   return organizationId || '__system__';
@@ -45,7 +61,8 @@ function snapshotState(organizationId) {
   if (!tenantSnapshots.has(key)) {
     tenantSnapshots.set(key, {
       fleet: { result: null, loadedAt: 0, inFlight: null },
-      aircraftList: { result: null, loadedAt: 0, inFlight: null }
+      aircraftList: { result: null, loadedAt: 0, inFlight: null },
+      flightData: { result: null, loadedAt: 0, queryKey: '', inFlight: null, inFlightQueryKey: '' }
     });
   }
   return tenantSnapshots.get(key);
@@ -167,6 +184,149 @@ function providerRequest(method, path, body, bearer) {
   });
 }
 
+async function openSkyAccessToken() {
+  if (!openSkyClientId || !openSkyClientSecret) return '';
+  if (openSkyState.token && openSkyState.tokenExpiresAt > Date.now() + 30000) {
+    return openSkyState.token;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(openSkyTokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: openSkyClientId,
+        client_secret: openSkyClientSecret
+      }),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!response.ok) throw new Error(`OpenSky authentication failed (${response.status})`);
+  const payload = await response.json();
+  if (!payload?.access_token) throw new Error('OpenSky authentication returned no access token');
+  openSkyState.token = String(payload.access_token);
+  openSkyState.tokenExpiresAt = Date.now() + Math.max(60, Number(payload.expires_in || 1800)) * 1000;
+  return openSkyState.token;
+}
+
+function normalizeOpenSkyAircraft(state) {
+  const latitude = Number(state?.[6]);
+  const longitude = Number(state?.[5]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const numberOrNull = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  return {
+    icao24: String(state?.[0] || '').trim().toLowerCase(),
+    callsign: String(state?.[1] || '').trim(),
+    originCountry: String(state?.[2] || '').trim(),
+    timePosition: numberOrNull(state?.[3]),
+    lastContact: numberOrNull(state?.[4]),
+    lng: longitude,
+    lat: latitude,
+    baroAltitudeMeters: numberOrNull(state?.[7]),
+    onGround: Boolean(state?.[8]),
+    velocityMps: numberOrNull(state?.[9]),
+    trackDegrees: numberOrNull(state?.[10]),
+    verticalRateMps: numberOrNull(state?.[11]),
+    geoAltitudeMeters: numberOrNull(state?.[13]),
+    squawk: String(state?.[14] || '').trim(),
+    positionSource: numberOrNull(state?.[16]),
+    category: numberOrNull(state?.[17])
+  };
+}
+
+async function requestOpenSkyTraffic() {
+  const token = await openSkyAccessToken();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let response;
+  try {
+    response = await fetch(`${openSkyApiUrl}/states/all?extended=1`, {
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (response.status === 401 && token) {
+    openSkyState.token = '';
+    openSkyState.tokenExpiresAt = 0;
+  }
+  if (response.status === 429) {
+    const retrySeconds = Math.max(30, Number(response.headers.get('x-rate-limit-retry-after-seconds')
+      || response.headers.get('retry-after') || 60));
+    openSkyState.retryAfter = Date.now() + retrySeconds * 1000;
+    throw new HttpError(429, 'OpenSky traffic allowance is temporarily exhausted');
+  }
+  if (!response.ok) throw new Error(`OpenSky traffic request failed (${response.status})`);
+
+  const payload = await response.json();
+  const remainingHeader = response.headers.get('x-rate-limit-remaining');
+  const listedAircraft = (Array.isArray(payload?.states) ? payload.states : [])
+    .map(normalizeOpenSkyAircraft)
+    .filter(Boolean)
+    .sort((left, right) => (right.lastContact || 0) - (left.lastContact || 0)
+      || left.icao24.localeCompare(right.icao24));
+  const aircraft = listedAircraft.slice(0, openSkyMaxAircraft);
+  const fetchedAt = new Date().toISOString();
+  return {
+    source: 'OpenSky Network',
+    scope: 'global',
+    authenticated: Boolean(token),
+    fetchedAt,
+    providerTime: Number(payload?.time) || null,
+    remainingCredits: remainingHeader !== null && Number.isFinite(Number(remainingHeader))
+      ? Number(remainingHeader)
+      : null,
+    listedAircraft: listedAircraft.length,
+    renderedAircraft: aircraft.length,
+    nextRefreshAt: new Date(Date.now() + openSkyPollMs).toISOString(),
+    stale: false,
+    aircraft
+  };
+}
+
+async function openSkyTrafficSnapshot() {
+  const now = Date.now();
+  const age = now - openSkyState.loadedAt;
+  if (openSkyState.result && age < openSkyPollMs) return openSkyState.result;
+  if (openSkyState.retryAfter > now) {
+    if (openSkyState.result) {
+      return { ...openSkyState.result, stale: true, retryAfter: new Date(openSkyState.retryAfter).toISOString() };
+    }
+    throw new HttpError(429, 'OpenSky traffic is waiting for its provider retry window');
+  }
+  if (openSkyState.inFlight) return openSkyState.inFlight;
+
+  openSkyState.inFlight = requestOpenSkyTraffic()
+    .then((result) => {
+      openSkyState.result = result;
+      openSkyState.loadedAt = Date.now();
+      openSkyState.retryAfter = 0;
+      return result;
+    })
+    .catch((error) => {
+      if (openSkyState.result) {
+        console.warn('OpenSky traffic refresh failed; serving the last snapshot:', error.message);
+        return { ...openSkyState.result, stale: true, error: 'Live traffic refresh is temporarily unavailable' };
+      }
+      throw error;
+    })
+    .finally(() => { openSkyState.inFlight = null; });
+  return openSkyState.inFlight;
+}
+
 async function organizationProviderAccount(organizationId) {
   if (organizationId && internalBearerToken) {
     const controller = new AbortController();
@@ -250,10 +410,12 @@ async function forward(method, path, body, organizationId) {
   const snapshots = snapshotState(organizationId);
   const fleetSnapshot = snapshots.fleet;
   const aircraftListSnapshot = snapshots.aircraftList;
+  const flightDataSnapshot = snapshots.flightData;
   if (!session.bearer || !session.apiToken) await authenticate(organizationId);
   const isAircraftList = path.includes('/Aircraft/getAircraftList/');
   const isSharedAircraftList = isAircraftList && (!body || Object.keys(body).length === 0);
   const isFleetSnapshot = path.includes('/Aircraft/getBulkAircraftExportPaged/');
+  const isFlightData = path.includes('/Aircraft/getFlightData/');
 
   const execute = async () => {
     const providerPath = `/api${path.split('/').map((part) => part === 'LIVE_TOKEN' ? session.apiToken : part).join('/')}`;
@@ -307,6 +469,55 @@ async function forward(method, path, body, organizationId) {
   }
 
   if (isAircraftList) return execute();
+  if (isFlightData) {
+    const queryKey = JSON.stringify(body || {});
+    const isSameQuery = flightDataSnapshot.queryKey === queryKey;
+    const snapshotAge = Date.now() - flightDataSnapshot.loadedAt;
+    if (isSameQuery && flightDataSnapshot.result && snapshotAge < flightSnapshotTtlMs) {
+      return flightDataSnapshot.result;
+    }
+    if (isSameQuery && flightDataSnapshot.result) {
+      if (!flightDataSnapshot.inFlight) {
+        flightDataSnapshot.inFlightQueryKey = queryKey;
+        flightDataSnapshot.inFlight = execute()
+          .then((result) => {
+            if (result.status >= 200 && result.status < 300 && Array.isArray(result.body?.flightdata)) {
+              flightDataSnapshot.result = result;
+              flightDataSnapshot.loadedAt = Date.now();
+            }
+            return result;
+          })
+          .catch((error) => {
+            console.error('Flight route snapshot refresh failed:', error.message);
+            return flightDataSnapshot.result;
+          })
+          .finally(() => {
+            flightDataSnapshot.inFlight = null;
+            flightDataSnapshot.inFlightQueryKey = '';
+          });
+      }
+      return flightDataSnapshot.result;
+    }
+    if (flightDataSnapshot.inFlight) {
+      if (flightDataSnapshot.inFlightQueryKey === queryKey) return flightDataSnapshot.inFlight;
+      return execute();
+    }
+    flightDataSnapshot.inFlightQueryKey = queryKey;
+    flightDataSnapshot.inFlight = execute()
+      .then((result) => {
+        if (result.status >= 200 && result.status < 300 && Array.isArray(result.body?.flightdata)) {
+          flightDataSnapshot.result = result;
+          flightDataSnapshot.loadedAt = Date.now();
+          flightDataSnapshot.queryKey = queryKey;
+        }
+        return result;
+      })
+      .finally(() => {
+        flightDataSnapshot.inFlight = null;
+        flightDataSnapshot.inFlightQueryKey = '';
+      });
+    return flightDataSnapshot.inFlight;
+  }
   if (isFleetSnapshot && fleetSnapshot.result && Date.now() - fleetSnapshot.loadedAt < fleetSnapshotTtlMs) {
     return fleetSnapshot.result;
   }
@@ -428,6 +639,11 @@ const server = http.createServer(async (request, response) => {
       internalAccessConfigured: Boolean(internalBearerToken),
       aircraftListReady: Boolean(systemSnapshots.aircraftList.result),
       aircraftListAgeSeconds: systemSnapshots.aircraftList.result ? Math.floor((Date.now() - systemSnapshots.aircraftList.loadedAt) / 1000) : null,
+      flightDataReady: Boolean(systemSnapshots.flightData.result),
+      flightDataAgeSeconds: systemSnapshots.flightData.result ? Math.floor((Date.now() - systemSnapshots.flightData.loadedAt) / 1000) : null,
+      openSkyConfigured: Boolean(openSkyClientId && openSkyClientSecret),
+      openSkySnapshotReady: Boolean(openSkyState.result),
+      openSkySnapshotAgeSeconds: openSkyState.result ? Math.floor((Date.now() - openSkyState.loadedAt) / 1000) : null,
       fleetSnapshotReady: Boolean(systemSnapshots.fleet.result),
       fleetSnapshotAgeSeconds: systemSnapshots.fleet.result ? Math.floor((Date.now() - systemSnapshots.fleet.loadedAt) / 1000) : null
     }, origin);
@@ -443,6 +659,15 @@ const server = http.createServer(async (request, response) => {
   }
   if (!consumeRateLimit(requester.key)) {
     return respond(response, 429, { error: 'Fleet request limit reached; retry shortly' }, origin, { 'Retry-After': '60' });
+  }
+
+  if (request.url === '/api/live-traffic' && request.method === 'GET') {
+    return openSkyTrafficSnapshot()
+      .then((payload) => respond(response, 200, payload, origin))
+      .catch((error) => {
+        console.error('OpenSky traffic request failed:', error.message);
+        respond(response, error.status || 502, { error: error.message || 'Live traffic is temporarily unavailable' }, origin);
+      });
   }
 
   if (request.url === '/api/connection/refresh' && request.method === 'POST') {

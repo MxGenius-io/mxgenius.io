@@ -3216,6 +3216,7 @@ function switchTab(tabId) {
   } else if (tabId === 'parts') {
     MXPartsWorkspace.activate();
   }
+  syncLiveTrafficPolling({ immediate: tabId === 'dashboard' });
 }
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
@@ -4854,6 +4855,18 @@ let globeZoomAltitude = 2.2;
 let globeZoomFrame = null;
 let globeRenderedGridSize = null;
 let activeUrgencyFilter = null;
+let recentFlightRoutes = [];
+let flightRoutesVisible = false;
+let flightRoutesLoaded = false;
+let flightRoutesRequest = null;
+const MAX_GLOBE_FLIGHT_ROUTES = 120;
+const LIVE_TRAFFIC_POLL_MS = 30000;
+let liveTrafficEnabled = false;
+let liveTrafficAircraft = [];
+let liveTrafficTimer = null;
+let liveTrafficRequest = null;
+let liveTrafficLoadedAt = 0;
+let liveTrafficListedCount = 0;
 
 // ICAO airport coordinates for plotting aircraft base locations on globe
 // Covers major business aviation airports worldwide [lat, lng]
@@ -5053,7 +5066,7 @@ function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
   globeRenderedGridSize = gridSize;
   const displayClusters = aggregateGlobeClusters(clusters, globeZoomAltitude);
   globeInstance
-    .pointsData(displayClusters)
+    .pointsData(liveTrafficEnabled ? [...displayClusters, ...liveTrafficAircraft] : displayClusters)
     .htmlElementsData(displayClusters)
     .ringsData(attentionClusters(displayClusters));
 }
@@ -5073,6 +5086,7 @@ function handleGlobeZoom(view) {
 }
 
 function clusterColor(d) {
+  if (d?._kind === 'live-traffic') return d.onGround ? '#94a3b8' : '#22d3ee';
   if (d.hasActiveCase) return '#00d4ff';
   if (d.hasAog) return '#ff4444';
   if (d.hasVeryHighTime) return '#ef4444';
@@ -5080,14 +5094,261 @@ function clusterColor(d) {
   return '#10b981';
 }
 function clusterRadius(d) {
+  if (d?._kind === 'live-traffic') return d.onGround ? 0.009 : 0.014;
   const count = Math.max(1, d.aircraft?.length || Number(d.count) || 1);
   const emphasis = d.hasActiveCase || d.hasAog ? 0.025 : 0;
   return Math.min(0.22, 0.055 + Math.log2(count + 1) * 0.022 + emphasis);
 }
 function clusterAltitude() { return 0.0015; }
+function globePointAltitude(d) {
+  if (d?._kind === 'live-traffic') {
+    const altitudeMeters = Number(d.geoAltitudeMeters ?? d.baroAltitudeMeters);
+    return Number.isFinite(altitudeMeters) ? Math.max(0.0025, Math.min(0.065, altitudeMeters / 300000)) : 0.0025;
+  }
+  return clusterAltitude();
+}
+function globePointLabel(point) {
+  if (point?._kind !== 'live-traffic') return '';
+  const altitudeMeters = Number(point.geoAltitudeMeters ?? point.baroAltitudeMeters);
+  const velocityMps = Number(point.velocityMps);
+  const altitude = Number.isFinite(altitudeMeters) ? `${Math.round(altitudeMeters * 3.28084).toLocaleString()} ft` : 'Altitude unavailable';
+  const speed = Number.isFinite(velocityMps) ? `${Math.round(velocityMps * 1.94384)} kt` : 'Speed unavailable';
+  const identity = point.callsign || point.icao24?.toUpperCase() || 'Live aircraft';
+  return `<strong>${escapeMarkup(identity)}</strong><br>${escapeMarkup(point.originCountry || 'OpenSky')} · ${altitude} · ${speed}`;
+}
 function attentionClusters(clusters) { return clusters.filter((cluster) => cluster.hasActiveCase || cluster.hasAog); }
 function clusterRingRadius(d) { return Math.min(0.55, Math.max(0.22, clusterRadius(d) * 2.4)); }
 function clusterRingColor(d) { const color = clusterColor(d); return [`${color}cc`, `${color}00`]; }
+
+function firstFlightValue(record, keys) {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return '';
+}
+
+function normalizeFlightRoute(record, index) {
+  const startLat = Number(firstFlightValue(record, ['origin_latitude', 'originlatitude', 'origin_lat', 'originLat']));
+  const startLng = Number(firstFlightValue(record, ['origin_longitude', 'originlongitude', 'origin_lng', 'originLng']));
+  const endLat = Number(firstFlightValue(record, ['dest_latitude', 'destination_latitude', 'destlatitude', 'dest_lat', 'destinationLat']));
+  const endLng = Number(firstFlightValue(record, ['dest_longitude', 'destination_longitude', 'destlongitude', 'dest_lng', 'destinationLng']));
+  const validCoordinate = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (!validCoordinate(startLat, startLng) || !validCoordinate(endLat, endLng)) return null;
+  if (startLat === endLat && startLng === endLng) return null;
+
+  const origin = String(firstFlightValue(record, ['origin_icao_code', 'origin_aport_code', 'origin_iata_code', 'origin']) || 'Origin').toUpperCase();
+  const destination = String(firstFlightValue(record, ['dest_icao_code', 'dest_aport_code', 'dest_iata_code', 'destination']) || 'Destination').toUpperCase();
+  const registration = String(firstFlightValue(record, ['regnbr', 'registration', 'tailnumber']) || '').toUpperCase();
+  const aircraft = [firstFlightValue(record, ['make']), firstFlightValue(record, ['model'])].filter(Boolean).join(' ');
+  const date = String(firstFlightValue(record, ['origin_date', 'flightdate', 'date']) || '');
+  const time = String(firstFlightValue(record, ['origin_time', 'flighttime', 'time']) || '');
+  const id = String(firstFlightValue(record, ['flightid', 'flight_id']) || `${origin}-${destination}-${date}-${registration}-${index}`);
+  return { id, startLat, startLng, endLat, endLng, origin, destination, registration, aircraft, date, time };
+}
+
+function recentFlightDate(value) {
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(value.getUTCDate()).padStart(2, '0');
+  return `${month}-${day}-${value.getUTCFullYear()}`;
+}
+
+function recentFlightFilters() {
+  const end = new Date();
+  const start = new Date(end.getTime() - (30 * 24 * 60 * 60 * 1000));
+  return { startdate: recentFlightDate(start), enddate: recentFlightDate(end) };
+}
+
+function flightRouteLabel(route) {
+  const identity = [route.registration, route.aircraft].filter(Boolean).join(' · ') || 'Flight route';
+  const when = [route.date, route.time].filter(Boolean).join(' ');
+  return `<strong>${escapeMarkup(identity)}</strong><br>${escapeMarkup(route.origin)} → ${escapeMarkup(route.destination)}${when ? `<br><small>${escapeMarkup(when)}</small>` : ''}`;
+}
+
+function renderFlightRoutes() {
+  if (!globeInstance) return;
+  globeInstance.arcsData(flightRoutesVisible ? recentFlightRoutes : []);
+}
+
+function setFlightRoutesVisible(visible) {
+  flightRoutesVisible = Boolean(visible && recentFlightRoutes.length);
+  renderFlightRoutes();
+  const button = document.getElementById('globeFlightRoutesButton');
+  if (!button) return;
+  button.classList.toggle('active', flightRoutesVisible);
+  button.setAttribute('aria-pressed', flightRoutesVisible ? 'true' : 'false');
+  button.title = flightRoutesVisible
+    ? `Hide ${recentFlightRoutes.length} recent JetNet flight routes`
+    : (flightRoutesLoaded
+      ? `Show ${recentFlightRoutes.length} recent JetNet flight routes`
+      : 'Show recent JetNet flight routes');
+}
+
+async function loadRecentFlightRoutes() {
+  if (flightRoutesRequest) return flightRoutesRequest;
+  const button = document.getElementById('globeFlightRoutesButton');
+  if (button) {
+    button.disabled = true;
+    button.title = 'Loading recent JetNet flight routes…';
+  }
+  flightRoutesRequest = MXApplicationClient.flightData({
+    token: TOKEN,
+    bearer: BEARER,
+    filters: recentFlightFilters()
+  }).then((data) => {
+    if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) {
+      throw new Error(data.responsestatus);
+    }
+    const seen = new Set();
+    recentFlightRoutes = (Array.isArray(data.flightdata) ? data.flightdata : [])
+      .map(normalizeFlightRoute)
+      .filter((route) => route && !seen.has(route.id) && seen.add(route.id))
+      .slice(0, MAX_GLOBE_FLIGHT_ROUTES);
+    flightRoutesLoaded = true;
+    setFlightRoutesVisible(true);
+    return recentFlightRoutes;
+  }).catch((error) => {
+    console.warn('Recent flight routes are unavailable', error);
+    recentFlightRoutes = [];
+    flightRoutesLoaded = false;
+    setFlightRoutesVisible(false);
+    if (button) button.title = 'Recent JetNet flight routes are unavailable; select to retry';
+    return [];
+  }).finally(() => {
+    flightRoutesRequest = null;
+    if (button) button.disabled = false;
+  });
+  return flightRoutesRequest;
+}
+
+async function toggleFlightRoutes() {
+  if (flightRoutesVisible) {
+    setFlightRoutesVisible(false);
+    return;
+  }
+  if (!flightRoutesLoaded) {
+    await loadRecentFlightRoutes();
+    return;
+  }
+  setFlightRoutesVisible(true);
+}
+
+function liveTrafficSurfaceIsOpen() {
+  return document.visibilityState !== 'hidden'
+    && document.getElementById('tab-dashboard')?.classList.contains('active');
+}
+
+function setLiveTrafficButtonState(state, message = '') {
+  const button = document.getElementById('globeLiveTrafficButton');
+  if (!button) return;
+  button.classList.toggle('active', liveTrafficEnabled);
+  button.setAttribute('aria-pressed', liveTrafficEnabled ? 'true' : 'false');
+  button.dataset.state = state;
+  const defaultMessage = liveTrafficEnabled ? 'Stop live OpenSky traffic' : 'Start live OpenSky traffic';
+  button.title = message || defaultMessage;
+  button.setAttribute('aria-label', message || defaultMessage);
+}
+
+function setLiveTrafficRibbonState(state, message = '') {
+  const ribbon = document.getElementById('globeLiveTrafficRibbon');
+  const count = document.getElementById('globeLiveTrafficCount');
+  if (!ribbon) return;
+  ribbon.hidden = state === 'off';
+  ribbon.dataset.state = state;
+  if (count) count.textContent = message || (state === 'loading' ? 'Pulling snapshot…' : 'Realtime mode');
+}
+
+function normalizeLiveTrafficPoint(aircraft) {
+  const lat = Number(aircraft?.lat);
+  const lng = Number(aircraft?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { ...aircraft, lat, lng, _kind: 'live-traffic' };
+}
+
+function stopLiveTrafficTimer() {
+  if (liveTrafficTimer) clearTimeout(liveTrafficTimer);
+  liveTrafficTimer = null;
+}
+
+function scheduleLiveTrafficRefresh(delay = LIVE_TRAFFIC_POLL_MS) {
+  stopLiveTrafficTimer();
+  if (!liveTrafficEnabled || !liveTrafficSurfaceIsOpen()) return;
+  liveTrafficTimer = setTimeout(refreshLiveTraffic, Math.max(0, delay));
+}
+
+async function refreshLiveTraffic() {
+  stopLiveTrafficTimer();
+  if (!liveTrafficEnabled || !liveTrafficSurfaceIsOpen() || liveTrafficRequest) return;
+  if (!liveTrafficAircraft.length) setLiveTrafficButtonState('loading', 'Loading live OpenSky traffic…');
+  setLiveTrafficRibbonState('loading', liveTrafficAircraft.length ? 'Refreshing snapshot…' : 'Pulling snapshot…');
+
+  liveTrafficRequest = MXApplicationClient.liveTraffic({ bearer: BEARER })
+    .then((payload) => {
+      if (!liveTrafficEnabled) return;
+      liveTrafficAircraft = (Array.isArray(payload?.aircraft) ? payload.aircraft : [])
+        .map(normalizeLiveTrafficPoint)
+        .filter(Boolean);
+      liveTrafficListedCount = Number(payload?.listedAircraft) || liveTrafficAircraft.length;
+      liveTrafficLoadedAt = Date.parse(payload?.fetchedAt || '') || Date.now();
+      renderGlobeClusters(filteredGlobeClusters);
+      const ageSeconds = Math.max(0, Math.round((Date.now() - liveTrafficLoadedAt) / 1000));
+      const pipelineCount = liveTrafficListedCount > liveTrafficAircraft.length
+        ? `${liveTrafficListedCount.toLocaleString()} listed · ${liveTrafficAircraft.length.toLocaleString()} rendered`
+        : `${liveTrafficAircraft.length.toLocaleString()} rendered`;
+      if (payload?.stale) {
+        setLiveTrafficButtonState('stale', `Live traffic is showing the last OpenSky snapshot (${ageSeconds}s old)`);
+        setLiveTrafficRibbonState('stale', `${pipelineCount} · ${ageSeconds}s old`);
+      } else {
+        const remaining = payload?.remainingCredits !== null && payload?.remainingCredits !== undefined
+          && Number.isFinite(Number(payload.remainingCredits))
+          ? ` · ${Number(payload.remainingCredits).toLocaleString()} credits remain`
+          : '';
+        setLiveTrafficButtonState('live', `Stop live OpenSky traffic · ${liveTrafficAircraft.length.toLocaleString()} aircraft${remaining}`);
+        setLiveTrafficRibbonState('live', `${pipelineCount} · 30s cadence`);
+      }
+    })
+    .catch((error) => {
+      console.warn('Live OpenSky traffic is unavailable', error);
+      setLiveTrafficButtonState(liveTrafficAircraft.length ? 'stale' : 'error',
+        liveTrafficAircraft.length ? 'Live traffic refresh failed; showing the last snapshot' : 'Live OpenSky traffic is unavailable; select to stop');
+      setLiveTrafficRibbonState(liveTrafficAircraft.length ? 'stale' : 'error',
+        liveTrafficAircraft.length ? `${liveTrafficAircraft.length.toLocaleString()} rendered · snapshot stale` : 'Feed unavailable');
+    })
+    .finally(() => {
+      liveTrafficRequest = null;
+      scheduleLiveTrafficRefresh();
+    });
+  return liveTrafficRequest;
+}
+
+function syncLiveTrafficPolling({ immediate = false } = {}) {
+  stopLiveTrafficTimer();
+  if (!liveTrafficEnabled || !liveTrafficSurfaceIsOpen()) return;
+  const age = Date.now() - liveTrafficLoadedAt;
+  if (immediate || !liveTrafficLoadedAt || age >= LIVE_TRAFFIC_POLL_MS) {
+    void refreshLiveTraffic();
+    return;
+  }
+  scheduleLiveTrafficRefresh(LIVE_TRAFFIC_POLL_MS - age);
+}
+
+function toggleLiveTraffic() {
+  liveTrafficEnabled = !liveTrafficEnabled;
+  if (!liveTrafficEnabled) {
+    stopLiveTrafficTimer();
+    liveTrafficAircraft = [];
+    liveTrafficLoadedAt = 0;
+    liveTrafficListedCount = 0;
+    setLiveTrafficButtonState('off');
+    setLiveTrafficRibbonState('off');
+    renderGlobeClusters(filteredGlobeClusters);
+    return;
+  }
+  setLiveTrafficButtonState('loading', 'Loading live OpenSky traffic…');
+  setLiveTrafficRibbonState('loading', 'Pulling snapshot…');
+  syncLiveTrafficPolling({ immediate: true });
+}
 
 function applyGlobeFilters() {
   if (!globeInstance || !allClusters.length) return;
@@ -5189,6 +5450,22 @@ function setupGlobeSheet() {
   const si = document.getElementById('globeSearch');
   if (si) { let db; si.addEventListener('input', () => { clearTimeout(db); db = setTimeout(applyGlobeFilters, 250); }); }
   document.getElementById('globeTypeFilter')?.addEventListener('change', applyGlobeFilters);
+  const flightRoutesButton = document.getElementById('globeFlightRoutesButton');
+  if (flightRoutesButton && !flightRoutesButton.dataset.bound) {
+    flightRoutesButton.dataset.bound = 'true';
+    flightRoutesButton.addEventListener('click', toggleFlightRoutes);
+  }
+  const liveTrafficButton = document.getElementById('globeLiveTrafficButton');
+  if (liveTrafficButton && !liveTrafficButton.dataset.bound) {
+    liveTrafficButton.dataset.bound = 'true';
+    liveTrafficButton.addEventListener('click', toggleLiveTraffic);
+    setLiveTrafficButtonState('off');
+    setLiveTrafficRibbonState('off');
+  }
+  if (!document.documentElement.dataset.liveTrafficVisibilityBound) {
+    document.documentElement.dataset.liveTrafficVisibilityBound = 'true';
+    document.addEventListener('visibilitychange', () => syncLiveTrafficPolling({ immediate: document.visibilityState === 'visible' }));
+  }
   document.querySelectorAll('.texture-btn[data-texture]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.texture-btn[data-texture]').forEach(b => b.classList.remove('active'));
@@ -5757,12 +6034,13 @@ async function loadGlobe() {
       .globeCurvatureResolution(1)
       .globeImageUrl(null)
       .globeTileEngineUrl((x, y, l) => `https://tile.openstreetmap.org/${l}/${x}/${y}.png`)
-      .pointsData(initialDisplayClusters)
+      .pointsData(liveTrafficEnabled ? [...initialDisplayClusters, ...liveTrafficAircraft] : initialDisplayClusters)
       .pointLat(d => d.lat)
       .pointLng(d => d.lng)
-      .pointAltitude(clusterAltitude)
+      .pointAltitude(globePointAltitude)
       .pointColor(clusterColor)
       .pointRadius(clusterRadius)
+      .pointLabel(globePointLabel)
       .pointResolution(12)
       .pointsTransitionDuration(0)
       .htmlElementsData(initialDisplayClusters)
@@ -5779,6 +6057,18 @@ async function loadGlobe() {
       .ringMaxRadius(clusterRingRadius)
       .ringPropagationSpeed(1.5)
       .ringRepeatPeriod(800)
+      .arcsData(flightRoutesVisible ? recentFlightRoutes : [])
+      .arcStartLat(d => d.startLat)
+      .arcStartLng(d => d.startLng)
+      .arcEndLat(d => d.endLat)
+      .arcEndLng(d => d.endLng)
+      .arcColor(() => ['rgba(0, 212, 255, 0.28)', 'rgba(99, 102, 241, 0.96)'])
+      .arcAltitudeAutoScale(0.24)
+      .arcStroke(0.34)
+      .arcDashLength(0.42)
+      .arcDashGap(0.12)
+      .arcDashAnimateTime(2400)
+      .arcLabel(flightRouteLabel)
       .onZoom(handleGlobeZoom)
       .atmosphereColor('#00d4ff').atmosphereAltitude(0.2).showGraticules(true)
       .width(container.clientWidth).height(container.clientHeight)(container);

@@ -305,6 +305,32 @@ test('model intelligence uses the subscribed catalog endpoint and array filters'
   });
 });
 
+test('recent flight routes use the authenticated JetNet flight-data boundary', async () => {
+  const { client, requests } = harness({});
+  await client.flightData({
+    token: 'LIVE_TOKEN',
+    filters: { startdate: '08-18-2026', enddate: '09-17-2026' }
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/Aircraft/getFlightData/LIVE_TOKEN');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer fleet-access-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'fleet-org');
+  assert.deepEqual(requests[0].request, { startdate: '08-18-2026', enddate: '09-17-2026' });
+});
+
+test('live traffic uses the authenticated fleet proxy boundary', async () => {
+  const { client, requests } = harness({});
+  await client.liveTraffic();
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/live-traffic');
+  assert.equal(requests[0].options.method, 'GET');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer fleet-access-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'fleet-org');
+});
+
 test('demo workspace loader uses the authenticated tenant endpoint and exact confirmation', async () => {
   const { client, requests } = harness({});
   await client.demoData.load({

@@ -53,6 +53,31 @@ test('Operations Center owns customer-scoped devices and Equipment Drives', () =
   assert.match(equipmentDriveTerm.meaning, /managed in Operations Center customer accounts/);
 });
 
+test('Settings map follows the current Customize and standalone tour layout', () => {
+  const settings = manifest.surfaces.find((surface) => surface.id === 'settings');
+  assert.ok(settings.target_ids.includes('settings-customize'));
+  assert.ok(settings.target_ids.includes('settings-restart-tour'));
+  assert.match(settings.purpose, /Interface Sounds/);
+  assert.match(settings.purpose, /standalone actions at the bottom/);
+  assert.match(dashboard, /id="settingsCustomizeCard"/);
+  assert.match(dashboard, /id="settingsSoundsCard"/);
+  assert.match(dashboard, /id="settingsRestartTourBtn"/);
+});
+
+test('fleet map distinguishes recent route records from live aircraft positions', () => {
+  const fleetGlobe = manifest.surfaces.find((surface) => surface.id === 'fleet-globe');
+  const routeTarget = manifest.tooltips.find((target) => target.id === 'fleet-flight-routes');
+  const liveTarget = manifest.tooltips.find((target) => target.id === 'fleet-live-traffic');
+  assert.ok(fleetGlobe.target_ids.includes('fleet-flight-routes'));
+  assert.ok(fleetGlobe.target_ids.includes('fleet-live-traffic'));
+  assert.equal(routeTarget.surface, 'fleet-globe');
+  assert.equal(liveTarget.surface, 'fleet-globe');
+  assert.match(routeTarget.script, /on demand/);
+  assert.match(routeTarget.script, /does not claim to be the aircraft's current position/);
+  assert.match(liveTarget.script, /twice per minute/);
+  assert.match(liveTarget.script, /stops requests/);
+});
+
 test('browser guide navigates, reveals, scrolls, spotlights, and remains dismissible', () => {
   assert.match(guided, /function navigateToSurface\(surface, payload\)/);
   assert.match(guided, /\.nav-tab\[data-tab=/);

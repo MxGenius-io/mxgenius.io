@@ -3,7 +3,7 @@ const MXGuidedTooltip = (() => {
   const scriptBase = document.currentScript?.src
     ? new URL('.', document.currentScript.src)
     : new URL('.', document.baseURI);
-  const DEFAULT_MANIFEST = new URL('services/mcp/config/environment-manifest.json?v=7', scriptBase).href;
+  const DEFAULT_MANIFEST = new URL('services/mcp/config/environment-manifest.json?v=10', scriptBase).href;
   const TOOLTIP_ASSET_BASE = new URL('assets/xr-ui-fx/audio/tooltips/scripts/', scriptBase).href;
   let manifestUrl = DEFAULT_MANIFEST;
   let environmentManifestPromise = null;

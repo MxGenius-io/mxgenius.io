@@ -412,8 +412,8 @@ test('detailed JetNet success statuses remain renderable and cacheable', () => {
   const detailedStatusGuard = /\^success\\b\/i\.test\(String\(data\.responsestatus\)\.trim\(\)\)/g;
   assert.equal(
     (application.match(detailedStatusGuard) || []).length,
-    2,
-    'both aircraft views should accept JetNet SUCCESS: detail summaries'
+    3,
+    'aircraft, globe, and route views should accept JetNet SUCCESS: detail summaries'
   );
   assert.match(
     cache,
@@ -922,7 +922,7 @@ test('maintenance cases use a stable human-readable display name', () => {
 });
 
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
-  const guidedTooltipIndex = dashboard.indexOf('<script src="guided-tooltip.js?v=12"></script>');
+  const guidedTooltipIndex = dashboard.search(/<script src="guided-tooltip\.js\?v=\d+"><\/script>/);
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=10"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
@@ -1232,7 +1232,7 @@ test('context help binds accessible anchored popovers across product surfaces', 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
   assert.equal(tooltipManifest.manifest_kind, 'mxgenius_environment');
   assert.equal(tooltipManifest.schema_version, '1.0.0');
-  assert.equal(tooltipManifest.version, 8);
+  assert.equal(tooltipManifest.version, 10);
   assert.ok(Array.isArray(tooltipManifest.surfaces));
   assert.equal(tooltipManifest.surfaces.length, 9);
   const surfaceIds = tooltipManifest.surfaces.map((surface) => surface.id);
@@ -1263,7 +1263,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       'model-context'
     ]
   );
-  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=7/);
+  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=10/);
   assert.match(guidedTooltip, /function loadEnvironmentManifest\(\)/);
   assert.match(viewerNavigationCaptions, /^WEBVTT\r?\n/);
   assert.match(viewerNavigationCaptions, /00:00:00\.400 --> 00:00:05\.850/);
@@ -1333,7 +1333,7 @@ test('bundled 3D catalog does not claim demo assets are validated operational tw
 });
 
 test('retained JetNet, cache, globe, chat, 3D, and document boundaries remain mounted', () => {
-  for (const method of ['bulkAircraft', 'aircraftList', 'aircraftBundle', 'staticJson']) {
+  for (const method of ['bulkAircraft', 'aircraftList', 'flightData', 'aircraftBundle', 'staticJson']) {
     assert.match(client, new RegExp(`\\b${method}\\b`), `${method} client boundary must remain`);
   }
   assert.match(cache, /cachedFetch/);
@@ -1368,7 +1368,7 @@ test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => 
   assert.match(application, /anchor\.className = 'fleet-map-anchor'/);
   assert.match(application, /\.htmlAltitude\(0\.0015\)/);
   assert.match(application, /\.onZoom\(handleGlobeZoom\)/);
-  assert.match(application, /\.pointsData\(displayClusters\)/);
+  assert.match(application, /\.pointsData\(liveTrafficEnabled \? \[\.\.\.displayClusters, \.\.\.liveTrafficAircraft\] : displayClusters\)/);
   assert.match(application, /\.pointsTransitionDuration\(0\)/);
   assert.match(application, /\.htmlTransitionDuration\(0\)/);
   assert.match(application, /\.globeCurvatureResolution\(1\)/);
@@ -1382,6 +1382,31 @@ test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => 
   assert.match(applicationStyles, /\.fleet-map-marker--stacked/);
   assert.match(applicationStyles, /#globeViz\s*\{[\s\S]*isolation: isolate/);
   assert.match(applicationStyles, /\.globe-sheet\s*\{[\s\S]*z-index: 30/);
+});
+
+test('fleet globe can overlay cached recent flight routes without changing the base-location layer', () => {
+  assert.match(dashboard, /id="globeFlightRoutesButton"/);
+  assert.match(application, /MXApplicationClient\.flightData/);
+  assert.match(application, /function normalizeFlightRoute\(/);
+  assert.match(application, /\.arcsData\(flightRoutesVisible \? recentFlightRoutes : \[\]\)/);
+  assert.match(application, /\.arcDashAnimateTime\(2400\)/);
+  assert.match(application, /MAX_GLOBE_FLIGHT_ROUTES = 120/);
+  assert.match(application, /startdate: recentFlightDate\(start\), enddate: recentFlightDate\(end\)/);
+  assert.match(application, /Recent JetNet flight routes are unavailable; select to retry/);
+});
+
+test('fleet globe starts deterministic OpenSky polling only from its live-traffic control', () => {
+  assert.match(dashboard, /id="globeLiveTrafficButton"/);
+  assert.match(dashboard, /id="globeLiveTrafficRibbon"/);
+  assert.match(dashboard, /<span>Pull<\/span><span>List<\/span><span>Render<\/span>/);
+  assert.match(application, /const LIVE_TRAFFIC_POLL_MS = 30000/);
+  assert.match(application, /MXApplicationClient\.liveTraffic/);
+  assert.match(application, /document\.visibilityState !== 'hidden'/);
+  assert.match(application, /document\.getElementById\('tab-dashboard'\)\?\.classList\.contains\('active'\)/);
+  assert.match(application, /scheduleLiveTrafficRefresh\(LIVE_TRAFFIC_POLL_MS - age\)/);
+  assert.match(applicationStyles, /\.live-traffic-button\[data-state="live"\]/);
+  assert.match(applicationStyles, /@keyframes live-traffic-flight/);
+  assert.match(application, /setLiveTrafficRibbonState\('live', `\$\{pipelineCount\} · 30s cadence`\)/);
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {

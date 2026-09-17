@@ -68,6 +68,21 @@ const MXApplicationClient = (() => {
     });
   }
 
+  function flightData({ token, bearer, filters = {} }) {
+    return jetNetJson(`Aircraft/getFlightData/${token}`, {
+      bearer,
+      method: 'PUT',
+      body: filters
+    });
+  }
+
+  function liveTraffic({ bearer } = {}) {
+    return fleetRequestJson('/api/live-traffic', {
+      method: 'GET',
+      headers: jetNetHeaders(bearer)
+    }).then(({ data }) => data);
+  }
+
   async function aircraftBundle({ id, token }) {
     const safeJson = async (promise) => {
       try { return await promise; } catch { return {}; }
@@ -1762,6 +1777,8 @@ const MXApplicationClient = (() => {
     aircraftImageBlobUrl,
     aircraftImageUrl,
     aircraftList,
+    flightData,
+    liveTraffic,
     aircraft: Object.freeze({
       lookup: lookupAircraft
     }),

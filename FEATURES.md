@@ -55,6 +55,8 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Organization-owned JetNet connection card with live credential verification, masked status, AES-256-GCM server storage, and immediate fleet-session refresh.
 - `[x]` Aircraft records preserving the application aircraft-list contract.
 - `[x]` Fleet globe with mapped geographic points and zoom-aware aviation clusters.
+- `[x]` On-demand recent-flight route overlay backed by tenant-scoped, server-cached JetNet flight records, kept visually distinct from live positions.
+- `[~]` User-started OpenSky live-position overlay with a shared 30-second server snapshot, Pull/List/Render status ribbon, stale-data fallback, and polling suspended away from the visible globe; mocked end-to-end coverage passes, while production API credentials and a live-provider field check remain pending.
 - `[x]` Fleet totals, mapped-aircraft counts, and country counts.
 - `[x]` Search by tail, operator, and model.
 - `[x]` Aircraft-type filters for business jets, turboprops, airliners, and piston aircraft.

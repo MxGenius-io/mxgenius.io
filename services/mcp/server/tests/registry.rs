@@ -154,7 +154,7 @@ async fn environment_describe_uses_the_shared_stable_manifest() {
     )
     .await;
     assert_eq!(result["status"], "ok");
-    assert_eq!(result["output"]["manifest_version"], "1.0.0+8");
+    assert_eq!(result["output"]["manifest_version"], "1.0.0+10");
     assert_eq!(result["output"]["surfaces"].as_array().unwrap().len(), 1);
     assert_eq!(
         result["output"]["surfaces"][0]["label"],

@@ -16,6 +16,25 @@ test('aircraft list requests use a bounded tenant-scoped fleet snapshot for ever
   assert.doesNotMatch(fleetProxySource, /replace\('\/Aircraft\/getAircraftList\/', '\/Aircraft\/getBulkAircraftExportPaged\/'\)/);
 });
 
+test('flight route requests use a short tenant-scoped query cache', () => {
+  assert.match(fleetProxySource, /FLEET_FLIGHT_SNAPSHOT_SECONDS/);
+  assert.match(fleetProxySource, /const isFlightData = path\.includes\('\/Aircraft\/getFlightData\/'\)/);
+  assert.match(fleetProxySource, /const flightDataSnapshot = snapshots\.flightData/);
+  assert.match(fleetProxySource, /flightDataSnapshot\.inFlightQueryKey === queryKey/);
+  assert.match(fleetProxySource, /Array\.isArray\(result\.body\?\.flightdata\)/);
+  assert.match(fleetProxySource, /flightDataReady/);
+});
+
+test('OpenSky traffic uses one server-wide snapshot with a two-per-minute upstream ceiling', () => {
+  assert.match(fleetProxySource, /OPENSKY_POLL_SECONDS \|\| 30/);
+  assert.match(fleetProxySource, /Math\.max\(30,/);
+  assert.match(fleetProxySource, /const openSkyState = \{/);
+  assert.match(fleetProxySource, /if \(openSkyState\.result && age < openSkyPollMs\) return openSkyState\.result/);
+  assert.match(fleetProxySource, /if \(openSkyState\.inFlight\) return openSkyState\.inFlight/);
+  assert.match(fleetProxySource, /request\.url === '\/api\/live-traffic'/);
+  assert.match(fleetProxySource, /x-rate-limit-retry-after-seconds/);
+});
+
 test('organization-owned JetNet credentials are brokered server-side and tenant-scoped', () => {
   assert.match(fleetProxySource, /MXGENIUS_PROVIDER_CREDENTIALS_URL/);
   assert.match(fleetProxySource, /'X-MXG-Organization-ID': organizationId/);
@@ -67,6 +86,25 @@ test('fleet proxy requires MXGenius identity while preserving its internal servi
   const authzPort = await listen(authz);
   t.after(() => authz.close());
 
+  let openSkyRequests = 0;
+  const openSky = http.createServer((request, response) => {
+    openSkyRequests += 1;
+    assert.match(request.url || '', /^\/states\/all\?extended=1$/);
+    response.writeHead(200, {
+      'Content-Type': 'application/json',
+      'X-Rate-Limit-Remaining': '3996'
+    });
+    response.end(JSON.stringify({
+      time: 1_800_000_000,
+      states: [[
+        'abc123', 'MXG123', 'United States', 1_800_000_000, 1_800_000_000,
+        -80.1, 26.2, 10_000, false, 210, 45, 0, null, 10_100, '1200', false, 0, 3
+      ]]
+    }));
+  });
+  const openSkyPort = await listen(openSky);
+  t.after(() => openSky.close());
+
   const reservation = http.createServer();
   const proxyPort = await listen(reservation);
   await new Promise((resolve) => reservation.close(resolve));
@@ -80,6 +118,8 @@ test('fleet proxy requires MXGenius identity while preserving its internal servi
       MXGENIUS_INTERNAL_BEARER_TOKEN: 'internal-service-token',
       MXGENIUS_AUTHZ_CACHE_SECONDS: '0',
       FLEET_RATE_LIMIT_PER_MINUTE: '20',
+      OPENSKY_API_URL: `http://127.0.0.1:${openSkyPort}`,
+      OPENSKY_POLL_SECONDS: '30',
       JETNET_IDENTITY: '',
       JETNET_CREDENTIAL: ''
     },
@@ -118,6 +158,20 @@ test('fleet proxy requires MXGenius identity while preserving its internal servi
     headers: { Authorization: 'Bearer internal-service-token' }
   });
   assert.equal(internal.status, 502, 'internal service bearer should pass authorization');
+
+  const liveHeaders = { Authorization: 'Bearer approved-user', 'X-MXG-Organization-ID': 'org-1' };
+  const firstLive = await fetch(`${base}/api/live-traffic`, { headers: liveHeaders });
+  const firstLivePayload = await firstLive.json();
+  assert.equal(firstLive.status, 200);
+  assert.equal(firstLivePayload.source, 'OpenSky Network');
+  assert.equal(firstLivePayload.aircraft[0].icao24, 'abc123');
+  assert.equal(firstLivePayload.listedAircraft, 1);
+  assert.equal(firstLivePayload.renderedAircraft, 1);
+  assert.equal(firstLivePayload.remainingCredits, 3996);
+
+  const secondLive = await fetch(`${base}/api/live-traffic`, { headers: liveHeaders });
+  assert.equal(secondLive.status, 200);
+  assert.equal(openSkyRequests, 1, 'all viewers should share one 30-second OpenSky snapshot');
 
   const preflight = await fetch(`${base}/api/Model/example`, {
     method: 'OPTIONS',

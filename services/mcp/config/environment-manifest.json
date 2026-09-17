@@ -1,7 +1,7 @@
 {
   "manifest_kind": "mxgenius_environment",
   "schema_version": "1.0.0",
-  "version": 8,
+  "version": 10,
   "released_at": "2026-09-17",
   "product": {
     "id": "mxgenius",
@@ -95,13 +95,15 @@
       "kind": "tab",
       "parent_id": null,
       "route": "#settings",
-      "purpose": "Manage profile, model preference, approved content upload, demo visibility, and appearance. Open the Operations Center for customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
+      "purpose": "Manage account and model preference, approved content upload, demo visibility, and customization. Customize contains colors, themes, and Interface Sounds. Restart Tour and Sign Out are standalone actions at the bottom. Open the Operations Center for customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
       "capabilities": [
         {"id": "profile-model", "description": "Manage the user profile and preferred orchestration-capable text model."},
         {"id": "content-upload", "description": "Store an approved source for ingestion; upload alone does not make it searchable."},
-        {"id": "demo-content", "description": "Show or hide fictional maintenance and parts presentation records."}
+        {"id": "demo-content", "description": "Show or hide fictional maintenance and parts presentation records."},
+        {"id": "customize", "description": "Set colors and themes, then manage Interface Sounds within the same Customize card."},
+        {"id": "onboarding-session", "description": "Restart the onboarding tour or sign out using the standalone actions at the bottom of Settings."}
       ],
-      "target_ids": ["settings-operations-center", "settings-account"]
+      "target_ids": ["settings-operations-center", "settings-account", "settings-customize", "settings-restart-tour"]
     },
     {
       "id": "copilot",
@@ -123,13 +125,15 @@
       "kind": "experience",
       "parent_id": "dashboard",
       "route": "globe-vr.html",
-      "purpose": "Explore fleet locations and aircraft context in browser, WebXR, or capability-gated native AR views.",
+      "purpose": "Explore fleet locations and aircraft context in browser, WebXR, or capability-gated native AR views. The browser globe can optionally overlay recent JetNet origin-to-destination records or a user-started OpenSky live-position layer without changing the fleet-location layer.",
       "capabilities": [
         {"id": "location-exploration", "description": "Filter and select mapped fleet locations and inspect their aircraft."},
+        {"id": "recent-flight-routes", "description": "Load a cached, on-demand overlay of recent JetNet flight routes; route arcs are historical source records, not live aircraft positions."},
+        {"id": "live-flight-positions", "description": "Start or stop a shared OpenSky position overlay. It refreshes at most twice per minute only while the Fleet Globe is visible."},
         {"id": "xr-fleet-view", "description": "Open the same bounded fleet context in a headset browser."},
         {"id": "native-ar-fleet-view", "description": "Open native AR placement only when the host reports that capability."}
       ],
-      "target_ids": ["fleet-xr", "fleet-globe-controls", "fleet-location-data", "native-ar-globe"]
+      "target_ids": ["fleet-xr", "fleet-globe-controls", "fleet-flight-routes", "fleet-live-traffic", "fleet-location-data", "native-ar-globe"]
     },
     {
       "id": "operations-center",
@@ -422,7 +426,7 @@
     {
       "id": "fleet-location-data",
       "title": "Read a mapped fleet location",
-      "script": "A selected point represents a mapped JetNet location, not a live flight track. Review its aircraft, operator, model, and source context before asking the copilot to compare or summarize it.",
+      "script": "A selected point represents a mapped JetNet base location, not a live aircraft position. Optional route arcs show recent JetNet origin-to-destination records. Review timestamps and source context before asking the copilot to compare or summarize them.",
       "video": "../../../visual/tooltips/fleet-location-data.mp4",
       "voiceover": "../voiceover/fleet-location-data.wav",
       "captions": null,
@@ -432,9 +436,45 @@
         "Select a mapped point and name the location.",
         "Scan the aircraft and operator records grouped at that point.",
         "Open one aircraft to establish model context.",
-        "State clearly that this is registry and fleet context, not live tracking."
+        "Distinguish mapped base locations and recent route records from live aircraft positions."
       ],
       "status": "ready"
+    },
+    {
+      "id": "fleet-flight-routes",
+      "title": "Show recent flight routes",
+      "script": "Select Recent routes to load a tenant-scoped, server-cached JetNet overlay on the current globe. The control is on demand to avoid repeated provider calls. Each animated arc connects the recorded origin and destination; it does not claim to be the aircraft's current position.",
+      "video": null,
+      "voiceover": null,
+      "captions": null,
+      "surface": "fleet-globe",
+      "touchpoints": ["#globeFlightRoutesButton", "animated route arcs", "route hover label"],
+      "beats": [
+        "Open Fleet Context and expand the globe controls.",
+        "Select Recent routes once to load the cached route layer.",
+        "Hover an arc to read the aircraft, route, and source date.",
+        "Select Recent routes again to return to the base-location-only view."
+      ],
+      "activation": "semantic",
+      "status": "scripted"
+    },
+    {
+      "id": "fleet-live-traffic",
+      "title": "Start live aircraft positions",
+      "script": "Select Live traffic beside the map controls to start the shared OpenSky layer. The Pull, List, Render ribbon follows each snapshot onto the globe and settles with the current aircraft count. Refreshes run no more than twice per minute while this globe remains visible. Selecting the control again stops requests and removes the live-position points.",
+      "video": null,
+      "voiceover": null,
+      "captions": null,
+      "surface": "fleet-globe",
+      "touchpoints": ["#globeLiveTrafficButton", "#globeLiveTrafficRibbon", "live aircraft points", "live or stale status dot"],
+      "beats": [
+        "Open Fleet Context and expand the globe controls.",
+        "Select Live traffic and follow the Pull, List, Render ribbon through the first shared OpenSky snapshot.",
+        "Hover a live point to read its callsign, altitude, speed, and source country.",
+        "Select Live traffic again, leave the dashboard, or hide the page to stop browser polling."
+      ],
+      "activation": "semantic",
+      "status": "scripted"
     },
     {
       "id": "aircraft-explorer",
@@ -658,6 +698,41 @@
         "Choose the Patents tab.",
         "Select an existing project or create a separate project.",
         "Save or archive only the active project's record."
+      ],
+      "activation": "semantic",
+      "status": "scripted"
+    },
+    {
+      "id": "settings-customize",
+      "title": "Customize appearance and interface sounds",
+      "script": "Customize groups accent, background, text, card colors, theme presets, and Interface Sounds in one Settings card. Open the Interface Sounds subsection to preview, replace, restore, and save sound cues.",
+      "video": null,
+      "voiceover": null,
+      "captions": null,
+      "surface": "settings",
+      "touchpoints": ["#settingsCustomizeCard", "#settingsSoundsTitle", "#settingsSoundsCard"],
+      "beats": [
+        "Open Settings from primary navigation.",
+        "Locate Customize below the AI and data controls.",
+        "Use the color or theme controls for appearance.",
+        "Use Interface Sounds inside Customize for sound-library changes."
+      ],
+      "activation": "semantic",
+      "status": "scripted"
+    },
+    {
+      "id": "settings-restart-tour",
+      "title": "Restart the onboarding tour",
+      "script": "Restart Tour is a standalone button at the bottom of Settings beside Sign Out. It replays onboarding; it is not inside a Settings card.",
+      "video": null,
+      "voiceover": null,
+      "captions": null,
+      "surface": "settings",
+      "touchpoints": ["#settingsRestartTourBtn"],
+      "beats": [
+        "Open Settings from primary navigation.",
+        "Scroll to the standalone action row at the bottom.",
+        "Select Restart Tour without using Sign Out."
       ],
       "activation": "semantic",
       "status": "scripted"
