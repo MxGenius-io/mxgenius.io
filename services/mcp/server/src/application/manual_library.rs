@@ -973,6 +973,7 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "the",
         "for",
         "from",
+        "explain",
         "guidance",
         "global",
         "gulfstream",
@@ -981,12 +982,14 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "inspect",
         "issue",
         "know",
+        "mechanic",
         "most",
         "need",
         "should",
         "related",
         "relevant",
         "useful",
+        "verify",
         "want",
         "what",
         "where",
@@ -999,18 +1002,23 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
     ];
     value
         .split_whitespace()
-        .filter(|term| term.len() > 2 && !INTENT_WORDS.contains(term))
+        .map(|term| match term {
+            "removal" | "removed" | "removing" => "remove".to_owned(),
+            "installation" | "installed" | "installing" => "install".to_owned(),
+            "reviewed" | "reviewing" | "reviews" => "review".to_owned(),
+            "explained" | "explaining" | "explains" => "explain".to_owned(),
+            "helped" | "helping" | "helps" => "help".to_owned(),
+            "verified" | "verifies" | "verifying" => "verify".to_owned(),
+            "mechanics" => "mechanic".to_owned(),
+            _ if term.len() > 4 && term.ends_with('s') => term[..term.len() - 1].to_owned(),
+            _ => term.to_owned(),
+        })
+        .filter(|term| term.len() > 2 && !INTENT_WORDS.contains(&term.as_str()))
         .filter(|term| {
             !(term.starts_with("cl") || term.starts_with("gl"))
                 || !term[2..]
                     .chars()
                     .all(|character| character.is_ascii_digit())
-        })
-        .map(|term| match term {
-            "removal" | "removed" | "removing" => "remove".to_owned(),
-            "installation" | "installed" | "installing" => "install".to_owned(),
-            _ if term.len() > 4 && term.ends_with('s') => term[..term.len() - 1].to_owned(),
-            _ => term.to_owned(),
         })
         .collect()
 }
@@ -1527,6 +1535,27 @@ mod tests {
                 &["windshield damage review".to_owned()],
             ) > 0,
             "the verified windshield alias must select its registered figure"
+        );
+
+        let conversational_windshield = normalized_match_text(
+            "Show me the most useful manual diagram for reviewing windshield damage on a Challenger 350, and explain what it helps the mechanic verify.",
+        );
+        let conversational_terms = meaningful_terms(&conversational_windshield);
+        assert_eq!(
+            conversational_terms,
+            ["350", "damage", "review", "windshield"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        );
+        assert!(
+            verified_asset_match_score(
+                &conversational_windshield,
+                &conversational_terms,
+                &["56-11-01-220-801".to_owned()],
+                &["windshield damage review".to_owned()],
+            ) > 0,
+            "conversational framing must not displace the registered windshield figure"
         );
     }
 

@@ -10477,6 +10477,79 @@ fn build_registered_image_search_query(message: &str, history: &[ChatTurn]) -> S
     truncate_chars(&query, 2_000)
 }
 
+fn inferred_manual_type(question: &str) -> Option<&'static str> {
+    // Keep this deliberately conservative. These are source-family signals,
+    // not topic guesses: if the user's wording clearly asks for a particular
+    // publication family, preserve that intent even when the model omits the
+    // optional manual_type argument. Ambiguous maintenance questions continue
+    // through the corpus-wide search path.
+    let normalized = question
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let padded = format!(" {normalized} ");
+    let contains_token = |token: &str| padded.contains(&format!(" {token} "));
+    let contains_any = |phrases: &[&str]| phrases.iter().any(|phrase| normalized.contains(phrase));
+
+    let candidates = [
+        (
+            "IPC",
+            contains_token("ipc")
+                || contains_any(&[
+                    "illustrated parts",
+                    "parts catalog",
+                    "figure item callout",
+                    "item callout",
+                ]),
+        ),
+        (
+            "NDT",
+            contains_token("ndt")
+                || contains_any(&[
+                    "nondestructive",
+                    "non destructive",
+                    "eddy current",
+                    "ultrasonic inspection",
+                    "dye penetrant",
+                    "magnetic particle",
+                ]),
+        ),
+        (
+            "SPM",
+            contains_token("spm") || contains_any(&["standard practice", "standard practices"]),
+        ),
+        (
+            "SSM",
+            contains_token("ssm")
+                || contains_any(&[
+                    "system schematic",
+                    "schematic manual",
+                    "electrical schematic",
+                    "wiring schematic",
+                    "circuit diagram",
+                ]),
+        ),
+        (
+            "AMM",
+            contains_token("amm") || normalized.contains("aircraft maintenance manual"),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(manual_type, matched)| matched.then_some(manual_type))
+    .collect::<Vec<_>>();
+
+    (candidates.len() == 1).then(|| candidates[0])
+}
+
 async fn chat(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -11086,6 +11159,20 @@ async fn chat(
                 if !has_aircraft_model {
                     if let Some(model) = manual_aircraft_model.as_deref() {
                         arguments.insert("aircraft_model".into(), json!(model));
+                    }
+                }
+                let has_manual_type = arguments
+                    .get("manual_type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| !value.trim().is_empty());
+                if !has_manual_type {
+                    let model_question = arguments
+                        .get("question")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    let routing_question = format!("{message}\n{model_question}");
+                    if let Some(manual_type) = inferred_manual_type(&routing_question) {
+                        arguments.insert("manual_type".into(), json!(manual_type));
                     }
                 }
                 arguments
@@ -12754,6 +12841,41 @@ mod structured_advisory_tests {
         assert_eq!(
             build_registered_image_search_query("Show me that diagram", &history),
             "Show me that diagram\nRemove the Challenger 350 flight data recorder"
+        );
+    }
+
+    #[test]
+    fn manual_type_is_inferred_only_from_strong_source_family_intent() {
+        assert_eq!(
+            inferred_manual_type(
+                "What illustrated-parts information distinguishes these assemblies?"
+            ),
+            Some("IPC")
+        );
+        assert_eq!(
+            inferred_manual_type("What nondestructive inspection applies to this suspected crack?"),
+            Some("NDT")
+        );
+        assert_eq!(
+            inferred_manual_type("What standard-practice bonding checks should I perform?"),
+            Some("SPM")
+        );
+        assert_eq!(
+            inferred_manual_type("Which electrical schematic path should I troubleshoot?"),
+            Some("SSM")
+        );
+        assert_eq!(
+            inferred_manual_type("What does the AMM say about the brake installation?"),
+            Some("AMM")
+        );
+        assert_eq!(
+            inferred_manual_type("What installation torque and closeout checks matter?"),
+            None
+        );
+        assert_eq!(
+            inferred_manual_type("Compare the AMM procedure with the SPM standard practice"),
+            None,
+            "an ambiguous multi-manual request must remain corpus-wide"
         );
     }
 
