@@ -799,14 +799,16 @@ async fn lookup_registered_image(
                 continue;
             }
             validate_search_asset(&asset)?;
-            // Search chunks can span several source pages. Restrict the
-            // generic fallback to the asset's own title, section, and caption
-            // so nearby task text cannot falsely rename an unrelated figure.
+            // Keep the asset tied to its source record. The title and caption
+            // establish page identity while the bounded record text lets a
+            // natural question match the subject shown by a generic legacy
+            // caption such as "Manual figure from Chapter 20".
             let candidate_text = normalized_match_text(&format!(
-                "{} {} {}",
+                "{} {} {} {}",
                 hit.title,
                 hit.section.as_deref().unwrap_or_default(),
-                asset.caption
+                asset.caption,
+                hit.content
             ));
             let term_hits = query_terms
                 .iter()
@@ -936,9 +938,11 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "manual",
         "please",
         "aircraft",
+        "applies",
         "about",
         "also",
         "and",
+        "beechcraft",
         "bombardier",
         "can",
         "challenger",
@@ -946,6 +950,7 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "dassault",
         "exact",
         "falcon",
+        "finding",
         "the",
         "for",
         "from",
@@ -973,11 +978,14 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "with",
         "this",
         "that",
+        "there",
+        "one",
         "you",
         "your",
     ];
     value
         .split_whitespace()
+        .filter(|term| !INTENT_WORDS.contains(term))
         .map(|term| match term {
             "removal" | "removed" | "removing" => "remove".to_owned(),
             "installation" | "installed" | "installing" => "install".to_owned(),
@@ -1453,6 +1461,19 @@ mod tests {
         assert!(terms.contains("7500"));
         assert!(terms.contains("hydraulic"));
         assert!(terms.contains("pump"));
+
+        let beechcraft = normalized_match_text(
+            "What standard-practices guidance applies to a structural inspection finding on a Beechcraft 1900C? Show me the most relevant figure if there is one.",
+        );
+        let terms = meaningful_terms(&beechcraft);
+        assert_eq!(
+            terms,
+            ["1900c", "inspection", "practice", "standard", "structural"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            "figure lookup should keep the technical topic and discard conversational framing"
+        );
     }
 
     #[test]
