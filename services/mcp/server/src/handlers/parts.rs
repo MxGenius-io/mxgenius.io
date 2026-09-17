@@ -156,6 +156,27 @@ pub struct PartsResolveTool {
     pool: Arc<sqlx::PgPool>,
 }
 
+fn catalog_description_tokens(value: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    for raw in value
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+    {
+        let lowercase = raw.to_ascii_lowercase();
+        let normalized = match lowercase.as_str() {
+            "unit" => "assembly",
+            "the" | "and" | "for" | "with" | "from" | "left" | "right" | "lh" | "rh"
+            | "replacement" | "replace" | "complete" => continue,
+            other if other.len() < 3 => continue,
+            other => other,
+        };
+        if !tokens.iter().any(|existing| existing == normalized) {
+            tokens.push(normalized.to_string());
+        }
+    }
+    tokens
+}
+
 #[async_trait]
 impl Tool for PartsResolveTool {
     type Request = PartsResolveRequest;
@@ -194,7 +215,7 @@ impl Tool for PartsResolveTool {
                 retryable: false,
             });
         }
-        let rows: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
+        let mut rows: Vec<(Uuid, String, String, Option<String>)> = sqlx::query_as(
             r#"SELECT id, part_number, description, manufacturer
                FROM parts
                WHERE ($1::text IS NULL OR lower(part_number) LIKE '%' || lower($1) || '%')
@@ -207,6 +228,41 @@ impl Tool for PartsResolveTool {
         .fetch_all(self.pool.as_ref())
         .await
         .map_err(|e| parts_db_error("parts resolve", e))?;
+
+        // Catalog descriptions and maintenance prose rarely use exactly the
+        // same word order (for example, "right brake unit" versus "main
+        // brake assembly"). Keep the literal lookup as the highest-precision
+        // path, then fall back to a bounded token score instead of making the
+        // model guess a database-specific phrase. Directional and connective
+        // words are deliberately ignored; the returned candidates remain
+        // explicit and are never silently treated as an exact part match.
+        if rows.is_empty() && part_number.is_none() {
+            if let Some(description) = description {
+                let tokens = catalog_description_tokens(description);
+                if !tokens.is_empty() {
+                    let required_matches = (tokens.len() * 3).div_ceil(5);
+                    rows = sqlx::query_as(
+                        r#"SELECT id, part_number, description, manufacturer
+                           FROM (
+                               SELECT p.id, p.part_number, p.description, p.manufacturer,
+                                      count(*)::bigint AS matched_tokens
+                               FROM parts p
+                               JOIN unnest($1::text[]) AS token
+                                 ON lower(p.description) LIKE '%' || token || '%'
+                               GROUP BY p.id, p.part_number, p.description, p.manufacturer
+                           ) ranked
+                           WHERE matched_tokens >= $2
+                           ORDER BY matched_tokens DESC, length(part_number), part_number
+                           LIMIT 50"#,
+                    )
+                    .bind(&tokens)
+                    .bind(required_matches as i64)
+                    .fetch_all(self.pool.as_ref())
+                    .await
+                    .map_err(|e| parts_db_error("parts resolve token fallback", e))?;
+                }
+            }
+        }
         let matches: Vec<PartsResolveMatch> = rows
             .into_iter()
             .map(|row| {
@@ -1169,5 +1225,26 @@ impl Tool for PartsOrderHistoryTool {
             });
         }
         Ok(env)
+    }
+}
+
+#[cfg(test)]
+mod description_resolution_tests {
+    use super::catalog_description_tokens;
+
+    #[test]
+    fn catalog_tokens_collapse_maintenance_wording_without_aircraft_overfitting() {
+        assert_eq!(
+            catalog_description_tokens("right main wheel and tire assembly"),
+            ["main", "wheel", "tire", "assembly"]
+        );
+        assert_eq!(
+            catalog_description_tokens("LH brake unit replacement"),
+            ["brake", "assembly"]
+        );
+        assert_eq!(
+            catalog_description_tokens("left wingtip strobe light assembly"),
+            ["wingtip", "strobe", "light", "assembly"]
+        );
     }
 }
