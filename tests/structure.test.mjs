@@ -1114,7 +1114,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=8/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=9/);
   assert.match(dashboard, />\s*Equipment Drives\s*</);
   assert.match(dashboard, />Create a drive<\/summary>/);
   assert.match(dashboard, /<span>1 · Drive<\/span>/);

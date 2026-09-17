@@ -145,6 +145,22 @@
     }));
   }
 
+  const MANUAL_TYPE_LABELS = Object.freeze([
+    { pattern: /(?:aircraft maintenance manual|\bamm\b)/i, label: 'Aircraft Maintenance Manual' },
+    { pattern: /(?:illustrated parts (?:catalog|catalogue)|\bipc\b)/i, label: 'Illustrated Parts Catalog' },
+    { pattern: /(?:nondestructive testing manual|non-destructive testing manual|\bndt\b)/i, label: 'Nondestructive Testing Manual' },
+    { pattern: /(?:standard practices manual|\bspm\b)/i, label: 'Standard Practices Manual' },
+    { pattern: /(?:system schematic manual|\bssm\b)/i, label: 'System Schematic Manual' }
+  ]);
+
+  function manualLabel(manual) {
+    const searchable = `${manual?.manualType || ''} ${manual?.displayName || ''} ${manual?.id || ''}`;
+    const knownType = MANUAL_TYPE_LABELS.find(({ pattern }) => pattern.test(searchable));
+    if (knownType) return knownType.label;
+    if (manual?.manualType && !/^manual$/i.test(manual.manualType.trim())) return manual.manualType.trim();
+    return manual?.displayName || 'Manual';
+  }
+
   function init({ withSession }) {
     const client = window.MXApplicationClient?.equipmentPacks;
     if (!client || typeof withSession !== 'function') return;
@@ -201,7 +217,7 @@
     const showManuals = (version) => {
       const manuals = manualsFromVersion(version);
       fill(manualSelect, manuals, manuals.length ? `All ${manuals.length} manuals` : 'No manual catalog in this version',
-        (manual) => `${manual.manualType} · ${manual.displayName}`);
+        manualLabel);
       manualPanel.hidden = !manuals.length;
       if (manuals.length) {
         manualDetail.textContent = `${manuals.length} verified manuals are included in Version ${version.versionNumber}. Assigning this version sends the complete library to the Pi.`;
@@ -423,5 +439,5 @@
     void refresh();
   }
 
-  window.MXEquipmentPacks = Object.freeze({ init, buildStoredZip, manualsFromVersion });
+  window.MXEquipmentPacks = Object.freeze({ init, buildStoredZip, manualsFromVersion, manualLabel });
 })();

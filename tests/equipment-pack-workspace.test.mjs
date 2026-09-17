@@ -111,3 +111,21 @@ test('published manual drive versions expose their data-derived mixed-aircraft c
     ]
   );
 });
+
+test('manual picker uses human-readable manual names without repeating the aircraft model', () => {
+  const labels = [
+    { id: 'cl350-amm', displayName: 'cl350 amm', manualType: 'Manual' },
+    { id: 'cl350-ipc', displayName: 'cl350 ipc', manualType: 'Manual' },
+    { id: 'cl350-ndt', displayName: 'cl350 ndt', manualType: 'Manual' },
+    { id: 'cl350-spm', displayName: 'cl350 spm', manualType: 'Manual' },
+    { id: 'cl350-ssm', displayName: 'cl350 ssm', manualType: 'Manual' },
+  ].map(workspace().manualLabel);
+
+  assert.deepEqual(labels, [
+    'Aircraft Maintenance Manual',
+    'Illustrated Parts Catalog',
+    'Nondestructive Testing Manual',
+    'Standard Practices Manual',
+    'System Schematic Manual',
+  ]);
+});
