@@ -69,6 +69,9 @@ use crate::application::parts_inventory::{
     ReviewExtractionInput, SearchPartsQuery, SplitUnitInput, StockAction, TransitionUnitInput,
     UpsertLocationInput,
 };
+use crate::application::provider_connections::{
+    ProviderConnectionError, ProviderConnectionRepository,
+};
 use crate::application::receiving_inspection::{
     DiscrepancyQuery, OpenDiscrepancyInput, ReceivingInspectionRepository, RecordInspectionInput,
     ResolveDiscrepancyInput,
@@ -336,6 +339,16 @@ pub fn router_with_health_and_manual(
             axum::routing::put(put_ui_sound).delete(delete_ui_sound),
         )
         .route("/api/ui-sounds/:cue_id/content", get(get_ui_sound_content))
+        .route(
+            "/api/integrations/jetnet",
+            get(get_jetnet_connection)
+                .put(put_jetnet_connection)
+                .delete(delete_jetnet_connection),
+        )
+        .route(
+            "/api/internal/integrations/jetnet/credentials",
+            get(get_internal_jetnet_credentials),
+        )
         .route("/api/project-workspaces", get(list_project_workspaces))
         .route(
             "/api/project-workspaces/:workspace_key",
@@ -2661,6 +2674,292 @@ async fn edge_device_socket_loop(
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PutJetNetConnectionRequest {
+    identity: String,
+    credential: String,
+}
+
+fn provider_connection_repository(
+    state: &AppState,
+) -> Result<ProviderConnectionRepository, Response> {
+    let pool = postgres_pool(state).ok_or_else(persistence_not_configured)?;
+    ProviderConnectionRepository::from_env(pool.clone()).map_err(|_| {
+        realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "PROVIDER_CREDENTIAL_STORAGE_NOT_CONFIGURED",
+            "secure provider credential storage is not configured",
+        )
+    })
+}
+
+fn provider_connection_write_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn valid_jetnet_identity(value: &str) -> bool {
+    let value = value.trim();
+    value.len() >= 3
+        && value.len() <= 254
+        && value.contains('@')
+        && !value.chars().any(char::is_control)
+}
+
+fn valid_jetnet_credential(value: &str) -> bool {
+    (8..=1024).contains(&value.len()) && !value.chars().any(char::is_control)
+}
+
+fn provider_connection_error(error: ProviderConnectionError) -> Response {
+    match error {
+        ProviderConnectionError::NotConfigured => realtime_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "PROVIDER_CREDENTIAL_STORAGE_NOT_CONFIGURED",
+            "secure provider credential storage is not configured",
+        ),
+        ProviderConnectionError::NotFound => realtime_error(
+            StatusCode::NOT_FOUND,
+            "PROVIDER_CONNECTION_NOT_FOUND",
+            "provider connection was not found",
+        ),
+        ProviderConnectionError::Decryption => realtime_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "PROVIDER_CREDENTIAL_DECRYPTION_FAILED",
+            "provider credentials could not be opened",
+        ),
+        ProviderConnectionError::Persistence(error) => {
+            persistence_error("provider_connections", error)
+        }
+    }
+}
+
+async fn get_jetnet_connection(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match provider_connection_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.status(context.organization_id.0).await {
+        Ok(Some(connection)) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "configured": true, "connection": connection })),
+        )
+            .into_response(),
+        Ok(None) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({
+                "configured": false,
+                "connection": {
+                    "provider": "jetnet",
+                    "status": "disconnected",
+                    "identityHint": null,
+                    "testedAt": null,
+                    "updatedAt": null
+                }
+            })),
+        )
+            .into_response(),
+        Err(error) => provider_connection_error(error),
+    }
+}
+
+async fn verify_jetnet_credentials(
+    client: &reqwest::Client,
+    identity: &str,
+    credential: &str,
+) -> Result<(), Response> {
+    let login_url = std::env::var("MXGENIUS_JETNET_LOGIN_URL")
+        .unwrap_or_else(|_| "https://customer.jetnetconnect.com/api/Admin/APILogin".into());
+    let response = client
+        .post(login_url)
+        .json(&json!({ "EmailAddress": identity, "Password": credential }))
+        .send()
+        .await
+        .map_err(|_| {
+            realtime_error(
+                StatusCode::BAD_GATEWAY,
+                "JETNET_CONNECTION_UNAVAILABLE",
+                "JetNet could not be reached to verify this connection",
+            )
+        })?;
+    if matches!(
+        response.status(),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+    ) {
+        return Err(realtime_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "JETNET_CREDENTIALS_REJECTED",
+            "JetNet rejected that account or credential",
+        ));
+    }
+    if !response.status().is_success() {
+        return Err(realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "JETNET_CONNECTION_UNAVAILABLE",
+            "JetNet could not verify this connection",
+        ));
+    }
+    let payload = response.json::<Value>().await.map_err(|_| {
+        realtime_error(
+            StatusCode::BAD_GATEWAY,
+            "JETNET_RESPONSE_INVALID",
+            "JetNet returned an invalid connection response",
+        )
+    })?;
+    if payload.get("bearerToken").and_then(Value::as_str).is_none()
+        || payload.get("apiToken").and_then(Value::as_str).is_none()
+    {
+        return Err(realtime_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "JETNET_CREDENTIALS_REJECTED",
+            "JetNet did not authorize that account",
+        ));
+    }
+    Ok(())
+}
+
+async fn put_jetnet_connection(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<PutJetNetConnectionRequest>,
+) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !provider_connection_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PROVIDER_CONNECTION_ADMIN_REQUIRED",
+            "only managers and administrators can change provider connections",
+        );
+    }
+    let identity = input.identity.trim();
+    if !valid_jetnet_identity(identity) || !valid_jetnet_credential(&input.credential) {
+        return realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_JETNET_CONNECTION",
+            "enter a valid JetNet account email and API credential",
+        );
+    }
+    if let Err(response) =
+        verify_jetnet_credentials(&state.realtime_client, identity, &input.credential).await
+    {
+        return response;
+    }
+    let repository = match provider_connection_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .save_jetnet(
+            context.organization_id.0,
+            context.user_id.0,
+            identity,
+            &input.credential,
+        )
+        .await
+    {
+        Ok(connection) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "configured": true, "connection": connection })),
+        )
+            .into_response(),
+        Err(error) => provider_connection_error(error),
+    }
+}
+
+async fn delete_jetnet_connection(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match application_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    if !provider_connection_write_allowed(&context) {
+        return realtime_error(
+            StatusCode::FORBIDDEN,
+            "PROVIDER_CONNECTION_ADMIN_REQUIRED",
+            "only managers and administrators can change provider connections",
+        );
+    }
+    let repository = match provider_connection_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.delete_jetnet(context.organization_id.0).await {
+        Ok(deleted) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "configured": false, "deleted": deleted })),
+        )
+            .into_response(),
+        Err(error) => provider_connection_error(error),
+    }
+}
+
+fn internal_provider_request_allowed(headers: &HeaderMap) -> bool {
+    let expected = match std::env::var("MXGENIUS_INTERNAL_BEARER_TOKEN") {
+        Ok(value) if !value.is_empty() => value,
+        _ => return false,
+    };
+    let supplied = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .unwrap_or_default();
+    let expected_hash = sha2::Sha256::digest(expected.as_bytes());
+    let supplied_hash = sha2::Sha256::digest(supplied.as_bytes());
+    expected_hash.as_slice() == supplied_hash.as_slice()
+}
+
+async fn get_internal_jetnet_credentials(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
+    if !internal_provider_request_allowed(&headers) {
+        return realtime_error(
+            StatusCode::UNAUTHORIZED,
+            "INTERNAL_ACCESS_REQUIRED",
+            "internal service authorization is required",
+        );
+    }
+    let organization_id = match headers
+        .get("x-mxg-organization-id")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| Uuid::parse_str(value).ok())
+    {
+        Some(value) => value,
+        None => {
+            return realtime_error(
+                StatusCode::BAD_REQUEST,
+                "ORGANIZATION_ID_REQUIRED",
+                "a valid organization id is required",
+            )
+        }
+    };
+    let repository = match provider_connection_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.jetnet_credentials(organization_id).await {
+        Ok(credentials) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({
+                "provider": "jetnet",
+                "identity": credentials.identity,
+                "credential": credentials.credential
+            })),
+        )
+            .into_response(),
+        Err(error) => provider_connection_error(error),
     }
 }
 

@@ -7,12 +7,22 @@ import { test } from 'node:test';
 
 const fleetProxySource = readFileSync(new URL('../services/fleet-proxy/server.js', import.meta.url), 'utf8');
 
-test('aircraft list requests use the bounded shared fleet snapshot for every HTTP method', () => {
+test('aircraft list requests use a bounded tenant-scoped fleet snapshot for every HTTP method', () => {
   assert.match(fleetProxySource, /const isAircraftList = path\.includes\('\/Aircraft\/getAircraftList\/'\)/);
-  assert.match(fleetProxySource, /const aircraftListSnapshot = \{ result: null, loadedAt: 0, inFlight: null \}/);
+  assert.match(fleetProxySource, /const tenantSnapshots = new Map\(\)/);
+  assert.match(fleetProxySource, /const aircraftListSnapshot = snapshots\.aircraftList/);
   assert.match(fleetProxySource, /snapshotAge < fleetSnapshotTtlMs/);
   assert.match(fleetProxySource, /return aircraftListSnapshot\.result/);
   assert.doesNotMatch(fleetProxySource, /replace\('\/Aircraft\/getAircraftList\/', '\/Aircraft\/getBulkAircraftExportPaged\/'\)/);
+});
+
+test('organization-owned JetNet credentials are brokered server-side and tenant-scoped', () => {
+  assert.match(fleetProxySource, /MXGENIUS_PROVIDER_CREDENTIALS_URL/);
+  assert.match(fleetProxySource, /'X-MXG-Organization-ID': organizationId/);
+  assert.match(fleetProxySource, /source: 'organization'/);
+  assert.match(fleetProxySource, /clearTenantState\(requester\.organizationId\)/);
+  assert.match(fleetProxySource, /const providerSessions = new Map\(\)/);
+  assert.match(fleetProxySource, /tokenFingerprint\(`\$\{token\}\\0\$\{organizationId\}`\)/);
 });
 
 test('bulk aircraft records preserve the application aircraft-list contract', () => {

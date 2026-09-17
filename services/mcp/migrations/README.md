@@ -41,3 +41,5 @@ release gates.
 | `0028_edge_device_claims.sql`            | Pi-originated seven-digit claims with Entra approval and browser-blind device credentials |
 | `0029_edge_device_self_unregister.sql`    | authenticated edge-device self-unregistration and credential retirement |
 | `0030_promote_rocky_administrator.sql`    | promote Rocky's protected identities and existing memberships to administrator |
+| `0031_customer_operations.sql`            | customer accounts, device ownership, operational payment history, and fleet-health rollups |
+| `0032_provider_connections.sql`            | encrypted organization-owned provider credentials and safe connection state |

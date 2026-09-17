@@ -51,7 +51,8 @@ This is the canonical product inventory. It records what the current repository 
 ## 2. Fleet intelligence and JetNet
 
 - `[x]` Authenticated, server-side JetNet proxy boundary.
-- `[x]` Bounded shared aircraft snapshot rather than unrestricted browser data access.
+- `[x]` Bounded organization-scoped aircraft snapshots rather than unrestricted or cross-customer browser data access.
+- `[x]` Organization-owned JetNet connection card with live credential verification, masked status, AES-256-GCM server storage, and immediate fleet-session refresh.
 - `[x]` Aircraft records preserving the application aircraft-list contract.
 - `[x]` Fleet globe with mapped geographic points and zoom-aware aviation clusters.
 - `[x]` Fleet totals, mapped-aircraft counts, and country counts.
@@ -71,7 +72,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Cache layer and detailed JetNet success-state rendering.
 - `[~]` Market cost and performance intelligence depends on subscribed source coverage.
 - `[!]` Decide whether the current "Operator & Facility Directory" label should be narrowed to company/contact coverage or backed by a canonical facility source.
-- `[!]` Production behavior for a missing JetNet adapter must be decided: fail closed or degrade loudly with visible health.
+- `[x]` Organizations without their own JetNet connection use the managed service connection; a rejected configured connection fails loudly instead of silently crossing accounts.
 
 ## 3. Maintenance cases
 

@@ -610,6 +610,13 @@ test('customer operations keep accounts devices and payments behind the tenant b
   assert.ok(requests.every(({ options }) => options.headers['X-MXG-Organization-ID'] === 'org-1'));
 });
 
+test('JetNet connection management keeps provider credentials behind the application boundary', () => {
+  assert.match(source, /applicationJson\('\/api\/integrations\/jetnet', \{ session, cache: 'no-store' \}\)/);
+  assert.match(source, /method: 'PUT',[\s\S]*body: \{ identity, credential \}/);
+  assert.match(source, /method: 'DELETE',[\s\S]*cache: 'no-store'/);
+  assert.match(source, /fleetRequestJson\('\/api\/connection\/refresh'/);
+});
+
 test('equipment pack publishing and assignment stay behind the authenticated application boundary', async () => {
   const { client, requests } = harness({});
   const session = { accessToken: 'oidc-token', organizationId: 'org-1' };

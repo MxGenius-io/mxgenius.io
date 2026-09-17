@@ -10,6 +10,8 @@ const providerIdentity = process.env.JETNET_IDENTITY || '';
 const providerCredential = process.env.JETNET_CREDENTIAL || '';
 const authzUrl = process.env.MXGENIUS_AUTHZ_URL
   || 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io/api/profile';
+const providerCredentialsUrl = process.env.MXGENIUS_PROVIDER_CREDENTIALS_URL
+  || 'https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io/api/internal/integrations/jetnet/credentials';
 const authzCacheTtlMs = Math.max(0, Number(process.env.MXGENIUS_AUTHZ_CACHE_SECONDS || 10)) * 1000;
 const rateLimitPerMinute = Math.max(10, Number(process.env.FLEET_RATE_LIMIT_PER_MINUTE || 180));
 const internalBearerToken = process.env.MXGENIUS_INTERNAL_BEARER_TOKEN || '';
@@ -18,14 +20,41 @@ const allowedOrigins = new Set([
   'https://www.mxgenius.io'
 ]);
 
-const session = { bearer: '', apiToken: '', authenticating: null };
-const fleetSnapshot = { result: null, loadedAt: 0, inFlight: null };
-const aircraftListSnapshot = { result: null, loadedAt: 0, inFlight: null };
+const providerSessions = new Map();
+const tenantSnapshots = new Map();
 const fleetSnapshotTtlMs = 30 * 60 * 1000;
 const imageHosts = new Set(['evo-assets-3wl.s3.us-west-2.amazonaws.com']);
 const maxImageBytes = 15 * 1024 * 1024;
 const authzCache = new Map();
 const rateWindows = new Map();
+
+function tenantKey(organizationId) {
+  return organizationId || '__system__';
+}
+
+function providerSession(organizationId) {
+  const key = tenantKey(organizationId);
+  if (!providerSessions.has(key)) {
+    providerSessions.set(key, { bearer: '', apiToken: '', authenticating: null, credentialSource: '', loadedAt: 0 });
+  }
+  return providerSessions.get(key);
+}
+
+function snapshotState(organizationId) {
+  const key = tenantKey(organizationId);
+  if (!tenantSnapshots.has(key)) {
+    tenantSnapshots.set(key, {
+      fleet: { result: null, loadedAt: 0, inFlight: null },
+      aircraftList: { result: null, loadedAt: 0, inFlight: null }
+    });
+  }
+  return tenantSnapshots.get(key);
+}
+
+function clearTenantState(organizationId) {
+  providerSessions.delete(tenantKey(organizationId));
+  tenantSnapshots.delete(tenantKey(organizationId));
+}
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -55,11 +84,13 @@ function isInternalBearer(token) {
 async function authorize(request) {
   const token = requestBearer(request);
   const fingerprint = tokenFingerprint(token);
-  if (isInternalBearer(token)) return `internal:${fingerprint}`;
-  const cached = authzCache.get(fingerprint);
+  const organizationId = String(request.headers['x-mxg-organization-id'] || '').trim();
+  const authorizationKey = tokenFingerprint(`${token}\0${organizationId}`);
+  if (isInternalBearer(token)) return { key: `internal:${fingerprint}`, organizationId };
+  const cached = authzCache.get(authorizationKey);
   if (cached?.expiresAt > Date.now()) {
     if (cached.promise) await cached.promise;
-    return fingerprint;
+    return { key: authorizationKey, organizationId };
   }
 
   const promise = (async () => {
@@ -68,7 +99,6 @@ async function authorize(request) {
     let result;
     try {
       const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
-      const organizationId = String(request.headers['x-mxg-organization-id'] || '').trim();
       if (organizationId) headers['X-MXG-Organization-ID'] = organizationId;
       result = await fetch(authzUrl, { headers, signal: controller.signal });
     } catch {
@@ -81,13 +111,13 @@ async function authorize(request) {
     if (!result.ok) throw new HttpError(503, 'MXGenius access verification is temporarily unavailable');
   })();
 
-  authzCache.set(fingerprint, { expiresAt: Date.now() + authzCacheTtlMs, promise });
+  authzCache.set(authorizationKey, { expiresAt: Date.now() + authzCacheTtlMs, promise });
   try {
     await promise;
-    authzCache.set(fingerprint, { expiresAt: Date.now() + authzCacheTtlMs, promise: null });
-    return fingerprint;
+    authzCache.set(authorizationKey, { expiresAt: Date.now() + authzCacheTtlMs, promise: null });
+    return { key: authorizationKey, organizationId };
   } catch (error) {
-    authzCache.delete(fingerprint);
+    authzCache.delete(authorizationKey);
     throw error;
   }
 }
@@ -137,17 +167,54 @@ function providerRequest(method, path, body, bearer) {
   });
 }
 
-async function authenticate() {
+async function organizationProviderAccount(organizationId) {
+  if (organizationId && internalBearerToken) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(providerCredentialsUrl, {
+        headers: {
+          Authorization: `Bearer ${internalBearerToken}`,
+          'X-MXG-Organization-ID': organizationId,
+          Accept: 'application/json'
+        },
+        signal: controller.signal
+      });
+    } catch {
+      throw new Error('Organization provider connection is temporarily unavailable');
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (response.ok) {
+      const value = await response.json();
+      if (value?.identity && value?.credential) {
+        return { identity: value.identity, credential: value.credential, source: 'organization' };
+      }
+      throw new Error('Organization provider connection is invalid');
+    }
+    if (response.status !== 404) {
+      throw new Error('Organization provider connection could not be opened');
+    }
+  }
+  if (!providerIdentity || !providerCredential) throw new Error('Provider access is not configured');
+  return { identity: providerIdentity, credential: providerCredential, source: 'service' };
+}
+
+async function authenticate(organizationId) {
+  const session = providerSession(organizationId);
   if (session.authenticating) return session.authenticating;
   session.authenticating = (async () => {
-    if (!providerIdentity || !providerCredential) throw new Error('Provider access is not configured');
+    const account = await organizationProviderAccount(organizationId);
     const result = await providerRequest('POST', '/api/Admin/APILogin', {
-      EmailAddress: providerIdentity,
-      Password: providerCredential
+      EmailAddress: account.identity,
+      Password: account.credential
     });
     if (!result.body?.bearerToken || !result.body?.apiToken) throw new Error('Provider authentication was rejected');
     session.bearer = result.body.bearerToken;
     session.apiToken = result.body.apiToken;
+    session.credentialSource = account.source;
+    session.loadedAt = Date.now();
   })().finally(() => { session.authenticating = null; });
   return session.authenticating;
 }
@@ -178,8 +245,12 @@ function normalizeFleetSnapshot(result) {
   };
 }
 
-async function forward(method, path, body) {
-  if (!session.bearer || !session.apiToken) await authenticate();
+async function forward(method, path, body, organizationId) {
+  const session = providerSession(organizationId);
+  const snapshots = snapshotState(organizationId);
+  const fleetSnapshot = snapshots.fleet;
+  const aircraftListSnapshot = snapshots.aircraftList;
+  if (!session.bearer || !session.apiToken) await authenticate(organizationId);
   const isAircraftList = path.includes('/Aircraft/getAircraftList/');
   const isSharedAircraftList = isAircraftList && (!body || Object.keys(body).length === 0);
   const isFleetSnapshot = path.includes('/Aircraft/getBulkAircraftExportPaged/');
@@ -191,7 +262,7 @@ async function forward(method, path, body) {
     if (invalidSession(result)) {
       session.bearer = '';
       session.apiToken = '';
-      await authenticate();
+      await authenticate(organizationId);
       const retryPath = `/api${path.split('/').map((part) => part === 'LIVE_TOKEN' ? session.apiToken : part).join('/')}`;
       result = await providerRequest(providerMethod, retryPath, body, session.bearer);
     }
@@ -349,14 +420,18 @@ const server = http.createServer(async (request, response) => {
     return respond(response, 204, {}, origin);
   }
   if (request.url === '/healthz') return respond(response, 200, { status: 'ok' }, origin);
-  if (request.url === '/api/status') return respond(response, 200, {
-    ready: Boolean(session.bearer && session.apiToken),
-    internalAccessConfigured: Boolean(internalBearerToken),
-    aircraftListReady: Boolean(aircraftListSnapshot.result),
-    aircraftListAgeSeconds: aircraftListSnapshot.result ? Math.floor((Date.now() - aircraftListSnapshot.loadedAt) / 1000) : null,
-    fleetSnapshotReady: Boolean(fleetSnapshot.result),
-    fleetSnapshotAgeSeconds: fleetSnapshot.result ? Math.floor((Date.now() - fleetSnapshot.loadedAt) / 1000) : null
-  }, origin);
+  if (request.url === '/api/status') {
+    const systemSession = providerSession('');
+    const systemSnapshots = snapshotState('');
+    return respond(response, 200, {
+      ready: Boolean(systemSession.bearer && systemSession.apiToken),
+      internalAccessConfigured: Boolean(internalBearerToken),
+      aircraftListReady: Boolean(systemSnapshots.aircraftList.result),
+      aircraftListAgeSeconds: systemSnapshots.aircraftList.result ? Math.floor((Date.now() - systemSnapshots.aircraftList.loadedAt) / 1000) : null,
+      fleetSnapshotReady: Boolean(systemSnapshots.fleet.result),
+      fleetSnapshotAgeSeconds: systemSnapshots.fleet.result ? Math.floor((Date.now() - systemSnapshots.fleet.loadedAt) / 1000) : null
+    }, origin);
+  }
   if (!request.url?.startsWith('/api/')) return respond(response, 404, { error: 'Not found' }, origin);
   if (origin && !allowedOrigins.has(origin)) return respond(response, 403, { error: 'Origin denied' }, origin);
 
@@ -366,8 +441,13 @@ const server = http.createServer(async (request, response) => {
   } catch (error) {
     return respond(response, error.status || 503, { error: error.message || 'Access verification failed' }, origin);
   }
-  if (!consumeRateLimit(requester)) {
+  if (!consumeRateLimit(requester.key)) {
     return respond(response, 429, { error: 'Fleet request limit reached; retry shortly' }, origin, { 'Retry-After': '60' });
+  }
+
+  if (request.url === '/api/connection/refresh' && request.method === 'POST') {
+    clearTenantState(requester.organizationId);
+    return respond(response, 200, { refreshed: true }, origin);
   }
 
   if (request.url.startsWith('/api/image?')) {
@@ -395,7 +475,7 @@ const server = http.createServer(async (request, response) => {
       if (request.url.includes('/Aircraft/getBulkAircraftExportPaged/') && (!body || Object.keys(body).length === 0)) {
         body = { pageSize: 50, pageNumber: 1, make: 'Gulfstream' };
       }
-      const result = await forward(request.method || 'GET', request.url.slice(4), body);
+      const result = await forward(request.method || 'GET', request.url.slice(4), body, requester.organizationId);
       respond(response, result.status, result.body, origin);
     } catch (error) {
       console.error('Fleet proxy request failed:', error.message);
@@ -404,7 +484,7 @@ const server = http.createServer(async (request, response) => {
   });
 });
 
-authenticate()
+authenticate('')
   .then(() => console.log('Fleet provider session ready.'))
   .catch((error) => console.error('Fleet provider startup failed:', error.message));
 

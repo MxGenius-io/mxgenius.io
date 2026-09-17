@@ -1,5 +1,39 @@
 # MXGenius Azure Deployment Plan
 
+## Tenant-owned JetNet connections — 2026-09-17
+
+> **Status:** Validated locally; release pending
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Add an organization-scoped JetNet connection card to Settings and keep Restart
+Tour and Sign Out together in one bottom action row. Managers and administrators
+can verify, replace, or disconnect their organization's JetNet account. The
+credential is AES-256-GCM encrypted before PostgreSQL persistence, never returned
+to the browser, and exposed only to the existing fleet proxy through its private
+service bearer. Fleet provider sessions and snapshots are isolated by
+organization; organizations without an override continue to use the managed
+MXGenius service connection.
+
+### Validation and promotion
+
+- [x] `npm test` passed 459/459 application and service contract checks.
+- [x] Workspace Rust tests, formatting, and warnings-denied Clippy passed.
+- [x] Migration `0032_provider_connections.sql` is additive and copies or
+  deletes no existing account, fleet, manual, image, case, part, or device data.
+- [x] Existing Azure resources, revisions, environment names, and secret
+  references were inspected without disclosing credential values.
+- [ ] Commit and push the exact source to canonical `main`; confirm Pages.
+- [ ] Add the provider-encryption key and existing private fleet bearer to
+  `mxg-core`, then promote and probe the core revision.
+- [ ] Promote `mxg-fleet`, verify the tenant credential-broker path, and perform
+  signed-in read-only visual acceptance without entering a real credential.
+
+### Rollback
+
+Restore `mxg-core--cust22ac710` and `mxg-fleet--0000010`, then revert the static
+release if acceptance fails. Migration 0032 is additive and may remain in place;
+it contains no rows until an authorized customer connects an account.
+
 ## Customer Operations Control Plane — 2026-09-17
 
 > **Status:** Deployed and live-verified

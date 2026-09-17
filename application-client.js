@@ -742,6 +742,40 @@ const MXApplicationClient = (() => {
     })).blob();
   }
 
+  function getJetNetConnection(session = {}) {
+    return applicationJson('/api/integrations/jetnet', { session, cache: 'no-store' });
+  }
+
+  async function refreshFleetProviderSession() {
+    if (!FLEET_API_BASE) return;
+    await fleetRequestJson('/api/connection/refresh', {
+      method: 'POST',
+      headers: jetNetHeaders()
+    });
+  }
+
+  async function putJetNetConnection({ identity, credential, session = {} } = {}) {
+    const value = await applicationJson('/api/integrations/jetnet', {
+      session,
+      method: 'PUT',
+      body: { identity, credential },
+      cache: 'no-store'
+    });
+    await refreshFleetProviderSession().catch(() => {});
+    return value;
+  }
+
+  async function deleteJetNetConnection(session = {}) {
+    const value = await applicationJson('/api/integrations/jetnet', {
+      session,
+      method: 'DELETE',
+      contentType: null,
+      cache: 'no-store'
+    });
+    await refreshFleetProviderSession().catch(() => {});
+    return value;
+  }
+
   function submitFeedback(report, session = {}) {
     return applicationJson('/api/feedback', {
       session,
@@ -1774,6 +1808,11 @@ const MXApplicationClient = (() => {
       put: putUiSound,
       delete: deleteUiSound,
       getContent: getUiSoundContent
+    }),
+    jetnetConnection: Object.freeze({
+      get: getJetNetConnection,
+      put: putJetNetConnection,
+      delete: deleteJetNetConnection
     }),
     feedback: Object.freeze({
       submit: submitFeedback,

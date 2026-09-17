@@ -1114,6 +1114,18 @@ test('Settings groups model controls under AI and appearance plus sounds under C
   assert.match(dashboard, /id="settingsOperationsCard"[\s\S]*class="settings-card-title"[\s\S]*AI[\s\S]*Data &amp; Cache[\s\S]*id="settingsTextModel"/);
   assert.match(dashboard, /id="settingsCustomizeCard"[\s\S]*class="settings-card-title"[\s\S]*Customize[\s\S]*id="settingsSoundsCard"[\s\S]*Interface Sounds/);
   assert.equal((dashboard.match(/id="settingsSignOutBtn"/g) || []).length, 1);
+  assert.match(dashboard, /class="settings-actions"[\s\S]*Restart Tour[\s\S]*id="settingsSignOutBtn"/);
+  assert.match(applicationStyles, /\.settings-actions\s*\{[\s\S]*flex-direction: row/);
+});
+
+test('Settings provides a server-owned organization JetNet connection without browser credential storage', () => {
+  assert.match(dashboard, /id="settingsJetNetCard"[\s\S]*JetNet Connection/);
+  assert.match(dashboard, /id="settingsJetNetIdentity"[^>]*type="email"/);
+  assert.match(dashboard, /id="settingsJetNetCredential"[^>]*type="password"/);
+  assert.match(dashboard, /encrypted server-side, and never returned to this browser/);
+  assert.match(application, /MXApplicationClient\.jetnetConnection\.put/);
+  assert.match(application, /MXApplicationClient\.jetnetConnection\.delete/);
+  assert.doesNotMatch(application, /localStorage\.setItem\([^\n]*JetNet/i);
 });
 
 test('Customer Operations exposes the complete Equipment Drive publish and assign lifecycle', async () => {
