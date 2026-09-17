@@ -10550,6 +10550,13 @@ fn inferred_manual_type(question: &str) -> Option<&'static str> {
     (candidates.len() == 1).then(|| candidates[0])
 }
 
+fn resolved_manual_type_for_tool(user_message: &str, model_question: &str) -> Option<&'static str> {
+    // The user's source-family wording is authoritative. A model-generated
+    // search rewrite may make the topic more specific, but it must not erase
+    // or conflict with the publication family the user actually requested.
+    inferred_manual_type(user_message).or_else(|| inferred_manual_type(model_question))
+}
+
 async fn chat(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -11170,8 +11177,9 @@ async fn chat(
                         .get("question")
                         .and_then(Value::as_str)
                         .unwrap_or_default();
-                    let routing_question = format!("{message}\n{model_question}");
-                    if let Some(manual_type) = inferred_manual_type(&routing_question) {
+                    if let Some(manual_type) =
+                        resolved_manual_type_for_tool(message, model_question)
+                    {
                         arguments.insert("manual_type".into(), json!(manual_type));
                     }
                 }
@@ -12876,6 +12884,22 @@ mod structured_advisory_tests {
             inferred_manual_type("Compare the AMM procedure with the SPM standard practice"),
             None,
             "an ambiguous multi-manual request must remain corpus-wide"
+        );
+        assert_eq!(
+            resolved_manual_type_for_tool(
+                "What standard-practice bonding checks should I perform?",
+                "Search the AMM for wingtip strobe bonding and connector checks",
+            ),
+            Some("SPM"),
+            "the model's search rewrite must not override explicit user family intent"
+        );
+        assert_eq!(
+            resolved_manual_type_for_tool(
+                "What checks apply after replacing this light?",
+                "Search the SPM standard practices for electrical bonding",
+            ),
+            Some("SPM"),
+            "the model rewrite may supply family intent when the user did not"
         );
     }
 
