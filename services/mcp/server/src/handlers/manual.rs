@@ -116,12 +116,17 @@ fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn image_is_relevant_to_question(question: &str, title: &str, caption: &str) -> bool {
+fn image_is_relevant_to_question(
+    question: &str,
+    title: &str,
+    caption: &str,
+    page_excerpt: &str,
+) -> bool {
     let question_terms = normalized_topic_terms(question);
     if question_terms.len() < 2 {
         return false;
     }
-    let candidate_terms = normalized_topic_terms(&format!("{title} {caption}"));
+    let candidate_terms = normalized_topic_terms(&format!("{title} {caption} {page_excerpt}"));
     let matched = question_terms.intersection(&candidate_terms).count();
     matched >= 2 && matched * 4 >= question_terms.len() * 3
 }
@@ -250,6 +255,7 @@ impl Tool for ManualSearchTool {
                                 &query.text,
                                 &evidence.title,
                                 asset.caption.as_deref().unwrap_or_default(),
+                                evidence.excerpt.as_deref().unwrap_or_default(),
                             )
                         })
                         .map(|asset| ManualSearchAsset {
@@ -303,26 +309,37 @@ mod tests {
             "What standard-practices guidance applies to a structural inspection finding on a Beechcraft 1900C? Show me the most relevant figure if there is one.",
             "MAINTENANCE / 1900-1990C STRUCTURAL INSPECTION MANUAL — CHAPTER 20 STANDARD PRACTICES-AIRFRAME p.32",
             "Manual figure from CHAPTER 20 STANDARD PRACTICES-AIRFRAME_p32_img0.png",
+            "Scan the radius longitudinally and transversely. Treat any repeatable crack-like indication above the stated baseline as a crack.",
+        ));
+        assert!(image_is_relevant_to_question(
+            "Beechcraft 1900C structural inspection crack indication fastener radii eddy current figure",
+            "MAINTENANCE / 1900-1990C STRUCTURAL INSPECTION MANUAL — CHAPTER 20 STANDARD PRACTICES-AIRFRAME p.32",
+            "Manual figure from CHAPTER 20 STANDARD PRACTICES-AIRFRAME_p32_img0.png",
+            "Use eddy current inspection around the fastener and radii. A repeatable crack indication is treated as a crack.",
         ));
         assert!(!image_is_relevant_to_question(
             "What should I inspect for a Challenger 350 flight data recorder issue? Include a useful diagram.",
             "CL350 AMM PT 2 — CHAPTER 31 INDICATING RECORDING SYSTEMS p.165",
             "Manual figure from CHAPTER 31 INDICATING RECORDING SYSTEMS_p165_img1.png",
+            "General indicating and recording systems introduction.",
         ));
         assert!(!image_is_relevant_to_question(
             "Show the Falcon 8X main landing gear wheel removal torque figure",
             "8X AMM — Removal / installation of the main landing gear main doors",
             "Main landing gear main doors figure",
+            "Remove and install the main landing gear main doors.",
         ));
         assert!(image_is_relevant_to_question(
             "Show the Falcon 8X main landing gear main door removal figure",
             "8X AMM — Removal / installation of the main landing gear main doors",
             "Main landing gear main doors figure",
+            "Remove and install the main landing gear main doors.",
         ));
         assert!(image_is_relevant_to_question(
             "I need to remove the flight data recorder on a Challenger 350. What should I know, and can you show me the relevant diagram?",
             "CL350 AMM — Flight Data Recorder Removal/Installation",
             "Flight data recorder removal/installation — Figure 401",
+            "Remove the flight data recorder from the tray and perform the installation test.",
         ));
     }
 }
