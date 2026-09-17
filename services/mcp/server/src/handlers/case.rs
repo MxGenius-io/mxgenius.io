@@ -358,19 +358,19 @@ impl Tool for MaintenanceCaseBuildContextTool {
             env.warnings.push(EnvelopeError {
                 code: StableErrorCode::NotConfigured,
                 severity: "warn".into(),
-                message: format!("manual corpus unavailable: {message}"),
+                message: format!("manual lookup unavailable: {message}"),
                 retryable: true,
             });
             env.confidence.score = 0.0;
-            env.confidence.explanation = "manual corpus did not return evidence".into();
+            env.confidence.explanation = "the manual lookup did not return evidence".into();
         } else if env.evidence.is_empty() {
             env.confidence.score = 0.0;
             env.confidence.explanation = match manual_state {
                 ManualRetrievalState::NoRelevantSection => {
-                    "the applicable approved manual pack was searched, but no section met the relevance floor"
+                    "no closely matching section was found for this aircraft and topic"
                 }
                 ManualRetrievalState::ManualAbsent => {
-                    "the authoritative aircraft model has no approved manual in the frozen pack"
+                    "no prepared manual is available for this aircraft model"
                 }
                 ManualRetrievalState::ApplicabilityUnknown => {
                     "the aircraft model could not be resolved, so manual applicability was not established"

@@ -139,8 +139,8 @@ impl Tool for ManualSearchTool {
     fn spec(&self) -> crate::tool::ToolSpec {
         spec::<Self::Request, Self::Response>(
             "mxg.manual.search",
-            "Search Approved Manuals",
-            "Search the frozen approved manual corpus for the user's actual question. Prefer the aircraft named by the user; omit aircraft_model only when the active or recent conversational scope should be used. Returns bounded source excerpts and verified image metadata for grounded citations.",
+            "Search the Manual Library",
+            "Search the prepared manual library for the user's actual question. Prefer the aircraft named by the user; omit aircraft_model only when the active or recent conversational scope should be used. Returns bounded source excerpts and verified image metadata for grounded citations.",
             Action::CaseRead,
             false,
         )
@@ -213,7 +213,7 @@ impl Tool for ManualSearchTool {
                 });
                 envelope.confidence.score = 0.0;
                 envelope.confidence.explanation =
-                    "the configured manual corpus did not return a result".into();
+                    "the manual library search did not return a result".into();
                 return Ok(envelope);
             }
         };
@@ -275,11 +275,11 @@ impl Tool for ManualSearchTool {
             envelope.status = EnvelopeStatus::Partial;
             envelope.confidence.score = 0.0;
             envelope.confidence.explanation =
-                "the approved corpus was searched but returned no qualified record".into();
+                "no closely matching section was returned for this search".into();
         } else {
             envelope.confidence.score = 0.7;
             envelope.confidence.explanation =
-                "ranked excerpts came from the configured approved manual corpus".into();
+                "ranked excerpts came from the prepared manual library".into();
         }
         Ok(envelope)
     }

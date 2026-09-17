@@ -175,6 +175,8 @@ test('ordinary conversation is natural and does not populate maintenance section
   assert.match(backend, /Put the useful response to the user's actual question in answer/);
   assert.match(backend, /Set advisory=null for greetings, product questions/);
   assert.match(backend, /never manufacture an advisory merely to display evidence/);
+  assert.match(backend, /Treat retrieval mechanics as internal and answer like a knowledgeable teammate/);
+  assert.match(backend, /do not lead with a stock system-status refusal/);
   assert.match(backend, /normalize_chat_response/);
   assert.match(backend, /assistant_memory_content/);
   assert.doesNotMatch(backend, /persist_chat_exchange\([\s\S]{0,400}&answer,/);
@@ -254,6 +256,10 @@ test('Realtime delegates visual answers to one authoritative structured chat tur
   assert.match(app, /displayedMarketIntelContext/);
   assert.match(app, /MX3DViewer\.pendingSelector/);
   assert.match(app, /suppressNextRealtimeAssistantBubble/);
+  assert.match(app, /await realtimeSession\.configureTools/);
+  assert.match(app, /Voice ready · MXGenius tools connected/);
+  assert.match(app, /currentRealtimeApplicationSession\(\)/);
+  assert.match(app, /discardPendingRealtimeMutation\(\)/);
   assert.match(app, /renderMaintenanceAdvisory\(streamTarget, data\.advisory, data\.manual_records/);
   assert.match(app, /pendingRealtimeImages = images/);
   assert.match(app, /thread_id: result\.threadId/);

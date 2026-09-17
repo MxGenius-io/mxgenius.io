@@ -565,6 +565,16 @@ export class XRRealtimePresence {
     });
   }
 
+  currentApplicationSession() {
+    const configured = this.sessionProvider() || {};
+    this.applicationSession = {
+      accessToken: configured.accessToken,
+      organizationId: configured.organizationId,
+      correlationId: globalThis.crypto?.randomUUID?.()
+    };
+    return this.applicationSession;
+  }
+
   async connect(input) {
     if (this.disposed || this.connectPromise) return this.connectPromise;
     if (!globalThis.MXRealtime?.RealtimeSession || !globalThis.MXApplicationClient?.realtime) {
@@ -576,15 +586,14 @@ export class XRRealtimePresence {
       this.setState('failed', 'Sign in to use voice');
       return;
     }
-    this.applicationSession = {
-      accessToken: configured.accessToken,
-      organizationId: configured.organizationId,
-      correlationId: globalThis.crypto?.randomUUID?.()
-    };
+    this.currentApplicationSession();
     const attempt = ++this.connectAttempt;
     let realtimeSession = null;
     realtimeSession = new globalThis.MXRealtime.RealtimeSession({
-      exchangeSdp: ({ sdp, session }) => globalThis.MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
+      exchangeSdp: ({ sdp }) => globalThis.MXApplicationClient.realtime.exchangeSdp({
+        sdp,
+        session: this.currentApplicationSession()
+      }),
       onEvent: (event) => {
         if (this.session === realtimeSession && attempt === this.connectAttempt) void this.handleRealtimeEvent(event);
       }
@@ -661,7 +670,7 @@ export class XRRealtimePresence {
       const spatialInstruction = spatialProjection
         ? `The bounded spatial target projection is ${JSON.stringify(spatialProjection)}. Use only exact target IDs and revisions from this projection. A stale command acknowledgement means the scene changed; do not retry it or move the visible highlight.`
         : 'No spatial target projection is available. Do not claim a target is visible or invoke a target-specific spatial command.';
-      this.session?.configureTools(listed.tools, {
+      await this.session?.configureTools(listed.tools, {
         clientTools: this.spatialCommands?.clientTools?.() || [],
         instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} ${spatialInstruction} Spatial commands change local presentation only and must be acknowledged by their client tool result. Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
       });

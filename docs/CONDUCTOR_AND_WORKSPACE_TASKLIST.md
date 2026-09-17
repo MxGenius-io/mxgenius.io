@@ -222,3 +222,26 @@ Final freeze record:
   this demo freeze. The owner waived a redundant post-correction browser replay
   because the final change was backend-only; the preceding signed-in UI
   walkthrough remains the visual acceptance evidence.
+
+## Gate 7 — Full-catalog and conversational hardening
+
+- [x] Use one exact 91-family catalog vocabulary for model retrieval and
+  aircraft-scoped Equipment Drive publication.
+- [x] Resolve natural manufacturer/model names to the prepared catalog key,
+  including `Beechcraft 1900C` to `MODEL 1900-C AIRLINER`.
+- [x] Keep retrieval mechanics out of user-facing model responses; broaden one
+  search quietly, then answer usefully or ask one short clarifying question.
+- [x] Present the four source libraries and their aircraft choices with readable
+  labels while preserving exact catalog values behind the selector.
+- [x] Audit all local linked figures without copying source PDFs: 91 aircraft,
+  10,078 manuals, 111,930 chapters, zero missing image files, and zero empty
+  image files.
+- [x] Make Realtime readiness acknowledgement-based and serialize context/tool
+  refreshes so a live conversation cannot outrun its current capability map.
+- [x] Refresh application identity for each Realtime SDP exchange and discard
+  stale pending mutations on disconnect or reconnect.
+- [x] Remove the redundant static header Tour button while retaining Settings →
+  Getting Started → Restart Tour.
+- [ ] Commit, push, deploy, and record the exact production revision.
+- [ ] Replay a natural Beechcraft 1900C standard-practices request in production
+  and confirm excerpt, source pill, and linked image behavior.

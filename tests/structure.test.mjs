@@ -493,7 +493,7 @@ test('native AR preserves independent anchors, VR data flow, and spatial Realtim
   assert.match(application, /await startRealtimeVoice\(\{ rethrow: true \}\)/);
   assert.match(realtimeClient, /oniceconnectionstatechange/);
   assert.match(realtimeClient, /transport: 'data-channel'/);
-  assert.match(dashboard, /realtime-client\.js\?v=7/);
+  assert.match(dashboard, /realtime-client\.js\?v=8/);
   assert.match(dashboard, /app\.js\?v=\d+/);
   assert.match(realtimeClient, /REALTIME_CHANNEL_TIMEOUT/);
   assert.match(realtimeClient, /waitForIceGathering/);
@@ -926,7 +926,7 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
   assert.ok(onboardingIndex < applicationIndex);
-  assert.match(dashboard, /guided-tooltip\.css\?v=6/);
+  assert.match(dashboard, /guided-tooltip\.css\?v=7/);
   assert.match(dashboard, /onboarding\.css\?v=6/);
   assert.match(dashboard, /id="onboardingRoot"/);
   assert.match(onboarding, /checkFirstRun/);
@@ -979,11 +979,11 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__video/);
   assert.match(guidedTooltipStyles, /\.guided-tooltip-guide__transcript/);
   assert.match(application, /MXOnboarding\.checkFirstRun\(\)/);
-  assert.match(dashboard, /id="guidedTourButton"/);
-  assert.match(dashboard, /id="guidedTourButton"[\s\S]*guided-tour-launch__icon[\s\S]*<span>Tour<\/span>/);
+  assert.doesNotMatch(dashboard, /id="guidedTourButton"/);
+  assert.doesNotMatch(dashboard, /guided-tour-launch/);
+  assert.match(dashboard, /Onboarding Walkthrough[\s\S]*>Restart Tour<\/button>/);
   assert.match(dashboard, /onclick="MXOnboarding\.restart\(\)"/);
-  assert.match(guidedTooltipStyles, /\.guided-tour-launch/);
-  assert.match(guidedTooltipStyles, /\.guided-tour-launch__icon/);
+  assert.doesNotMatch(guidedTooltipStyles, /\.guided-tour-launch/);
   assert.doesNotMatch(guidedTooltipStyles, /content:\s*['"]Guide['"]/);
   assert.doesNotMatch(guidedTooltip, /QUICK GUIDE|CONTEXT GUIDE|Play guide/);
   assert.match(applicationStyles, /\.header-nav #chatToggleNav[\s\S]*justify-content: flex-start/);
@@ -1114,7 +1114,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
   ]) assert.match(dashboard, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=10/);
+  assert.match(dashboard, /equipment-pack-workspace\.js\?v=11/);
   assert.match(dashboard, /id="settingsPackFamily"[^>]*required/);
   assert.match(equipmentWorkspace, /manual-catalog\.json\?v=1/);
   assert.match(equipmentWorkspace, /document\.createElement\('optgroup'\)/);

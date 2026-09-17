@@ -34,38 +34,6 @@
   z-index: 20;
 }
 
-.guided-tour-launch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 0 11px;
-  border: 1px solid rgba(103, 232, 249, 0.38);
-  border-radius: 999px;
-  background: rgba(8, 47, 65, 0.72);
-  color: #d9fbff;
-  font: 700 0.7rem/1 system-ui, sans-serif;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
-}
-
-.guided-tour-launch:hover,
-.guided-tour-launch:focus-visible {
-  border-color: #67e8f9;
-  background: rgba(8, 67, 85, 0.94);
-  color: #fff;
-  outline: none;
-  transform: translateY(-1px);
-}
-
-.guided-tour-launch__icon {
-  flex: 0 0 14px;
-  width: 14px;
-  height: 14px;
-}
-
 .guided-tooltip-popover {
   position: fixed;
   z-index: 95000;
@@ -188,14 +156,6 @@
 }
 
 @media (max-width: 640px) {
-  .guided-tour-launch {
-    width: 34px;
-    min-width: 34px;
-    padding: 0;
-  }
-
-  .guided-tour-launch span { display: none; }
-
   .guided-tooltip-popover {
     inset: auto 8px 8px;
     width: auto;
@@ -206,7 +166,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .guided-help-trigger,
-  .guided-tour-launch,
   .guided-tooltip-popover { animation: none; transition: none; }
 }
 

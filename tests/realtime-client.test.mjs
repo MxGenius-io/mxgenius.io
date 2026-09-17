@@ -12,7 +12,7 @@ function loadClient() {
   return context.exported;
 }
 
-test('Realtime tools are generated from canonical MCP schemas and decoded back to canonical names', () => {
+test('Realtime tools are generated from canonical MCP schemas and decoded back to canonical names', async () => {
   const MXRealtime = loadClient();
   const events = [];
   const sent = [];
@@ -28,10 +28,17 @@ test('Realtime tools are generated from canonical MCP schemas and decoded back t
     inputSchema: { type: 'object', required: ['case_id'] },
     meta: { requires_human_approval: true }
   };
-  assert.equal(session.configureTools([spec]), true);
+  const configured = session.configureTools([spec]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(sent[0].type, 'session.update');
   assert.equal(sent[0].session.tools[0].name, 'mxg__maintenance_case__update_status');
   assert.deepEqual(sent[0].session.tools[0].parameters, spec.inputSchema);
+  session.handleMessage(JSON.stringify({
+    type: 'session.updated',
+    client_event_id: sent[0].event_id,
+    session: { type: 'realtime', tools: sent[0].session.tools }
+  }));
+  await configured;
 
   session.handleMessage(JSON.stringify({
     type: 'response.function_call_arguments.done',
@@ -44,20 +51,27 @@ test('Realtime tools are generated from canonical MCP schemas and decoded back t
   assert.equal(request.spec.meta.requires_human_approval, true);
 });
 
-test('Realtime omits capabilities declared not configured by the MCP registry', () => {
+test('Realtime omits capabilities declared not configured by the MCP registry', async () => {
   const MXRealtime = loadClient();
   const sent = [];
   const session = new MXRealtime.RealtimeSession({ exchangeSdp: async () => ({ sdp: 'v=0' }), mediaDevices: {} });
   session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
-  session.configureTools([
+  const configured = session.configureTools([
     { name: 'mxg.aircraft.lookup', description: 'Lookup', inputSchema: {}, meta: { availability: 'available', callable: true } },
     { name: 'mxg.weather.airport_now', description: 'Weather', inputSchema: {}, meta: { availability: 'not_configured', callable: false } }
   ]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(sent[0].session.tools.map((tool) => tool.name), ['mxg__aircraft__lookup']);
   assert.equal(session.toolSpecs.has('mxg__weather__airport_now'), false);
+  session.handleMessage(JSON.stringify({
+    type: 'session.updated',
+    client_event_id: sent[0].event_id,
+    session: { type: 'realtime', tools: sent[0].session.tools }
+  }));
+  await configured;
 });
 
-test('Realtime mounts a client companion tool beside canonical MCP capabilities', () => {
+test('Realtime mounts a client companion tool beside canonical MCP capabilities', async () => {
   const MXRealtime = loadClient();
   const events = [];
   const sent = [];
@@ -73,8 +87,15 @@ test('Realtime mounts a client companion tool beside canonical MCP capabilities'
     inputSchema: { type: 'object', required: ['message'] },
     meta: { availability: 'available', callable: true, client_handler: 'structured_chat' }
   };
-  session.configureTools([], { clientTools: [companion] });
+  const configured = session.configureTools([], { clientTools: [companion] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(sent[0].session.tools.map((tool) => tool.name), ['mxg__chat__structured_response']);
+  session.handleMessage(JSON.stringify({
+    type: 'session.updated',
+    client_event_id: sent[0].event_id,
+    session: { type: 'realtime', tools: sent[0].session.tools }
+  }));
+  await configured;
   session.handleMessage(JSON.stringify({
     type: 'response.function_call_arguments.done',
     call_id: 'call-structured',
@@ -84,6 +105,51 @@ test('Realtime mounts a client companion tool beside canonical MCP capabilities'
   const request = events.find((event) => event.type === 'tool-request');
   assert.equal(request.name, companion.name);
   assert.equal(request.spec.meta.client_handler, 'structured_chat');
+});
+
+test('Realtime does not report tool readiness before session.updated', async () => {
+  const MXRealtime = loadClient();
+  const sent = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0' }),
+    mediaDevices: {},
+    sessionUpdateTimeoutMs: 25
+  });
+  session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
+  const pending = session.configureTools([]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(sent[0].type, 'session.update');
+  await assert.rejects(pending, (error) => error.code === 'REALTIME_SESSION_UPDATE_TIMEOUT');
+});
+
+test('Realtime serializes context refreshes so acknowledgements cannot cross wires', async () => {
+  const MXRealtime = loadClient();
+  const sent = [];
+  const session = new MXRealtime.RealtimeSession({
+    exchangeSdp: async () => ({ sdp: 'v=0' }),
+    mediaDevices: {}
+  });
+  session.channel = { readyState: 'open', send: (value) => sent.push(JSON.parse(value)) };
+  const first = session.configureTools([], { instructions: 'case one' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const second = session.configureTools([], { instructions: 'case two' });
+  await Promise.resolve();
+  assert.equal(sent.length, 1);
+  session.handleMessage(JSON.stringify({
+    type: 'session.updated',
+    client_event_id: sent[0].event_id,
+    session: { type: 'realtime' }
+  }));
+  await first;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].session.instructions, 'case two');
+  session.handleMessage(JSON.stringify({
+    type: 'session.updated',
+    client_event_id: sent[1].event_id,
+    session: { type: 'realtime' }
+  }));
+  await second;
 });
 
 test('Realtime tool output is correlated and followed by one response request', () => {

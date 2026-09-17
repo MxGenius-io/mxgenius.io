@@ -4,7 +4,7 @@
  */
 const MXRealtime = (() => {
   class RealtimeSession {
-    constructor({ exchangeSdp, onEvent = () => {}, peerFactory, mediaDevices, connectionTimeoutMs = 30_000, iceGatheringTimeoutMs = 5_000 } = {}) {
+    constructor({ exchangeSdp, onEvent = () => {}, peerFactory, mediaDevices, connectionTimeoutMs = 30_000, iceGatheringTimeoutMs = 5_000, sessionUpdateTimeoutMs = 8_000 } = {}) {
       if (typeof exchangeSdp !== 'function') throw new TypeError('exchangeSdp is required');
       this.exchangeSdp = exchangeSdp;
       this.onEvent = onEvent;
@@ -34,7 +34,10 @@ const MXRealtime = (() => {
       this.connectionTimer = null;
       this.connectionTimeoutMs = Math.max(1_000, Number(connectionTimeoutMs) || 30_000);
       this.iceGatheringTimeoutMs = Math.max(500, Number(iceGatheringTimeoutMs) || 5_000);
+      this.sessionUpdateTimeoutMs = Math.max(100, Number(sessionUpdateTimeoutMs) || 8_000);
       this.localCandidateCount = 0;
+      this.pendingSessionUpdates = new Map();
+      this.sessionUpdateChain = Promise.resolve();
     }
 
     emit(type, detail = {}) {
@@ -273,7 +276,27 @@ const MXRealtime = (() => {
           status: event.response?.status || null,
           statusDetails: event.response?.status_details || null
         });
+      } else if (event.type === 'session.updated') {
+        const clientEventId = event.client_event_id || null;
+        const pending = clientEventId
+          ? this.pendingSessionUpdates.get(clientEventId)
+          : (this.pendingSessionUpdates.size === 1 ? this.pendingSessionUpdates.values().next().value : null);
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingSessionUpdates.delete(pending.eventId);
+          pending.resolve(event.session || null);
+        }
+        this.emit('session-updated', { clientEventId, session: event.session || null });
       } else if (event.type === 'error') {
+        const clientEventId = event.error?.event_id || event.client_event_id || null;
+        const pending = clientEventId ? this.pendingSessionUpdates.get(clientEventId) : null;
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingSessionUpdates.delete(pending.eventId);
+          const updateError = new Error(event.error?.message || 'Realtime session update failed');
+          updateError.code = event.error?.code || 'REALTIME_SESSION_UPDATE_FAILED';
+          pending.reject(updateError);
+        }
         this.setState('degraded', { reason: event.error?.message || 'Realtime service error', code: event.error?.code });
       } else if (event.type === 'conversation.item.input_audio_transcription.delta') {
         this.userTranscript += event.delta || '';
@@ -299,28 +322,52 @@ const MXRealtime = (() => {
     }
 
     configureTools(tools, { instructions, clientTools = [], toolChoice = 'auto' } = {}) {
-      this.toolSpecs.clear();
+      const toolSpecs = new Map();
       const realtimeTools = [...(tools || []), ...(clientTools || [])]
         .filter((tool) => tool.meta?.callable !== false && tool.meta?.availability !== 'not_configured')
         .map((tool) => {
-        const transportName = tool.name.replaceAll('.', '__');
-        this.toolSpecs.set(transportName, tool);
-        return {
-          type: 'function',
-          name: transportName,
-          description: `${tool.description} Canonical MXGenius capability: ${tool.name}`,
-          parameters: tool.inputSchema
-        };
+          const transportName = tool.name.replaceAll('.', '__');
+          toolSpecs.set(transportName, tool);
+          return {
+            type: 'function',
+            name: transportName,
+            description: `${tool.description} Canonical MXGenius capability: ${tool.name}`,
+            parameters: tool.inputSchema
+          };
         });
-      return this.send({
-        type: 'session.update',
-        session: {
-          type: 'realtime',
-          tools: realtimeTools,
-          tool_choice: toolChoice,
-          ...(instructions ? { instructions } : {})
-        }
-      });
+      const applyUpdate = () => {
+        this.toolSpecs = toolSpecs;
+        const eventId = `mxg_session_${Date.now()}_${++this.eventSequence}`;
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            this.pendingSessionUpdates.delete(eventId);
+            const error = new Error('Realtime tool configuration was not acknowledged');
+            error.code = 'REALTIME_SESSION_UPDATE_TIMEOUT';
+            reject(error);
+          }, this.sessionUpdateTimeoutMs);
+          this.pendingSessionUpdates.set(eventId, { eventId, timer, resolve, reject });
+          const sent = this.send({
+            type: 'session.update',
+            event_id: eventId,
+            session: {
+              type: 'realtime',
+              tools: realtimeTools,
+              tool_choice: toolChoice,
+              ...(instructions ? { instructions } : {})
+            }
+          });
+          if (!sent) {
+            clearTimeout(timer);
+            this.pendingSessionUpdates.delete(eventId);
+            const error = new Error('Realtime event channel is not open');
+            error.code = 'REALTIME_CHANNEL_NOT_OPEN';
+            reject(error);
+          }
+        });
+      };
+      const configured = this.sessionUpdateChain.catch(() => null).then(applyUpdate);
+      this.sessionUpdateChain = configured;
+      return configured;
     }
 
     sendToolOutput(callId, output, { toolChoice = 'none', createResponse = true } = {}) {
@@ -444,6 +491,13 @@ const MXRealtime = (() => {
 
     closeResources({ preserveAudio = false } = {}) {
       this.clearConnectionTimer();
+      for (const pending of this.pendingSessionUpdates.values()) {
+        clearTimeout(pending.timer);
+        const error = new Error('Realtime connection closed before tool configuration completed');
+        error.code = 'REALTIME_SESSION_UPDATE_INTERRUPTED';
+        pending.reject(error);
+      }
+      this.pendingSessionUpdates.clear();
       this.closingResources = true;
       try {
         if (this.channel) this.channel.close();

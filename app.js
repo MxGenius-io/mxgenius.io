@@ -1594,7 +1594,9 @@ function setupChatPanel() {
     history.scrollTop = history.scrollHeight;
     void refreshThreads();
     if (realtimeSession?.channel?.readyState === 'open') {
-      void configureRealtimeCompanion();
+      void configureRealtimeCompanion().catch((error) => {
+        setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
+      });
     }
   });
 
@@ -2418,13 +2420,34 @@ Rules:
   const handledRealtimeCalls = new Set();
   const completedVoiceItems = new Set();
   globalThis.MXTargetContext?.registry?.subscribe?.(() => {
-    if (realtimeSession?.channel?.readyState === 'open') void configureRealtimeCompanion();
+    if (realtimeSession?.channel?.readyState === 'open') {
+      void configureRealtimeCompanion().catch((error) => {
+        setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
+      });
+    }
   });
 
   function cancelRealtimeStructuredTurn() {
     realtimeStructuredGeneration += 1;
     realtimeStructuredController?.abort();
     realtimeStructuredController = null;
+  }
+
+  function currentRealtimeApplicationSession() {
+    const session = window.MXGENIUS_CONFIG?.getSession?.() || {};
+    realtimeApplicationSession = {
+      accessToken: session.accessToken,
+      organizationId: session.organizationId,
+      correlationId: window.crypto?.randomUUID?.()
+    };
+    return realtimeApplicationSession;
+  }
+
+  function discardPendingRealtimeMutation() {
+    if (!pendingRealtimeMutation) return;
+    if (pendingRealtimeMutation.callId) handledRealtimeCalls.add(pendingRealtimeMutation.callId);
+    pendingRealtimeMutation = null;
+    if (realtimeConfirmation) realtimeConfirmation.hidden = true;
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Native Speech-to-Text transcription (tap) + Realtime voice (long-press) Ã¢â€â‚¬Ã¢â€â‚¬
@@ -2516,13 +2539,8 @@ Rules:
       return;
     }
     try {
-      realtimeApplicationSession = {
-        accessToken: session.accessToken,
-        organizationId: session.organizationId,
-        correlationId: window.crypto?.randomUUID?.()
-      };
       await realtimeSession.connect({
-        session: realtimeApplicationSession
+        session: currentRealtimeApplicationSession()
       });
     } catch (error) {
       realtimeModeEnabled = false;
@@ -2540,7 +2558,10 @@ Rules:
     // Initialize realtime session if WebRTC is available
     if (window.RTCPeerConnection && navigator.mediaDevices?.getUserMedia && window.MXRealtime) {
       realtimeSession = new MXRealtime.RealtimeSession({
-        exchangeSdp: ({ sdp, session }) => MXApplicationClient.realtime.exchangeSdp({ sdp, session }),
+        exchangeSdp: ({ sdp }) => MXApplicationClient.realtime.exchangeSdp({
+          sdp,
+          session: currentRealtimeApplicationSession()
+        }),
         onEvent: handleRealtimeEvent
       });
     }
@@ -2647,7 +2668,7 @@ Rules:
     const spatialDescription = spatialProjection
       ? `The bounded spatial target projection is ${JSON.stringify(spatialProjection)}. Use only its exact target IDs and revisions; stale acknowledgements mean the visible scene changed and must not be retried.`
       : 'No spatial target projection is available. Do not claim a target is visible.';
-    realtimeSession.configureTools(confirmedMutationTools, {
+    await realtimeSession.configureTools(confirmedMutationTools, {
       toolChoice: 'required',
       clientTools: [{
         name: 'mxg.chat.structured_response',
@@ -2707,6 +2728,10 @@ Rules:
   async function handleRealtimeEvent(event) {
     if (event.type === 'state') {
       if (event.state === 'failed') realtimeModeEnabled = false;
+      if (['reconnecting', 'disconnected', 'failed'].includes(event.state)) {
+        cancelRealtimeStructuredTurn();
+        discardPendingRealtimeMutation();
+      }
       if (['disconnected', 'failed'].includes(event.state)) {
         nativeARRealtimeOwnsSession = false;
         resetNativeARSpatialAudio();
@@ -2793,9 +2818,12 @@ Rules:
       return;
     }
     if (event.type === 'channel-open') {
-      await setNativeARRealtimeState('listening', 'MIC ON · MXGenius Realtime socket open');
+      setRealtimeUiState('connecting', 'Voice connected · loading MXGenius tools…');
+      await setNativeARRealtimeState('connecting', 'MIC ON · loading MXGenius tools…');
       try {
         await configureRealtimeCompanion();
+        setRealtimeUiState('listening', 'Voice ready · MXGenius tools connected');
+        await setNativeARRealtimeState('listening', 'MIC ON · MXGenius tools connected');
       } catch (error) {
         setRealtimeUiState('degraded', `Capability catalog unavailable: ${error.code || 'request failed'}`);
       }
