@@ -2,7 +2,7 @@
 
 ## Customer Operations Control Plane — 2026-09-17
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified
 > **Recipe:** AZCLI (existing ACR + Container Apps release path)
 
 Promote the tenant-scoped Customer Operations vertical slice as one paired
@@ -56,15 +56,35 @@ or source-PDF data.
 
 - [x] Confirm the existing subscription and Central US release target with the
   owner immediately before deployment.
-- [ ] Commit and push the exact source on canonical `main`; confirm the matching
+- [x] Commit and push the exact source on canonical `main`; confirm the matching
   GitHub Pages run completes successfully.
-- [ ] Build `services/mcp` in ACR with an immutable tag containing the source
+- [x] Build `services/mcp` in ACR with an immutable tag containing the source
   commit and promote one matching `mxg-core` revision.
-- [ ] Confirm the additive SQLx migration completes, then re-run health,
+- [x] Confirm the additive SQLx migration completes, then re-run health,
   readiness, adapter, revision, replica, traffic, and live-role checks.
 - [ ] Complete signed-in acceptance: create one customer, attach two devices,
   publish and assign an Equipment Drive, inspect deployment telemetry, and
   record a payment-history row.
+
+### Deployment proof
+
+- Canonical `main` source commit
+  `22ac710d19f919d6b4520895a6764bfda74ac7be` was published by successful
+  GitHub Pages run `35236232641`.
+- ACR run `cj3r` built and pushed immutable image
+  `mxg-core:customer-ops-22ac710-20260917` with digest
+  `sha256:f21bec42532e2bbf52c7b46feb00901716efcd03d4a3dd0fdda8d3149785b4d2`.
+- Container App revision `mxg-core--cust22ac710` is the latest ready revision,
+  Running and Provisioned with one replica and 100% traffic.
+- Post-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200;
+  PostgreSQL and `manuals-catalog-v3` reported ready. An unauthenticated
+  `/api/customer-accounts` request returned the expected `401 AUTH_REQUIRED`,
+  confirming the route is mounted behind the application identity boundary.
+- Signed-in read-only acceptance loaded the live Customers tab, reported an
+  authenticated workspace, zero customer accounts, one managed/authorized
+  device, and one device in the unassigned queue. The remaining unchecked
+  acceptance item intentionally requires real customer, device, drive, and
+  payment mutations and was not fabricated for deployment proof.
 
 ### Rollback
 

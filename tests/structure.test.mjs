@@ -542,7 +542,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=34/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=35/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -640,10 +640,12 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 });
 
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
-  assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=2'/);
-  assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=2'/);
-  assert.match(viewer, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
-  assert.match(globeVr, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=1[\s\S]*xr-ui-audio\.js\?v=2/);
+  assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=3'/);
+  assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=3'/);
+  assert.match(viewer, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
+  assert.match(globeVr, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
+  assert.match(xrUiAudio, /mxgenius:ui-sounds-updated/);
+  assert.match(xrUiAudio, /invalidateCues/);
   assert.match(globeVr, /id="sceneSoundButton"/);
   assert.match(globeVr, /new XRUIAudio\(\{ camera, onStateChange: updateSceneSoundState \}\)/);
   assert.match(globeVr, /function emitSceneAction\(/);
@@ -701,7 +703,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=34/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=35/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -1072,7 +1074,8 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(dashboard, /id="settingsSoundFamilies"[^>]*role="region"[^>]*tabindex="0"/);
   assert.match(dashboard, /id="settingsSoundFileInput"[^>]*accept="\.wav,\.mp3,\.m4a,audio\/wav,audio\/mpeg,audio\/mp4"/);
   assert.match(dashboard, /id="settingsSoundSave"[^>]*disabled>Save changes/);
-  assert.match(dashboard, /sound-storage\.js\?v=1/);
+  assert.match(dashboard, /sound-storage\.js\?v=2/);
+  assert.match(soundStorage, /mxgenius:ui-sounds-updated/);
   assert.match(dashboard, /sound-settings\.js\?v=2/);
   assert.equal((soundCueSchema.match(/^SND-\d{3},/gm) || []).length, 27);
   assert.match(soundCueSchema, /SND-027,Welcome\.wav,audio\/system,Open Dashboard/);
@@ -1096,7 +1099,7 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.match(xrUiAudio, /id: 'SND-001'/);
   assert.match(xrUiAudio, /MXGeniusSoundStorage/);
   const applicationClientIndex = dashboard.search(/<script src="application-client\.js\?v=\d+"><\/script>/);
-  const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=1"></script>');
+  const soundStorageIndex = dashboard.indexOf('<script src="sound-storage.js?v=2"></script>');
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
   assert.ok(applicationClientIndex < soundStorageIndex && soundStorageIndex < splashIndex);
   assert.match(applicationStyles, /\.settings-sound-family/);

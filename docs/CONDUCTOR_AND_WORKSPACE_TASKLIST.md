@@ -1,6 +1,6 @@
 # Conductor, Environment Awareness, and Workspace Task List
 
-Status: Gate 8 local implementation in verification
+Status: Gate 8 deployed; real-record mutation acceptance remains
 Owner: MXGenius
 Started: 2026-09-16
 Release policy: complete and accept each gate before building the next one.
@@ -294,7 +294,7 @@ Gate 7 evidence:
   checks for the new surface.
 - [x] Run the complete JavaScript and Rust quality gates with formatting,
   warnings, and whitespace checks.
-- [ ] Apply the additive migration and deploy the matching backend/frontend
+- [x] Apply the additive migration and deploy the matching backend/frontend
   release.
 - [ ] Complete a signed-in live acceptance: create a company, attach two
   devices, publish and assign a drive, inspect telemetry, and record a payment.
@@ -304,6 +304,12 @@ Gate 8 evidence:
 - Local implementation spans migration `0031_customer_operations.sql`, the
   manager/administrator API and repository, the Operations Center Customers
   tab, and the reused Equipment Drive workspace.
-- Tests: 454 JavaScript checks and 323 executable Rust checks passed; one live
+- Tests: 455 JavaScript checks and 323 executable Rust checks passed; one live
   credential-gated exporter remained intentionally ignored. Formatting and
-  warnings-denied Clippy passed. Release evidence is pending.
+  warnings-denied Clippy passed.
+- Production: source `22ac710d19f919d6b4520895a6764bfda74ac7be`,
+  Pages run `35236232641`, ACR run `cj3r`, image digest
+  `sha256:f21bec42532e2bbf52c7b46feb00901716efcd03d4a3dd0fdda8d3149785b4d2`,
+  and revision `mxg-core--cust22ac710` are live. Health, readiness, adapters,
+  one replica, 100% traffic, the protected API route, and the signed-in
+  Customers tab all passed read-only acceptance.

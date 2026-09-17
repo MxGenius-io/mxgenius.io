@@ -5,14 +5,54 @@
   let indexPromise = null;
   const cueUrls = new Map();
 
+  function parentValue(name) {
+    try {
+      return globalThis.parent !== globalThis ? globalThis.parent?.[name] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function allowsInsecurePilot() {
+    return Boolean(
+      globalThis.MXGENIUS_CONFIG?.allowInsecurePilot
+      || parentValue('MXGENIUS_CONFIG')?.allowInsecurePilot
+    );
+  }
+
+  function publishUpdate(cueIds, current) {
+    const detail = {
+      cueIds: [...new Set(cueIds.filter(Boolean))],
+      version: Number(current?.version || 0),
+      updatedAt: current?.updatedAt || null
+    };
+    const targets = [globalThis];
+    try {
+      if (globalThis.parent !== globalThis) targets.push(globalThis.parent);
+    } catch {
+      // A cross-origin parent cannot share the authenticated sound library.
+    }
+    [...new Set(targets)].forEach((target) => {
+      if (!target?.dispatchEvent || typeof target.CustomEvent !== 'function') return;
+      target.dispatchEvent(new target.CustomEvent('mxgenius:ui-sounds-updated', { detail }));
+    });
+  }
+
   async function session({ forceRefresh = false } = {}) {
-    await Promise.resolve(globalThis.MXGENIUS_CONFIG?.ready);
-    const refreshedAccessToken = globalThis.MXGENIUS_AUTH?.getToken
-      ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
+    const localConfig = globalThis.MXGENIUS_CONFIG || {};
+    const parentConfig = parentValue('MXGENIUS_CONFIG') || {};
+    await Promise.resolve(localConfig.ready || parentConfig.ready);
+    const localSession = localConfig.getSession?.() || {};
+    const parentSession = parentConfig.getSession?.() || {};
+    const configured = localSession.accessToken ? localSession : { ...localSession, ...parentSession };
+    const auth = globalThis.MXGENIUS_AUTH?.getToken
+      ? globalThis.MXGENIUS_AUTH
+      : parentValue('MXGENIUS_AUTH');
+    const refreshedAccessToken = auth?.getToken
+      ? await auth.getToken({ forceRefresh })
       : '';
-    const configured = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
     const accessToken = refreshedAccessToken || configured.accessToken;
-    if (!accessToken && !globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
+    if (!accessToken && !allowsInsecurePilot()) {
       const error = new Error('Your sign-in needs to be renewed.');
       error.code = 'AUTH_REQUIRED';
       throw error;
@@ -30,7 +70,7 @@
     try {
       return await operation(requestSession);
     } catch (error) {
-      if (!authenticationError(error) || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+      if (!authenticationError(error) || allowsInsecurePilot()) throw error;
       requestSession = await session({ forceRefresh: true });
       return operation(requestSession);
     }
@@ -97,6 +137,7 @@
           session: requestSession
         })));
         index = current;
+        publishUpdate([cueId], current);
       }
       for (const replacement of replacements) {
         releaseCueUrl(replacement.cueId);
@@ -106,6 +147,7 @@
           session: requestSession
         })));
         index = current;
+        publishUpdate([replacement.cueId], current);
       }
       return current;
     } catch (error) {

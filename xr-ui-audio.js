@@ -3,9 +3,24 @@ import * as THREE from 'three';
 const AUDIO_ROOT = new URL('./assets/xr-ui-fx/audio/', import.meta.url);
 
 function soundStorage() {
-  if (globalThis.MXGeniusSoundStorage) return globalThis.MXGeniusSoundStorage;
-  try { return globalThis.parent?.MXGeniusSoundStorage || null; }
-  catch { return null; }
+  try {
+    if (globalThis.parent !== globalThis && globalThis.parent?.MXGeniusSoundStorage) {
+      return globalThis.parent.MXGeniusSoundStorage;
+    }
+  } catch {
+    // A cross-origin parent cannot share the authenticated sound library.
+  }
+  return globalThis.MXGeniusSoundStorage || null;
+}
+
+function soundUpdateTargets() {
+  const targets = [globalThis];
+  try {
+    if (globalThis.parent !== globalThis) targets.push(globalThis.parent);
+  } catch {
+    // A cross-origin parent cannot publish same-origin sound updates.
+  }
+  return [...new Set(targets)];
 }
 
 export const XR_AUDIO_CUES = Object.freeze({
@@ -108,13 +123,32 @@ export class XRUIAudio {
     this.loader = new THREE.AudioLoader();
     this.buffers = new Map();
     this.pending = new Map();
+    this.cueGenerations = new Map();
     this.active = new Set();
     this.muted = false;
     this.state = 'locked';
     this.volume = THREE.MathUtils.clamp(volume, 0, 1);
     this.listener.setMasterVolume(this.volume);
     this.camera?.add(this.listener);
+    this.onSoundLibraryUpdated = (event) => this.invalidateCues(event?.detail?.cueIds);
+    this.soundUpdateTargets = soundUpdateTargets();
+    this.soundUpdateTargets.forEach((target) => {
+      target.addEventListener?.('mxgenius:ui-sounds-updated', this.onSoundLibraryUpdated);
+    });
     this.notify();
+  }
+
+  invalidateCues(cueIds = []) {
+    const changed = new Set(Array.isArray(cueIds) ? cueIds : []);
+    const invalidated = [];
+    Object.entries(XR_AUDIO_CUES).forEach(([name, cue]) => {
+      if (!changed.has(cue.id)) return;
+      this.cueGenerations.set(name, (this.cueGenerations.get(name) || 0) + 1);
+      this.buffers.delete(name);
+      this.stopCue(name, { fadeMs: 70 });
+      invalidated.push(cue.id);
+    });
+    if (invalidated.length) this.notify({ updatedCueIds: invalidated });
   }
 
   notify(extra = {}) {
@@ -155,6 +189,7 @@ export class XRUIAudio {
     if (this.pending.has(name)) return this.pending.get(name);
     const cue = XR_AUDIO_CUES[name];
     if (!cue) return null;
+    const generation = this.cueGenerations.get(name) || 0;
     const bundledUrl = new URL(cue.file, AUDIO_ROOT).href;
     const request = Promise.resolve(soundStorage()?.getCueUrl?.(cue.id))
       .catch(() => null)
@@ -167,8 +202,9 @@ export class XRUIAudio {
         }
       })
       .then((buffer) => {
-        this.buffers.set(name, buffer);
         this.pending.delete(name);
+        if (generation !== (this.cueGenerations.get(name) || 0)) return this.loadCue(name);
+        this.buffers.set(name, buffer);
         return buffer;
       })
       .catch((error) => {
@@ -269,8 +305,12 @@ export class XRUIAudio {
 
   dispose() {
     this.stopAll({ fadeMs: 0 });
+    this.soundUpdateTargets.forEach((target) => {
+      target.removeEventListener?.('mxgenius:ui-sounds-updated', this.onSoundLibraryUpdated);
+    });
     this.listener.removeFromParent();
     this.buffers.clear();
     this.pending.clear();
+    this.cueGenerations.clear();
   }
 }

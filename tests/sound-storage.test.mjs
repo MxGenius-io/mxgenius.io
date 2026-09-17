@@ -30,6 +30,42 @@ function createStorage({ getToken, list }) {
   return context.MXGeniusSoundStorage;
 }
 
+function createEmbeddedStorage({ getToken, list }) {
+  const parent = {
+    MXGENIUS_CONFIG: {
+      ready: Promise.resolve(),
+      getSession: () => ({ accessToken: 'parent-page-token', organizationId: 'org-parent' })
+    },
+    MXGENIUS_AUTH: { getToken },
+    CustomEvent: class CustomEvent {
+      constructor(type, options = {}) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
+    dispatchEvent: () => {}
+  };
+  const context = {
+    parent,
+    MXGENIUS_CONFIG: { ready: Promise.resolve() },
+    MXApplicationClient: {
+      uiSounds: {
+        list,
+        getContent: async () => new Blob(['audio']),
+        put: async () => ({}),
+        delete: async () => ({})
+      }
+    },
+    URL: {
+      createObjectURL: () => 'blob:ui-sound',
+      revokeObjectURL: () => {}
+    }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(source, context);
+  return context.MXGeniusSoundStorage;
+}
+
 test('sound storage asks the shared auth core for a current token', async () => {
   const sessions = [];
   const storage = createStorage({
@@ -74,4 +110,22 @@ test('sound storage silently refreshes once after an expired application token',
   assert.deepEqual(refreshes, [false, true]);
   assert.deepEqual(sessions, ['expired-token', 'renewed-token']);
   assert.equal(result.version, 2);
+});
+
+test('embedded sound storage inherits the authenticated dashboard session', async () => {
+  const sessions = [];
+  const storage = createEmbeddedStorage({
+    getToken: async () => 'parent-fresh-token',
+    list: async (session) => {
+      sessions.push(session);
+      return { schema_version: 1, version: 3, overrides: [] };
+    }
+  });
+
+  const result = await storage.loadIndex();
+
+  assert.equal(result.version, 3);
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0].accessToken, 'parent-fresh-token');
+  assert.equal(sessions[0].organizationId, 'org-parent');
 });
