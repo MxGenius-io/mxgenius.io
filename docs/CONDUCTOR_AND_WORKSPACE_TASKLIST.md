@@ -242,6 +242,31 @@ Final freeze record:
   stale pending mutations on disconnect or reconnect.
 - [x] Remove the redundant static header Tour button while retaining Settings →
   Getting Started → Restart Tour.
-- [ ] Commit, push, deploy, and record the exact production revision.
-- [ ] Replay a natural Beechcraft 1900C standard-practices request in production
+- [x] Commit, push, deploy, and record the exact production revision.
+- [x] Replay a natural Beechcraft 1900C standard-practices request in production
   and confirm excerpt, source pill, and linked image behavior.
+
+Gate 7 evidence:
+
+- Source: `66033559d82f8f223feeca3e3b4f5e2cd15485af` on canonical `main`;
+  GitHub Pages run `35223325225` completed successfully for that commit.
+- Azure: ACR run `cj3q`; revision `mxg-core--chat6603355`; image digest
+  `sha256:546003b8341ca3160b4724bc7888652c513ede0f6a24bf69d321d3e326332282`.
+  The revision is Healthy, Provisioned, latest-ready, one replica,
+  RunningAtMaxScale, and serving 100% traffic. Health, readiness, and adapter
+  probes returned HTTP 200.
+- Tests: 450 JavaScript checks and 316 executable Rust checks passed; one live
+  credential-gated exporter remained intentionally ignored. Formatting,
+  warnings-denied Clippy, and whitespace checks passed.
+- Live acceptance used the untuned prompt: "What standard-practices guidance
+  applies to a structural inspection finding on a Beechcraft 1900C? Show me
+  the most relevant figure if there is one." Production returned one focused
+  Chapter 20 record, a readable excerpt, a green Registered source pill, and
+  the actual page-32 Figure 14. The browser confirmed that the image completed
+  at 2025×2550 pixels.
+- Root cause closed: natural section wording had been misclassified as a
+  standalone `SPM` publication filter even though the prepared 1900C records
+  are Chapter 20 sections with no `manual_type`. The registered-image path also
+  judged generic legacy captions without the source page text. Both paths now
+  use the shared aircraft catalog and page-owned context while preserving
+  wrong-aircraft, wrong-component, and ambiguity rejection.

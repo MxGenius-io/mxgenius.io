@@ -1,5 +1,92 @@
 # MXGenius Azure Deployment Plan
 
+## Full-Catalog Conversational Hardening — 2026-09-17
+
+> **Status:** Deployed and accepted
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Promote commit `66033559d82f8f223feeca3e3b4f5e2cd15485af` as a paired static/core release. The core maps natural
+aircraft names such as `Beechcraft 1900C` to the exact 91-family prepared
+catalog vocabulary, keeps retrieval mechanics out of user-facing answers, and
+waits for Realtime tool/context acknowledgement before reporting voice ready.
+Generic section wording such as "standard practices" no longer forces a
+nonexistent standalone publication-family filter, and registered figures use
+their source page text to resolve generic legacy captions without weakening
+aircraft or component scope.
+The static application presents readable four-library Equipment Drive labels
+and removes the redundant header Tour button. Existing infrastructure,
+identities, RBAC, secrets, database schema, Search index, Blob data, Pi data,
+and resource SKUs are unchanged.
+
+### All validation checks pass
+
+- [x] Azure CLI `2.86.0` and the existing authenticated subscription are
+  available.
+- [x] Subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), resource group
+  `mxg-rg-50106`, and Central US Container Apps environment
+  `mxg-cae-50106` are enabled and provisioned.
+- [x] Bicep compilation, template validation, and what-if are not applicable:
+  this release changes no infrastructure or RBAC source.
+- [x] The locked optimized `mxgenius-mcp` build completed successfully.
+- [x] Subscription and resource-group policy assignment counts are zero.
+
+### Validation proof
+
+- `npm test` passed 450/450 application and contract checks.
+- `cargo test --workspace` passed 316 executable checks with one live
+  credential-gated exporter test ignored. `cargo fmt --all -- --check`,
+  warnings-denied workspace Clippy, and the locked optimized release build
+  passed.
+- The local derived-data audit covered 91 aircraft, 10,078 manuals, 111,930
+  chapters, and 350,645 per-manual image references with zero missing and zero
+  empty linked files. It did not copy source PDFs.
+- Direct Azure AI Search probing returned multiple `MODEL 1900-C AIRLINER`
+  Chapter 20 Standard Practices records with registered assets.
+- Pre-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200;
+  PostgreSQL and `manuals-catalog-v3` report ready and healthy.
+- Static role verification found no infrastructure or RBAC delta. The existing
+  `mxg-core` system identity and least-privilege data roles remain unchanged.
+
+### Deployment and acceptance
+
+- [x] Build the exact committed `services/mcp` source in ACR with immutable tag
+  `catalog-chat-6603355-20260917`.
+- [x] Promote `mxg-core` as revision `mxg-core--chat6603355`.
+- [x] Confirm health, readiness, adapter status, revision, digest, replica
+  count, traffic, and live roles.
+- [x] Verify GitHub Pages and replay the natural Beechcraft 1900C
+  standard-practices request with excerpt, source pill, and linked image.
+
+### Production record
+
+- Source: `66033559d82f8f223feeca3e3b4f5e2cd15485af` on canonical `main`.
+- GitHub Pages: run `35223325225` completed successfully for the exact source.
+- ACR: run `cj3q`; image
+  `mxgacr50106.azurecr.io/mxg-core:catalog-chat-6603355-20260917`; digest
+  `sha256:546003b8341ca3160b4724bc7888652c513ede0f6a24bf69d321d3e326332282`.
+- Container Apps: `mxg-core--chat6603355`, Healthy, Provisioned, one replica,
+  RunningAtMaxScale, latest-ready, and serving 100% traffic.
+- Post-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200;
+  PostgreSQL and `manuals-catalog-v3` reported ready and healthy.
+- Live roles remained unchanged: Storage Blob Data Contributor on the private
+  `documents` container and Cognitive Services User on the existing Document
+  Intelligence account.
+- Acceptance prompt: "What standard-practices guidance applies to a structural
+  inspection finding on a Beechcraft 1900C? Show me the most relevant figure
+  if there is one." The production response returned one focused Chapter 20
+  record, a green Registered source pill, a readable excerpt, and the actual
+  page-32 Figure 14 image. The browser confirmed the image completed at
+  2025×2550 pixels.
+- Tests: 450/450 application checks and 316 executable Rust checks passed; one
+  live credential-gated exporter remained intentionally ignored. Formatting,
+  warnings-denied Clippy, and whitespace checks passed.
+
+### Rollback
+
+Restore the preceding immutable ACR image and static commit if a later
+regression appears. No data or schema rollback is needed.
+
 ## Friday Funding Demo Release — 2026-09-16
 
 > **Status:** Validated
