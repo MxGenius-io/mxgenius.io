@@ -68,6 +68,25 @@ index, Blob corpus, Pi releases, and cost-bearing resource SKUs are unchanged.
 - Re-run health/readiness/adapter probes, load Demo Content once, and cold-test
   the strobe, wheel, and windshield flows in that order.
 
+### Registered Figure 601 acceptance — 2026-09-17
+
+- Commit `854a8d8` is on canonical `main`; GitHub Pages run `35189643210`
+  completed successfully for that commit.
+- ACR run `cj38` published
+  `mxg-core:friday-evidence-854a8d8-20260917` with immutable digest
+  `sha256:92bebe6a36331ba5db2f588c71c129d212ceb2a32443a7266f3c3476870c3c5e`.
+- Revision `mxg-core--fig854a8d8` is Healthy, Provisioned, running one replica,
+  and serving 100% traffic. `/healthz`, `/readyz`, and `/adapterz` returned HTTP
+  200; readiness identifies `manuals-catalog-v3` as healthy.
+- Azure Search still contains exactly 1,060,418 manual records. The two CL350
+  Chapter 56 Figure 601 records contain one-element `assets_json` arrays with
+  their registered SHA-256 values; only their derived PNGs were published.
+  No source PDF was copied.
+- A fresh signed-in production replay from the active `Challenger 350`
+  windshield case rendered Figure 601 Sheet 1 in the evidence card with an
+  `M-01` registered-source pill. A fresh wheel advisory kept cited part numbers
+  and represented unavailable labor hours without a literal `null` value.
+
 ### Rollback
 
 Restore `mxg-core--live352eeda` and the prior static commit if the new revision

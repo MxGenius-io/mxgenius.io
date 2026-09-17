@@ -46,7 +46,7 @@ visibly marked as demonstration data.
 
 ## 5. Full cold calibration
 
-- [ ] Web: Demo Content on, latest case, all three cases, Parts, Copilot, images,
+- [x] Web: Demo Content on, latest case, all three cases, Parts, Copilot, images,
   pills, and expandable section text.
 - [ ] Spatial/AR: case target, step guidance, and remote-witness button visible.
 - [ ] VR: join-live-service control restored and remote witness joins cleanly.
@@ -80,3 +80,8 @@ beat requires.
   Figure 601 sheets are hash-registered derived PNGs; no source PDF was copied
   into the application. PIN join, live headset video, and human disposition
   remain physical-session checks.
+- Production replay (`854a8d8`): the active `Challenger 350` case resolved the
+  `CL350` catalog key, rendered Figure 601 Sheet 1 from its registered source,
+  and kept the evidence pill and expandable record together. The wheel replay
+  stated that labor hours were not established by the retrieved material and
+  did not render a literal `null` value.
