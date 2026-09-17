@@ -1409,6 +1409,17 @@ test('fleet globe starts deterministic OpenSky polling only from its live-traffi
   assert.match(application, /setLiveTrafficRibbonState\('live', `\$\{pipelineCount\} · 30s cadence`\)/);
 });
 
+test('live traffic remains available when the optional fleet registry is degraded', () => {
+  const loadGlobeIndex = application.indexOf('async function loadGlobe()');
+  const controlsIndex = application.indexOf('setupGlobeSheet();', loadGlobeIndex);
+  const fleetRequestIndex = application.indexOf('MXApplicationClient.aircraftList', loadGlobeIndex);
+  assert.ok(loadGlobeIndex >= 0);
+  assert.ok(controlsIndex > loadGlobeIndex && controlsIndex < fleetRequestIndex);
+  assert.match(application, /Fleet registry unavailable; continuing with independent globe layers/);
+  assert.match(application, /counts: \{ aog: 0, aftt12000: 0, aftt8000: 0, other: 0 \}/);
+  assert.doesNotMatch(application, /Could not load aircraft registry data/);
+});
+
 test('public runtime configuration mounts the live core without embedding credentials', () => {
   assert.match(dashboard, /src="runtime-config\.js\?v=4"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);

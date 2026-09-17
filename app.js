@@ -5396,6 +5396,8 @@ function setupGlobeSheet() {
   const sheet = document.getElementById('globeSheet');
   const handle = document.getElementById('globeSheetHandle');
   if (!sheet || !handle) return;
+  if (sheet.dataset.bound === 'true') return;
+  sheet.dataset.bound = 'true';
   const states = ['', 'half', 'full'];
   let currentState = 0;
   const filterHamburger = document.getElementById('globeFilterHamburger');
@@ -5992,12 +5994,20 @@ function openGlobeInVR() {
 
 async function loadGlobe() {
   const container = document.getElementById('globeViz');
+  if (!container) return;
+  // Bind independent layers before the tenant fleet request. OpenSky live
+  // traffic must remain usable even when the optional registry provider is
+  // degraded or a customer has not connected it yet.
+  setupGlobeSheet();
   if (!globeInstance) container.innerHTML = '<div class="loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;">Loading globe...</div>';
 
   const body = {};
+  let registryUnavailable = false;
   try {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
-    if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) { container.innerHTML = `<div class="empty-state">Fleet source error: ${escapeMarkup(data.responsestatus)}</div>`; return; }
+    if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) {
+      throw new Error(String(data.responsestatus));
+    }
     const aircraft = data.aircraft || [];
     const { clusters, counts } = clusterByAirport(aircraft);
     clusters.forEach((cluster) => {
@@ -6007,7 +6017,18 @@ async function loadGlobe() {
     filteredGlobeClusters = clusters;
     globeData = { totalAircraft: aircraft.length, mappedAircraft: clusters.reduce((s, c) => s + c.aircraft.length, 0), byCountry: {}, counts };
     clusters.forEach(c => { if (c.country) globeData.byCountry[c.country] = true; });
-  } catch (e) { console.error('Globe data fetch failed:', e); container.innerHTML = '<div class="empty-state" style="color:var(--text-danger);">Could not load aircraft registry data.</div>'; return; }
+  } catch (error) {
+    registryUnavailable = true;
+    console.warn('Fleet registry unavailable; continuing with independent globe layers:', error);
+    allClusters = [];
+    filteredGlobeClusters = [];
+    globeData = {
+      totalAircraft: 0,
+      mappedAircraft: 0,
+      byCountry: {},
+      counts: { aog: 0, aftt12000: 0, aftt8000: 0, other: 0 }
+    };
+  }
 
   document.getElementById('globeTotal').textContent = globeData.totalAircraft.toLocaleString();
   document.getElementById('globeMapped').textContent = globeData.mappedAircraft.toLocaleString();
@@ -6019,6 +6040,9 @@ async function loadGlobe() {
   const vrButton = document.getElementById('globeVrButton');
   if (vrButton) {
     vrButton.disabled = !allClusters.length;
+    vrButton.title = registryUnavailable
+      ? 'Fleet registry unavailable; VR fleet view will be ready when it reconnects'
+      : 'Open the fleet globe directly in Quest Browser';
     if (!vrButton.dataset.bound) {
       vrButton.dataset.bound = 'true';
       vrButton.addEventListener('click', openGlobeInVR);
