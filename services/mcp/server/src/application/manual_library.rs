@@ -173,6 +173,13 @@ struct SearchAsset {
     keywords: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum SearchAssetsPayload {
+    One(Box<SearchAsset>),
+    Many(Vec<SearchAsset>),
+}
+
 #[derive(Debug)]
 struct DriveFile {
     path: String,
@@ -1161,9 +1168,14 @@ fn parse_assets(hit: &SearchHit) -> Result<Vec<SearchAsset>, ManualLibraryError>
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        Some(value) => serde_json::from_str(value).map_err(|error| {
-            ManualLibraryError::Invalid(format!("invalid assets_json for {}: {error}", hit.id))
-        }),
+        Some(value) => serde_json::from_str::<SearchAssetsPayload>(value)
+            .map(|assets| match assets {
+                SearchAssetsPayload::One(asset) => vec![*asset],
+                SearchAssetsPayload::Many(assets) => assets,
+            })
+            .map_err(|error| {
+                ManualLibraryError::Invalid(format!("invalid assets_json for {}: {error}", hit.id))
+            }),
         None => Ok(Vec::new()),
     }
 }
@@ -1349,6 +1361,31 @@ mod tests {
         assert_eq!(first.content_hash, second.content_hash);
         assert_eq!(first.file_count, 1);
         assert_eq!(first.manifest["files"][0]["path"], "LIBRARY/amm/chapter.md");
+    }
+
+    #[test]
+    fn assets_json_accepts_flattened_singletons_and_arrays() {
+        let asset = json!({
+            "asset_id": "a1",
+            "kind": "diagram",
+            "source_reference": "azure-blob://documents/manual-assets/legacy-rag/v3/a1.png",
+            "media_type": "image/png",
+            "page": 1,
+            "caption": "Registered figure",
+            "content_hash": format!("sha256:{}", "a".repeat(64)),
+            "availability": "available",
+            "verified": true,
+            "register_id": "IMG-A1",
+            "task_numbers": ["56-11-01-220-801"],
+            "keywords": ["windshield damage review"]
+        });
+        let mut singleton = search_hit("record-one", "manual-one", "CL350", "Windows", "AMM");
+        singleton.assets_json = Some(asset.to_string());
+        assert_eq!(parse_assets(&singleton).expect("singleton asset").len(), 1);
+
+        let mut array = search_hit("record-many", "manual-one", "CL350", "Windows", "AMM");
+        array.assets_json = Some(json!([asset.clone(), asset]).to_string());
+        assert_eq!(parse_assets(&array).expect("asset array").len(), 2);
     }
 
     #[test]
