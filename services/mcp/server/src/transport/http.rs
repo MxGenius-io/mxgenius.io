@@ -10550,11 +10550,23 @@ fn inferred_manual_type(question: &str) -> Option<&'static str> {
     (candidates.len() == 1).then(|| candidates[0])
 }
 
-fn resolved_manual_type_for_tool(user_message: &str, model_question: &str) -> Option<&'static str> {
+fn resolved_manual_type_for_tool(
+    user_message: &str,
+    model_question: &str,
+    model_manual_type: Option<&str>,
+) -> Option<String> {
     // The user's source-family wording is authoritative. A model-generated
     // search rewrite may make the topic more specific, but it must not erase
     // or conflict with the publication family the user actually requested.
-    inferred_manual_type(user_message).or_else(|| inferred_manual_type(model_question))
+    inferred_manual_type(user_message)
+        .map(str::to_owned)
+        .or_else(|| {
+            model_manual_type
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_ascii_uppercase)
+        })
+        .or_else(|| inferred_manual_type(model_question).map(str::to_owned))
 }
 
 async fn chat(
@@ -11168,20 +11180,20 @@ async fn chat(
                         arguments.insert("aircraft_model".into(), json!(model));
                     }
                 }
-                let has_manual_type = arguments
+                let model_manual_type = arguments
                     .get("manual_type")
                     .and_then(Value::as_str)
-                    .is_some_and(|value| !value.trim().is_empty());
-                if !has_manual_type {
-                    let model_question = arguments
-                        .get("question")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    if let Some(manual_type) =
-                        resolved_manual_type_for_tool(message, model_question)
-                    {
-                        arguments.insert("manual_type".into(), json!(manual_type));
-                    }
+                    .map(str::to_owned);
+                let model_question = arguments
+                    .get("question")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if let Some(manual_type) = resolved_manual_type_for_tool(
+                    message,
+                    model_question,
+                    model_manual_type.as_deref(),
+                ) {
+                    arguments.insert("manual_type".into(), json!(manual_type));
                 }
                 arguments
                     .entry("include_images")
@@ -12889,17 +12901,28 @@ mod structured_advisory_tests {
             resolved_manual_type_for_tool(
                 "What standard-practice bonding checks should I perform?",
                 "Search the AMM for wingtip strobe bonding and connector checks",
+                Some("AMM"),
             ),
-            Some("SPM"),
-            "the model's search rewrite must not override explicit user family intent"
+            Some("SPM".to_owned()),
+            "neither the model's argument nor its rewrite may override explicit user family intent"
         );
         assert_eq!(
             resolved_manual_type_for_tool(
                 "What checks apply after replacing this light?",
                 "Search the SPM standard practices for electrical bonding",
+                None,
             ),
-            Some("SPM"),
+            Some("SPM".to_owned()),
             "the model rewrite may supply family intent when the user did not"
+        );
+        assert_eq!(
+            resolved_manual_type_for_tool(
+                "What checks apply after replacing this light?",
+                "Search the SSM for the circuit",
+                Some("amm"),
+            ),
+            Some("AMM".to_owned()),
+            "an explicit model choice is preserved when the user did not choose a family"
         );
     }
 
