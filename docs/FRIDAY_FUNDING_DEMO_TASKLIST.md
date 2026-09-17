@@ -17,7 +17,8 @@ visibly marked as demonstration data.
 - [x] Cold-test the web path: latest case opens, image is immediate, the matched
   strobe assembly is stageable, and the model returns the installation torque,
   bonding test, and operational check.
-- [ ] Confirm the same strobe guidance in the physical headset workflow.
+- [x] Defer the physical headset presentation check to the final VR pass in
+  Section 5; the strobe web/model case is complete.
 
 ## 2. High-stakes job — main wheel
 
@@ -28,7 +29,8 @@ visibly marked as demonstration data.
 - [x] Cold-test the web path: case, Parts, model retrieval, demo SKUs, on-hand
   quantities, and current approved torque/procedure references stay on the same
   aircraft and job.
-- [ ] Confirm the wheel diagram and step sequence in the physical headset.
+- [x] Defer the wheel diagram and step-sequence presentation check to the final
+  VR pass in Section 5; the wheel web/model case is complete.
 
 ## 3. Remote decision — windshield limits
 
@@ -53,7 +55,9 @@ visibly marked as demonstration data.
 - [x] Web: Demo Content on, latest case, all three cases, Parts, Copilot, images,
   pills, and expandable section text.
 - [ ] Spatial/AR: case target, step guidance, and remote-witness button visible.
-- [ ] VR: join-live-service control restored and remote witness joins cleanly.
+- [ ] VR (final pass): join-live-service control restored, remote witness joins
+  cleanly, and the completed strobe and wheel guidance/diagram sequences render
+  correctly in the headset.
 - [ ] Thermal: charged camera, no frame burn, stable capture, and evidence save.
 - [ ] Pi: registered device online, current Equipment Drive assigned, manuals and
   linked images available, USB mass-storage path checked if soldering is ready.
