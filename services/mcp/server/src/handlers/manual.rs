@@ -46,9 +46,11 @@ fn retrieval_percent(score: Option<f32>) -> Option<u8> {
 fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
     const GENERIC_TERMS: &[&str] = &[
         "aircraft",
+        "applies",
         "about",
         "amm",
         "also",
+        "beechcraft",
         "and",
         "bombardier",
         "can",
@@ -59,8 +61,10 @@ fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
         "diagram",
         "falcon",
         "figure",
+        "finding",
         "from",
         "gulfstream",
+        "guidance",
         "help",
         "image",
         "include",
@@ -78,7 +82,10 @@ fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
         "should",
         "task",
         "that",
+        "the",
+        "there",
         "this",
+        "one",
         "useful",
         "want",
         "what",
@@ -91,6 +98,7 @@ fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
         .split(|character: char| !character.is_ascii_alphanumeric())
         .filter(|term| term.len() > 2)
         .map(str::to_ascii_lowercase)
+        .filter(|term| !GENERIC_TERMS.contains(&term.as_str()))
         .map(|term| match term.as_str() {
             "removal" | "removed" | "removing" => "remove".to_owned(),
             "installation" | "installed" | "installing" => "install".to_owned(),
@@ -291,6 +299,11 @@ mod tests {
 
     #[test]
     fn linked_images_require_specific_topical_alignment() {
+        assert!(image_is_relevant_to_question(
+            "What standard-practices guidance applies to a structural inspection finding on a Beechcraft 1900C? Show me the most relevant figure if there is one.",
+            "MAINTENANCE / 1900-1990C STRUCTURAL INSPECTION MANUAL — CHAPTER 20 STANDARD PRACTICES-AIRFRAME p.32",
+            "Manual figure from CHAPTER 20 STANDARD PRACTICES-AIRFRAME_p32_img0.png",
+        ));
         assert!(!image_is_relevant_to_question(
             "What should I inspect for a Challenger 350 flight data recorder issue? Include a useful diagram.",
             "CL350 AMM PT 2 — CHAPTER 31 INDICATING RECORDING SYSTEMS p.165",

@@ -10527,7 +10527,8 @@ fn inferred_manual_type(question: &str) -> Option<&'static str> {
         ),
         (
             "SPM",
-            contains_token("spm") || contains_any(&["standard practice", "standard practices"]),
+            contains_token("spm")
+                || contains_any(&["standard practice manual", "standard practices manual"]),
         ),
         (
             "SSM",
@@ -12880,6 +12881,11 @@ mod structured_advisory_tests {
         );
         assert_eq!(
             inferred_manual_type("What standard-practice bonding checks should I perform?"),
+            None,
+            "a section name must not be mistaken for a standalone publication family"
+        );
+        assert_eq!(
+            inferred_manual_type("What does the standard practices manual say about bonding?"),
             Some("SPM")
         );
         assert_eq!(
@@ -12905,8 +12911,8 @@ mod structured_advisory_tests {
                 "Search the AMM for wingtip strobe bonding and connector checks",
                 Some("AMM"),
             ),
-            Some("SPM".to_owned()),
-            "neither the model's argument nor its rewrite may override explicit user family intent"
+            Some("AMM".to_owned()),
+            "section wording must preserve the publication family selected by the model"
         );
         assert_eq!(
             resolved_manual_type_for_tool(
