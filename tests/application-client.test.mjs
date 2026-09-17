@@ -570,8 +570,42 @@ test('edge device claim approval uses the tenant-authenticated application bound
   );
   assert.deepEqual(requests[1].request, {
     code: '1234567',
-    displayName: 'MXG Pi 01'
+    displayName: 'MXG Pi 01',
+    customerId: null
   });
+  assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
+  assert.ok(requests.every(({ options }) => options.headers['X-MXG-Organization-ID'] === 'org-1'));
+});
+
+test('customer operations keep accounts devices and payments behind the tenant boundary', async () => {
+  const { client, requests } = harness({});
+  const session = { accessToken: 'oidc-token', organizationId: 'org-1' };
+  const account = { name: 'Meridian Aviation', status: 'active' };
+  const payment = {
+    amountCents: 125000,
+    currency: 'USD',
+    status: 'paid',
+    occurredAt: '2026-09-17T12:00:00Z'
+  };
+
+  await client.customerAccounts.list(session);
+  await client.customerAccounts.get('customer/1', session);
+  await client.customerAccounts.create(account, session);
+  await client.customerAccounts.update('customer/1', account, session);
+  await client.customerAccounts.assignDevice('device/1', 'customer/1', session);
+  await client.customerAccounts.recordPayment('customer/1', payment, session);
+
+  assert.deepEqual(requests.map(({ url, options }) => [url, options.method]), [
+    ['/api/customer-accounts', 'GET'],
+    ['/api/customer-accounts/customer%2F1', 'GET'],
+    ['/api/customer-accounts', 'POST'],
+    ['/api/customer-accounts/customer%2F1', 'PATCH'],
+    ['/api/edge/devices/device%2F1/customer', 'PUT'],
+    ['/api/customer-accounts/customer%2F1/payments', 'POST']
+  ]);
+  assert.deepEqual(requests[2].request, account);
+  assert.deepEqual(requests[4].request, { customerId: 'customer/1' });
+  assert.deepEqual(requests[5].request, payment);
   assert.ok(requests.every(({ options }) => options.headers.Authorization === 'Bearer oidc-token'));
   assert.ok(requests.every(({ options }) => options.headers['X-MXG-Organization-ID'] === 'org-1'));
 });

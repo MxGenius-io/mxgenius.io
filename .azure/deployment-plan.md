@@ -1,5 +1,78 @@
 # MXGenius Azure Deployment Plan
 
+## Customer Operations Control Plane — 2026-09-17
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Promote the tenant-scoped Customer Operations vertical slice as one paired
+static/core release. Operations Center gains a Customers workspace for company
+records, multiple registered Pi devices, Equipment Drive assignment, an
+operational payment ledger, and heartbeat/deployment/error visibility. Device
+Registry and Equipment Drives leave Settings but retain their existing device
+credential, short-code claim, package, and assignment contracts. Migration
+`0031_customer_operations.sql` is additive: it creates customer and payment
+tables and adds an optional tenant-constrained customer reference to existing
+edge devices. It copies or deletes no customer, device, payment, manual, image,
+or source-PDF data.
+
+### All validation checks pass
+
+- [x] Azure CLI `2.86.0` and the existing authenticated subscription are
+  available.
+- [x] Subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`), resource group
+  `mxg-rg-50106`, Central US environment `mxg-cae-50106`, ACR
+  `mxgacr50106`, and Container App `mxg-core` are enabled and provisioned.
+- [x] Bicep compilation, template validation, and what-if are not applicable:
+  this release changes no infrastructure template, resource SKU, identity,
+  secret, or RBAC source.
+- [x] The complete application and Rust suites, formatting, warnings-denied
+  Clippy, whitespace validation, and locked optimized build passed.
+- [x] Subscription and resource-group policy assignment counts are zero.
+
+### Validation proof
+
+- `npm test` passed 454/454 application and contract checks.
+- `cargo test --workspace` passed 323 executable checks with one live
+  credential-gated exporter intentionally ignored. `cargo fmt --all --
+  --check`, warnings-denied workspace Clippy, and
+  `cargo build --locked --release -p mxgenius-mcp` passed.
+- `git diff --check` passed, Operations Center contains 92 unique element IDs,
+  and the migration-byte contract confirmed SQLx migrations retain LF bytes.
+- The new server tests verify organization scoping, Manager/Administrator
+  authorization, multi-device ownership, payment history, and reuse of the
+  existing heartbeat, assignment, and deployment ledgers.
+- Pre-deployment `/healthz`, `/readyz`, and `/adapterz` returned HTTP 200.
+  `mxg-core--chat6603355` is Healthy, Provisioned, running one replica, and
+  serving 100% traffic.
+- Static and live role verification found no permission delta. The `mxg-core`
+  system identity retains `Storage Blob Data Contributor` on the private
+  `documents` container and `Cognitive Services User` on the existing
+  Document Intelligence account. The established registry-secret pull path
+  makes a new `AcrPull` propagation gate inapplicable.
+
+### Deployment and acceptance
+
+- [x] Confirm the existing subscription and Central US release target with the
+  owner immediately before deployment.
+- [ ] Commit and push the exact source on canonical `main`; confirm the matching
+  GitHub Pages run completes successfully.
+- [ ] Build `services/mcp` in ACR with an immutable tag containing the source
+  commit and promote one matching `mxg-core` revision.
+- [ ] Confirm the additive SQLx migration completes, then re-run health,
+  readiness, adapter, revision, replica, traffic, and live-role checks.
+- [ ] Complete signed-in acceptance: create one customer, attach two devices,
+  publish and assign an Equipment Drive, inspect deployment telemetry, and
+  record a payment-history row.
+
+### Rollback
+
+Restore `mxg-core--chat6603355` and the preceding static commit if acceptance
+fails. Migration 0031 is additive and may remain in place during application
+rollback; pre-existing devices remain valid and unassigned because the new
+customer reference is nullable. Do not drop the customer tables as rollback.
+
 ## Full-Catalog Conversational Hardening — 2026-09-17
 
 > **Status:** Deployed and accepted

@@ -149,19 +149,22 @@ async fn environment_describe_uses_the_shared_stable_manifest() {
         "tools/call",
         serde_json::json!({
             "name": "mxg.environment.describe",
-            "arguments": { "surface_id": "settings" }
+            "arguments": { "surface_id": "operations-center" }
         }),
     )
     .await;
     assert_eq!(result["status"], "ok");
-    assert_eq!(result["output"]["manifest_version"], "1.0.0+7");
+    assert_eq!(result["output"]["manifest_version"], "1.0.0+8");
     assert_eq!(result["output"]["surfaces"].as_array().unwrap().len(), 1);
-    assert_eq!(result["output"]["surfaces"][0]["label"], "Settings");
+    assert_eq!(
+        result["output"]["surfaces"][0]["label"],
+        "Operations Center"
+    );
     assert!(result["output"]["surfaces"][0]["capabilities"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|capability| capability["id"] == "equipment-drives"));
+        .any(|capability| capability["id"] == "customer-operations"));
     assert!(result["output"]["terminology"]
         .as_array()
         .unwrap()

@@ -19,7 +19,7 @@ test('Operations Center is the one Settings workspace destination and Reports is
 });
 
 test('the consolidated tabs preserve every existing operational workspace', () => {
-  for (const tab of ['reports', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
+  for (const tab of ['reports', 'customers', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
     assert.match(html, new RegExp(`data-tab="${tab}"`));
     assert.match(html, new RegExp(`data-panel="${tab}"`));
   }

@@ -5,6 +5,7 @@ pub mod aircraft_catalog;
 pub mod cannibalizations;
 pub mod case_service;
 pub mod corpus_release;
+pub mod customer_operations;
 pub mod environment_manifest;
 pub mod equipment_packs;
 pub mod evidence_service;

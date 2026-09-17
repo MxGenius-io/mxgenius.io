@@ -1,6 +1,6 @@
 # Conductor, Environment Awareness, and Workspace Task List
 
-Status: demo freeze accepted
+Status: Gate 8 local implementation in verification
 Owner: MXGenius
 Started: 2026-09-16
 Release policy: complete and accept each gate before building the next one.
@@ -270,3 +270,40 @@ Gate 7 evidence:
   judged generic legacy captions without the source page text. Both paths now
   use the shared aircraft catalog and page-owned context while preserving
   wrong-aircraft, wrong-component, and ambiguity rejection.
+
+## Gate 8 — Customer Operations and edge-device ownership
+
+- [x] Move Device Registry and Equipment Drives out of Settings and into a
+  dedicated **Customers** tab in Operations Center.
+- [x] Add tenant-owned customer accounts with contact, operational, billing,
+  status, and internal-note fields.
+- [x] Support multiple devices per customer plus an explicit unassigned-device
+  queue for existing or newly claimed hardware.
+- [x] Preserve the existing seven-digit claim, device registration, revoke,
+  Equipment Drive publication, and assignment contracts instead of creating a
+  parallel device path.
+- [x] Add a non-sensitive payment ledger for amount, currency, status, invoice,
+  external reference, due/paid dates, and notes; never store card credentials.
+- [x] Surface device heartbeat, desired-state, assigned drive/version, latest
+  deployment state, and reported error details in one customer view.
+- [x] Restrict customer administration APIs to Manager and Administrator roles
+  and enforce organization ownership on every customer/device mutation.
+- [x] Add the new workspace and controls to the server-owned environment
+  manifest so model guidance reflects the UI relocation.
+- [x] Add frontend contracts, Rust repository tests, and responsive structure
+  checks for the new surface.
+- [x] Run the complete JavaScript and Rust quality gates with formatting,
+  warnings, and whitespace checks.
+- [ ] Apply the additive migration and deploy the matching backend/frontend
+  release.
+- [ ] Complete a signed-in live acceptance: create a company, attach two
+  devices, publish and assign a drive, inspect telemetry, and record a payment.
+
+Gate 8 evidence:
+
+- Local implementation spans migration `0031_customer_operations.sql`, the
+  manager/administrator API and repository, the Operations Center Customers
+  tab, and the reused Equipment Drive workspace.
+- Tests: 454 JavaScript checks and 323 executable Rust checks passed; one live
+  credential-gated exporter remained intentionally ignored. Formatting and
+  warnings-denied Clippy passed. Release evidence is pending.

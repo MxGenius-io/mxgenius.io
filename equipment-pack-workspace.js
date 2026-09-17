@@ -207,7 +207,7 @@
     return `${name} · ${family}`;
   }
 
-  function init({ withSession }) {
+  function init({ withSession, getDeviceFilter } = {}) {
     const client = window.MXApplicationClient?.equipmentPacks;
     if (!client || typeof withSession !== 'function') return;
     const byId = (id) => document.getElementById(id);
@@ -227,6 +227,9 @@
     const archiveButton = byId('settingsPackArchive');
     const status = byId('settingsPackStatus');
     const history = byId('settingsPackHistory');
+    if (!packSelect || !familySelect || !versionSelect || !manualPanel || !manualSelect
+      || !manualDetail || !deviceSelect || !folderInput || !publishButton
+      || !publishManualsButton || !assignButton || !archiveButton || !status || !history) return;
     let packs = [];
     let versions = [];
     let uploadingVersions = [];
@@ -340,7 +343,9 @@
           run((session) => window.MXApplicationClient.edgeDevices.list(session))
         ]);
         packs = packPayload.packs || [];
-        devices = (devicePayload.devices || []).filter((device) => device.status !== 'revoked');
+        const customerId = typeof getDeviceFilter === 'function' ? getDeviceFilter() : null;
+        devices = (devicePayload.devices || []).filter((device) => device.status !== 'revoked'
+          && (!customerId || device.customerAccountId === customerId));
         fill(packSelect, packs, packs.length ? 'Select a drive' : 'Create the first drive',
           driveLabel);
         if (packs.length === 1) packSelect.value = packs[0].id;
@@ -515,6 +520,7 @@
     });
     byId('settingsPackRefresh')?.addEventListener('click', () => refresh());
     window.addEventListener('mxg:edge-devices-changed', () => refresh());
+    window.addEventListener('mxg:customer-selection-changed', () => refresh());
     void Promise.all([loadAircraftCatalog(), refresh()]).catch((error) => {
       setStatus(error.message || 'Unable to load Equipment Drives.', 'error');
     });

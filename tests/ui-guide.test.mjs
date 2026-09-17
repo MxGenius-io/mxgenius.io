@@ -42,14 +42,15 @@ test('every primary surface has a manifest-owned semantic guide target', () => {
   }
 });
 
-test('Settings keeps Equipment Drives separate from the Operations Center', () => {
+test('Operations Center owns customer-scoped devices and Equipment Drives', () => {
   const settings = manifest.surfaces.find((surface) => surface.id === 'settings');
   const operations = manifest.surfaces.find((surface) => surface.id === 'operations-center');
   const equipmentDriveTerm = manifest.terminology.find((entry) => entry.term === 'Equipment Drives');
-  assert.match(settings.purpose, /directly in Settings/);
-  assert.match(settings.purpose, /separate Operations Center/);
+  assert.doesNotMatch(settings.purpose, /directly in Settings/);
+  assert.match(settings.purpose, /Open the Operations Center/);
   assert.equal(operations.parent_id, 'settings');
-  assert.match(equipmentDriveTerm.meaning, /managed directly in Settings below registered devices/);
+  assert.match(operations.purpose, /customer accounts/);
+  assert.match(equipmentDriveTerm.meaning, /managed in Operations Center customer accounts/);
 });
 
 test('browser guide navigates, reveals, scrolls, spotlights, and remains dismissible', () => {

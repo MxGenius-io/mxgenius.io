@@ -253,16 +253,16 @@ mod tests {
     #[test]
     fn detail_queries_keep_stable_structure_separate_from_live_state() {
         let result = describe(&EnvironmentDescribeRequest {
-            surface_id: Some("settings".into()),
+            surface_id: Some("operations-center".into()),
             target_id: None,
         })
-        .expect("settings surface");
+        .expect("operations center surface");
         assert_eq!(result.surfaces.len(), 1);
-        assert_eq!(result.surfaces[0].label, "Settings");
+        assert_eq!(result.surfaces[0].label, "Operations Center");
         assert!(result.surfaces[0]
             .capabilities
             .iter()
-            .any(|capability| capability.id == "equipment-drives"));
+            .any(|capability| capability.id == "customer-operations"));
         let compact = compact_manifest();
         assert!(compact.get("active_tab").is_none());
         assert!(compact.get("selected_case").is_none());

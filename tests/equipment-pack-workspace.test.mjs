@@ -63,12 +63,12 @@ test('browser Equipment Pack builder refuses paths that would be unsafe or colli
 
 test('Equipment Drives expose a confirmed recoverable archive path', async () => {
   const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
-  const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+  const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
   assert.match(client, /function archiveEquipmentPack/);
   assert.match(client, /method: 'DELETE'/);
   assert.match(source, /window\.confirm\(`Remove \"\$\{pack\.name\}\" from Equipment Drives\?/);
   assert.match(source, /client\.archive\(pack\.id, session\)/);
-  assert.match(dashboard, /id="settingsPackArchive"[^>]*disabled>Remove selected drive/);
+  assert.match(operationsCenter, /id="settingsPackArchive"[^>]*disabled>Remove selected drive/);
 });
 
 test('drive creation retains its form reference across the async request', () => {

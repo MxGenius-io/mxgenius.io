@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-15
+Last updated: 2026-09-17
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -21,6 +21,7 @@ This is the canonical product inventory. It records what the current repository 
 | Maintenance cases | `[~]` | Case creation, selection, status, context, and markers are mounted; the full evidence-to-closure workspace remains active work. |
 | AI copilot and maintenance advisory | `[~]` | Grounded text, multimodal, threads, Realtime voice, tools, and confirmation are mounted; streaming/fallback refinement remains. |
 | Parts and inventory | `[x]` | Receiving, review, inventory lifecycle, requests, shortages, rotables, robs, locations, and bulk import are reachable. |
+| Customer operations and edge devices | `[~]` | A tenant-scoped customer directory combines multi-device ownership, payment history, deployment telemetry, and Equipment Drive controls in Operations Center; migration deployment and live acceptance remain. |
 | Integration readiness | `[x]` | An organization-shared checklist captures required software connections, first-demo enclosure and peripheral hardware, aviation-authored response processes, and entity migration of accounts, servers, data, builds, authentication, and release ownership with dependency order, official help, readiness, and versioned saves. |
 | 3D inspection and digital-twin bridge | `[~]` | Model navigation, mesh selection, HUD, XR, animation, and media are mounted; validated aircraft mappings remain limited. |
 | Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
@@ -278,6 +279,10 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Equipment Drives package verified folders into deterministic private versions and assign a published version to an approved Pi.
 - `[x]` Managers can compile indexed Azure manual records and linked diagrams into a deterministic Equipment Drive release without downloading and re-uploading source PDFs.
 - `[x]` Equipment Drive and model-context publication share a profile-aware release envelope derived at the publication boundary rather than a hard-coded aircraft list.
+- `[x]` Operations Center contains a tenant-scoped Customer Operations workspace for creating companies, maintaining customer status and contacts, assigning multiple Pi devices, reviewing deployment and heartbeat health, and recording a non-sensitive payment ledger.
+- `[x]` Existing devices can be assigned, reassigned, or left in an explicit unassigned queue without duplicating the proven device-registration or Equipment Drive publication contracts.
+- `[x]` The Equipment Drive workspace is reused inside the selected customer account and filters eligible devices to that customer.
+- `[~]` Customer Operations is implemented and repository-tested; the additive database migration and authenticated production workflow still require deployment and live acceptance.
 - `[x]` Content Upload normalizes each approved source into a versioned release ready for model-context indexing.
 - `[x]` Device-originated seven-digit approval, credential rotation/revocation, durable desired state, resumable transfer, and verified A/B activation.
 - `[x]` Product copy consistently calls the operator-facing workflow an Equipment Drive while preserving the internal package API contract.

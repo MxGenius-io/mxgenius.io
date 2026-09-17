@@ -1,8 +1,8 @@
 {
   "manifest_kind": "mxgenius_environment",
   "schema_version": "1.0.0",
-  "version": 7,
-  "released_at": "2026-09-16",
+  "version": 8,
+  "released_at": "2026-09-17",
   "product": {
     "id": "mxgenius",
     "name": "MXGenius",
@@ -95,15 +95,13 @@
       "kind": "tab",
       "parent_id": null,
       "route": "#settings",
-      "purpose": "Manage profile, model preference, registered devices, Equipment Drives, approved content upload, demo visibility, and appearance directly in Settings. Open the separate Operations Center from here for reports, builds, readiness, patents, feedback, features, and access.",
+      "purpose": "Manage profile, model preference, approved content upload, demo visibility, and appearance. Open the Operations Center for customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
       "capabilities": [
         {"id": "profile-model", "description": "Manage the user profile and preferred orchestration-capable text model."},
-        {"id": "edge-devices", "description": "Approve and manage registered Pi devices without exposing device credentials."},
-        {"id": "equipment-drives", "description": "Publish versioned approved libraries and assign a published version to a registered Pi."},
         {"id": "content-upload", "description": "Store an approved source for ingestion; upload alone does not make it searchable."},
         {"id": "demo-content", "description": "Show or hide fictional maintenance and parts presentation records."}
       ],
-      "target_ids": ["settings-operations-center", "settings-account", "settings-equipment-drives"]
+      "target_ids": ["settings-operations-center", "settings-account"]
     },
     {
       "id": "copilot",
@@ -139,15 +137,16 @@
       "kind": "workspace",
       "parent_id": "settings",
       "route": "operations-center.html",
-      "purpose": "Collect reports, build activity, integration readiness, the feature catalog, patent projects, feedback, access management, and shared operational workspaces.",
+      "purpose": "Operate customer accounts, registered Pi fleets, Equipment Drive delivery, payment history, service health, reports, build activity, integration readiness, patents, feedback, and access management.",
       "capabilities": [
+        {"id": "customer-operations", "description": "Manage tenant-owned customer accounts, attach multiple Pi devices, review heartbeat and deployment errors, record payment history, and deliver approved Equipment Drives."},
         {"id": "reports-builds", "description": "Review generated reports and shared build activity."},
         {"id": "integration-readiness", "description": "Track integration boundaries, owners, access, and cutover state."},
         {"id": "patent-portfolio", "description": "Create, switch, save, and archive independent patent drafting projects without mixing their documents or references."},
         {"id": "feedback-access", "description": "Manage personal feedback, authorized triage, and access rules."},
         {"id": "shared-workspaces", "description": "Open durable team workspaces from one authenticated center."}
       ],
-      "target_ids": ["operations-patents"]
+      "target_ids": ["operations-customers", "operations-patents"]
     }
   ],
   "terminology": [
@@ -156,8 +155,9 @@
     {"term": "Demo Content", "meaning": "A Settings control that shows or hides fictional presentation records in Maintenance and Parts."},
     {"term": "Case Workspace", "meaning": "The aircraft-scoped maintenance record for observations, evidence, findings, approvals, and history."},
     {"term": "Maintenance Workspace", "meaning": "The 3D and spatial inspection surface; it does not replace the Case Workspace record."},
-    {"term": "Equipment Drives", "meaning": "Versioned approved libraries managed directly in Settings below registered devices, then assigned to a registered Pi."},
-    {"term": "Operations Center", "meaning": "The separate consolidated entry point opened from Settings for reports, builds, readiness, patents, feedback, access, and shared workspaces."}
+    {"term": "Equipment Drives", "meaning": "Versioned approved libraries managed in Operations Center customer accounts, then assigned to one of that customer's registered Pi devices."},
+    {"term": "Customer Operations", "meaning": "The tenant-owned account layer that groups customer information, multiple Pi devices, payment history, heartbeat and deployment health, and Equipment Drive delivery without storing payment credentials."},
+    {"term": "Operations Center", "meaning": "The consolidated entry point opened from Settings for customer operations, reports, builds, readiness, patents, feedback, access, and shared workspaces."}
   ],
   "state_boundary": {
     "stable_manifest": "This file describes durable product structure and guidance.",
@@ -627,19 +627,19 @@
       "status": "scripted"
     },
     {
-      "id": "settings-equipment-drives",
-      "title": "Publish an Equipment Drive",
-      "script": "Equipment Drives publish a versioned approved library and assign that frozen version to a registered Pi.",
+      "id": "operations-customers",
+      "title": "Manage a customer and its devices",
+      "script": "Customer Operations keeps each customer account, its registered Pi devices, payment history, service health, and Equipment Drive delivery together without exposing device or payment credentials.",
       "video": null,
       "voiceover": null,
       "captions": null,
-      "surface": "settings",
-      "touchpoints": ["#settingsPacksCard", "#settingsPackSelect", "#settingsPackPublishManuals"],
+      "surface": "operations-center",
+      "touchpoints": ["#tab-customers", "#customerDirectoryList", "#settingsDevicesCard", "#settingsPacksCard"],
       "beats": [
-        "Open Settings from the primary navigation.",
-        "Locate Equipment Drives below registered devices.",
-        "Choose or create the intended equipment family drive.",
-        "Publish and assign only the approved frozen version."
+        "Open Operations Center from Settings and choose Customers.",
+        "Create or select the customer account before managing hardware.",
+        "Approve and assign one or more Pi devices to the account.",
+        "Review service health, then publish and assign only the approved frozen Equipment Drive version."
       ],
       "activation": "semantic",
       "status": "scripted"

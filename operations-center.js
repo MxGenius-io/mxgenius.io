@@ -5,6 +5,7 @@
   const validTabs = new Set(tabs.map((tab) => tab.dataset.tab));
   const labels = {
     reports: 'Reports centered',
+    customers: 'Customer operations active',
     build: 'Build board active',
     readiness: 'Readiness record active',
     features: 'Feature inventory active',
@@ -13,6 +14,7 @@
     access: 'Access registry active'
   };
   let accessLoaded = false;
+  let customersLoaded = false;
 
   function embeddedStyle() {
     return `
@@ -71,6 +73,10 @@
     });
     if (stateLabel) stateLabel.textContent = labels[next];
     if (next === 'access' && !accessLoaded) void refreshAccess();
+    if (next === 'customers' && !customersLoaded) {
+      customersLoaded = true;
+      void window.MXCustomerOperations?.load?.();
+    }
     if (updateHash) history.replaceState(null, '', `#${next}`);
   }
 

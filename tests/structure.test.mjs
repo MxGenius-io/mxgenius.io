@@ -7,6 +7,7 @@ const rootReadme = await readFile(new URL('../README.md', import.meta.url), 'utf
 const featureCatalog = await readFile(new URL('../FEATURES.md', import.meta.url), 'utf8');
 const featureCatalogPage = await readFile(new URL('../feature-catalog.html', import.meta.url), 'utf8');
 const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
+const customerOperations = await readFile(new URL('../customer-operations.js', import.meta.url), 'utf8');
 const landing = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
@@ -1105,26 +1106,26 @@ test('Settings exposes the organized UI sound schema as a previewable replacemen
   assert.doesNotMatch(soundSettings, /localStorage|sessionStorage/);
 });
 
-test('Settings exposes the complete Equipment Pack publish and assign lifecycle', async () => {
+test('Customer Operations exposes the complete Equipment Drive publish and assign lifecycle', async () => {
   const equipmentWorkspace = await readFile(new URL('../equipment-pack-workspace.js', import.meta.url), 'utf8');
   for (const id of [
     'settingsPacksCard', 'settingsPackCreate', 'settingsPackName', 'settingsPackFamily',
     'settingsPackSelect', 'settingsPackFolder', 'settingsPackPublish', 'settingsPackPublishManuals', 'settingsPackVersion',
     'settingsPackManuals', 'settingsPackManualSelect', 'settingsPackManualDetail',
     'settingsPackDevice', 'settingsPackAssign', 'settingsPackStatus', 'settingsPackHistory'
-  ]) assert.match(dashboard, new RegExp(`id="${id}"`));
+  ]) assert.match(operationsCenter, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /equipment-pack-workspace\.js\?v=11/);
-  assert.match(dashboard, /id="settingsPackFamily"[^>]*required/);
+  assert.match(operationsCenter, /equipment-pack-workspace\.js\?v=12/);
+  assert.match(operationsCenter, /id="settingsPackFamily"[^>]*required/);
   assert.match(equipmentWorkspace, /manual-catalog\.json\?v=1/);
   assert.match(equipmentWorkspace, /document\.createElement\('optgroup'\)/);
-  assert.match(dashboard, />\s*Equipment Drives\s*</);
-  assert.match(dashboard, />Create a drive<\/summary>/);
-  assert.match(dashboard, /<span>1 · Drive<\/span>/);
-  assert.match(dashboard, /class="equipment-pack-workspace__body"/);
-  assert.match(dashboard, /id="settingsPackFolderChoose"/);
-  assert.match(dashboard, /id="settingsPackFolderName"/);
-  assert.match(application, /MXEquipmentPacks\?\.init/);
+  assert.match(operationsCenter, />Equipment Drives<\/h4>/);
+  assert.match(operationsCenter, />Create a drive<\/summary>/);
+  assert.match(operationsCenter, /<span>1 · Drive<\/span>/);
+  assert.match(operationsCenter, /class="customer-module customer-module--drives equipment-pack-workspace"/);
+  assert.match(operationsCenter, /id="settingsPackFolderChoose"/);
+  assert.match(operationsCenter, /id="settingsPackFolderName"/);
+  assert.match(customerOperations, /MXEquipmentPacks\?\.init/);
   assert.match(equipmentWorkspace, /webkitRelativePath/);
   assert.match(equipmentWorkspace, /crypto\.subtle\.digest\('SHA-256'/);
   assert.match(equipmentWorkspace, /client\.createVersion/);
@@ -1141,7 +1142,7 @@ test('Settings exposes the complete Equipment Pack publish and assign lifecycle'
   assert.doesNotMatch(equipmentWorkspace, /localStorage|sessionStorage/);
 });
 
-test('Settings approves Pi-originated short claims without exposing credentials', () => {
+test('Customer Operations approves Pi-originated short claims without exposing credentials', () => {
   for (const id of [
     'settingsDevicesCard',
     'settingsDeviceForm',
@@ -1152,21 +1153,20 @@ test('Settings approves Pi-originated short claims without exposing credentials'
     'settingsDeviceList',
     'settingsDeviceRevokedList',
     'settingsDeviceRevokedCount'
-  ]) assert.match(dashboard, new RegExp(`id="${id}"`));
+  ]) assert.match(operationsCenter, new RegExp(`id="${id}"`));
 
-  assert.match(dashboard, /Device Access &amp; Registry/);
-  assert.match(dashboard, /Approve device/);
-  assert.match(dashboard, /seven-digit code shown on its screen/);
+  assert.match(operationsCenter, />Devices<\/h4>/);
+  assert.match(operationsCenter, /Approve device/);
+  assert.match(operationsCenter, /seven-digit code shown on a Pi/);
   assert.match(client, /function listEdgeDevices/);
   assert.match(client, /function approveEdgeDeviceClaim/);
   assert.match(client, /edgeDevices: Object\.freeze/);
-  assert.match(application, /MXApplicationClient\.edgeDevices\.list/);
-  assert.match(application, /MXApplicationClient\.edgeDevices\.approveClaim/);
-  assert.match(application, /MXApplicationClient\.edgeDevices\.revoke/);
-  assert.match(application, /Registered:/);
-  assert.doesNotMatch(application, /navigator\.clipboard\.writeText/);
-  assert.doesNotMatch(application, /localStorage\.setItem\([^\n]*DeviceKey/i);
-  assert.match(applicationStyles, /\.device-registry-list\s*\{[^}]*max-height: 280px;[^}]*overflow-y: auto;/s);
+  assert.match(customerOperations, /client\.edgeDevices\.list/);
+  assert.match(customerOperations, /client\.edgeDevices\.approveClaim/);
+  assert.match(customerOperations, /client\.edgeDevices\.revoke/);
+  assert.match(customerOperations, /Last connected:/);
+  assert.doesNotMatch(customerOperations, /navigator\.clipboard\.writeText/);
+  assert.doesNotMatch(customerOperations, /localStorage|sessionStorage/);
 });
 
 test('Settings profile and image persistence use the current shared auth session', () => {
@@ -1210,7 +1210,7 @@ test('context help binds accessible anchored popovers across product surfaces', 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
   assert.equal(tooltipManifest.manifest_kind, 'mxgenius_environment');
   assert.equal(tooltipManifest.schema_version, '1.0.0');
-  assert.equal(tooltipManifest.version, 7);
+  assert.equal(tooltipManifest.version, 8);
   assert.ok(Array.isArray(tooltipManifest.surfaces));
   assert.equal(tooltipManifest.surfaces.length, 9);
   const surfaceIds = tooltipManifest.surfaces.map((surface) => surface.id);
@@ -1219,7 +1219,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
   for (const surfaceId of tooltipManifest.navigation_order) {
     assert.equal(surfaceById.get(surfaceId)?.kind, 'tab', `${surfaceId} must be a canonical tab surface`);
   }
-  assert.equal(surfaceById.get('settings')?.capabilities.some((item) => item.id === 'equipment-drives'), true);
+  assert.equal(surfaceById.get('operations-center')?.capabilities.some((item) => item.id === 'customer-operations'), true);
   assert.match(surfaceById.get('settings')?.purpose || '', /Equipment Drives/);
   assert.equal(tooltipManifest.terminology.some((item) => item.term === 'Equipment Drive'), true);
   assert.match(tooltipManifest.state_boundary.live_context, /Current tab/);

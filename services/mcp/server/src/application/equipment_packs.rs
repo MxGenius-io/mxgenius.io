@@ -56,6 +56,8 @@ pub struct RegisterEdgeDeviceInput {
     pub display_name: String,
     #[serde(rename = "hardwareId")]
     pub hardware_id: Option<String>,
+    #[serde(rename = "customerId")]
+    pub customer_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +84,8 @@ pub struct ApproveEdgeClaimInput {
     pub code: String,
     #[serde(rename = "displayName")]
     pub display_name: String,
+    #[serde(rename = "customerId")]
+    pub customer_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -129,6 +133,7 @@ pub struct EquipmentPackVersionRow {
 #[serde(rename_all = "camelCase")]
 pub struct EdgeDeviceRow {
     pub id: Uuid,
+    pub customer_account_id: Option<Uuid>,
     pub display_name: String,
     pub hardware_id: Option<String>,
     pub status: String,
@@ -496,14 +501,19 @@ impl EquipmentPackRepository {
         {
             return Err(EquipmentPackError::Invalid("hardware id is invalid"));
         }
+        if let Some(customer_id) = input.customer_id {
+            self.require_customer(context.organization_id.0, customer_id)
+                .await?;
+        }
         sqlx::query_as(
             r#"INSERT INTO edge_devices
-               (id,organization_id,display_name,hardware_id,created_by)
-               VALUES ($1,$2,$3,$4,$5)
-               RETURNING id,display_name,hardware_id,status,last_seen_at,created_at,updated_at"#,
+               (id,organization_id,customer_account_id,display_name,hardware_id,created_by)
+               VALUES ($1,$2,$3,$4,$5,$6)
+               RETURNING id,customer_account_id,display_name,hardware_id,status,last_seen_at,created_at,updated_at"#,
         )
         .bind(Uuid::new_v4())
         .bind(context.organization_id.0)
+        .bind(input.customer_id)
         .bind(display_name)
         .bind(input.hardware_id.as_deref().map(str::trim))
         .bind(context.user_id.0)
@@ -556,10 +566,23 @@ impl EquipmentPackRepository {
         context: &ExecutionContext,
         claim_code_hash: &str,
         display_name: &str,
+        customer_id: Option<Uuid>,
     ) -> Result<EdgeDeviceRow, EquipmentPackError> {
         validate_sha256(claim_code_hash)?;
         let display_name = bounded_text(display_name, 120, "device name is required")?;
         let mut transaction = self.pool.begin().await?;
+        if let Some(customer_id) = customer_id {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM customer_accounts WHERE organization_id=$1 AND id=$2)",
+            )
+            .bind(context.organization_id.0)
+            .bind(customer_id)
+            .fetch_one(&mut *transaction)
+            .await?;
+            if !exists {
+                return Err(EquipmentPackError::NotFound);
+            }
+        }
         let claim: Option<(Uuid, String, String, OffsetDateTime, Option<OffsetDateTime>)> =
             sqlx::query_as(
                 r#"SELECT id,hardware_id,credential_hash,expires_at,approved_at
@@ -591,11 +614,13 @@ impl EquipmentPackRepository {
             Some((device_id, _)) => {
                 sqlx::query(
                     r#"UPDATE edge_devices SET display_name=$1,status='active',
-                         credential_hash=$2,credential_issued_at=now(),updated_at=now()
-                       WHERE organization_id=$3 AND id=$4"#,
+                         credential_hash=$2,customer_account_id=COALESCE($3,customer_account_id),
+                         credential_issued_at=now(),updated_at=now()
+                       WHERE organization_id=$4 AND id=$5"#,
                 )
                 .bind(display_name)
                 .bind(&credential_hash)
+                .bind(customer_id)
                 .bind(context.organization_id.0)
                 .bind(device_id)
                 .execute(&mut *transaction)
@@ -605,12 +630,13 @@ impl EquipmentPackRepository {
             None => {
                 sqlx::query(
                     r#"INSERT INTO edge_devices
-                       (id,organization_id,display_name,hardware_id,status,credential_hash,
+                       (id,organization_id,customer_account_id,display_name,hardware_id,status,credential_hash,
                         credential_issued_at,created_by)
-                       VALUES ($1,$2,$3,$4,'active',$5,now(),$6)"#,
+                       VALUES ($1,$2,$3,$4,$5,'active',$6,now(),$7)"#,
                 )
                 .bind(claim_id)
                 .bind(context.organization_id.0)
+                .bind(customer_id)
                 .bind(display_name)
                 .bind(&hardware_id)
                 .bind(&credential_hash)
@@ -636,7 +662,7 @@ impl EquipmentPackRepository {
         .await?;
 
         let device = sqlx::query_as(
-            r#"SELECT id,display_name,hardware_id,status,last_seen_at,created_at,updated_at
+            r#"SELECT id,customer_account_id,display_name,hardware_id,status,last_seen_at,created_at,updated_at
                FROM edge_devices WHERE organization_id=$1 AND id=$2"#,
         )
         .bind(context.organization_id.0)
@@ -673,7 +699,7 @@ impl EquipmentPackRepository {
         context: &ExecutionContext,
     ) -> Result<Vec<EdgeDeviceRow>, EquipmentPackError> {
         Ok(sqlx::query_as(
-            r#"SELECT id,display_name,hardware_id,status,last_seen_at,created_at,updated_at
+            r#"SELECT id,customer_account_id,display_name,hardware_id,status,last_seen_at,created_at,updated_at
                FROM edge_devices WHERE organization_id=$1
                ORDER BY updated_at DESC,id"#,
         )
@@ -692,7 +718,7 @@ impl EquipmentPackRepository {
             r#"UPDATE edge_devices SET status='revoked',credential_hash=NULL,
                       credential_issued_at=NULL,updated_at=now()
                WHERE organization_id=$1 AND id=$2 AND status<>'revoked'
-               RETURNING id,display_name,hardware_id,status,last_seen_at,created_at,updated_at"#,
+               RETURNING id,customer_account_id,display_name,hardware_id,status,last_seen_at,created_at,updated_at"#,
         )
         .bind(context.organization_id.0)
         .bind(device_id)
@@ -709,6 +735,25 @@ impl EquipmentPackRepository {
         .await?;
         transaction.commit().await?;
         Ok(row)
+    }
+
+    async fn require_customer(
+        &self,
+        organization_id: Uuid,
+        customer_id: Uuid,
+    ) -> Result<(), EquipmentPackError> {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM customer_accounts WHERE organization_id=$1 AND id=$2)",
+        )
+        .bind(organization_id)
+        .bind(customer_id)
+        .fetch_one(&self.pool)
+        .await?;
+        if exists {
+            Ok(())
+        } else {
+            Err(EquipmentPackError::NotFound)
+        }
     }
 
     pub async fn disconnect_device(

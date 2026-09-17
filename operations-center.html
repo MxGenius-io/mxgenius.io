@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
-  <meta name="description" content="One authenticated view for MXGenius reports, build activity, readiness, features, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=2">
+  <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, feedback, and access rules">
+  <link rel="stylesheet" href="operations-center.css?v=3">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -27,7 +27,7 @@
       <div>
         <p class="eyebrow">One operational record</p>
         <h1 id="operationsTitle">Operations Center</h1>
-        <p>Reports lead. The working board, readiness record, feature inventory, feedback, and access controls stay one tab away.</p>
+        <p>Customer operations, delivery health, reports, readiness, shared work, feedback, and access controls stay one tab away.</p>
       </div>
       <div class="operations-posture" aria-label="Operations center posture">
         <span><i></i> Authenticated workspace</span>
@@ -37,6 +37,7 @@
 
     <nav class="operations-tabs" role="tablist" aria-label="Operations Center views">
       <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="true" data-tab="reports">Reports</button>
+      <button type="button" role="tab" id="tab-customers" aria-controls="panel-customers" aria-selected="false" data-tab="customers">Customers</button>
       <button type="button" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" data-tab="build">Build</button>
       <button type="button" role="tab" id="tab-readiness" aria-controls="panel-readiness" aria-selected="false" data-tab="readiness">Readiness</button>
       <button type="button" role="tab" id="tab-features" aria-controls="panel-features" aria-selected="false" data-tab="features">Features</button>
@@ -47,6 +48,168 @@
 
     <section class="operations-panel" id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" data-panel="reports">
       <iframe id="reportsFrame" title="MXGenius reports" src="progress.html?embed=1"></iframe>
+    </section>
+    <section class="operations-panel customer-panel" id="panel-customers" role="tabpanel" aria-labelledby="tab-customers" data-panel="customers" hidden>
+      <header class="customer-panel__heading">
+        <div>
+          <p class="eyebrow">Customer operations</p>
+          <h2>Accounts, devices, delivery, and service health</h2>
+          <p>One tenant-safe view of every customer account, its Pi fleet, Equipment Drives, payment history, and recent deployment signals.</p>
+        </div>
+        <button class="button button--quiet" id="customerRefresh" type="button">Refresh</button>
+      </header>
+
+      <div class="customer-metrics" aria-label="Customer operations summary">
+        <div><strong id="customerMetricAccounts">—</strong><span>Customer accounts</span></div>
+        <div><strong id="customerMetricDevices">—</strong><span>Managed devices</span></div>
+        <div><strong id="customerMetricOnline">—</strong><span>Authorized now</span></div>
+        <div><strong id="customerMetricAttention">—</strong><span>Need attention</span></div>
+      </div>
+
+      <div class="customer-workspace">
+        <aside class="customer-directory" aria-label="Customer account directory">
+          <div class="customer-directory__heading">
+            <div>
+              <span class="customer-kicker">Directory</span>
+              <strong>Customers</strong>
+            </div>
+            <span id="customerDirectoryCount">0</span>
+          </div>
+          <div id="customerDirectoryList" class="customer-directory__list" aria-live="polite"></div>
+          <details class="customer-unassigned">
+            <summary>Unassigned devices <span id="customerUnassignedCount">0</span></summary>
+            <div id="customerUnassignedList" class="customer-unassigned__list" aria-live="polite"></div>
+          </details>
+          <details class="customer-create">
+            <summary>Add customer</summary>
+            <form id="customerCreateForm" class="customer-form">
+              <label>Company name<input name="name" maxlength="160" required placeholder="Meridian Aviation"></label>
+              <label>Status<select name="status"><option value="active">Active</option><option value="trial">Trial</option><option value="prospect">Prospect</option></select></label>
+              <label>Primary contact<input name="primaryContactName" maxlength="160" placeholder="Name"></label>
+              <label>Contact email<input name="primaryContactEmail" type="email" maxlength="254" placeholder="ops@example.com"></label>
+              <label>Billing email<input name="billingEmail" type="email" maxlength="254" placeholder="billing@example.com"></label>
+              <button class="button button--primary" type="submit">Create customer</button>
+            </form>
+          </details>
+          <p id="customerStatus" class="customer-status" role="status" aria-live="polite">Loading customer operations…</p>
+        </aside>
+
+        <div class="customer-detail" id="customerDetail" hidden>
+          <header class="customer-detail__heading">
+            <div>
+              <div class="customer-title-line">
+                <h3 id="customerName">Customer</h3>
+                <span class="customer-state" id="customerState">Active</span>
+              </div>
+              <p id="customerContact">No contact recorded</p>
+            </div>
+            <details class="customer-edit">
+              <summary>Edit account</summary>
+              <form id="customerEditForm" class="customer-form customer-form--wide">
+                <label>Company name<input name="name" maxlength="160" required></label>
+                <label>Status<select name="status"><option value="prospect">Prospect</option><option value="trial">Trial</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="closed">Closed</option></select></label>
+                <label>Primary contact<input name="primaryContactName" maxlength="160"></label>
+                <label>Contact email<input name="primaryContactEmail" type="email" maxlength="254"></label>
+                <label>Billing email<input name="billingEmail" type="email" maxlength="254"></label>
+                <label class="customer-form__wide">Notes<textarea name="notes" maxlength="4000" rows="3"></textarea></label>
+                <button class="button button--primary" type="submit">Save account</button>
+              </form>
+            </details>
+          </header>
+
+          <div class="customer-detail__metrics">
+            <div><strong id="customerDeviceCount">0</strong><span>Devices</span></div>
+            <div><strong id="customerActiveDeviceCount">0</strong><span>Authorized</span></div>
+            <div><strong id="customerAttentionCount">0</strong><span>Attention</span></div>
+            <div><strong id="customerPaidTotal">$0</strong><span>Recorded paid</span></div>
+          </div>
+
+          <div class="customer-module-grid">
+            <section class="customer-module customer-module--devices" id="settingsDevicesCard">
+              <div class="customer-module__heading">
+                <div><span class="customer-kicker">Fleet</span><h4>Devices</h4></div>
+                <button id="settingsDeviceRefresh" class="button button--quiet" type="button">Refresh</button>
+              </div>
+              <p>Approve the seven-digit code shown on a Pi. Its credential remains device-bound and revocable.</p>
+              <form id="settingsDeviceForm" class="customer-device-form">
+                <label>Device name<input id="settingsDeviceName" type="text" maxlength="120" autocomplete="off" placeholder="Hangar Pi 01" required></label>
+                <label>Setup code<input id="settingsDeviceClaimCode" type="text" maxlength="7" inputmode="numeric" pattern="[0-9]{7}" autocomplete="one-time-code" placeholder="1234567" required></label>
+                <button id="settingsDeviceRegister" class="button button--primary" type="submit">Approve device</button>
+              </form>
+              <p id="settingsDeviceStatus" class="customer-status" role="status" aria-live="polite">Choose a customer to manage devices.</p>
+              <div id="settingsDeviceList" class="customer-device-list" aria-live="polite"></div>
+              <details class="customer-revoked">
+                <summary>Revoked devices <span id="settingsDeviceRevokedCount">0</span></summary>
+                <div id="settingsDeviceRevokedList" class="customer-device-list" aria-live="polite"></div>
+              </details>
+            </section>
+
+            <section class="customer-module customer-module--billing">
+              <div class="customer-module__heading"><div><span class="customer-kicker">Account</span><h4>Payment history</h4></div></div>
+              <p>This is an operational ledger only. MXGenius stores no card or processor credentials here.</p>
+              <form id="customerPaymentForm" class="customer-payment-form">
+                <label>Amount<input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
+                <label>Currency<input name="currency" maxlength="3" value="USD" required></label>
+                <label>Status<select name="status"><option value="paid">Paid</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="refunded">Refunded</option></select></label>
+                <label>Date<input name="occurredAt" type="date" required></label>
+                <label class="customer-form__wide">Reference<input name="reference" maxlength="160" placeholder="Invoice or receipt reference"></label>
+                <button class="button button--primary" type="submit">Record payment</button>
+              </form>
+              <div id="customerPaymentList" class="customer-payment-list" aria-live="polite"></div>
+            </section>
+
+            <section class="customer-module customer-module--telemetry">
+              <div class="customer-module__heading"><div><span class="customer-kicker">Service</span><h4>Device health</h4></div></div>
+              <p>Heartbeat, assigned drive, deployment state, and the latest reported error from the existing device ledger.</p>
+              <div id="customerTelemetryList" class="customer-telemetry-list" aria-live="polite"></div>
+            </section>
+
+            <section class="customer-module customer-module--drives equipment-pack-workspace" id="settingsPacksCard">
+              <div class="customer-module__heading">
+                <div><span class="customer-kicker">Delivery</span><h4>Equipment Drives</h4></div>
+                <button id="settingsPackRefresh" class="button button--quiet" type="button">Refresh</button>
+              </div>
+              <p class="equipment-pack-workspace__summary">Publish an approved Azure aircraft library, then assign its frozen version to one of this customer's devices.</p>
+              <div class="equipment-pack-folder-picker">
+                <button id="settingsPackPublishManuals" class="button button--quiet" type="button" disabled>Publish manuals</button>
+              </div>
+              <details class="equipment-pack-create">
+                <summary>Create a drive</summary>
+                <form id="settingsPackCreate" class="equipment-pack-create__form">
+                  <label>Name<input id="settingsPackName" maxlength="120" placeholder="Maintenance references" required></label>
+                  <label>Aircraft library<select id="settingsPackFamily" required><option value="">Loading aircraft libraries…</option></select></label>
+                  <label class="equipment-pack-create__wide">Description <span>optional</span><input id="settingsPackDescription" maxlength="1000" placeholder="What this drive supports"></label>
+                  <button class="button button--primary" type="submit">Create</button>
+                </form>
+              </details>
+              <div class="equipment-pack-flow">
+                <label><span>1 · Drive</span><select id="settingsPackSelect"><option value="">Loading drives…</option></select></label>
+                <div class="equipment-pack-folder-field"><span>2 · Folder</span><div class="equipment-pack-folder-picker"><button id="settingsPackFolderChoose" class="button button--quiet" type="button">Choose folder</button><span id="settingsPackFolderName">No folder selected</span><input id="settingsPackFolder" type="file" webkitdirectory multiple hidden></div></div>
+                <button id="settingsPackPublish" class="button button--primary" type="button" disabled>Publish version</button>
+              </div>
+              <div id="settingsPackManuals" class="equipment-pack-manuals" hidden>
+                <label><span>Manuals included</span><select id="settingsPackManualSelect"><option value="">Select a published version</option></select></label>
+                <p id="settingsPackManualDetail">The complete library is assigned to the Pi as one drive.</p>
+              </div>
+              <div class="equipment-pack-flow equipment-pack-flow--assign">
+                <label><span>3 · Version</span><select id="settingsPackVersion"><option value="">Select a drive first</option></select></label>
+                <label><span>4 · Device</span><select id="settingsPackDevice"><option value="">Choose a customer first</option></select></label>
+                <button id="settingsPackAssign" class="button button--primary" type="button" disabled>Assign to Pi</button>
+              </div>
+              <div class="equipment-pack-workspace__footer">
+                <p id="settingsPackStatus" class="customer-status" role="status" aria-live="polite">Choose a customer to manage Equipment Drives.</p>
+                <button id="settingsPackArchive" class="button customer-danger" type="button" disabled>Remove selected drive</button>
+              </div>
+              <details class="equipment-pack-history"><summary>Recent device activity</summary><div id="settingsPackHistory" aria-live="polite">Select a device to see its deployment state.</div></details>
+            </section>
+          </div>
+        </div>
+
+        <div class="customer-empty" id="customerEmpty">
+          <strong>No customer selected</strong>
+          <span>Create or choose a customer to manage its devices and delivery history.</span>
+        </div>
+      </div>
     </section>
     <section class="operations-panel" id="panel-build" role="tabpanel" aria-labelledby="tab-build" data-panel="build" hidden>
       <iframe id="buildFrame" title="MXGenius build board" data-src="build-board.html?embed=1"></iframe>
@@ -104,8 +267,10 @@
 
   <script src="runtime-config.js?v=3"></script>
   <script src="auth.js?v=13"></script>
-  <script src="application-client.js?v=33"></script>
+  <script src="application-client.js?v=48"></script>
   <script src="guided-tooltip.js?v=12"></script>
-  <script src="operations-center.js?v=2"></script>
+  <script src="equipment-pack-workspace.js?v=12"></script>
+  <script src="customer-operations.js?v=1"></script>
+  <script src="operations-center.js?v=3"></script>
 </body>
 </html>

@@ -38,6 +38,10 @@ use crate::application::cannibalizations::{
 use crate::application::corpus_release::{
     compile_release_manifest, ReleaseFile, MODEL_CONTEXT_PROFILE,
 };
+use crate::application::customer_operations::{
+    AssignCustomerDeviceInput, CreateCustomerInput, CustomerOperationsError,
+    CustomerOperationsRepository, RecordCustomerPaymentInput, UpdateCustomerInput,
+};
 use crate::application::equipment_packs::{
     ApproveEdgeClaimInput, AssignEquipmentPackInput, CreateEquipmentPackInput,
     CreateEquipmentPackVersionInput, DeviceIdentity, EdgeDeploymentStatusInput,
@@ -276,6 +280,18 @@ pub fn router_with_health_and_manual(
             get(get_equipment_pack_upload),
         )
         .route(
+            "/api/customer-accounts",
+            get(list_customer_accounts).post(create_customer_account),
+        )
+        .route(
+            "/api/customer-accounts/:customer_id",
+            get(get_customer_account).patch(update_customer_account),
+        )
+        .route(
+            "/api/customer-accounts/:customer_id/payments",
+            post(record_customer_payment),
+        )
+        .route(
             "/api/edge/devices",
             get(list_edge_devices).post(register_edge_device),
         )
@@ -290,6 +306,10 @@ pub fn router_with_health_and_manual(
         .route(
             "/api/edge/devices/:device_id/deployments",
             get(list_edge_deployments),
+        )
+        .route(
+            "/api/edge/devices/:device_id/customer",
+            axum::routing::put(assign_customer_device),
         )
         .route(
             "/api/edge/devices/:device_id/assignment",
@@ -1199,6 +1219,7 @@ async fn approve_edge_claim(
             &context,
             &sha256_prefixed(code.as_bytes()),
             &input.display_name,
+            input.customer_id,
         )
         .await
     {
@@ -2013,6 +2034,202 @@ async fn list_edge_devices(State(state): State<AppState>, headers: HeaderMap) ->
         )
             .into_response(),
         Err(error) => equipment_pack_error(error),
+    }
+}
+
+fn customer_operations_repository(
+    state: &AppState,
+) -> Result<CustomerOperationsRepository, Response> {
+    postgres_pool(state)
+        .map(CustomerOperationsRepository::new)
+        .ok_or_else(persistence_not_configured)
+}
+
+fn customer_operations_allowed(context: &ExecutionContext) -> bool {
+    matches!(
+        context.role,
+        mxgenius_shared::application::policy::Role::Manager
+            | mxgenius_shared::application::policy::Role::Administrator
+    )
+}
+
+fn customer_operations_error(error: CustomerOperationsError) -> Response {
+    match error {
+        CustomerOperationsError::NotFound => realtime_error(
+            StatusCode::NOT_FOUND,
+            "CUSTOMER_ACCOUNT_NOT_FOUND",
+            "customer account was not found",
+        ),
+        CustomerOperationsError::Conflict => realtime_error(
+            StatusCode::CONFLICT,
+            "CUSTOMER_ACCOUNT_CONFLICT",
+            "customer account conflicts with existing state",
+        ),
+        CustomerOperationsError::Invalid(message) => {
+            realtime_error(StatusCode::BAD_REQUEST, "INVALID_CUSTOMER_ACCOUNT", message)
+        }
+        CustomerOperationsError::Persistence(error) => {
+            persistence_error("customer_operations", error)
+        }
+    }
+}
+
+async fn customer_operations_context(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<ExecutionContext, Response> {
+    let context = application_context(state, headers).await?;
+    if !customer_operations_allowed(&context) {
+        return Err(realtime_error(
+            StatusCode::FORBIDDEN,
+            "CUSTOMER_OPERATIONS_DENIED",
+            "only managers and administrators can manage customer operations",
+        ));
+    }
+    Ok(context)
+}
+
+async fn list_customer_accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.list_customers(&context).await {
+        Ok(customers) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "customers": customers })),
+        )
+            .into_response(),
+        Err(error) => customer_operations_error(error),
+    }
+}
+
+async fn get_customer_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(customer_id): Path<Uuid>,
+) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.get_customer(&context, customer_id).await {
+        Ok(overview) => {
+            ([(header::CACHE_CONTROL, "no-store")], Json(json!(overview))).into_response()
+        }
+        Err(error) => customer_operations_error(error),
+    }
+}
+
+async fn create_customer_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateCustomerInput>,
+) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository.create_customer(&context, &input).await {
+        Ok(overview) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!(overview)),
+        )
+            .into_response(),
+        Err(error) => customer_operations_error(error),
+    }
+}
+
+async fn update_customer_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(customer_id): Path<Uuid>,
+    Json(input): Json<UpdateCustomerInput>,
+) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .update_customer(&context, customer_id, &input)
+        .await
+    {
+        Ok(overview) => {
+            ([(header::CACHE_CONTROL, "no-store")], Json(json!(overview))).into_response()
+        }
+        Err(error) => customer_operations_error(error),
+    }
+}
+
+async fn record_customer_payment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(customer_id): Path<Uuid>,
+    Json(input): Json<RecordCustomerPaymentInput>,
+) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .record_payment(&context, customer_id, &input)
+        .await
+    {
+        Ok(payment) => (
+            StatusCode::CREATED,
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "payment": payment })),
+        )
+            .into_response(),
+        Err(error) => customer_operations_error(error),
+    }
+}
+
+async fn assign_customer_device(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(device_id): Path<Uuid>,
+    Json(input): Json<AssignCustomerDeviceInput>,
+) -> Response {
+    let context = match customer_operations_context(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let repository = match customer_operations_repository(&state) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match repository
+        .assign_device(&context, device_id, input.customer_id)
+        .await
+    {
+        Ok(device) => (
+            [(header::CACHE_CONTROL, "no-store")],
+            Json(json!({ "device": device })),
+        )
+            .into_response(),
+        Err(error) => customer_operations_error(error),
     }
 }
 
@@ -12270,7 +12487,7 @@ mod structured_advisory_tests {
     #[test]
     fn application_environment_manifest_maps_the_durable_product_surfaces() {
         let manifest = application_environment_manifest();
-        assert_eq!(manifest["manifest_version"], "1.0.0+7");
+        assert_eq!(manifest["manifest_version"], "1.0.0+8");
         assert_eq!(manifest["surfaces"].as_array().unwrap().len(), 9);
         assert_eq!(
             manifest["navigation_order"]
@@ -12287,17 +12504,17 @@ mod structured_advisory_tests {
                 "settings"
             ]
         );
-        let settings = manifest["surfaces"]
+        let operations_center = manifest["surfaces"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|surface| surface["id"] == "settings")
-            .expect("settings surface");
-        assert!(settings["capability_ids"]
+            .find(|surface| surface["id"] == "operations-center")
+            .expect("operations center surface");
+        assert!(operations_center["capability_ids"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|capability| capability == "equipment-drives"));
+            .any(|capability| capability == "customer-operations"));
         assert_eq!(manifest["terminology"][0]["term"], "Equipment Drive");
         assert!(manifest.get("active_tab").is_none());
         assert!(manifest.get("selected_case").is_none());

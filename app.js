@@ -3249,15 +3249,6 @@ function initSettings() {
   const demoPresentation = window.MXDemoVisualRegistry?.presentation;
   const textModelSelect = document.getElementById('settingsTextModel');
   const operationsCenterOpen = document.getElementById('settingsOperationsCenterOpen');
-  const deviceForm = document.getElementById('settingsDeviceForm');
-  const deviceNameInput = document.getElementById('settingsDeviceName');
-  const deviceClaimCodeInput = document.getElementById('settingsDeviceClaimCode');
-  const deviceRegisterButton = document.getElementById('settingsDeviceRegister');
-  const deviceRefreshButton = document.getElementById('settingsDeviceRefresh');
-  const deviceStatus = document.getElementById('settingsDeviceStatus');
-  const deviceList = document.getElementById('settingsDeviceList');
-  const deviceRevokedList = document.getElementById('settingsDeviceRevokedList');
-  const deviceRevokedCount = document.getElementById('settingsDeviceRevokedCount');
   let profileImageObjectUrl = null;
 
   function syncDemoPresentationControls(message = '') {
@@ -3309,150 +3300,6 @@ function initSettings() {
       return operation(requestSession);
     }
   }
-
-  const setDeviceStatus = (message, state = '') => {
-    if (!deviceStatus) return;
-    deviceStatus.textContent = message;
-    deviceStatus.dataset.state = state;
-  };
-
-  const formatDeviceDate = (value, fallback) => {
-    if (!value) return fallback;
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString();
-  };
-
-  const renderEdgeDevices = (devices) => {
-    if (!deviceList || !deviceRevokedList) return;
-    deviceList.replaceChildren();
-    deviceRevokedList.replaceChildren();
-    const activeDevices = devices.filter((device) => device.status !== 'revoked');
-    const revokedDevices = devices.filter((device) => device.status === 'revoked');
-    if (deviceRevokedCount) deviceRevokedCount.textContent = String(revokedDevices.length);
-    if (!activeDevices.length) {
-      const empty = document.createElement('p');
-      empty.className = 'settings-hint device-registry-empty';
-      empty.textContent = devices.length ? 'No active devices.' : 'No devices registered yet.';
-      deviceList.appendChild(empty);
-    }
-
-    devices.forEach((device) => {
-      const row = document.createElement('article');
-      row.className = 'device-registry-item';
-
-      const summary = document.createElement('div');
-      summary.className = 'device-registry-item__summary';
-      const heading = document.createElement('div');
-      heading.className = 'device-registry-item__heading';
-      const name = document.createElement('strong');
-      name.textContent = device.displayName || 'Unnamed device';
-      const status = document.createElement('span');
-      status.className = 'device-registry-item__status';
-      status.dataset.state = device.status || 'registered';
-      const stateLabels = { pending: 'Awaiting enrollment', active: 'Authorized', offline: 'Offline', revoked: 'Revoked' };
-      status.textContent = stateLabels[device.status] || device.status || 'Registered';
-      heading.append(name, status);
-
-      const hardwareId = document.createElement('code');
-      const fingerprint = String(device.hardwareId || '');
-      hardwareId.textContent = fingerprint ? `Device …${fingerprint.slice(-8)}` : 'Device identity unavailable';
-      const lastSeen = document.createElement('span');
-      lastSeen.className = 'settings-hint';
-      lastSeen.textContent = `Last connected: ${formatDeviceDate(device.lastSeenAt, 'never')}`;
-      const registeredAt = document.createElement('span');
-      registeredAt.className = 'settings-hint';
-      registeredAt.textContent = `Registered: ${formatDeviceDate(device.createdAt, 'date unavailable')}`;
-      summary.append(heading, hardwareId, registeredAt, lastSeen);
-      row.appendChild(summary);
-
-      if (device.status !== 'revoked') {
-        const actions = document.createElement('div');
-        actions.className = 'device-registry-item__actions';
-        const revokeButton = document.createElement('button');
-        revokeButton.className = 'device-registry-item__revoke';
-        revokeButton.type = 'button';
-        revokeButton.textContent = 'Revoke';
-        revokeButton.addEventListener('click', async () => {
-          if (!window.confirm(`Revoke ${device.displayName}? Its saved credential will stop working immediately and this registry record cannot be re-enrolled.`)) return;
-          revokeButton.disabled = true;
-          setDeviceStatus(`Revoking ${device.displayName}…`);
-          try {
-            await withSettingsSession((requestSession) => MXApplicationClient.edgeDevices.revoke(device.id, requestSession));
-            await loadEdgeDevices();
-            window.dispatchEvent(new Event('mxg:edge-devices-changed'));
-            setDeviceStatus(`${device.displayName} revoked.`, 'success');
-          } catch (error) {
-            revokeButton.disabled = false;
-            setDeviceStatus(error.message || 'Unable to revoke the device.', 'error');
-          }
-        });
-        actions.append(revokeButton);
-        row.appendChild(actions);
-      }
-      (device.status === 'revoked' ? deviceRevokedList : deviceList).appendChild(row);
-    });
-
-    if (!revokedDevices.length) {
-      const empty = document.createElement('p');
-      empty.className = 'settings-hint device-registry-empty';
-      empty.textContent = 'No revoked devices.';
-      deviceRevokedList.appendChild(empty);
-    }
-  };
-
-  const loadEdgeDevices = async () => {
-    if (!deviceList || !MXApplicationClient.edgeDevices) return;
-    if (deviceRefreshButton) deviceRefreshButton.disabled = true;
-    setDeviceStatus('Loading registered devices…');
-    try {
-      const payload = await withSettingsSession((requestSession) =>
-        MXApplicationClient.edgeDevices.list(requestSession)
-      );
-      const devices = Array.isArray(payload?.devices) ? payload.devices : [];
-      renderEdgeDevices(devices);
-      const activeCount = devices.filter((device) => device.status !== 'revoked').length;
-      const revokedCount = devices.length - activeCount;
-      setDeviceStatus(`${activeCount} active · ${revokedCount} revoked`, 'success');
-    } catch (error) {
-      renderEdgeDevices([]);
-      setDeviceStatus(error.message || 'Unable to load registered devices.', 'error');
-    } finally {
-      if (deviceRefreshButton) deviceRefreshButton.disabled = false;
-    }
-  };
-
-  deviceForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const displayName = deviceNameInput?.value.trim() || '';
-    const code = String(deviceClaimCodeInput?.value || '').replace(/\D/g, '');
-    if (!displayName || code.length !== 7) {
-      setDeviceStatus('Enter a device name and the seven-digit code shown on the Pi.', 'error');
-      return;
-    }
-    if (deviceRegisterButton) deviceRegisterButton.disabled = true;
-    setDeviceStatus(`Approving ${displayName}…`);
-    try {
-      const payload = await withSettingsSession((requestSession) =>
-        MXApplicationClient.edgeDevices.approveClaim({ code, displayName, session: requestSession })
-      );
-      const device = payload?.device;
-      if (!device?.id) throw new Error('The device was approved, but its identifier was not returned.');
-      if (deviceNameInput) deviceNameInput.value = '';
-      if (deviceClaimCodeInput) deviceClaimCodeInput.value = '';
-      await loadEdgeDevices();
-      window.dispatchEvent(new Event('mxg:edge-devices-changed'));
-      setDeviceStatus(`${device.displayName} approved. The Pi will connect automatically.`, 'success');
-    } catch (error) {
-      setDeviceStatus(error.message || 'Unable to approve the device.', 'error');
-    } finally {
-      if (deviceRegisterButton) deviceRegisterButton.disabled = false;
-    }
-  });
-
-  deviceRefreshButton?.addEventListener('click', loadEdgeDevices);
-
-  if (acct || window.MXGENIUS_CONFIG?.allowInsecurePilot) void loadEdgeDevices();
-  window.MXEquipmentPacks?.init?.({ withSession: withSettingsSession });
 
   operationsCenterOpen?.addEventListener('click', () => {
     window.location.href = 'operations-center.html';
@@ -3607,7 +3454,6 @@ function initSettings() {
 
   let profileSaveTimer = null;
   const scheduleServerProfileSave = (event) => {
-    if (event?.target?.closest?.('#settingsDevicesCard, #settingsPacksCard')) return;
     if (!acct && !window.MXGENIUS_CONFIG?.allowInsecurePilot) return;
     clearTimeout(profileSaveTimer);
     profileSaveTimer = setTimeout(() => {

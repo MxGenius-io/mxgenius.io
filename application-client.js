@@ -423,11 +423,11 @@ const MXApplicationClient = (() => {
     return applicationJson('/api/edge/devices', { session });
   }
 
-  function registerEdgeDevice({ displayName, hardwareId, session = {} }) {
+  function registerEdgeDevice({ displayName, hardwareId, customerId = null, session = {} }) {
     return applicationJson('/api/edge/devices', {
       session,
       method: 'POST',
-      body: { displayName, hardwareId }
+      body: { displayName, hardwareId, customerId }
     });
   }
 
@@ -438,11 +438,11 @@ const MXApplicationClient = (() => {
     });
   }
 
-  function approveEdgeDeviceClaim({ code, displayName, session = {} }) {
+  function approveEdgeDeviceClaim({ code, displayName, customerId = null, session = {} }) {
     return applicationJson('/api/edge/claims/approve', {
       session,
       method: 'POST',
-      body: { code, displayName }
+      body: { code, displayName, customerId }
     });
   }
 
@@ -524,6 +524,46 @@ const MXApplicationClient = (() => {
 
   function listEdgeDeployments(deviceId, session = {}) {
     return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}/deployments`, { session });
+  }
+
+  function listCustomerAccounts(session = {}) {
+    return applicationJson('/api/customer-accounts', { session });
+  }
+
+  function getCustomerAccount(customerId, session = {}) {
+    return applicationJson(`/api/customer-accounts/${encodeURIComponent(customerId)}`, { session });
+  }
+
+  function createCustomerAccount(customer, session = {}) {
+    return applicationJson('/api/customer-accounts', {
+      session,
+      method: 'POST',
+      body: customer
+    });
+  }
+
+  function updateCustomerAccount(customerId, customer, session = {}) {
+    return applicationJson(`/api/customer-accounts/${encodeURIComponent(customerId)}`, {
+      session,
+      method: 'PATCH',
+      body: customer
+    });
+  }
+
+  function assignCustomerDevice(deviceId, customerId, session = {}) {
+    return applicationJson(`/api/edge/devices/${encodeURIComponent(deviceId)}/customer`, {
+      session,
+      method: 'PUT',
+      body: { customerId: customerId || null }
+    });
+  }
+
+  function recordCustomerPayment(customerId, payment, session = {}) {
+    return applicationJson(`/api/customer-accounts/${encodeURIComponent(customerId)}/payments`, {
+      session,
+      method: 'POST',
+      body: payment
+    });
   }
 
   function uploadContent(file, session = {}) {
@@ -1769,6 +1809,14 @@ const MXApplicationClient = (() => {
       approveClaim: approveEdgeDeviceClaim,
       revoke: revokeEdgeDevice,
       deployments: listEdgeDeployments
+    }),
+    customerAccounts: Object.freeze({
+      list: listCustomerAccounts,
+      get: getCustomerAccount,
+      create: createCustomerAccount,
+      update: updateCustomerAccount,
+      assignDevice: assignCustomerDevice,
+      recordPayment: recordCustomerPayment
     }),
     equipmentPacks: Object.freeze({
       list: listEquipmentPacks,
