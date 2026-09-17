@@ -160,7 +160,10 @@ test('model awareness distinguishes verified runtime facts from mounted capabili
 });
 
 test('the conductor separates inventory lookup, manual evidence, and UI navigation', () => {
-  assert.match(backend, /Use mxg\.parts\.resolve whenever the user asks what is on hand/);
+  assert.match(backend, /When authoritative_case_inventory is present, it is the completed current tenant-scoped lookup/);
+  assert.match(backend, /Otherwise use mxg\.parts\.resolve whenever the user asks what is on hand/);
+  assert.match(backend, /authoritative_case_inventory_context/);
+  assert.match(backend, /inventory_lookup_satisfied_by_case_context/);
   assert.match(backend, /use mxg\.parts\.inventory for current tenant stock and location/);
   assert.match(backend, /Never infer inventory from manual records/);
   assert.match(backend, /organization inventory SKU/);

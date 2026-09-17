@@ -105,4 +105,5 @@ beat requires.
   - `/healthz`, `/readyz`, and `/adapterz` returned 200; the database, frozen
     `manuals-catalog-v3` pack, Parts, remote witness, and spatial scan reported
     ready or available. The Rust workspace passed 313 executable checks with
-    one intentional live-cloud test ignored, and Clippy was clean.
+    one intentional live-cloud test ignored, the application shell passed 443
+    automated checks, and Clippy was clean.
