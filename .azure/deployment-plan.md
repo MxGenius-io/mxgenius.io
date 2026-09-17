@@ -2,7 +2,7 @@
 
 ## Canonical Manual Catalog v3 — 2026-09-16
 
-> **Status:** Validated; deployment pending
+> **Status:** Deployed and healthy
 > **Recipe:** AZCLI (existing Azure AI Search + Blob Storage + ACR + Container Apps release path)
 
 Promote the complete canonical `D:\Data\mxgenius` flattened manual catalog as
@@ -54,12 +54,28 @@ single-slot contract. No source PDFs are copied.
   indexes and keeps the 384-dimension vector non-retrievable. The Basic Search
   service remains healthy at one partition/replica; v3 consumes 5,885,896,147
   bytes plus a 1,686,813,012-byte vector index.
-- The complete browser suite passes 428/428. The locked Rust workspace passes
-  301/301 executable checks with one credential-gated live exporter ignored;
+- The frozen browser suite passes 442/442. The locked Rust workspace passes
+  306/306 executable checks with one credential-gated live exporter ignored;
   formatting, warnings-denied Clippy, release build, Python compile, focused
   corpus contracts, and `git diff --check` also pass.
-- Production remains on `manuals-authoritative-v2` until the immutable image is
-  built and promoted from the validated commit.
+- A verified vector-page derivative corrects the CL350 FDR removal diagram
+  without copying its source PDF. Blob metadata, the frozen register, and the
+  `manuals-catalog-v3` record agree on Figure 401, manual page 403, and SHA-256
+  `74c13c22b4c9c56a6fd0ccac3204a4cf49c9ed6ae57a0d9280112a5409501152`.
+
+### Deployment proof
+
+- Exact source commit `1c08ffbc06509ea9ac3992ece0d04c814b87258b` is on canonical
+  `main`; GitHub Pages run `35173241950` completed successfully for that commit.
+- ACR run `cj35` published
+  `mxg-core:rag-verified-1c08ffb-20260916` with immutable digest
+  `sha256:91c959e931d4db84f0a7bc1f2504afb456fdbd52b4d0b872d27fb18a9ccaca0c`.
+- Container Apps revision `mxg-core--rag1c08ffb` is Healthy, Provisioned,
+  latest-ready, running one replica, and serving 100% traffic. The prior
+  `mxg-core--uicafef27` revision remains healthy at 0% for rollback.
+- Post-promotion `/healthz`, `/readyz`, and `/adapterz` return HTTP 200.
+  Readiness identifies `manuals-catalog-v3` as ready and healthy. Managed
+  identity roles remain unchanged and container-scoped where applicable.
 
 ## Natural Registered-Image Intent — 2026-09-15
 

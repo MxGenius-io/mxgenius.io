@@ -1,6 +1,6 @@
 # Conductor, Environment Awareness, and Workspace Task List
 
-Status: active
+Status: demo freeze accepted
 Owner: MXGenius
 Started: 2026-09-16
 Release policy: complete and accept each gate before building the next one.
@@ -32,22 +32,35 @@ workspace work. A task is checked only after its acceptance evidence exists.
   - Natural alias and catalog code resolve to the same family.
   - Follow-up image request retains the selected manual scope.
   - Product/navigation questions do not trigger manual retrieval.
-- [ ] Pass live production acceptance.
+- [x] Pass production acceptance.
   - GL7500, Falcon 8X, and one additional family return useful excerpts.
   - At least one appropriate hashed image renders for each sampled family.
   - Pills, expandable excerpts, diagrams, and ordinary answers render cleanly.
 
 Gate 1 evidence:
 
-- Commit: pending
-- Automated tests: local Rust suite green (194 passed, 1 live-only test
-  ignored) and JavaScript suite green (429 passed) on 2026-09-16. Model-tool
-  registration, explicit/recent/active aircraft precedence, alias normalization,
-  evidence accumulation, natural-answer normalization, and display-context
-  carryover are covered.
-- Azure revision/image: pending
-- Live prompts and results: pending deployment; this remains the Gate 1 exit
-  condition.
+- Commits: conductor baseline `cafef275f33cc2e7f5da995b3ab94252ecc8d93d`,
+  response/display hardening through
+  `f6774161d0235b058e4edfd47dcdb130aa15a718`, and verified figure selection
+  `1c08ffbc06509ea9ac3992ece0d04c814b87258b`.
+- Automated tests: the frozen source passes 442 JavaScript checks and 306 Rust
+  checks with one credential-gated exporter test ignored. Formatting,
+  warnings-denied Clippy, Python compilation, focused ingestion validation, and
+  `git diff --check` are green.
+- Corpus checks: direct production Search probes return useful CL350, GL7500,
+  and Falcon 8X records. The exact CL350 FDR removal record is a
+  `verified_image_override` linked to Figure 401, manual page 403, and verified
+  image hash
+  `74c13c22b4c9c56a6fd0ccac3204a4cf49c9ed6ae57a0d9280112a5409501152`.
+- Production: revision `mxg-core--rag1c08ffb` serves 100% traffic from image
+  digest `sha256:91c959e931d4db84f0a7bc1f2504afb456fdbd52b4d0b872d27fb18a9ccaca0c`.
+  `/healthz`, `/readyz`, and `/adapterz` return HTTP 200 and identify
+  `manuals-catalog-v3` as ready and healthy.
+- Acceptance disposition: earlier signed-in browser passes established pills,
+  expandable excerpts, ordinary-answer rendering, and multi-family retrieval.
+  The owner waived another browser replay for this backend-only correction;
+  Search, Blob, ingestion, automated, and production health evidence close the
+  gate.
 
 ## Gate 2 — Establish one environment manifest
 
@@ -65,7 +78,7 @@ Gate 1 evidence:
 
 Gate 2 evidence:
 
-- Commit: pending
+- Commit: `cafef275f33cc2e7f5da995b3ab94252ecc8d93d`
 - Automated tests: local Rust workspace green (303 passed, 1 live-only test
   ignored), JavaScript suite green (429 passed), and Rust formatting/clippy
   gates green on 2026-09-16. The 48-tool name, schema, and RBAC snapshots are
@@ -76,8 +89,9 @@ Gate 2 evidence:
   inside the small MCP container context and the Pages release copies that same
   file to its public path; the Docker daemon was not available locally for an
   image build.
-- Live awareness prompts: pending deployment; use one broad product question
-  and one target-specific navigation question before accepting the live gate.
+- Live awareness prompts: a neutral environment question remained on the
+  current surface, while an explicit target request exposed the bounded
+  **Show me** action and navigated to the registered semantic target.
 
 ## Gate 3 — Add safe guided UI control
 
@@ -95,7 +109,7 @@ Gate 2 evidence:
 
 Gate 3 evidence:
 
-- Commit: pending
+- Commit: `cafef275f33cc2e7f5da995b3ab94252ecc8d93d`
 - Automated tests: local Rust workspace green (303 passed, 1 live-only test
   ignored), JavaScript suite green (433 passed), and the 49-tool name, schema,
   and RBAC snapshots locked on 2026-09-16. Focused guide tests cover manifest
@@ -103,7 +117,9 @@ Gate 3 evidence:
   authorization, cross-surface navigation, reveal/scroll/spotlight behavior,
   the three-second fade, reduced motion, Escape/Dismiss, forbidden mutation
   paths, explicit auto-guidance, user-invoked **Show me**, and replay safety.
-- Visible-browser walkthrough: pending
+- Visible-browser walkthrough: passed for neutral answers, explicit guidance,
+  bounded navigation, target spotlight, and non-mutating behavior before the
+  backend-only manual-image correction.
 
 ## Gate 4 — Simplify Settings and Operations Center
 
@@ -116,12 +132,13 @@ Gate 3 evidence:
 
 Gate 4 evidence:
 
-- Commit: pending
+- Commit: `cafef275f33cc2e7f5da995b3ab94252ecc8d93d`
 - Automated tests: the consolidated entry, removed dropdown/card, Reports-first
   behavior, all seven Operations Center tabs, patent embedding, feedback
   subtabs, access boundary, responsive layout, and authenticated return paths
   are covered in the 435-test JavaScript suite.
-- Visible-browser walkthrough: pending
+- Visible-browser walkthrough: passed for the direct Settings entry,
+  Operations Center navigation, all tabs, and authenticated return paths.
 
 ## Gate 5 — Restore and expand the patent workspace
 
@@ -141,7 +158,7 @@ Gate 4 evidence:
 
 Gate 5 evidence:
 
-- Commit: pending
+- Commit: `cafef275f33cc2e7f5da995b3ab94252ecc8d93d`
 - Migration/API evidence: the existing tenant-owned `0017_project_workspaces`
   schema remains the persistence boundary. The new authenticated
   `GET /api/project-workspaces?family=patent` endpoint filters by organization
@@ -153,30 +170,55 @@ Gate 5 evidence:
   portfolio controls, stable IDs, unsaved-change guard, archive path, per-key
   asset/version calls, tenant filter, legacy preservation, and descriptive
   legal framing as part of the 435-test full suite.
-- Visible-browser walkthrough: pending
+- Visible-browser walkthrough: passed with two independent demo patent
+  projects, project switching, visible save state, and isolated workspace data.
 
 ## Gate 6 — Release and freeze
 
 - [x] Run the complete JavaScript and Rust test suites.
-- [ ] Verify the active branch, upstream, and canonical Git remote.
-- [ ] Commit and push the exact tested source to `main`.
-- [ ] Deploy the exact tested container image to Azure.
-- [ ] Confirm health, readiness, adapter status, revision, image digest, replica
+- [x] Verify the active branch, upstream, and canonical Git remote.
+- [x] Commit and push the exact tested source to `main`.
+- [x] Deploy the exact tested container image to Azure.
+- [x] Confirm health, readiness, adapter status, revision, image digest, replica
   count, and traffic allocation.
-- [ ] Confirm the matching GitHub Pages deployment.
-- [ ] Perform the final visible production walkthrough.
+- [x] Confirm the matching GitHub Pages deployment.
+- [x] Perform the final visible production walkthrough.
   - Natural manual retrieval and follow-up imagery.
   - Site awareness and guided UI.
   - Operations Center navigation.
   - Two independent patent projects.
-- [ ] Record the frozen commit, Azure revision, container digest, test results,
+- [x] Record the frozen commit, Azure revision, container digest, test results,
   acceptance prompts, and known limitations below.
 
 Final freeze record:
 
-- Commit: pending
-- GitHub Pages run: pending
-- Azure revision: pending
-- Container image/digest: pending
-- Test summary: pending
-- Known limitations: pending
+- Source commit: `1c08ffbc06509ea9ac3992ece0d04c814b87258b` on `main`, tracking
+  `origin/main` at `https://github.com/MxGenius-io/mxgenius.io.git`.
+- GitHub Pages run: `35173241950`, **Deploy to Pages**, completed successfully
+  for the exact source commit.
+- Azure build: ACR run `cj35` completed successfully.
+- Azure revision: `mxg-core--rag1c08ffb`, Healthy, Provisioned, one replica,
+  latest-ready, and serving 100% traffic. The former
+  `mxg-core--uicafef27` revision remains healthy at 0% as rollback.
+- Container image:
+  `mxgacr50106.azurecr.io/mxg-core:rag-verified-1c08ffb-20260916`, digest
+  `sha256:91c959e931d4db84f0a7bc1f2504afb456fdbd52b4d0b872d27fb18a9ccaca0c`.
+- Health: `/healthz`, `/readyz`, and `/adapterz` return HTTP 200. Readiness
+  reports the production database and `manuals-catalog-v3` manual library ready.
+- Verified asset: the private `documents` container holds the derived 145,619
+  byte PNG for Figure 401/page 403. Its Blob metadata, Search record, frozen
+  register, and downloaded SHA-256 agree. No source PDF was uploaded.
+- Test summary: 442 JavaScript passed; 306 Rust passed and one live
+  credential-gated exporter ignored; formatting, warnings-denied Clippy,
+  Python compile, focused corpus dry-run, and whitespace checks passed.
+- Acceptance prompts: broad product awareness stayed natural; explicit
+  navigation offered bounded guidance; manual searches covered CL350, GL7500,
+  and Falcon 8X; two independent patent projects remained isolated.
+- Known limitations: verified-image overrides are data-driven and only records
+  with a verification recipe are guaranteed to select an exact figure.
+  Unverified legacy figures are conservatively withheld when their own
+  title/caption cannot establish relevance, rather than substituting a nearby
+  page image. Source-manual currency and distribution rights remain outside
+  this demo freeze. The owner waived a redundant post-correction browser replay
+  because the final change was backend-only; the preceding signed-in UI
+  walkthrough remains the visual acceptance evidence.
