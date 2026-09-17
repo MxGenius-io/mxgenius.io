@@ -741,6 +741,15 @@ async fn lookup_registered_image(
     {
         return Ok(None);
     }
+    let query_terms = meaningful_terms(&query_normalized);
+    if query_terms.is_empty() {
+        return Ok(None);
+    }
+    // Search only the current turn's technical topic words. Conversational
+    // framing and active-case context are useful to the model, but they make a
+    // deterministic image-register lookup less precise and can displace the
+    // verified record from the bounded candidate window.
+    let search_text = query_terms.iter().cloned().collect::<Vec<_>>().join(" ");
     let url = format!(
         "{}/indexes/{}/docs/search?api-version={SEARCH_API_VERSION}",
         library.search_endpoint, library.index_name
@@ -750,7 +759,7 @@ async fn lookup_registered_image(
         .post(url)
         .header("api-key", &library.search_key)
         .json(&json!({
-            "search": query,
+            "search": search_text,
             "searchFields": "title,section,content,aircraft_model",
             "filter": format!(
                 "source_class eq 'manual' and search.ismatch('{}', 'aircraft_model', 'simple', 'all')",
@@ -768,7 +777,6 @@ async fn lookup_registered_image(
         .await
         .map_err(|error| ManualLibraryError::Invalid(error.to_string()))?;
 
-    let query_terms = meaningful_terms(&query_normalized);
     let mut matches = Vec::new();
     for hit in response.value {
         if !hit
@@ -920,8 +928,13 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "manual",
         "please",
         "aircraft",
+        "about",
+        "also",
+        "and",
         "bombardier",
+        "can",
         "challenger",
+        "could",
         "dassault",
         "exact",
         "falcon",
@@ -931,17 +944,26 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
         "guidance",
         "global",
         "gulfstream",
+        "help",
         "include",
         "inspect",
         "issue",
+        "know",
         "most",
+        "need",
         "should",
+        "related",
+        "relevant",
         "useful",
+        "want",
         "what",
         "where",
+        "would",
         "with",
         "this",
         "that",
+        "you",
+        "your",
     ];
     value
         .split_whitespace()
@@ -952,12 +974,11 @@ fn meaningful_terms(value: &str) -> BTreeSet<String> {
                     .chars()
                     .all(|character| character.is_ascii_digit())
         })
-        .map(|term| {
-            if term.len() > 4 && term.ends_with('s') {
-                term[..term.len() - 1].to_owned()
-            } else {
-                term.to_owned()
-            }
+        .map(|term| match term {
+            "removal" | "removed" | "removing" => "remove".to_owned(),
+            "installation" | "installed" | "installing" => "install".to_owned(),
+            _ if term.len() > 4 && term.ends_with('s') => term[..term.len() - 1].to_owned(),
+            _ => term.to_owned(),
         })
         .collect()
 }
@@ -1400,6 +1421,15 @@ mod tests {
         );
         assert!(
             verified_asset_match_score(&exact, &meaningful_terms(&exact), &tasks, &keywords) > 0
+        );
+
+        let natural = normalized_match_text(
+            "I need to remove the flight data recorder on a Challenger 350. What should I know, and can you show me the relevant diagram?",
+        );
+        assert!(
+            verified_asset_match_score(&natural, &meaningful_terms(&natural), &tasks, &keywords,)
+                > 0,
+            "natural remove language must match a verified removal figure"
         );
 
         let broad = normalized_match_text(

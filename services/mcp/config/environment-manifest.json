@@ -95,7 +95,7 @@
       "kind": "tab",
       "parent_id": null,
       "route": "#settings",
-      "purpose": "Open the Operations Center and manage profile, model preference, registered devices, Equipment Drives, approved content upload, demo visibility, and appearance.",
+      "purpose": "Manage profile, model preference, registered devices, Equipment Drives, approved content upload, demo visibility, and appearance directly in Settings. Open the separate Operations Center from here for reports, builds, readiness, patents, feedback, features, and access.",
       "capabilities": [
         {"id": "profile-model", "description": "Manage the user profile and preferred orchestration-capable text model."},
         {"id": "edge-devices", "description": "Approve and manage registered Pi devices without exposing device credentials."},
@@ -156,7 +156,8 @@
     {"term": "Demo Content", "meaning": "A Settings control that shows or hides fictional presentation records in Maintenance and Parts."},
     {"term": "Case Workspace", "meaning": "The aircraft-scoped maintenance record for observations, evidence, findings, approvals, and history."},
     {"term": "Maintenance Workspace", "meaning": "The 3D and spatial inspection surface; it does not replace the Case Workspace record."},
-    {"term": "Operations Center", "meaning": "The consolidated entry point for reports, builds, readiness, patents, feedback, access, and shared workspaces."}
+    {"term": "Equipment Drives", "meaning": "Versioned approved libraries managed directly in Settings below registered devices, then assigned to a registered Pi."},
+    {"term": "Operations Center", "meaning": "The separate consolidated entry point opened from Settings for reports, builds, readiness, patents, feedback, access, and shared workspaces."}
   ],
   "state_boundary": {
     "stable_manifest": "This file describes durable product structure and guidance.",

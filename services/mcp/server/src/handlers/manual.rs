@@ -46,44 +46,59 @@ fn retrieval_percent(score: Option<f32>) -> Option<u8> {
 fn normalized_topic_terms(value: &str) -> BTreeSet<String> {
     const GENERIC_TERMS: &[&str] = &[
         "aircraft",
+        "about",
         "amm",
+        "also",
+        "and",
         "bombardier",
+        "can",
         "challenger",
         "chapter",
+        "could",
         "dassault",
         "diagram",
         "falcon",
         "figure",
         "from",
         "gulfstream",
+        "help",
         "image",
         "include",
         "inspect",
         "issue",
         "manual",
         "most",
+        "need",
         "page",
         "please",
+        "know",
+        "related",
+        "relevant",
         "show",
+        "should",
         "task",
         "that",
         "this",
         "useful",
+        "want",
         "what",
         "with",
+        "would",
+        "you",
+        "your",
     ];
     value
         .split(|character: char| !character.is_ascii_alphanumeric())
         .filter(|term| term.len() > 2)
         .map(str::to_ascii_lowercase)
-        .map(|term| {
-            if term.len() > 4 && term.ends_with('s') {
-                term[..term.len() - 1].to_owned()
-            } else {
-                term
-            }
+        .map(|term| match term.as_str() {
+            "removal" | "removed" | "removing" => "remove".to_owned(),
+            "installation" | "installed" | "installing" => "install".to_owned(),
+            _ if term.len() > 4 && term.ends_with('s') => term[..term.len() - 1].to_owned(),
+            _ => term,
         })
         .filter(|term| !GENERIC_TERMS.contains(&term.as_str()))
+        .filter(|term| !term.chars().all(|character| character.is_ascii_digit()))
         .filter(|term| {
             !(term.starts_with("cl") || term.starts_with("gl"))
                 || !term[2..]
@@ -290,6 +305,11 @@ mod tests {
             "Show the Falcon 8X main landing gear main door removal figure",
             "8X AMM — Removal / installation of the main landing gear main doors",
             "Main landing gear main doors figure",
+        ));
+        assert!(image_is_relevant_to_question(
+            "I need to remove the flight data recorder on a Challenger 350. What should I know, and can you show me the relevant diagram?",
+            "CL350 AMM — Flight Data Recorder Removal/Installation",
+            "Flight data recorder removal/installation — Figure 401",
         ));
     }
 }

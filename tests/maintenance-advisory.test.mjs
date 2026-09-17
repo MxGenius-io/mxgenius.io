@@ -172,10 +172,11 @@ test('retrieved manual records expose expandable section text in advisory and co
   assert.match(app, /function createManualRecordDisclosure/);
   assert.match(app, /document\.createElement\('details'\)/);
   assert.match(app, /toggleLabel\.textContent = 'Section text'/);
-  assert.match(app, /excerpt\.textContent = record\.excerpt/);
+  assert.match(app, /const sectionText = String\(record\.excerpt \|\| ''\)\.replace\(\/\\s\+\/g, ' '\)\.trim\(\)/);
+  assert.match(app, /excerpt\.textContent = sectionText \|\| 'No section text was supplied for this record\.'/);
   assert.match(app, /appendManualRecordAppendix\(bubble, manualRecords, \{ includeImages: false \}\)/);
   assert.match(app, /appendManualRecordAppendix\(article, records, \{ includeImages: false \}\)/);
-  assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*white-space:pre-wrap/);
+  assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*color:#e2e8f0[\s\S]*white-space:normal/);
 });
 
 test('application readiness badge is based on a bounded core probe instead of sign-in alone', () => {

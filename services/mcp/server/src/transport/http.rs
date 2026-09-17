@@ -10267,30 +10267,40 @@ fn merge_manual_tool_records(envelope: &mut Value, records: &mut Vec<Value>) {
     }
 }
 
-fn build_manual_search_query(
-    message: &str,
-    history: &[ChatTurn],
-    authoritative_case_context: &Value,
-) -> String {
-    let mut parts = vec![message.trim().to_owned()];
-    parts.extend(
+fn build_registered_image_search_query(message: &str, history: &[ChatTurn]) -> String {
+    // A registered-image match must express the user's current request. Recent
+    // turns and the active case still reach the model as context, but must not
+    // alter a complete request and attach an unrelated aircraft figure. A
+    // clearly referential follow-up may borrow exactly one prior user turn.
+    let normalized = message.to_ascii_lowercase();
+    let refers_to_prior_figure = [
+        "that image",
+        "this image",
+        "the image",
+        "that diagram",
+        "this diagram",
+        "the diagram",
+        "that figure",
+        "this figure",
+        "the figure",
+        "show it",
+        "open it",
+    ]
+    .iter()
+    .any(|phrase| normalized.contains(phrase));
+    let prior_user_turn = refers_to_prior_figure.then(|| {
         history
             .iter()
             .rev()
-            .filter(|turn| turn.role == "user")
-            .take(3)
-            .map(|turn| turn.content.trim().to_owned())
-            .filter(|value| !value.is_empty()),
+            .find(|turn| turn.role == "user")
+            .map(|turn| turn.content.trim())
+            .unwrap_or_default()
+    });
+    let query = prior_user_turn.filter(|turn| !turn.is_empty()).map_or_else(
+        || message.trim().to_owned(),
+        |turn| format!("{}\n{turn}", message.trim()),
     );
-    if let Some(discrepancy) = authoritative_case_context
-        .pointer("/case/raw_discrepancy")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        parts.push(format!("Active case discrepancy: {discrepancy}"));
-    }
-    truncate_chars(&parts.join("\n"), 2_000)
+    truncate_chars(&query, 2_000)
 }
 
 async fn chat(
@@ -10524,8 +10534,8 @@ async fn chat(
         .map(str::trim)
         .filter(|model| !model.is_empty())
         .map(str::to_owned);
-    let manual_search_query =
-        build_manual_search_query(message, &conversation_history, &authoritative_case_context);
+    let registered_image_search_query =
+        build_registered_image_search_query(message, &conversation_history);
     let manual_aircraft_model = resolved_manual_aircraft_model(
         message,
         recent_manual_aircraft_model.as_deref(),
@@ -10535,7 +10545,7 @@ async fn chat(
     let registered_image = if let Some(library) = state.manual_library.as_ref() {
         match library
             .lookup_registered_image(
-                &manual_search_query,
+                &registered_image_search_query,
                 registered_image_aircraft_model.as_deref(),
             )
             .await
@@ -12385,29 +12395,36 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn registered_image_query_uses_recent_user_turns_and_case_discrepancy() {
+    fn registered_image_query_is_current_turn_only() {
+        let history = vec![ChatTurn {
+            role: "user".into(),
+            content: "Hydraulic quantity decreased after flight".into(),
+        }];
+        assert_eq!(
+            build_registered_image_search_query(
+                "  Show the current FDR removal diagram.  ",
+                &history,
+            ),
+            "Show the current FDR removal diagram."
+        );
+    }
+
+    #[test]
+    fn registered_image_follow_up_borrows_one_prior_user_topic() {
         let history = vec![
             ChatTurn {
                 role: "user".into(),
-                content: "Hydraulic quantity decreased after flight".into(),
+                content: "Remove the Challenger 350 flight data recorder".into(),
             },
             ChatTurn {
                 role: "assistant".into(),
-                content: "Which system?".into(),
-            },
-            ChatTurn {
-                role: "user".into(),
-                content: "ATA 29, system 1".into(),
+                content: "The task releases the retainers.".into(),
             },
         ];
-        let context = json!({
-            "case": {"raw_discrepancy": "HYD SYS 1 pressure low"}
-        });
-        let query = build_manual_search_query("What should I inspect next?", &history, &context);
-        assert!(query.contains("What should I inspect next?"));
-        assert!(query.contains("ATA 29, system 1"));
-        assert!(query.contains("Hydraulic quantity decreased after flight"));
-        assert!(query.contains("HYD SYS 1 pressure low"));
+        assert_eq!(
+            build_registered_image_search_query("Show me that diagram", &history),
+            "Show me that diagram\nRemove the Challenger 350 flight data recorder"
+        );
     }
 
     #[test]

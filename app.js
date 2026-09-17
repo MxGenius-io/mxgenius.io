@@ -1768,7 +1768,8 @@ Rules:
       .filter(Boolean).join(' - ');
     const excerpt = document.createElement('p');
     excerpt.className = 'mx-manual-record__excerpt';
-    excerpt.textContent = record.excerpt || 'No section text was supplied for this record.';
+    const sectionText = String(record.excerpt || '').replace(/\s+/g, ' ').trim();
+    excerpt.textContent = sectionText || 'No section text was supplied for this record.';
     body.append(meta, excerpt);
 
     if (includeImages && record.images?.length) {
