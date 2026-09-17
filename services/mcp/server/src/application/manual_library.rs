@@ -22,6 +22,7 @@ const SEARCH_API_VERSION: &str = "2024-07-01";
 const SEARCH_PAGE_SIZE: usize = 1_000;
 const MAX_SEARCH_RECORDS_PER_AIRCRAFT: usize = 100_000;
 const MAX_ASSET_BYTES: usize = 20 * 1024 * 1024;
+const IMAGE_REGISTER_CANDIDATE_LIMIT: usize = 50;
 const RELEASE_PROFILE: &str = EDGE_DRIVE_PROFILE;
 
 #[derive(Debug, thiserror::Error)]
@@ -766,7 +767,7 @@ async fn lookup_registered_image(
                 "source_class eq 'manual' and search.ismatch('{}', 'aircraft_model', 'simple', 'all')",
                 odata_search_query(&catalog_model)
             ),
-            "top": 12,
+            "top": IMAGE_REGISTER_CANDIDATE_LIMIT,
             "select": "id,document_id,content,content_hash,source_name,title,aircraft_model,manual_type,ata,section,assets_json"
         }))
         .send()
@@ -1420,6 +1421,7 @@ mod tests {
 
     #[test]
     fn lexical_image_terms_remove_intent_words_without_aircraft_overfitting() {
+        assert_eq!(IMAGE_REGISTER_CANDIDATE_LIMIT, 50);
         let normalized =
             normalized_match_text("Please show the Bombardier Global 7500 hydraulic-pump diagram");
         let terms = meaningful_terms(&normalized);
@@ -1475,6 +1477,19 @@ mod tests {
             verified_asset_match_score(&broad, &meaningful_terms(&broad), &tasks, &keywords),
             0,
             "a broad request must not guess a figure"
+        );
+
+        let windshield = normalized_match_text(
+            "Show me the most useful manual diagram for the windshield damage review",
+        );
+        assert!(
+            verified_asset_match_score(
+                &windshield,
+                &meaningful_terms(&windshield),
+                &["56-11-01-220-801".to_owned()],
+                &["windshield damage review".to_owned()],
+            ) > 0,
+            "the verified windshield alias must select its registered figure"
         );
     }
 
