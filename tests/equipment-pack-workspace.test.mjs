@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import vm from 'node:vm';
 
 const source = await readFile(new URL('../equipment-pack-workspace.js', import.meta.url), 'utf8');
+const fullCatalog = JSON.parse(await readFile(new URL('../manual-catalog.json', import.meta.url), 'utf8'));
 
 function workspace() {
   const window = {};
@@ -128,4 +129,37 @@ test('manual picker uses human-readable manual names without repeating the aircr
     'Standard Practices Manual',
     'System Schematic Manual',
   ]);
+});
+
+test('aircraft library picker accepts the complete grouped catalog contract', () => {
+  const payload = {
+    schemaVersion: 1,
+    aircraft: [
+      { id: 'bombardier_cl350', manufacturer: 'Bombardier', aircraft: 'CL350', manualCount: 42, chapterCount: 770 },
+      { id: 'dassault_falcon_7x', manufacturer: 'Dassault', aircraft: 'Falcon 7X', manualCount: 734, chapterCount: 5074 },
+      { id: 'gulfstream_g650', manufacturer: 'Gulfstream', aircraft: 'G650', manualCount: 10, chapterCount: 5499 },
+      { id: 'textron_beech_king_air_200_series', manufacturer: 'Textron/Beech', aircraft: 'KING AIR 200 SERIES', manualCount: 13, chapterCount: 243 },
+    ],
+  };
+
+  assert.deepEqual(JSON.parse(JSON.stringify(workspace().aircraftCatalog(payload))), payload.aircraft);
+  assert.throws(
+    () => workspace().aircraftCatalog({ schemaVersion: 1, aircraft: [payload.aircraft[0], payload.aircraft[0]] }),
+    /catalog is invalid/,
+  );
+});
+
+test('frozen aircraft library catalog carries every prepared display-index family', () => {
+  const entries = workspace().aircraftCatalog(fullCatalog);
+  assert.equal(entries.length, 91);
+  assert.deepEqual([...new Set(entries.map((entry) => entry.manufacturer))], [
+    'Bombardier',
+    'Dassault',
+    'Gulfstream',
+    'Textron/Beech',
+    'Textron/Cessna',
+    'Textron/Hawker',
+  ]);
+  assert.equal(entries.reduce((total, entry) => total + entry.manualCount, 0), 10078);
+  assert.equal(entries.reduce((total, entry) => total + entry.chapterCount, 0), 111930);
 });

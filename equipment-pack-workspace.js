@@ -161,11 +161,35 @@
     return manual?.displayName || 'Manual';
   }
 
+  function aircraftCatalog(payload) {
+    if (payload?.schemaVersion !== 1 || !Array.isArray(payload.aircraft)) {
+      throw new Error('The aircraft-library catalog is invalid.');
+    }
+    const ids = new Set();
+    return payload.aircraft.map((entry) => {
+      const item = {
+        id: String(entry?.id || '').trim(),
+        manufacturer: String(entry?.manufacturer || '').trim(),
+        aircraft: String(entry?.aircraft || '').trim(),
+        manualCount: Number(entry?.manualCount),
+        chapterCount: Number(entry?.chapterCount)
+      };
+      if (!item.id || !item.manufacturer || !item.aircraft || ids.has(item.id)
+        || !Number.isInteger(item.manualCount) || item.manualCount < 0
+        || !Number.isInteger(item.chapterCount) || item.chapterCount < 0) {
+        throw new Error('The aircraft-library catalog is invalid.');
+      }
+      ids.add(item.id);
+      return item;
+    });
+  }
+
   function init({ withSession }) {
     const client = window.MXApplicationClient?.equipmentPacks;
     if (!client || typeof withSession !== 'function') return;
     const byId = (id) => document.getElementById(id);
     const packSelect = byId('settingsPackSelect');
+    const familySelect = byId('settingsPackFamily');
     const versionSelect = byId('settingsPackVersion');
     const manualPanel = byId('settingsPackManuals');
     const manualSelect = byId('settingsPackManualSelect');
@@ -212,6 +236,30 @@
     const fill = (select, items, placeholder, label) => {
       select.replaceChildren(new Option(placeholder, ''));
       items.forEach((item) => select.appendChild(new Option(label(item), item.id)));
+    };
+
+    const loadAircraftCatalog = async () => {
+      if (!familySelect) return;
+      const response = await fetch('manual-catalog.json?v=1', { cache: 'no-store' });
+      if (!response.ok) throw new Error('The aircraft-library catalog could not be loaded.');
+      const entries = aircraftCatalog(await response.json());
+      const selected = familySelect.value;
+      familySelect.replaceChildren(new Option('Select an aircraft library', ''));
+      const groups = new Map();
+      entries.forEach((entry) => {
+        let group = groups.get(entry.manufacturer);
+        if (!group) {
+          group = document.createElement('optgroup');
+          group.label = entry.manufacturer;
+          groups.set(entry.manufacturer, group);
+          familySelect.appendChild(group);
+        }
+        const option = new Option(entry.aircraft, entry.aircraft);
+        option.dataset.catalogId = entry.id;
+        option.dataset.chapterCount = String(entry.chapterCount);
+        group.appendChild(option);
+      });
+      familySelect.value = selected;
     };
 
     const showManuals = (version) => {
@@ -300,6 +348,13 @@
         setStatus(`${payload.pack.name} is ready for a folder.`, 'success');
       } catch (error) {
         setStatus(error.message || 'Unable to create Equipment Drive.', 'error');
+      }
+    });
+
+    familySelect?.addEventListener('change', () => {
+      const nameInput = byId('settingsPackName');
+      if (nameInput && !nameInput.value.trim() && familySelect.value) {
+        nameInput.value = `${familySelect.value} Manuals`;
       }
     });
 
@@ -436,8 +491,16 @@
     });
     byId('settingsPackRefresh')?.addEventListener('click', () => refresh());
     window.addEventListener('mxg:edge-devices-changed', () => refresh());
-    void refresh();
+    void Promise.all([loadAircraftCatalog(), refresh()]).catch((error) => {
+      setStatus(error.message || 'Unable to load Equipment Drives.', 'error');
+    });
   }
 
-  window.MXEquipmentPacks = Object.freeze({ init, buildStoredZip, manualsFromVersion, manualLabel });
+  window.MXEquipmentPacks = Object.freeze({
+    init,
+    buildStoredZip,
+    manualsFromVersion,
+    manualLabel,
+    aircraftCatalog
+  });
 })();

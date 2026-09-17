@@ -1,0 +1,643 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "mxgenius-display-catalog-2026-05-13",
+  "aircraft": [
+    {
+      "id": "bombardier_cl300",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL300",
+      "manualCount": 44,
+      "chapterCount": 852
+    },
+    {
+      "id": "bombardier_cl350",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL350",
+      "manualCount": 42,
+      "chapterCount": 770
+    },
+    {
+      "id": "bombardier_cl601",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL601",
+      "manualCount": 3,
+      "chapterCount": 58
+    },
+    {
+      "id": "bombardier_cl604",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL604",
+      "manualCount": 3,
+      "chapterCount": 58
+    },
+    {
+      "id": "bombardier_cl605",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL605",
+      "manualCount": 27,
+      "chapterCount": 404
+    },
+    {
+      "id": "bombardier_cl650",
+      "manufacturer": "Bombardier",
+      "aircraft": "CL650",
+      "manualCount": 52,
+      "chapterCount": 707
+    },
+    {
+      "id": "bombardier_gl5000",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL5000",
+      "manualCount": 87,
+      "chapterCount": 1619
+    },
+    {
+      "id": "bombardier_gl5000_gvfd",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL5000 GVFD",
+      "manualCount": 59,
+      "chapterCount": 1177
+    },
+    {
+      "id": "bombardier_gl5500",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL5500",
+      "manualCount": 44,
+      "chapterCount": 1060
+    },
+    {
+      "id": "bombardier_gl6000",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL6000",
+      "manualCount": 58,
+      "chapterCount": 1264
+    },
+    {
+      "id": "bombardier_gl6500",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL6500",
+      "manualCount": 46,
+      "chapterCount": 1104
+    },
+    {
+      "id": "bombardier_gl7500",
+      "manufacturer": "Bombardier",
+      "aircraft": "GL7500",
+      "manualCount": 708,
+      "chapterCount": 6920
+    },
+    {
+      "id": "bombardier_global_express",
+      "manufacturer": "Bombardier",
+      "aircraft": "Global Express",
+      "manualCount": 60,
+      "chapterCount": 1222
+    },
+    {
+      "id": "bombardier_global_express_xrs",
+      "manufacturer": "Bombardier",
+      "aircraft": "Global Express XRS",
+      "manualCount": 76,
+      "chapterCount": 1553
+    },
+    {
+      "id": "dassault_falcon_2000",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 2000",
+      "manualCount": 618,
+      "chapterCount": 2889
+    },
+    {
+      "id": "dassault_falcon_2000ex",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 2000EX",
+      "manualCount": 671,
+      "chapterCount": 3039
+    },
+    {
+      "id": "dassault_falcon_2000ex_easy",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 2000EX EASY",
+      "manualCount": 880,
+      "chapterCount": 4053
+    },
+    {
+      "id": "dassault_falcon_2000s",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 2000S",
+      "manualCount": 756,
+      "chapterCount": 3380
+    },
+    {
+      "id": "dassault_falcon_50",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 50",
+      "manualCount": 737,
+      "chapterCount": 4114
+    },
+    {
+      "id": "dassault_falcon_7x",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 7X",
+      "manualCount": 734,
+      "chapterCount": 5074
+    },
+    {
+      "id": "dassault_falcon_8x",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 8X",
+      "manualCount": 843,
+      "chapterCount": 5243
+    },
+    {
+      "id": "dassault_falcon_900b_and_c",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 900B and C",
+      "manualCount": 672,
+      "chapterCount": 3240
+    },
+    {
+      "id": "dassault_falcon_900dx",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 900DX",
+      "manualCount": 755,
+      "chapterCount": 3262
+    },
+    {
+      "id": "dassault_falcon_900ex",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 900EX",
+      "manualCount": 665,
+      "chapterCount": 3502
+    },
+    {
+      "id": "dassault_falcon_900ex_easy",
+      "manufacturer": "Dassault",
+      "aircraft": "Falcon 900EX EASy",
+      "manualCount": 892,
+      "chapterCount": 5032
+    },
+    {
+      "id": "gulfstream_g150",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G150",
+      "manualCount": 12,
+      "chapterCount": 2421
+    },
+    {
+      "id": "gulfstream_g200",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G200",
+      "manualCount": 13,
+      "chapterCount": 4564
+    },
+    {
+      "id": "gulfstream_g280",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G280",
+      "manualCount": 9,
+      "chapterCount": 2371
+    },
+    {
+      "id": "gulfstream_g400",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G400",
+      "manualCount": 10,
+      "chapterCount": 2318
+    },
+    {
+      "id": "gulfstream_g450",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G450",
+      "manualCount": 11,
+      "chapterCount": 4224
+    },
+    {
+      "id": "gulfstream_g500",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G500",
+      "manualCount": 14,
+      "chapterCount": 4765
+    },
+    {
+      "id": "gulfstream_g550",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G550",
+      "manualCount": 12,
+      "chapterCount": 4030
+    },
+    {
+      "id": "gulfstream_g600",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G600",
+      "manualCount": 8,
+      "chapterCount": 3778
+    },
+    {
+      "id": "gulfstream_g650",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G650",
+      "manualCount": 10,
+      "chapterCount": 5499
+    },
+    {
+      "id": "gulfstream_g_ii",
+      "manufacturer": "Gulfstream",
+      "aircraft": "G II",
+      "manualCount": 1,
+      "chapterCount": 1
+    },
+    {
+      "id": "gulfstream_giii",
+      "manufacturer": "Gulfstream",
+      "aircraft": "GIII",
+      "manualCount": 9,
+      "chapterCount": 1929
+    },
+    {
+      "id": "gulfstream_giv",
+      "manufacturer": "Gulfstream",
+      "aircraft": "GIV",
+      "manualCount": 9,
+      "chapterCount": 2608
+    },
+    {
+      "id": "gulfstream_giv_msg_3_not_windows_11_friendly",
+      "manufacturer": "Gulfstream",
+      "aircraft": "GIV MSG-3 (not windows 11 friendly)",
+      "manualCount": 26,
+      "chapterCount": 3051
+    },
+    {
+      "id": "gulfstream_gv",
+      "manufacturer": "Gulfstream",
+      "aircraft": "GV",
+      "manualCount": 10,
+      "chapterCount": 3653
+    },
+    {
+      "id": "textron_beech_baron_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "Baron Series",
+      "manualCount": 16,
+      "chapterCount": 218
+    },
+    {
+      "id": "textron_beech_bonanza_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "BONANZA SERIES",
+      "manualCount": 15,
+      "chapterCount": 183
+    },
+    {
+      "id": "textron_beech_king_air_100_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "KING AIR 100 SERIES",
+      "manualCount": 4,
+      "chapterCount": 61
+    },
+    {
+      "id": "textron_beech_king_air_200_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "KING AIR 200 SERIES",
+      "manualCount": 13,
+      "chapterCount": 243
+    },
+    {
+      "id": "textron_beech_king_air_300_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "KING AIR 300 SERIES",
+      "manualCount": 17,
+      "chapterCount": 248
+    },
+    {
+      "id": "textron_beech_king_air_90_series",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "KING AIR 90 SERIES",
+      "manualCount": 17,
+      "chapterCount": 308
+    },
+    {
+      "id": "textron_beech_model_1900_c_airliner",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "MODEL 1900-C AIRLINER",
+      "manualCount": 12,
+      "chapterCount": 214
+    },
+    {
+      "id": "textron_beech_model_1900d_airliner",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "MODEL 1900D AIRLINER",
+      "manualCount": 10,
+      "chapterCount": 168
+    },
+    {
+      "id": "textron_beech_model_99_airliner",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "MODEL 99 AIRLINER",
+      "manualCount": 7,
+      "chapterCount": 115
+    },
+    {
+      "id": "textron_beech_mu_300",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "MU-300",
+      "manualCount": 4,
+      "chapterCount": 26
+    },
+    {
+      "id": "textron_beech_premier_model_390",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "PREMIER MODEL 390",
+      "manualCount": 5,
+      "chapterCount": 118
+    },
+    {
+      "id": "textron_beech_travel_air",
+      "manufacturer": "Textron/Beech",
+      "aircraft": "Travel Air",
+      "manualCount": 2,
+      "chapterCount": 8
+    },
+    {
+      "id": "textron_cessna_c100_series_1950s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C100 Series 1950s",
+      "manualCount": 4,
+      "chapterCount": 4
+    },
+    {
+      "id": "textron_cessna_c100_series_1960s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C100 SERIES 1960s",
+      "manualCount": 14,
+      "chapterCount": 14
+    },
+    {
+      "id": "textron_cessna_c100_series_1970s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C100 Series 1970s",
+      "manualCount": 16,
+      "chapterCount": 20
+    },
+    {
+      "id": "textron_cessna_c100_series_1980s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C100 Series 1980s",
+      "manualCount": 2,
+      "chapterCount": 12
+    },
+    {
+      "id": "textron_cessna_c162",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C162",
+      "manualCount": 3,
+      "chapterCount": 38
+    },
+    {
+      "id": "textron_cessna_c200_series_1960s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C200 Series 1960s",
+      "manualCount": 2,
+      "chapterCount": 9
+    },
+    {
+      "id": "textron_cessna_c200_series_1970s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C200 Series 1970s",
+      "manualCount": 1,
+      "chapterCount": 9
+    },
+    {
+      "id": "textron_cessna_c200_series_1980s",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C200 Series 1980s",
+      "manualCount": 1,
+      "chapterCount": 9
+    },
+    {
+      "id": "textron_cessna_c208",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C208",
+      "manualCount": 5,
+      "chapterCount": 116
+    },
+    {
+      "id": "textron_cessna_c303_336_and_337",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C303 336 and 337",
+      "manualCount": 2,
+      "chapterCount": 25
+    },
+    {
+      "id": "textron_cessna_c310_and_320",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C310 and 320",
+      "manualCount": 4,
+      "chapterCount": 88
+    },
+    {
+      "id": "textron_cessna_c335_and_340",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C335 and 340",
+      "manualCount": 3,
+      "chapterCount": 9
+    },
+    {
+      "id": "textron_cessna_c401_402",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C401-402",
+      "manualCount": 2,
+      "chapterCount": 15
+    },
+    {
+      "id": "textron_cessna_c404_411_414",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C404-411-414",
+      "manualCount": 3,
+      "chapterCount": 9
+    },
+    {
+      "id": "textron_cessna_c421",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C421",
+      "manualCount": 2,
+      "chapterCount": 7
+    },
+    {
+      "id": "textron_cessna_c425_and_c441",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "C425 and C441",
+      "manualCount": 1,
+      "chapterCount": 6
+    },
+    {
+      "id": "textron_cessna_ce500",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE500",
+      "manualCount": 7,
+      "chapterCount": 65
+    },
+    {
+      "id": "textron_cessna_ce510",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE510",
+      "manualCount": 9,
+      "chapterCount": 111
+    },
+    {
+      "id": "textron_cessna_ce525",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE525",
+      "manualCount": 9,
+      "chapterCount": 138
+    },
+    {
+      "id": "textron_cessna_ce525_m2",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE525 (M2)",
+      "manualCount": 8,
+      "chapterCount": 120
+    },
+    {
+      "id": "textron_cessna_ce525a",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE525A",
+      "manualCount": 9,
+      "chapterCount": 128
+    },
+    {
+      "id": "textron_cessna_ce525c",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE525C",
+      "manualCount": 8,
+      "chapterCount": 115
+    },
+    {
+      "id": "textron_cessna_ce550",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE550",
+      "manualCount": 9,
+      "chapterCount": 121
+    },
+    {
+      "id": "textron_cessna_ce550_bravo",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE550 Bravo",
+      "manualCount": 9,
+      "chapterCount": 116
+    },
+    {
+      "id": "textron_cessna_ce650",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE650",
+      "manualCount": 12,
+      "chapterCount": 130
+    },
+    {
+      "id": "textron_cessna_ce680",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE680",
+      "manualCount": 9,
+      "chapterCount": 143
+    },
+    {
+      "id": "textron_cessna_ce680a",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE680A",
+      "manualCount": 7,
+      "chapterCount": 118
+    },
+    {
+      "id": "textron_cessna_ce700_longitude",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE700 Longitude",
+      "manualCount": 8,
+      "chapterCount": 174
+    },
+    {
+      "id": "textron_cessna_ce750_sn_0001_0500",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE750 SN 0001-0500",
+      "manualCount": 1,
+      "chapterCount": 2
+    },
+    {
+      "id": "textron_cessna_ce750_sn_0501_on",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "CE750 SN 0501-On",
+      "manualCount": 7,
+      "chapterCount": 126
+    },
+    {
+      "id": "textron_cessna_lc_550fg_series",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "LC-550FG Series",
+      "manualCount": 10,
+      "chapterCount": 233
+    },
+    {
+      "id": "textron_cessna_s550",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "S550",
+      "manualCount": 8,
+      "chapterCount": 97
+    },
+    {
+      "id": "textron_cessna_single_engine_1996_and_beyond",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "Single Engine 1996 and Beyond",
+      "manualCount": 10,
+      "chapterCount": 263
+    },
+    {
+      "id": "textron_cessna_u206f",
+      "manufacturer": "Textron/Cessna",
+      "aircraft": "U206F",
+      "manualCount": 1,
+      "chapterCount": 2
+    },
+    {
+      "id": "textron_hawker_125_series_1a_and_1b",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "125 Series 1A and 1B",
+      "manualCount": 13,
+      "chapterCount": 105
+    },
+    {
+      "id": "textron_hawker_125_series_3a_and_3b",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "125 Series 3A and 3B",
+      "manualCount": 12,
+      "chapterCount": 105
+    },
+    {
+      "id": "textron_hawker_125_series_400a_and_400b",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "125 Series 400A and 400B",
+      "manualCount": 11,
+      "chapterCount": 105
+    },
+    {
+      "id": "textron_hawker_125_series_600",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "125 Series 600",
+      "manualCount": 10,
+      "chapterCount": 120
+    },
+    {
+      "id": "textron_hawker_125_series_700",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "125 Series 700",
+      "manualCount": 9,
+      "chapterCount": 112
+    },
+    {
+      "id": "textron_hawker_hawker_1000",
+      "manufacturer": "Textron/Hawker",
+      "aircraft": "Hawker 1000",
+      "manualCount": 9,
+      "chapterCount": 73
+    }
+  ]
+}

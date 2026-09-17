@@ -534,7 +534,7 @@
             <summary>Create a drive</summary>
             <form id="settingsPackCreate" class="equipment-pack-create__form">
               <label>Name<input id="settingsPackName" class="search-input" maxlength="120" placeholder="Maintenance references" required></label>
-              <label>Equipment family<input id="settingsPackFamily" class="search-input" maxlength="120" placeholder="Aircraft or tool family" required></label>
+              <label>Aircraft library<select id="settingsPackFamily" class="search-input" required><option value="">Loading aircraft libraries…</option></select></label>
               <label class="equipment-pack-create__wide">Description <span>optional</span><input id="settingsPackDescription" class="search-input" maxlength="1000" placeholder="What this drive supports"></label>
               <button class="btn-primary" type="submit">Create</button>
             </form>
@@ -869,7 +869,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="equipment-pack-workspace.js?v=9"></script>
+  <script src="equipment-pack-workspace.js?v=10"></script>
   <script src="app.js?v=80"></script>
   <div id="onboardingRoot"></div>
 </body>
