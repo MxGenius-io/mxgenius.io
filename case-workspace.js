@@ -88,6 +88,14 @@ const MXCaseWorkspace = (() => {
     return raw.replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 
+  function technicalSourceLabel(document) {
+    const title = escapeHtml(document?.title || 'Technical source');
+    const state = String(document?.currency_state || '').trim();
+    return state && !/^(?:unknown|unverified|not[_ -]?supplied)$/i.test(state)
+      ? `${title} · ${escapeHtml(state)}`
+      : title;
+  }
+
   function displayDate(value) {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return 'Not available';
@@ -263,7 +271,7 @@ const MXCaseWorkspace = (() => {
       </div>
       <section><strong>Discrepancy</strong><div>${escapeHtml(caseState.raw_discrepancy)}</div></section>
       <section><strong>Timeline</strong>${list(context.timeline, (entry) => `${escapeHtml(entry.occurred_at)} — ${escapeHtml(entry.summary)}`)}</section>
-      <section><strong>Technical sources</strong>${list(context.documents, (doc) => `${escapeHtml(doc.title)} · ${escapeHtml(doc.currency_state)}`)}</section>
+      <section><strong>Technical sources</strong>${list(context.documents, technicalSourceLabel)}</section>
       <section><strong>Evidence</strong>${list(context.evidence_map, (evidence) => `${escapeHtml(evidence.title)} · ${escapeHtml(evidence.source_type)}`)}</section>
       <section><strong>Warnings / conflicts</strong>${list(context.unresolved_conflicts, (conflict) => `${escapeHtml(conflict.severity)}: ${escapeHtml(conflict.description)}`)}</section>
       <details class="case-workspace__trace"><summary>Technical details</summary>

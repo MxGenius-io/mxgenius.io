@@ -953,6 +953,7 @@ function setupNavigation() {
   if (hamburgerBtn && mainNav) {
     hamburgerBtn.addEventListener('click', () => {
       mainNav.classList.toggle('nav-open');
+      hamburgerBtn.setAttribute('aria-expanded', String(mainNav.classList.contains('nav-open')));
     });
   }
 
@@ -1186,6 +1187,12 @@ function setupChatPanel() {
     return `${candidate.slice(0, lastBoundary > maximumLength * 0.7 ? lastBoundary : candidate.length).trimEnd()}...`;
   }
 
+  function manualSourceLabel(record) {
+    return record?.retrieval_basis === 'catalog_image_register'
+      ? 'Registered source'
+      : 'Retrieved source';
+  }
+
   const appendManualEvidencePreview = (container, records) => {
     const candidates = (Array.isArray(records) ? records : [])
       .filter((record) => record?.excerpt || record?.images?.length);
@@ -1211,9 +1218,7 @@ function setupChatPanel() {
       const title = document.createElement('strong');
       title.textContent = record.title || 'Retrieved manual record';
       const source = document.createElement('small');
-      source.textContent = Number.isFinite(record.match_percent)
-        ? `${record.match_percent}% retrieval relevance`
-        : (record.retrieval_basis === 'catalog_image_register' ? 'Registered source' : 'Retrieved source');
+      source.textContent = manualSourceLabel(record);
       header.append(citation, title, source);
       card.appendChild(header);
 
@@ -1774,11 +1779,7 @@ Rules:
     recordTitle.textContent = record.title || 'Manual excerpt';
     const score = document.createElement('span');
     score.className = 'mx-manual-record__score';
-    score.textContent = Number.isFinite(record.match_percent)
-      ? `${record.match_percent}% retrieval relevance`
-      : (record.retrieval_basis === 'catalog_image_register'
-        ? 'registered source'
-        : 'ranked retrieval result');
+    score.textContent = manualSourceLabel(record);
     recordHeader.append(rank, recordTitle, score);
     const toggleLabel = document.createElement('span');
     toggleLabel.className = 'mx-manual-record__toggle';
@@ -1893,7 +1894,7 @@ Rules:
     if (advisory.leading_historical_patterns?.length) {
       const section = document.createElement('section');
       const h = document.createElement('h4');
-      h.textContent = 'Leading Historical Patterns';
+      h.textContent = 'Supported Findings';
       section.appendChild(h);
       advisory.leading_historical_patterns.forEach((pattern) => {
         const card = document.createElement('div');
@@ -1911,7 +1912,7 @@ Rules:
       article.appendChild(section);
     }
 
-    citedList('What Worked in Retrieved Records', advisory.what_worked);
+    citedList('What the Records Support', advisory.what_worked);
 
     if (advisory.labor_by_action?.length) {
       const section = document.createElement('section');
@@ -2112,6 +2113,8 @@ Rules:
 
   function setPanelOpen(open) {
     if (open) {
+      document.getElementById('mainNav')?.classList.remove('nav-open');
+      document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded', 'false');
       panel.classList.remove('hidden');
       panel.setAttribute('aria-hidden', 'false');
       void panel.offsetWidth;

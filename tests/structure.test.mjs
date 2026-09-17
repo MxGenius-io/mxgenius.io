@@ -1015,6 +1015,12 @@ test('recalled maintenance cases reuse the existing aircraft image path inside t
   assert.doesNotMatch(caseWorkspace, /localStorage\.setItem\([^\n]*(?:image|photo|media)/i);
 });
 
+test('maintenance case source labels suppress unknown currency noise', () => {
+  assert.match(caseWorkspace, /function technicalSourceLabel/);
+  assert.match(caseWorkspace, /unknown\|unverified\|not\[_ -\]\?supplied/);
+  assert.match(caseWorkspace, /list\(context\.documents, technicalSourceLabel\)/);
+});
+
 test('maintenance case images use the existing confirmed case-media path from intake and recalled cases', () => {
   assert.match(dashboard, /name="caseImage"[\s\S]*accept="image\/jpeg,image\/png,image\/webp"/);
   assert.match(dashboard, /id="caseImagePreview"/);

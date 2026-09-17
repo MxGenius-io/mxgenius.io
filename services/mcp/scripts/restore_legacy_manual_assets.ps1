@@ -44,6 +44,8 @@ $expectedNames = @(
         ForEach-Object { [IO.Path]::GetFileName([string]$_.Value) } |
         Sort-Object -Unique
 )
+$expectedNameSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+foreach ($assetName in $expectedNames) { [void]$expectedNameSet.Add($assetName) }
 
 $sourceByAssetName = @{}
 $collisions = [Collections.Generic.List[object]]::new()
@@ -55,11 +57,16 @@ $sourceFiles = @(
 foreach ($file in $sourceFiles) {
     $assetName = Get-LegacyAssetName -Root $resolvedRoot -File $file
     if ($sourceByAssetName.ContainsKey($assetName)) {
-        $collisions.Add([ordered]@{
-            asset_name = $assetName
-            first_source = $sourceByAssetName[$assetName].FullName
-            second_source = $file.FullName
-        })
+        # Only a collision in the frozen register can make restoration
+        # ambiguous. A truncated legacy name collision elsewhere in a much
+        # larger source tree has no bearing on the 354 registered assets.
+        if ($expectedNameSet.Contains($assetName)) {
+            $collisions.Add([ordered]@{
+                asset_name = $assetName
+                first_source = $sourceByAssetName[$assetName].FullName
+                second_source = $file.FullName
+            })
+        }
         continue
     }
     $sourceByAssetName[$assetName] = $file

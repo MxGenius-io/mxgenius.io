@@ -28,11 +28,15 @@ test('chat uses a compact conversation envelope with model-selected, bounded man
   assert.match(backend, /"semantic_requests_made": manual_tool_calls/);
 });
 
-test('structured advisory keeps chat and labels retrieval relevance without diagnostic claims', () => {
+test('structured advisory keeps chat and uses human evidence labels without raw search scores', () => {
   assert.match(app, /response_kind !== 'maintenance_advisory'/);
-  assert.match(app, /% retrieval relevance/);
+  assert.match(app, /function manualSourceLabel/);
+  assert.match(app, /Registered source/);
+  assert.match(app, /Retrieved source/);
+  assert.doesNotMatch(app, /% retrieval relevance/);
   assert.match(app, /evidence strength/);
-  assert.match(app, /What Worked in Retrieved Records/);
+  assert.match(app, /Supported Findings/);
+  assert.match(app, /What the Records Support/);
 });
 
 test('structured advisory tolerates null optional arrays', () => {
@@ -83,6 +87,12 @@ test('manual evidence cards keep images behind the application API boundary', ()
   assert.match(backend, /fn should_include_manual_references/);
   assert.match(backend, /should_include_manual_references\([\s\S]*registered_image\.is_some\(\),[\s\S]*retrieved_manual_records\.len\(\)/);
   assert.match(dashboard, /app\.js\?v=\d+/);
+});
+
+test('opening copilot collapses the hamburger navigation', () => {
+  assert.match(app, /function setPanelOpen\(open\)[\s\S]*getElementById\('mainNav'\)\?\.classList\.remove\('nav-open'\)/);
+  assert.match(app, /getElementById\('hamburgerBtn'\)\?\.setAttribute\('aria-expanded', 'false'\)/);
+  assert.match(dashboard, /id="hamburgerBtn"[^>]*aria-controls="mainNav"[^>]*aria-expanded="false"/);
 });
 
 test('conversation formatting is safe and only exact evidence ids become pills', () => {
@@ -147,6 +157,15 @@ test('model awareness distinguishes verified runtime facts from mounted capabili
   assert.match(backend, /"mounted_read_only_capabilities"/);
   assert.match(backend, /Never imply that nothing is connected/);
   assert.doesNotMatch(backend, /Do not claim that a connection, service, tool, data source, or application is healthy/);
+});
+
+test('the conductor separates inventory lookup, manual evidence, and UI navigation', () => {
+  assert.match(backend, /Use mxg\.parts\.resolve whenever the user asks what is on hand/);
+  assert.match(backend, /use mxg\.parts\.inventory for current tenant stock and location/);
+  assert.match(backend, /Never infer inventory from manual records/);
+  assert.match(backend, /organization inventory SKU/);
+  assert.match(backend, /manual image, figure, diagram, excerpt, or other evidence is a content request/);
+  assert.match(backend, /must not invoke mxg\.ui\.guide/);
 });
 
 test('ordinary conversation is natural and does not populate maintenance sections', () => {

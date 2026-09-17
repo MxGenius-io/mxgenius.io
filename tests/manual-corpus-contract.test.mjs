@@ -32,6 +32,10 @@ const releaseCompilerUrl = new URL(
   '../services/mcp/server/src/application/corpus_release.rs',
   import.meta.url
 );
+const restoreLegacyAssetsUrl = new URL(
+  '../services/mcp/scripts/restore_legacy_manual_assets.ps1',
+  import.meta.url
+);
 const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
 const reconciliation = await readFile(reconciliationUrl, 'utf8');
 const ingestion = await readFile(ingestionUrl, 'utf8');
@@ -41,6 +45,7 @@ const coreMain = await readFile(coreMainUrl, 'utf8');
 const coreHttp = await readFile(coreHttpUrl, 'utf8');
 const manualLibrary = await readFile(manualLibraryUrl, 'utf8');
 const releaseCompiler = await readFile(releaseCompilerUrl, 'utf8');
+const restoreLegacyAssets = await readFile(restoreLegacyAssetsUrl, 'utf8');
 const sha256 = /^sha256:[a-f0-9]{64}$/;
 
 test('the frozen starter manifest remains an auditable five-manual CL350 fixture', () => {
@@ -127,6 +132,8 @@ test('verified figure overrides remain data-driven and auditable', () => {
     asset.verification?.source_pdf_page
     && /Figure 601/.test(asset.caption)
   )));
+  assert.ok(windshieldFigures[0].keywords.includes('windshield damage review'));
+  assert.ok(!windshieldFigures[1].keywords.includes('windshield damage review'));
   assert.match(coreHttp, /lookup_registered_image/);
   assert.match(coreHttp, /"catalog_image_register"/);
   assert.match(coreHttp, /mxg\.manual\.search/);
@@ -190,6 +197,11 @@ test('v3 promotion deduplicates linked images and never copies source PDFs', () 
   assert.match(ingestion, /ThreadPoolExecutor/);
   assert.match(ingestion, /manual-assets\/legacy-rag\/v3\//);
   assert.doesNotMatch(ingestion, /\.pdf["']/i);
+});
+
+test('legacy asset restore fails only on collisions inside the frozen register', () => {
+  assert.match(restoreLegacyAssets, /expectedNameSet/);
+  assert.match(restoreLegacyAssets, /if \(\$expectedNameSet\.Contains\(\$assetName\)\)/);
 });
 
 test('large diagram registers stay retrievable without entering the Search term index', () => {
