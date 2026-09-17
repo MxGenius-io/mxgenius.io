@@ -30,6 +30,14 @@ test('demo visual registry keeps fictional imagery out of production records', (
     'media/demo/maintenance-wheel-brake.jpg'
   );
   assert.equal(
+    registry.forCase({ aircraft_id: 'MXG-DEMO-01', raw_discrepancy: '[DEMO] Left wingtip strobe light lens cracked' }).src,
+    'media/demo/maintenance-strobe-light.png'
+  );
+  assert.equal(
+    registry.forCase({ aircraft_id: 'MXG-DEMO-01', raw_discrepancy: '[DEMO] Left windshield outer-ply impact mark' }).src,
+    'media/demo/maintenance-windshield-damage.png'
+  );
+  assert.equal(
     registry.forPart({ part_number: '29-1001', metadata: { demo: true } }).src,
     'media/demo/part-hydraulic-pump.jpg'
   );
@@ -41,6 +49,7 @@ test('demo visual registry keeps fictional imagery out of production records', (
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-32-1504', description: '[DEMO] Cotter pin' }).src, 'media/demo/part-wheel-hardware.jpg');
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-24-3001', description: '[DEMO] Generator control unit' }).src, 'media/demo/part-electrical.jpg');
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-34-6001', description: '[DEMO] Pitot probe' }).src, 'media/demo/part-pitot-probe.jpg');
+  assert.equal(registry.forPart({ part_number: 'MXG-DEMO-33-5101', description: '[DEMO] Strobe light assembly' }).src, 'media/demo/part-strobe-light.png');
 });
 
 test('demo presentation scopes maintenance and parts without deleting operational records', () => {
@@ -61,11 +70,16 @@ test('demo presentation scopes maintenance and parts without deleting operationa
   const presentation = context.MXDemoVisualRegistry.presentation;
   const productionCase = { case_id: 'case-production-1', raw_discrepancy: 'Routine inspection' };
   const demoCase = { case_id: 'case-demo-1', raw_discrepancy: '[DEMO] Hydraulic pressure decay' };
+  const hiddenLegacyCase = {
+    case_id: 'case-demo-hidden',
+    raw_discrepancy: '[DEMO] Archived hydraulic example',
+    normalized_discrepancy: { demo: true, presentation_hidden: true }
+  };
   const productionPart = { partNumber: '29-1001', description: 'Hydraulic pump' };
   const demoPart = { partNumber: 'MXG-DEMO-29-1001', description: '[DEMO] Hydraulic pump' };
 
   assert.deepEqual(
-    Array.from(presentation.scopeCases([productionCase, demoCase]), (row) => row.case_id),
+    Array.from(presentation.scopeCases([productionCase, demoCase, hiddenLegacyCase]), (row) => row.case_id),
     ['case-demo-1']
   );
   assert.equal(presentation.isEnabled(), true);
@@ -106,6 +120,9 @@ test('Parts Frontend Shell requirements', async (t) => {
     assert.match(demoVisuals, /part-hydraulic-pump\.jpg/);
     assert.match(demoVisuals, /part-wheel-brake\.jpg/);
     assert.match(demoVisuals, /part-consumables\.jpg/);
+    assert.match(demoVisuals, /maintenance-strobe-light\.png/);
+    assert.match(demoVisuals, /maintenance-windshield-damage\.png/);
+    assert.match(demoVisuals, /part-strobe-light\.png/);
     assert.match(js, /scopeParts/);
     assert.match(js, /aircraftLabel\(row\)/);
     assert.doesNotMatch(html, /id="settingsShowAllData"/);
@@ -120,7 +137,11 @@ test('Parts Frontend Shell requirements', async (t) => {
   });
 
   await t.test('the demo maintenance spine satisfies the model-facing case contract', () => {
-    assert.match(demoSeed, /"summary":"ATA 29 hydraulic pressure decay","raw":"\[DEMO\] Hydraulic system B pressure decays after engine shutdown\./);
+    assert.match(demoSeed, /"demo_sequence":1,"summary":"ATA 33 left wingtip strobe light replacement"/);
+    assert.match(demoSeed, /"demo_sequence":2,"summary":"ATA 32 right main wheel tire and brake replacement"/);
+    assert.match(demoSeed, /"demo_sequence":3,"summary":"ATA 56 left windshield damage-limit review"/);
+    assert.match(demoSeed, /"remote_witness_ready":true/);
+    assert.match(demoSeed, /"presentation_hidden":true/);
     assert.match(demoSeed, /aircraft_id=EXCLUDED\.aircraft_id/);
     assert.doesNotMatch(demoSeed, /demo_org, 'MXG-DEMO-N350MX',\s*\n\s*'(?:awaiting_parts|closed|scheduled)'/);
   });

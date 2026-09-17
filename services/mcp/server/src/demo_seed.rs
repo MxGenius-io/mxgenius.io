@@ -55,7 +55,7 @@ pub async fn seed_demo_data(
         sqlx::query_as(
             r#"SELECT
                 (SELECT count(*) FROM aircraft_canonical WHERE organization_id=$1 AND metadata->>'dataset'='mxgenius_complete_demo'),
-                (SELECT count(*) FROM maintenance_cases WHERE organization_id=$1 AND normalized_discrepancy->>'dataset'='mxgenius_complete_demo'),
+                (SELECT count(*) FROM maintenance_cases WHERE organization_id=$1 AND normalized_discrepancy->>'dataset'='mxgenius_complete_demo' AND COALESCE((normalized_discrepancy->>'presentation_hidden')::boolean, false)=false),
                 (SELECT count(*) FROM stock_units WHERE organization_id=$1 AND metadata->>'dataset'='mxgenius_complete_demo'),
                 (SELECT count(*) FROM evidence WHERE organization_id=$1 AND source_type='demo')"#,
         )
@@ -76,7 +76,7 @@ pub async fn seed_demo_data(
             &organization_id,
             b"d0000000-0000-4000-8000-000000000101",
         ),
-        message: "Demo records loaded. Every demo record is visibly labeled and reruns update the same records.",
+        message: "Friday demo records loaded: strobe, main wheel, and windshield review. Every record is visibly labeled and reruns update the same records.",
     })
 }
 
@@ -95,7 +95,17 @@ mod tests {
 
     #[test]
     fn maintenance_seed_satisfies_the_model_facing_case_contract() {
-        assert!(DEMO_SEED_SQL.contains("\"summary\":\"ATA 29 hydraulic pressure decay\",\"raw\":\"[DEMO] Hydraulic system B pressure decays after engine shutdown."));
+        for scenario in [
+            "\"demo_sequence\":1,\"summary\":\"ATA 33 left wingtip strobe light replacement\"",
+            "\"demo_sequence\":2,\"summary\":\"ATA 32 right main wheel tire and brake replacement\"",
+            "\"demo_sequence\":3,\"summary\":\"ATA 56 left windshield damage-limit review\"",
+        ] {
+            assert!(DEMO_SEED_SQL.contains(scenario));
+        }
+        assert!(DEMO_SEED_SQL.contains("\"remote_witness_ready\":true"));
+        assert!(DEMO_SEED_SQL.contains("MXG-DEMO-33-5101"));
+        assert!(DEMO_SEED_SQL.contains("\"presentation_hidden\":true"));
+        assert!(DEMO_SEED_SQL.contains("name=EXCLUDED.name"));
         assert!(DEMO_SEED_SQL.contains("aircraft_id=EXCLUDED.aircraft_id"));
         assert!(!DEMO_SEED_SQL.contains("demo_org, 'MXG-DEMO-N350MX',\n        'awaiting_parts'"));
     }

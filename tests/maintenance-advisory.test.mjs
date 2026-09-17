@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import vm from 'node:vm';
 
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
@@ -172,11 +173,28 @@ test('retrieved manual records expose expandable section text in advisory and co
   assert.match(app, /function createManualRecordDisclosure/);
   assert.match(app, /document\.createElement\('details'\)/);
   assert.match(app, /toggleLabel\.textContent = 'Section text'/);
-  assert.match(app, /const sectionText = String\(record\.excerpt \|\| ''\)\.replace\(\/\\s\+\/g, ' '\)\.trim\(\)/);
+  assert.match(app, /function formatManualSectionText\(value\)/);
+  assert.match(app, /const sectionText = formatManualSectionText\(record\.excerpt\)/);
   assert.match(app, /excerpt\.textContent = sectionText \|\| 'No section text was supplied for this record\.'/);
+  assert.match(app, /snippet\.textContent = truncateManualSectionText\(record\.excerpt\)/);
   assert.match(app, /appendManualRecordAppendix\(bubble, manualRecords, \{ includeImages: false \}\)/);
   assert.match(app, /appendManualRecordAppendix\(article, records, \{ includeImages: false \}\)/);
-  assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*color:#e2e8f0[\s\S]*white-space:normal/);
+  assert.match(productionStyles, /\.mx-manual-record__excerpt[\s\S]*color:#e2e8f0[\s\S]*white-space:pre-line/);
+});
+
+test('flattened PDF excerpts gain simple title, task, and action breaks', () => {
+  const start = app.indexOf('function formatManualSectionText(value)');
+  const end = app.indexOf('function truncateManualSectionText', start);
+  assert.ok(start >= 0 && end > start);
+  const context = {
+    input: 'Page 231FLIGHT DATA RECORDER (FDR) - REMOVAL/INSTALLATION TASK 31-31-01-000-801 A. Setup E. (1) Loosen and release the retainers (3). (2) Carefully pull the FDR A145 (1) out of the tray (2).CMM3131014_001'
+  };
+  vm.runInNewContext(`${app.slice(start, end)}; result = formatManualSectionText(input);`, context);
+  assert.match(context.result, /Page 231\nFLIGHT DATA RECORDER/);
+  assert.match(context.result, /\n\nTASK 31-31-01-000-801/);
+  assert.match(context.result, /\n\(1\) Loosen and release/);
+  assert.match(context.result, /\n\(2\) Carefully pull/);
+  assert.match(context.result, /\n\nCMM3131014_001/);
 });
 
 test('application readiness badge is based on a bounded core probe instead of sign-in alone', () => {

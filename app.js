@@ -1159,6 +1159,33 @@ function setupChatPanel() {
     container.appendChild(response);
   };
 
+  function formatManualSectionText(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/(Page\s+\d+)(?=[A-Z])/g, '$1\n')
+      .replace(/\s*(TASK\s+[0-9A-Z−-]{5,})/g, '\n\n$1')
+      .replace(/([.)])(?=(?:CMM\d|FLIGHT\b|LANDING\b|WINDSHIELD\b|WHEEL\b|STROBE\b))/g, '$1\n\n')
+      .replace(/\s+(NOTE:)\s*/gi, '\n$1 ')
+      .replace(/\s+([A-F])\.\s+/g, '\n$1. ')
+      .replace(
+        /\s*(\(\d+\))\s+(?=(?:Apply|Carefully|Check|Close|Connect|Disconnect|Do|Engage|Ensure|Inspect|Install|Loosen|Make|Open|Pull|Push|Release|Remove|Set|Tighten|Verify)\b)/g,
+        '\n$1 '
+      )
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n[ \t]+/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  function truncateManualSectionText(value, maximumLength = 360) {
+    const text = formatManualSectionText(value);
+    if (text.length <= maximumLength) return text;
+    const candidate = text.slice(0, Math.max(0, maximumLength - 3));
+    const lastBoundary = Math.max(candidate.lastIndexOf(' '), candidate.lastIndexOf('\n'));
+    return `${candidate.slice(0, lastBoundary > maximumLength * 0.7 ? lastBoundary : candidate.length).trimEnd()}...`;
+  }
+
   const appendManualEvidencePreview = (container, records) => {
     const candidates = (Array.isArray(records) ? records : [])
       .filter((record) => record?.excerpt || record?.images?.length);
@@ -1193,10 +1220,7 @@ function setupChatPanel() {
       if (record.excerpt) {
         const snippet = document.createElement('p');
         snippet.className = 'mx-manual-evidence__snippet';
-        const compactExcerpt = String(record.excerpt).replace(/\s+/g, ' ').trim();
-        snippet.textContent = compactExcerpt.length > 360
-          ? `${compactExcerpt.slice(0, 357).trimEnd()}...`
-          : compactExcerpt;
+        snippet.textContent = truncateManualSectionText(record.excerpt);
         card.appendChild(snippet);
       }
 
@@ -1768,7 +1792,7 @@ Rules:
       .filter(Boolean).join(' - ');
     const excerpt = document.createElement('p');
     excerpt.className = 'mx-manual-record__excerpt';
-    const sectionText = String(record.excerpt || '').replace(/\s+/g, ' ').trim();
+    const sectionText = formatManualSectionText(record.excerpt);
     excerpt.textContent = sectionText || 'No section text was supplied for this record.';
     body.append(meta, excerpt);
 

@@ -22,6 +22,16 @@
       alt: 'Fictional demo inspection image of condensation in an installed aircraft landing light',
       classification: 'demonstration'
     }),
+    maintenanceStrobe: Object.freeze({
+      src: 'media/demo/maintenance-strobe-light.png',
+      alt: 'Fictional demo inspection image of a cracked wingtip strobe-light lens',
+      classification: 'demonstration'
+    }),
+    maintenanceWindshield: Object.freeze({
+      src: 'media/demo/maintenance-windshield-damage.png',
+      alt: 'Fictional demo inspection image of localized outer-ply windshield damage',
+      classification: 'demonstration'
+    }),
     partHydraulic: Object.freeze({
       src: 'media/demo/part-hydraulic-pump.jpg',
       alt: 'Fictional demo visual of an aviation hydraulic pump assembly',
@@ -77,6 +87,11 @@
       alt: 'Fictional demo visual of an aircraft landing light assembly',
       classification: 'demonstration'
     }),
+    partStrobe: Object.freeze({
+      src: 'media/demo/part-strobe-light.png',
+      alt: 'Fictional demo visual of a serviceable aviation strobe-light assembly',
+      classification: 'demonstration'
+    }),
     partFlightControl: Object.freeze({
       src: 'media/demo/part-flight-control.jpg',
       alt: 'Fictional demo visual of flight-control and landing-gear hardware',
@@ -92,6 +107,7 @@
   }
 
   function isDemoCase(caseState = {}) {
+    if (metadata(caseState)?.presentation_hidden === true) return false;
     const discrepancy = String(value(caseState, 'raw_discrepancy', 'rawDiscrepancy'));
     const aircraftId = String(value(caseState, 'aircraft_id', 'aircraftId'));
     const caseId = String(value(caseState, 'case_id', 'caseId'));
@@ -136,6 +152,8 @@
       caseState?.normalized_discrepancy?.summary,
       caseState?.normalizedDiscrepancy?.summary
     ].filter(Boolean).join(' ').toLowerCase();
+    if (/windshield|outer ply|impact mark|transparency/.test(searchable)) return ASSETS.maintenanceWindshield;
+    if (/strobe|anti-collision|wingtip light/.test(searchable)) return ASSETS.maintenanceStrobe;
     if (/landing light|light assembly|condensation/.test(searchable)) return ASSETS.maintenanceLandingLight;
     if (/cabin|filter|environmental/.test(searchable)) return ASSETS.maintenanceFilter;
     if (/wheel|brake|landing gear/.test(searchable)) return ASSETS.maintenanceWheel;
@@ -220,6 +238,7 @@
     if (/hydraulic pump|29-1001/.test(searchable)) return ASSETS.partHydraulic;
     if (/cabin air filter|hydraulic filter|oil filter|21-2200|29-1002|79-7001/.test(searchable)) return ASSETS.partFilters;
     if (/pitot|34-6001/.test(searchable)) return ASSETS.partPitotProbe;
+    if (/strobe|anti-collision|33-5101/.test(searchable)) return ASSETS.partStrobe;
     if (/landing light|33-5001/.test(searchable)) return ASSETS.partLandingLight;
     if (/generator control|wheel speed transducer|anti-skid|24-3001|32-190/.test(searchable)) return ASSETS.partElectrical;
     if (/turnbuckle|shimmy damper|gear door seal|27-4001|32-180/.test(searchable)) return ASSETS.partFlightControl;

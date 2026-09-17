@@ -33,43 +33,43 @@ BEGIN
     ) VALUES
     (
         'd0000000-0000-4000-8000-000000000101', demo_org, 'd0000000-0000-4000-8000-000000000001',
-        'awaiting_parts', 'aog', now() - interval '9 hours', now() - interval '35 minutes',
+        'diagnosing', 'urgent', now() - interval '45 minutes', now() - interval '5 minutes',
         '{"icao":"KDAL","facility":"Demo Hangar 2"}'::jsonb,
-        '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B"}'::jsonb,
+        '[DEMO] Left wingtip strobe light is intermittent; lens shows a hairline crack and internal moisture.',
+        '{"dataset":"mxgenius_complete_demo","demo":true,"demo_suite":"friday_funding_demo","demo_sequence":1,"summary":"ATA 33 left wingtip strobe light replacement","raw":"[DEMO] Left wingtip strobe light is intermittent; lens shows a hairline crack and internal moisture.","ata":"33","symptom":"intermittent strobe with cracked lens","component_id":"MXG-DEMO-STROBE-LH"}'::jsonb,
         ARRAY[demo_actor],
         ARRAY['d0000000-0000-4000-8000-000000000501'::uuid,'d0000000-0000-4000-8000-000000000502'::uuid],
         'pending', 3
     ),
     (
         'd0000000-0000-4000-8000-000000000102', demo_org, 'd0000000-0000-4000-8000-000000000001',
-        'closed', 'urgent', now() - interval '45 days', now() - interval '44 days 18 hours',
+        'awaiting_parts', 'aog', now() - interval '3 hours', now() - interval '12 minutes',
         '{"icao":"KDAL","facility":"Demo Hangar 2"}'::jsonb,
-        '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"replaced pressure switch"}'::jsonb,
+        '[DEMO] Right main tire has exposed cord and the brake stack is near wear limit; wheel replacement required.',
+        '{"dataset":"mxgenius_complete_demo","demo":true,"demo_suite":"friday_funding_demo","demo_sequence":2,"summary":"ATA 32 right main wheel tire and brake replacement","raw":"[DEMO] Right main tire has exposed cord and the brake stack is near wear limit; wheel replacement required.","ata":"32","symptom":"tire cord exposed and brake wear near limit","component_id":"MXG-DEMO-MAIN-WHEEL-RH"}'::jsonb,
         ARRAY[demo_actor], ARRAY['d0000000-0000-4000-8000-000000000503'::uuid],
-        'approved', 5
+        'pending', 4
     ),
     (
         'd0000000-0000-4000-8000-000000000103', demo_org, 'd0000000-0000-4000-8000-000000000001',
-        'scheduled', 'routine', now() - interval '3 days', now() - interval '2 hours',
+        'awaiting_inspection', 'urgent', now() - interval '90 minutes', now() - interval '18 minutes',
         '{"icao":"KDAL","facility":"Demo Hangar 1"}'::jsonb,
-        '[DEMO] Cabin air filter replacement due at next maintenance opportunity.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 21 cabin air filter due","raw":"[DEMO] Cabin air filter replacement due at next maintenance opportunity.","ata":"21","symptom":"scheduled cabin air filter replacement","component_id":"MXG-DEMO-CABIN-FILTER"}'::jsonb,
+        '[DEMO] Left windshield has a localized outer-ply impact mark; damage limits require remote qualified review.',
+        '{"dataset":"mxgenius_complete_demo","demo":true,"demo_suite":"friday_funding_demo","demo_sequence":3,"summary":"ATA 56 left windshield damage-limit review","raw":"[DEMO] Left windshield has a localized outer-ply impact mark; damage limits require remote qualified review.","ata":"56","symptom":"localized outer-ply impact mark","component_id":"MXG-DEMO-WINDSHIELD-LH","remote_witness_ready":true}'::jsonb,
         ARRAY[demo_actor], ARRAY['d0000000-0000-4000-8000-000000000504'::uuid],
-        'not_required', 2
+        'pending', 2
     ),
     (
         'd0000000-0000-4000-8000-000000000104', demo_org, 'd0000000-0000-4000-8000-000000000001',
         'closed', 'routine', now() - interval '120 days', now() - interval '119 days 20 hours',
         '{"icao":"KDAL","facility":"Demo Hangar 1"}'::jsonb,
-        '[DEMO] Hydraulic system B pressure decays after engine shutdown.',
-        '{"dataset":"mxgenius_complete_demo","demo":true,"summary":"ATA 29 hydraulic pressure decay","raw":"[DEMO] Hydraulic system B pressure decays after engine shutdown.","ata":"29","symptom":"hydraulic pressure decay","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"serviced reservoir"}'::jsonb,
+        '[DEMO] Archived hydraulic pressure example.',
+        '{"dataset":"mxgenius_complete_demo","demo":true,"presentation_hidden":true,"summary":"Archived ATA 29 hydraulic example","raw":"[DEMO] Archived hydraulic pressure example.","ata":"29","symptom":"archived demo record","component_id":"MXG-DEMO-HYD-PUMP-B","resolution":"serviced reservoir"}'::jsonb,
         ARRAY[demo_actor], ARRAY[]::uuid[], 'approved', 4
     )
     ON CONFLICT (case_id) DO UPDATE SET
         aircraft_id=EXCLUDED.aircraft_id, status=EXCLUDED.status, priority=EXCLUDED.priority,
-        updated_at=EXCLUDED.updated_at, location=EXCLUDED.location,
+        opened_at=EXCLUDED.opened_at, updated_at=EXCLUDED.updated_at, location=EXCLUDED.location,
         raw_discrepancy=EXCLUDED.raw_discrepancy,
         normalized_discrepancy=EXCLUDED.normalized_discrepancy,
         assigned_user_ids=EXCLUDED.assigned_user_ids,
@@ -77,60 +77,81 @@ BEGIN
         approval_state=EXCLUDED.approval_state, version=EXCLUDED.version;
 
     INSERT INTO discrepancies (id, organization_id, case_id, normalized_summary, raw) VALUES
-        ('d0000000-0000-4000-8000-000000000201', demo_org, 'd0000000-0000-4000-8000-000000000101', 'ATA 29 hydraulic pressure decay', '[DEMO] Hydraulic system B pressure decays after engine shutdown.'),
-        ('d0000000-0000-4000-8000-000000000202', demo_org, 'd0000000-0000-4000-8000-000000000103', 'ATA 21 cabin air filter due', '[DEMO] Cabin air filter replacement due.')
-    ON CONFLICT (id) DO UPDATE SET normalized_summary=EXCLUDED.normalized_summary, raw=EXCLUDED.raw;
+        ('d0000000-0000-4000-8000-000000000201', demo_org, 'd0000000-0000-4000-8000-000000000101', 'ATA 33 left wingtip strobe light replacement', '[DEMO] Left wingtip strobe light is intermittent; lens shows a hairline crack and internal moisture.'),
+        ('d0000000-0000-4000-8000-000000000202', demo_org, 'd0000000-0000-4000-8000-000000000102', 'ATA 32 right main wheel tire and brake replacement', '[DEMO] Right main tire has exposed cord and the brake stack is near wear limit; wheel replacement required.'),
+        ('d0000000-0000-4000-8000-000000000203', demo_org, 'd0000000-0000-4000-8000-000000000103', 'ATA 56 left windshield damage-limit review', '[DEMO] Left windshield has a localized outer-ply impact mark; damage limits require remote qualified review.')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        normalized_summary=EXCLUDED.normalized_summary, raw=EXCLUDED.raw;
 
     INSERT INTO maintenance_events (id, organization_id, case_id, from_status, to_status, actor_user_id, reason, created_at) VALUES
-        ('d0000000-0000-4000-8000-000000000211', demo_org, 'd0000000-0000-4000-8000-000000000101', 'triage', 'diagnosing', demo_actor, '[DEMO] Fault isolated to hydraulic pump circuit.', now() - interval '7 hours'),
-        ('d0000000-0000-4000-8000-000000000212', demo_org, 'd0000000-0000-4000-8000-000000000101', 'diagnosing', 'awaiting_parts', demo_actor, '[DEMO] Replacement pump requested.', now() - interval '5 hours'),
-        ('d0000000-0000-4000-8000-000000000213', demo_org, 'd0000000-0000-4000-8000-000000000102', 'awaiting_inspection', 'closed', demo_actor, '[DEMO] Inspection complete and record approved.', now() - interval '44 days 18 hours')
-    ON CONFLICT (id) DO NOTHING;
+        ('d0000000-0000-4000-8000-000000000211', demo_org, 'd0000000-0000-4000-8000-000000000101', 'open', 'diagnosing', demo_actor, '[DEMO] Strobe lens damage confirmed; replacement path opened.', now() - interval '30 minutes'),
+        ('d0000000-0000-4000-8000-000000000212', demo_org, 'd0000000-0000-4000-8000-000000000102', 'diagnosing', 'awaiting_parts', demo_actor, '[DEMO] Wheel, tire, brake, and hardware requirements linked to on-hand inventory.', now() - interval '2 hours'),
+        ('d0000000-0000-4000-8000-000000000213', demo_org, 'd0000000-0000-4000-8000-000000000103', 'diagnosing', 'awaiting_inspection', demo_actor, '[DEMO] Windshield evidence captured and remote qualified review requested.', now() - interval '45 minutes')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        from_status=EXCLUDED.from_status, to_status=EXCLUDED.to_status,
+        reason=EXCLUDED.reason, created_at=EXCLUDED.created_at;
 
     INSERT INTO observations (id, organization_id, case_id, note, component_id, author_user_id, media_refs, created_at) VALUES
-        ('d0000000-0000-4000-8000-000000000221', demo_org, 'd0000000-0000-4000-8000-000000000101', '[DEMO] Pressure fell from 3000 PSI to 2100 PSI over ten minutes.', 'MXG-DEMO-HYD-PUMP-B', demo_actor, '[{"kind":"demo_photo","label":"Hydraulic bay overview — demonstration placeholder"}]'::jsonb, now() - interval '6 hours'),
-        ('d0000000-0000-4000-8000-000000000222', demo_org, 'd0000000-0000-4000-8000-000000000103', '[DEMO] Filter indicator shows replacement due.', 'MXG-DEMO-CABIN-FILTER', demo_actor, '[]'::jsonb, now() - interval '1 day')
-    ON CONFLICT (id) DO UPDATE SET note=EXCLUDED.note, media_refs=EXCLUDED.media_refs;
+        ('d0000000-0000-4000-8000-000000000221', demo_org, 'd0000000-0000-4000-8000-000000000101', '[DEMO] Strobe operated intermittently during functional check; lens crack and internal moisture are visible.', 'MXG-DEMO-STROBE-LH', demo_actor, '[{"kind":"demo_photo","label":"Left wingtip strobe inspection","url":"media/demo/maintenance-strobe-light.png"}]'::jsonb, now() - interval '25 minutes'),
+        ('d0000000-0000-4000-8000-000000000222', demo_org, 'd0000000-0000-4000-8000-000000000102', '[DEMO] Right main tire cord is exposed and brake wear is near the demonstration limit.', 'MXG-DEMO-MAIN-WHEEL-RH', demo_actor, '[{"kind":"demo_photo","label":"Right main wheel and brake inspection","url":"media/demo/maintenance-wheel-brake.jpg"}]'::jsonb, now() - interval '2 hours'),
+        ('d0000000-0000-4000-8000-000000000223', demo_org, 'd0000000-0000-4000-8000-000000000103', '[DEMO] Localized outer-ply impact mark photographed for remote damage-limit review.', 'MXG-DEMO-WINDSHIELD-LH', demo_actor, '[{"kind":"demo_photo","label":"Left windshield impact mark","url":"media/demo/maintenance-windshield-damage.png"}]'::jsonb, now() - interval '40 minutes')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        note=EXCLUDED.note, component_id=EXCLUDED.component_id,
+        media_refs=EXCLUDED.media_refs, created_at=EXCLUDED.created_at;
 
     INSERT INTO case_assignments (organization_id, case_id, user_id) VALUES
         (demo_org, 'd0000000-0000-4000-8000-000000000101', demo_actor),
+        (demo_org, 'd0000000-0000-4000-8000-000000000102', demo_actor),
         (demo_org, 'd0000000-0000-4000-8000-000000000103', demo_actor)
     ON CONFLICT DO NOTHING;
 
     INSERT INTO components (id, aircraft_id, ata, name, metadata) VALUES
-        ('d0000000-0000-4000-8000-000000000301', 'd0000000-0000-4000-8000-000000000001', '29', 'Hydraulic Pump B', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-HYD-PUMP-B","zone":"right_aft_equipment_bay","status":"suspect"}'::jsonb),
-        ('d0000000-0000-4000-8000-000000000302', 'd0000000-0000-4000-8000-000000000001', '21', 'Cabin Air Filter', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-CABIN-FILTER","zone":"environmental_control_bay","status":"service_due"}'::jsonb)
+        ('d0000000-0000-4000-8000-000000000301', 'd0000000-0000-4000-8000-000000000001', '33', 'Left Wingtip Strobe Light', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-STROBE-LH","zone":"left_wingtip","status":"replace"}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000302', 'd0000000-0000-4000-8000-000000000001', '32', 'Right Main Wheel and Brake', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-MAIN-WHEEL-RH","zone":"right_main_landing_gear","status":"aog"}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000303', 'd0000000-0000-4000-8000-000000000001', '56', 'Left Cockpit Windshield', '{"dataset":"mxgenius_complete_demo","demo":true,"component_id":"MXG-DEMO-WINDSHIELD-LH","zone":"cockpit_left_windshield","status":"remote_review"}'::jsonb)
     ON CONFLICT (id) DO UPDATE SET
-        aircraft_id=EXCLUDED.aircraft_id, metadata=EXCLUDED.metadata;
+        aircraft_id=EXCLUDED.aircraft_id, ata=EXCLUDED.ata,
+        name=EXCLUDED.name, metadata=EXCLUDED.metadata;
 
     INSERT INTO technical_documents (id, organization_id, title, doc_type) VALUES
-        ('d0000000-0000-4000-8000-000000000401', demo_org, '[DEMO] Challenger 350 Hydraulic System Maintenance Excerpt', 'maintenance_manual'),
-        ('d0000000-0000-4000-8000-000000000402', demo_org, '[DEMO] Parts Receiving and Traceability Procedure', 'company_procedure')
+        ('d0000000-0000-4000-8000-000000000401', demo_org, '[DEMO] Challenger 350 Exterior Lighting Work Card', 'maintenance_manual'),
+        ('d0000000-0000-4000-8000-000000000402', demo_org, '[DEMO] Challenger 350 Main Wheel and Brake Work Card', 'maintenance_manual'),
+        ('d0000000-0000-4000-8000-000000000403', demo_org, '[DEMO] Challenger 350 Windshield Damage Review Card', 'maintenance_manual'),
+        ('d0000000-0000-4000-8000-000000000404', demo_org, '[DEMO] Parts Receiving and Traceability Procedure', 'company_procedure')
     ON CONFLICT (organization_id, id) DO UPDATE SET title=EXCLUDED.title, doc_type=EXCLUDED.doc_type;
 
     INSERT INTO document_revisions (id, document_id, revision, effective_date, uploaded_by, sha256) VALUES
         ('d0000000-0000-4000-8000-000000000411', 'd0000000-0000-4000-8000-000000000401', 'DEMO-1', current_date - 30, demo_actor, repeat('a',64)),
-        ('d0000000-0000-4000-8000-000000000412', 'd0000000-0000-4000-8000-000000000402', 'DEMO-2', current_date - 15, demo_actor, repeat('b',64))
+        ('d0000000-0000-4000-8000-000000000412', 'd0000000-0000-4000-8000-000000000402', 'DEMO-2', current_date - 30, demo_actor, repeat('b',64)),
+        ('d0000000-0000-4000-8000-000000000413', 'd0000000-0000-4000-8000-000000000403', 'DEMO-1', current_date - 30, demo_actor, repeat('c',64)),
+        ('d0000000-0000-4000-8000-000000000414', 'd0000000-0000-4000-8000-000000000404', 'DEMO-2', current_date - 15, demo_actor, repeat('d',64))
     ON CONFLICT (document_id, revision) DO UPDATE SET effective_date=EXCLUDED.effective_date, sha256=EXCLUDED.sha256;
 
     INSERT INTO regulatory_requirements (id, source_reference, document_id, summary) VALUES
-        ('d0000000-0000-4000-8000-000000000421', 'demo://faa/ad/DEMO-2026-01', 'd0000000-0000-4000-8000-000000000401', '[DEMO ONLY] Inspect the fictional hydraulic pressure switch installation.')
-    ON CONFLICT (id) DO UPDATE SET summary=EXCLUDED.summary;
+        ('d0000000-0000-4000-8000-000000000421', 'demo://operator/windshield-limit-review', 'd0000000-0000-4000-8000-000000000403', '[DEMO ONLY] A qualified reviewer must disposition the fictional windshield damage before release.')
+    ON CONFLICT (id) DO UPDATE SET source_reference=EXCLUDED.source_reference,
+        document_id=EXCLUDED.document_id, summary=EXCLUDED.summary;
+
+    DELETE FROM case_regulatory_links
+    WHERE requirement_id='d0000000-0000-4000-8000-000000000421';
 
     INSERT INTO case_regulatory_links (case_id, requirement_id) VALUES
-        ('d0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000421')
+        ('d0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000421')
     ON CONFLICT DO NOTHING;
 
     INSERT INTO evidence (
         id, organization_id, source_type, source_reference, kind, title, excerpt,
         retrieved_at, effective_at, revision, license_scope, content_hash, content
     ) VALUES
-        ('d0000000-0000-4000-8000-000000000501', demo_org, 'demo', 'demo://manual/hydraulic/29-10', 'manual_excerpt', '[DEMO] Hydraulic Pump Fault Isolation', 'Demonstration procedure: verify pressure decay, inspect switch wiring, and record findings.', now() - interval '6 hours', now() - interval '30 days', 'DEMO-1', 'fictional-demo-only', repeat('1',64), 'Fictional demonstration content. Not approved maintenance data.'),
-        ('d0000000-0000-4000-8000-000000000502', demo_org, 'demo', 'demo://inspection/hydraulic-photo', 'inspection_observation', '[DEMO] Hydraulic Bay Inspection', 'Demonstration observation records minor seepage near the pump fitting.', now() - interval '5 hours', now() - interval '5 hours', '1', 'fictional-demo-only', repeat('2',64), 'Fictional demonstration inspection record.'),
-        ('d0000000-0000-4000-8000-000000000503', demo_org, 'demo', 'demo://release/previous-repair', 'return_to_service', '[DEMO] Previous Hydraulic Repair Release', 'Demonstration return-to-service record approved by a fictional inspector.', now() - interval '44 days', now() - interval '44 days', '1', 'fictional-demo-only', repeat('3',64), 'Fictional demonstration release record.'),
-        ('d0000000-0000-4000-8000-000000000504', demo_org, 'demo', 'demo://manual/cabin-filter/21-50', 'manual_excerpt', '[DEMO] Cabin Filter Replacement', 'Demonstration filter replacement interval and access instructions.', now() - interval '1 day', now() - interval '60 days', 'DEMO-1', 'fictional-demo-only', repeat('4',64), 'Fictional demonstration content. Not approved maintenance data.')
+        ('d0000000-0000-4000-8000-000000000501', demo_org, 'demo', 'demo://manual/strobe/33', 'manual_excerpt', '[DEMO] Strobe Light Replacement Work Card', 'Demonstration flow: isolate power, remove the damaged strobe assembly, install the matched serviceable unit, and perform the lighting operational check.', now() - interval '20 minutes', now() - interval '30 days', 'DEMO-1', 'fictional-demo-only', repeat('1',64), 'Fictional demonstration content. Use current approved maintenance data for real work.'),
+        ('d0000000-0000-4000-8000-000000000502', demo_org, 'demo', 'demo://inspection/strobe-photo', 'inspection_observation', '[DEMO] Left Wingtip Strobe Inspection', 'Inspection image shows a hairline lens crack and internal moisture.', now() - interval '18 minutes', now() - interval '18 minutes', '1', 'fictional-demo-only', repeat('2',64), 'Fictional demonstration inspection record.'),
+        ('d0000000-0000-4000-8000-000000000503', demo_org, 'demo', 'demo://manual/wheel/32', 'manual_excerpt', '[DEMO] Main Wheel and Brake Work Card', 'Demonstration flow connects the wheel case to matched synthetic inventory, trace records, and approved-manual retrieval for removal, installation, torque, and inspection steps.', now() - interval '90 minutes', now() - interval '30 days', 'DEMO-1', 'fictional-demo-only', repeat('3',64), 'Fictional demonstration content. No torque value in this record is approved maintenance data.'),
+        ('d0000000-0000-4000-8000-000000000504', demo_org, 'demo', 'demo://inspection/windshield-photo', 'inspection_observation', '[DEMO] Windshield Damage Remote Review', 'Localized outer-ply impact evidence is ready for a remote qualified reviewer to compare with current approved limits and record a disposition.', now() - interval '35 minutes', now() - interval '35 minutes', '1', 'fictional-demo-only', repeat('4',64), 'Fictional demonstration inspection record. Human qualified review remains required.')
     ON CONFLICT (organization_id, content_hash) DO UPDATE SET
-        title=EXCLUDED.title, excerpt=EXCLUDED.excerpt, retrieved_at=EXCLUDED.retrieved_at,
+        source_type=EXCLUDED.source_type, source_reference=EXCLUDED.source_reference,
+        kind=EXCLUDED.kind, title=EXCLUDED.title, excerpt=EXCLUDED.excerpt,
+        retrieved_at=EXCLUDED.retrieved_at, effective_at=EXCLUDED.effective_at,
+        revision=EXCLUDED.revision, license_scope=EXCLUDED.license_scope,
         content=EXCLUDED.content;
 
     UPDATE evidence_links
@@ -143,17 +164,29 @@ BEGIN
           'd0000000-0000-4000-8000-000000000103'
       );
 
+    DELETE FROM evidence_links
+    WHERE organization_id=demo_org
+      AND evidence_id IN (
+          'd0000000-0000-4000-8000-000000000501',
+          'd0000000-0000-4000-8000-000000000502',
+          'd0000000-0000-4000-8000-000000000503',
+          'd0000000-0000-4000-8000-000000000504'
+      );
+
     INSERT INTO evidence_links (organization_id, evidence_id, case_id, aircraft_id, document_id) VALUES
         (demo_org, 'd0000000-0000-4000-8000-000000000501', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000401'),
         (demo_org, 'd0000000-0000-4000-8000-000000000502', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000001', NULL),
-        (demo_org, 'd0000000-0000-4000-8000-000000000503', 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000001', NULL),
-        (demo_org, 'd0000000-0000-4000-8000-000000000504', 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000401')
+        (demo_org, 'd0000000-0000-4000-8000-000000000503', 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000402'),
+        (demo_org, 'd0000000-0000-4000-8000-000000000504', 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000403')
     ON CONFLICT DO NOTHING;
 
     INSERT INTO approvals (id, organization_id, case_id, action, required_role, granted_by, granted_at, decision) VALUES
-        ('d0000000-0000-4000-8000-000000000521', demo_org, 'd0000000-0000-4000-8000-000000000102', 'return_to_service_review', 'quality', demo_actor, now() - interval '44 days 18 hours', 'approved'),
-        ('d0000000-0000-4000-8000-000000000522', demo_org, 'd0000000-0000-4000-8000-000000000101', 'parts_release', 'quality', NULL, NULL, NULL)
-    ON CONFLICT (id) DO UPDATE SET granted_by=EXCLUDED.granted_by, granted_at=EXCLUDED.granted_at, decision=EXCLUDED.decision;
+        ('d0000000-0000-4000-8000-000000000521', demo_org, 'd0000000-0000-4000-8000-000000000103', 'windshield_damage_limit_review', 'quality', NULL, NULL, NULL),
+        ('d0000000-0000-4000-8000-000000000522', demo_org, 'd0000000-0000-4000-8000-000000000102', 'parts_release', 'quality', NULL, NULL, NULL)
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        action=EXCLUDED.action, required_role=EXCLUDED.required_role,
+        granted_by=EXCLUDED.granted_by, granted_at=EXCLUDED.granted_at,
+        decision=EXCLUDED.decision;
 
     INSERT INTO parts (id, part_number, description, manufacturer, canonical, classification, is_serialized, metadata, updated_at) VALUES
         ('d0000000-0000-4000-8000-000000000601', 'MXG-DEMO-29-1001', '[DEMO] Hydraulic pump assembly', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"29"}'::jsonb, now()),
@@ -200,7 +233,8 @@ BEGIN
         ('d0000000-0000-4000-8000-000000000734', 'MXG-DEMO-27-4001', '[DEMO] Flight control cable turnbuckle', 'MXG Demo Standard Parts', true, 'expendable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"27","aircraft_type":"Challenger 350"}'::jsonb, now()),
         ('d0000000-0000-4000-8000-000000000735', 'MXG-DEMO-33-5001', '[DEMO] Landing light assembly', 'MXG Demo Components', true, 'repairable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"33","aircraft_type":"Challenger 350"}'::jsonb, now()),
         ('d0000000-0000-4000-8000-000000000736', 'MXG-DEMO-34-6001', '[DEMO] Pitot probe, captain side', 'MXG Demo Components', true, 'rotable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"34","aircraft_type":"Challenger 350"}'::jsonb, now()),
-        ('d0000000-0000-4000-8000-000000000737', 'MXG-DEMO-79-7001', '[DEMO] Engine oil filter element', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"79","aircraft_type":"Challenger 350"}'::jsonb, now())
+        ('d0000000-0000-4000-8000-000000000737', 'MXG-DEMO-79-7001', '[DEMO] Engine oil filter element', 'MXG Demo Standard Parts', true, 'consumable', false, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"79","aircraft_type":"Challenger 350"}'::jsonb, now()),
+        ('d0000000-0000-4000-8000-000000000738', 'MXG-DEMO-33-5101', '[DEMO] Left wingtip strobe light assembly', 'MXG Demo Components', true, 'repairable', true, '{"dataset":"mxgenius_complete_demo","demo":true,"ata":"33","aircraft_type":"Challenger 350","demo_suite":"friday_funding_demo"}'::jsonb, now())
     ON CONFLICT (part_number, manufacturer) DO UPDATE SET
         description=EXCLUDED.description, classification=EXCLUDED.classification,
         is_serialized=EXCLUDED.is_serialized, metadata=EXCLUDED.metadata, updated_at=now();
@@ -209,17 +243,17 @@ BEGIN
         id, organization_id, case_id, part_id, quantity, required_by,
         acceptable_conditions, status, priority, created_by
     ) VALUES
-        ('d0000000-0000-4000-8000-000000000611', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000601', 1, now() + interval '8 hours', '["NE","NS","OH"]'::jsonb, 'requested', 'aog', demo_actor),
-        ('d0000000-0000-4000-8000-000000000612', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000603', 2, now() + interval '8 hours', '["NE","NS"]'::jsonb, 'sourced', 'aog', demo_actor),
-        ('d0000000-0000-4000-8000-000000000613', demo_org, 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000602', 1, now() + interval '2 days', '["NE"]'::jsonb, 'requested', 'scheduled_mx', demo_actor),
-        -- Wheel R&R demand for the Challenger 350 scenario, including one
-        -- already past its need-by so the overdue path has something to show.
-        ('d0000000-0000-4000-8000-000000000614', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000709', 2, now() - interval '2 days', '["NE"]'::jsonb, 'ordered', 'aog', demo_actor),
-        ('d0000000-0000-4000-8000-000000000615', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000705', 1, now() + interval '1 day', '["NE"]'::jsonb, 'requested', 'aog', demo_actor),
-        ('d0000000-0000-4000-8000-000000000616', demo_org, 'd0000000-0000-4000-8000-000000000103', 'd0000000-0000-4000-8000-000000000719', 4, NULL, '["NE"]'::jsonb, 'requested', 'stock', demo_actor)
+        ('d0000000-0000-4000-8000-000000000611', demo_org, 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000738', 1, now() + interval '1 hour', '["NE","NS","OH"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000612', demo_org, 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000701', 1, now() + interval '2 hours', '["NE","NS","OH","SV"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000613', demo_org, 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000709', 1, now() + interval '2 hours', '["NE"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000614', demo_org, 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000705', 1, now() + interval '2 hours', '["NE"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000615', demo_org, 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000718', 2, now() + interval '2 hours', '["NE"]'::jsonb, 'sourced', 'aog', demo_actor),
+        ('d0000000-0000-4000-8000-000000000616', demo_org, 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000719', 4, now() + interval '2 hours', '["NE"]'::jsonb, 'sourced', 'aog', demo_actor)
     ON CONFLICT (id) DO UPDATE SET
-        organization_id=EXCLUDED.organization_id, quantity=EXCLUDED.quantity,
+        organization_id=EXCLUDED.organization_id, case_id=EXCLUDED.case_id,
+        part_id=EXCLUDED.part_id, quantity=EXCLUDED.quantity,
         required_by=EXCLUDED.required_by, status=EXCLUDED.status,
+        acceptable_conditions=EXCLUDED.acceptable_conditions,
         priority=EXCLUDED.priority, created_by=EXCLUDED.created_by;
 
     INSERT INTO suppliers (id, name, source_reference) VALUES
@@ -228,13 +262,19 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, source_reference=EXCLUDED.source_reference;
 
     INSERT INTO part_source_options (id, part_requirement_id, supplier_id, price, eta, condition, certificate_state, metadata) VALUES
-        ('d0000000-0000-4000-8000-000000000631', 'd0000000-0000-4000-8000-000000000611', 'd0000000-0000-4000-8000-000000000621', 18450.00, now() + interval '7 hours', 'OH', 'form_8130_available', '{"demo":true,"exchange_core_due_days":30}'::jsonb),
-        ('d0000000-0000-4000-8000-000000000632', 'd0000000-0000-4000-8000-000000000613', 'd0000000-0000-4000-8000-000000000622', 285.00, now() + interval '1 day', 'NE', 'coc_available', '{"demo":true}'::jsonb)
-    ON CONFLICT (id) DO UPDATE SET price=EXCLUDED.price, eta=EXCLUDED.eta, certificate_state=EXCLUDED.certificate_state;
+        ('d0000000-0000-4000-8000-000000000631', 'd0000000-0000-4000-8000-000000000611', 'd0000000-0000-4000-8000-000000000621', 1450.00, now() + interval '45 minutes', 'OH', 'form_8130_available', '{"demo":true,"demo_suite":"friday_funding_demo"}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000632', 'd0000000-0000-4000-8000-000000000612', 'd0000000-0000-4000-8000-000000000622', 8200.00, now() + interval '90 minutes', 'OH', 'form_8130_available', '{"demo":true,"demo_suite":"friday_funding_demo"}'::jsonb)
+    ON CONFLICT (id) DO UPDATE SET
+        part_requirement_id=EXCLUDED.part_requirement_id,
+        supplier_id=EXCLUDED.supplier_id, price=EXCLUDED.price,
+        eta=EXCLUDED.eta, condition=EXCLUDED.condition,
+        certificate_state=EXCLUDED.certificate_state, metadata=EXCLUDED.metadata;
 
     INSERT INTO certificate_records (id, case_id, part_id, certificate_type, document_reference, validated) VALUES
-        ('d0000000-0000-4000-8000-000000000641', 'd0000000-0000-4000-8000-000000000101', 'd0000000-0000-4000-8000-000000000601', 'FAA 8130-3', 'demo://certificate/8130/MXG-001', true)
-    ON CONFLICT (id) DO UPDATE SET validated=EXCLUDED.validated;
+        ('d0000000-0000-4000-8000-000000000641', 'd0000000-0000-4000-8000-000000000102', 'd0000000-0000-4000-8000-000000000701', 'FAA 8130-3', 'demo://certificate/8130/DEMO-MW-0117', true)
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        part_id=EXCLUDED.part_id, document_reference=EXCLUDED.document_reference,
+        validated=EXCLUDED.validated;
 
     INSERT INTO inventory_locations (id, organization_id, code, name, location_type, barcode, metadata, updated_at) VALUES
         ('d0000000-0000-4000-8000-000000000651', demo_org, 'DEMO-MAIN-A1', '[DEMO] Main Stock A1', 'stock', 'MXG-DEMO-LOC-A1', '{"dataset":"mxgenius_complete_demo","demo":true}'::jsonb, now()),
@@ -273,6 +313,7 @@ BEGIN
         ('d0000000-0000-4000-8000-000000000806', demo_org, 'd0000000-0000-4000-8000-000000000726', 'DEMO-WST-0310', NULL, 1, 'NE', 'available', 'form_8130', 'DEMO-8130-3310', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-WST-0310","confidence":0.96}}'::jsonb, 1, now()),
         ('d0000000-0000-4000-8000-000000000807', demo_org, 'd0000000-0000-4000-8000-000000000733', 'DEMO-GCU-0007', NULL, 1, 'OH', 'available', 'easa_form1', 'DEMO-EF1-0007', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-GCU-0007","confidence":0.96}}'::jsonb, 1, now()),
         ('d0000000-0000-4000-8000-000000000808', demo_org, 'd0000000-0000-4000-8000-000000000736', 'DEMO-PITOT-0021', NULL, 1, 'NE', 'available', 'form_8130', 'DEMO-8130-0021', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '30 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"serial_number":"DEMO-PITOT-0021","confidence":0.96}}'::jsonb, 1, now()),
+        ('d0000000-0000-4000-8000-000000000809', demo_org, 'd0000000-0000-4000-8000-000000000738', 'DEMO-STB-0033', NULL, 1, 'OH', 'available', 'form_8130', 'DEMO-8130-5033', 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '14 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"demo_suite":"friday_funding_demo","ocr_fields":{"serial_number":"DEMO-STB-0033","confidence":0.97}}'::jsonb, 1, now()),
         ('d0000000-0000-4000-8000-000000000821', demo_org, 'd0000000-0000-4000-8000-000000000705', NULL, 'LOT-BL-7741', 4, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-BL-7741","confidence":0.93}}'::jsonb, 1, now()),
         ('d0000000-0000-4000-8000-000000000822', demo_org, 'd0000000-0000-4000-8000-000000000709', NULL, 'LOT-TIRE-2210', 3, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-TIRE-2210","confidence":0.93}}'::jsonb, 1, now()),
         ('d0000000-0000-4000-8000-000000000823', demo_org, 'd0000000-0000-4000-8000-000000000710', NULL, 'LOT-TIRE-2211', 2, 'NE', 'available', 'coc_mfr', NULL, 'd0000000-0000-4000-8000-000000000651', 'owned', now() - interval '45 days', demo_actor, '{"dataset":"mxgenius_complete_demo","demo":true,"ocr_fields":{"lot_number":"LOT-TIRE-2211","confidence":0.93}}'::jsonb, 1, now()),
@@ -328,27 +369,36 @@ BEGIN
         state=EXCLUDED.state, candidates=EXCLUDED.candidates, retrieved_at=now();
 
     INSERT INTO schedule_options (id, case_id, start_at, end_at, notes) VALUES
-        ('d0000000-0000-4000-8000-000000000721', 'd0000000-0000-4000-8000-000000000101', now() + interval '8 hours', now() + interval '20 hours', '[DEMO] Primary plan after pump delivery and trace review.'),
-        ('d0000000-0000-4000-8000-000000000722', 'd0000000-0000-4000-8000-000000000103', now() + interval '2 days', now() + interval '2 days 4 hours', '[DEMO] Cabin filter replacement window.')
-    ON CONFLICT (id) DO UPDATE SET start_at=EXCLUDED.start_at, end_at=EXCLUDED.end_at, notes=EXCLUDED.notes;
+        ('d0000000-0000-4000-8000-000000000721', 'd0000000-0000-4000-8000-000000000101', now() + interval '30 minutes', now() + interval '90 minutes', '[DEMO] Fast strobe replacement and operational check.'),
+        ('d0000000-0000-4000-8000-000000000722', 'd0000000-0000-4000-8000-000000000102', now() + interval '2 hours', now() + interval '8 hours', '[DEMO] Main wheel, tire, and brake replacement after parts release.'),
+        ('d0000000-0000-4000-8000-000000000723', 'd0000000-0000-4000-8000-000000000103', now() + interval '20 minutes', now() + interval '50 minutes', '[DEMO] Remote windshield damage-limit review window.')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        start_at=EXCLUDED.start_at, end_at=EXCLUDED.end_at, notes=EXCLUDED.notes;
 
     INSERT INTO recommendations (id, case_id, body) VALUES
-        ('d0000000-0000-4000-8000-000000000731', 'd0000000-0000-4000-8000-000000000101', '{"dataset":"mxgenius_complete_demo","demo":true,"recommendation":"Use the on-hand overhauled pump after quality verifies its demonstration trace record.","advisory_only":true}'::jsonb)
-    ON CONFLICT (id) DO UPDATE SET body=EXCLUDED.body;
+        ('d0000000-0000-4000-8000-000000000731', 'd0000000-0000-4000-8000-000000000101', '{"dataset":"mxgenius_complete_demo","demo":true,"recommendation":"Use the matched on-hand strobe assembly, follow current approved removal and installation data, then perform the lighting operational check.","advisory_only":true}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000732', 'd0000000-0000-4000-8000-000000000102', '{"dataset":"mxgenius_complete_demo","demo":true,"recommendation":"Release the traced wheel, tire, brake lining, cotter pins, and thermal plugs after quality review; retrieve current approved torque and procedure data before work.","advisory_only":true}'::jsonb),
+        ('d0000000-0000-4000-8000-000000000733', 'd0000000-0000-4000-8000-000000000103', '{"dataset":"mxgenius_complete_demo","demo":true,"recommendation":"Start remote witness, show the damage and surrounding windshield area, and record the qualified reviewer disposition against current approved limits.","advisory_only":true}'::jsonb)
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id, body=EXCLUDED.body;
 
     INSERT INTO digital_twin_markers (
         id, organization_id, case_id, component_id, zone_id, severity,
         observation_id, created_by, created_at
     ) VALUES
-        ('d0000000-0000-4000-8000-000000000801', demo_org, 'd0000000-0000-4000-8000-000000000101', 'MXG-DEMO-HYD-PUMP-B', 'right_aft_equipment_bay', 'high', 'd0000000-0000-4000-8000-000000000221', demo_actor, now() - interval '6 hours'),
-        ('d0000000-0000-4000-8000-000000000802', demo_org, 'd0000000-0000-4000-8000-000000000103', 'MXG-DEMO-CABIN-FILTER', 'environmental_control_bay', 'low', 'd0000000-0000-4000-8000-000000000222', demo_actor, now() - interval '1 day')
-    ON CONFLICT (id) DO UPDATE SET severity=EXCLUDED.severity, observation_id=EXCLUDED.observation_id;
+        ('d0000000-0000-4000-8000-000000000801', demo_org, 'd0000000-0000-4000-8000-000000000101', 'MXG-DEMO-STROBE-LH', 'left_wingtip', 'medium', 'd0000000-0000-4000-8000-000000000221', demo_actor, now() - interval '25 minutes'),
+        ('d0000000-0000-4000-8000-000000000802', demo_org, 'd0000000-0000-4000-8000-000000000102', 'MXG-DEMO-MAIN-WHEEL-RH', 'right_main_landing_gear', 'high', 'd0000000-0000-4000-8000-000000000222', demo_actor, now() - interval '2 hours'),
+        ('d0000000-0000-4000-8000-000000000803', demo_org, 'd0000000-0000-4000-8000-000000000103', 'MXG-DEMO-WINDSHIELD-LH', 'cockpit_left_windshield', 'high', 'd0000000-0000-4000-8000-000000000223', demo_actor, now() - interval '40 minutes')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        component_id=EXCLUDED.component_id, zone_id=EXCLUDED.zone_id,
+        severity=EXCLUDED.severity, observation_id=EXCLUDED.observation_id;
 
     INSERT INTO audit_events (
         id, case_id, actor_user_id, organization_id, action, payload,
         correlation_id, created_at
     ) VALUES
-        ('d0000000-0000-4000-8000-000000000901', 'd0000000-0000-4000-8000-000000000101', demo_actor, demo_org, 'demo.case.triaged', '{"dataset":"mxgenius_complete_demo","demo":true}'::jsonb, 'd0000000-0000-4000-8000-000000000909', now() - interval '7 hours'),
-        ('d0000000-0000-4000-8000-000000000902', 'd0000000-0000-4000-8000-000000000102', demo_actor, demo_org, 'demo.return_to_service.reviewed', '{"dataset":"mxgenius_complete_demo","demo":true,"decision":"approved"}'::jsonb, 'd0000000-0000-4000-8000-000000000908', now() - interval '44 days 18 hours')
-    ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload;
+        ('d0000000-0000-4000-8000-000000000901', 'd0000000-0000-4000-8000-000000000101', demo_actor, demo_org, 'demo.strobe.case_ready', '{"dataset":"mxgenius_complete_demo","demo":true,"demo_sequence":1}'::jsonb, 'd0000000-0000-4000-8000-000000000909', now() - interval '20 minutes'),
+        ('d0000000-0000-4000-8000-000000000902', 'd0000000-0000-4000-8000-000000000102', demo_actor, demo_org, 'demo.wheel.parts_ready', '{"dataset":"mxgenius_complete_demo","demo":true,"demo_sequence":2}'::jsonb, 'd0000000-0000-4000-8000-000000000908', now() - interval '90 minutes'),
+        ('d0000000-0000-4000-8000-000000000903', 'd0000000-0000-4000-8000-000000000103', demo_actor, demo_org, 'demo.windshield.remote_review_ready', '{"dataset":"mxgenius_complete_demo","demo":true,"demo_sequence":3}'::jsonb, 'd0000000-0000-4000-8000-000000000907', now() - interval '35 minutes')
+    ON CONFLICT (id) DO UPDATE SET case_id=EXCLUDED.case_id,
+        action=EXCLUDED.action, payload=EXCLUDED.payload;
 END $$;
