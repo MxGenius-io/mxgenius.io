@@ -1,5 +1,79 @@
 # MXGenius Azure Deployment Plan
 
+## Friday Funding Demo Release — 2026-09-16
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+Promote commit `a0fc60c` as a paired static/core release. The static application
+adds readable manual excerpts and distinct fictional demo imagery. The core
+restructures the tenant-scoped, idempotent Demo Content seed into the three
+Friday scenarios: strobe light, right main wheel/brake, and windshield remote
+review. Existing infrastructure, identities, secrets, database schema, Search
+index, Blob corpus, Pi releases, and cost-bearing resource SKUs are unchanged.
+
+### All validation checks pass
+
+- [x] Azure CLI installation: Azure CLI `2.86.0` is available.
+- [x] Authentication: subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`) is enabled in tenant
+  `bb1b06c5-1b43-4295-8c01-d7ffd3a5b366`.
+- [x] Bicep compilation: not applicable; this release changes no
+  infrastructure template or Azure resource definition.
+- [x] Template validation: not applicable; the established Container App is
+  promoted by immutable image and revision suffix only.
+- [x] What-if preview: no infrastructure delta. Resource group
+  `mxg-rg-50106`, ACR `mxgacr50106`, and Container App `mxg-core` are already
+  provisioned and healthy.
+- [x] Container/build verification: locked optimized `mxgenius-mcp` build
+  completed successfully; the authoritative container image will be built by
+  the existing ACR remote-build path from the committed `services/mcp` tree.
+- [x] Azure Policy validation: subscription and resource-group assignment
+  counts are both zero.
+
+### Validation proof
+
+- `node --test tests/*.test.mjs` passed 444/444 tests; `node --check app.js`
+  and `git diff --check` passed.
+- `cargo test --locked --workspace --all-targets -q` passed 307 executable
+  checks with one credential-gated check ignored. `cargo fmt --all -- --check`,
+  warnings-denied workspace Clippy, and
+  `cargo build --locked --release -p mxgenius-mcp` passed.
+- The demo-seed contract test proves three ordered cases, the remote-witness
+  marker, strobe inventory, hidden legacy history, and complete component
+  remapping on rerun.
+- Pre-deployment `https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io/healthz`,
+  `/readyz`, and `/adapterz` returned HTTP 200. Readiness reports PostgreSQL and
+  `manuals-catalog-v3` healthy; Parts and remote witness are available.
+- `mxg-core` is running and provisioned on revision
+  `mxg-core--live352eeda`; ACR is provisioned on the Basic SKU.
+
+### Role assignment verification
+
+- **Status:** Verified; no RBAC or identity change is present in this release.
+- **Identity checked:** existing `mxg-core` system identity
+  `f690814f-1f55-4394-adaa-8120d5d433c7`.
+- **Static scope:** application code continues using the existing private Blob,
+  Document Intelligence, Search, and PostgreSQL boundaries. No Bicep,
+  Terraform, managed-identity declaration, or role-assignment source changed.
+- **Deployment authentication:** the existing registry secret remains the ACR
+  pull path, so a new managed-identity `AcrPull` propagation gate is not
+  applicable.
+
+### Deployment and acceptance
+
+- Build `services/mcp` in ACR with an immutable tag containing the final commit.
+- Promote `mxg-core` with a matching revision suffix and keep
+  `mxg-core--live352eeda` available for rollback until acceptance completes.
+- Re-run health/readiness/adapter probes, load Demo Content once, and cold-test
+  the strobe, wheel, and windshield flows in that order.
+
+### Rollback
+
+Restore `mxg-core--live352eeda` and the prior static commit if the new revision
+or any browser acceptance gate fails. The Demo Content seed is idempotent and
+uses only visibly labeled synthetic records; no schema rollback is required.
+
 ## Canonical Manual Catalog v3 — 2026-09-16
 
 > **Status:** Deployed and healthy
