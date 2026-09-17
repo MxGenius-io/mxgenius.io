@@ -41,7 +41,7 @@ visibly marked as demonstration data.
   the evidence preview and expanded Section text.
 - [x] Use three visually distinct maintenance images and a separate strobe part
   image.
-- [ ] Verify Maintenance and Parts from a fresh browser session at presentation
+- [x] Verify Maintenance and Parts from a fresh browser session at presentation
   resolution.
 
 ## 5. Full cold calibration
@@ -62,3 +62,21 @@ Run the three cases in order: strobe, wheel, windshield. Do not begin with the
 hardware stack. Establish the web case and evidence first, then hand the same
 case into the headset, thermal, remote witness, Parts, and Pi surfaces as each
 beat requires.
+
+## Cold calibration evidence
+
+- Fresh production session: exactly three Friday maintenance cases and six
+  relevant Parts records appeared with distinct strobe, wheel, and windshield
+  imagery.
+- Strobe: natural-language guidance returned registered manual evidence, source
+  pills, readable excerpts, and expandable section text. Headset handoff remains
+  a physical-device check.
+- Wheel: natural-language guidance stayed on the active aircraft and job and
+  returned applicable part/procedure evidence. A display-only `null` estimate
+  was normalized to `Not established`. Diagram rendering is covered by the
+  final production replay below.
+- Windshield: natural-language guidance returned the Chapter 56 zone/slope
+  inspection method and preserved the qualified-review boundary. The two
+  Figure 601 sheets are hash-registered derived PNGs; no source PDF was copied
+  into the application. PIN join, live headset video, and human disposition
+  remain physical-session checks.

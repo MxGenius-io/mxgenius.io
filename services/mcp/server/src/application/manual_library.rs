@@ -721,6 +721,7 @@ async fn lookup_registered_image(
     else {
         return Ok(None);
     };
+    let catalog_model = canonical_catalog_aircraft_model(model);
     let query_normalized = normalized_match_text(query);
     let query_tokens = query_normalized.split_whitespace().collect::<BTreeSet<_>>();
     if ![
@@ -763,7 +764,7 @@ async fn lookup_registered_image(
             "searchFields": "title,section,content,aircraft_model",
             "filter": format!(
                 "source_class eq 'manual' and search.ismatch('{}', 'aircraft_model', 'simple', 'all')",
-                odata_search_query(model)
+                odata_search_query(&catalog_model)
             ),
             "top": 12,
             "select": "id,document_id,content,content_hash,source_name,title,aircraft_model,manual_type,ata,section,assets_json"
@@ -779,11 +780,9 @@ async fn lookup_registered_image(
 
     let mut matches = Vec::new();
     for hit in response.value {
-        if !hit
-            .aircraft_model
-            .as_deref()
-            .is_some_and(|candidate| compact_match_text(candidate) == compact_match_text(model))
-        {
+        if !hit.aircraft_model.as_deref().is_some_and(|candidate| {
+            compact_match_text(candidate) == compact_match_text(&catalog_model)
+        }) {
             continue;
         }
         for asset in parse_assets(&hit)? {
@@ -865,6 +864,31 @@ async fn lookup_registered_image(
         return Ok(None);
     }
     Ok(Some(best.clone()))
+}
+
+fn canonical_catalog_aircraft_model(value: &str) -> String {
+    let normalized = normalized_match_text(value);
+    let words = normalized.split_whitespace().collect::<Vec<_>>();
+    for window in words.windows(2) {
+        let family = window[0];
+        let variant = window[1];
+        if variant.chars().all(|character| character.is_ascii_digit()) {
+            match family {
+                "challenger" | "cl" => return format!("CL{variant}"),
+                "global" | "gl" => return format!("GL{variant}"),
+                _ => {}
+            }
+        }
+    }
+    let compact = compact_match_text(value);
+    for prefix in ["cl", "gl"] {
+        if compact.strip_prefix(prefix).is_some_and(|variant| {
+            !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit())
+        }) {
+            return compact.to_ascii_uppercase();
+        }
+    }
+    value.trim().to_owned()
 }
 
 fn verified_asset_match_score(
@@ -1406,6 +1430,18 @@ mod tests {
         assert!(terms.contains("7500"));
         assert!(terms.contains("hydraulic"));
         assert!(terms.contains("pump"));
+    }
+
+    #[test]
+    fn catalog_image_lookup_normalizes_common_family_names() {
+        assert_eq!(canonical_catalog_aircraft_model("Challenger 350"), "CL350");
+        assert_eq!(
+            canonical_catalog_aircraft_model("Bombardier Challenger 350"),
+            "CL350"
+        );
+        assert_eq!(canonical_catalog_aircraft_model("CL350"), "CL350");
+        assert_eq!(canonical_catalog_aircraft_model("Global 7500"), "GL7500");
+        assert_eq!(canonical_catalog_aircraft_model("Falcon 8X"), "Falcon 8X");
     }
 
     #[test]

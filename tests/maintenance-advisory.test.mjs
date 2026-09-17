@@ -41,6 +41,12 @@ test('structured advisory tolerates null optional arrays', () => {
   assert.match(app, /safeItems\.forEach\(\(item\) =>/);
 });
 
+test('missing labor estimates never render as the literal word null', () => {
+  assert.match(app, /const estimatedHours = String\(item\.estimated_hours \?\? ''\)\.trim\(\)/);
+  assert.match(app, /!\/\^\(\?:null\|undefined\)\$\/i\.test\(estimatedHours\)/);
+  assert.match(app, /: 'Not established'/);
+});
+
 test('first structured advisory immediately activates the expanded advisory layout', () => {
   assert.match(app, /const syncAdvisoryPanelState = \(\) =>/);
   assert.match(app, /history\.querySelector\('\.mx-advisory'\)/);

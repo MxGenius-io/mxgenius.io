@@ -89,9 +89,9 @@ test('manual image references are content-addressed and remain inside the contro
 });
 
 test('verified figure overrides remain data-driven and auditable', () => {
-  assert.equal(manifest.assets.length, 5);
-  assert.equal(new Set(manifest.assets.map((asset) => asset.register_id)).size, 5);
-  assert.equal(new Set(manifest.assets.map((asset) => asset.source_reference)).size, 5);
+  assert.equal(manifest.assets.length, 7);
+  assert.equal(new Set(manifest.assets.map((asset) => asset.register_id)).size, 7);
+  assert.equal(new Set(manifest.assets.map((asset) => asset.source_reference)).size, 7);
   assert.ok(manifest.assets.every((asset) => (
     asset.record_id
     && asset.document_id
@@ -116,6 +116,17 @@ test('verified figure overrides remain data-driven and auditable', () => {
     'sha256:cd03b16b10f70240a5cd2ca0493079a37899462006a62d42fd588c43e73fa3ab',
     'the removal register must never point at the FDR data-download screen'
   );
+  const windshieldFigures = manifest.assets.filter((asset) => (
+    asset.task_numbers.includes('56-11-01-220-801')
+  ));
+  assert.deepEqual(
+    windshieldFigures.map((asset) => asset.page),
+    [604, 605]
+  );
+  assert.ok(windshieldFigures.every((asset) => (
+    asset.verification?.source_pdf_page
+    && /Figure 601/.test(asset.caption)
+  )));
   assert.match(coreHttp, /lookup_registered_image/);
   assert.match(coreHttp, /"catalog_image_register"/);
   assert.match(coreHttp, /mxg\.manual\.search/);

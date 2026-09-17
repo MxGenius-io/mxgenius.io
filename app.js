@@ -1924,7 +1924,10 @@ Rules:
         const action = document.createElement('strong');
         action.textContent = item.action || '';
         const hours = document.createElement('span');
-        hours.textContent = item.estimated_hours || 'Not established';
+        const estimatedHours = String(item.estimated_hours ?? '').trim();
+        hours.textContent = estimatedHours && !/^(?:null|undefined)$/i.test(estimatedHours)
+          ? estimatedHours
+          : 'Not established';
         const basis = document.createElement('small');
         basis.textContent = item.basis || '';
         row.append(action, hours, basis, citationRow(item.citations));
