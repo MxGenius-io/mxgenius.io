@@ -17,6 +17,7 @@ use zip::{CompressionMethod, ZipWriter};
 
 use super::corpus_release::{compile_release_manifest, ReleaseFile, EDGE_DRIVE_PROFILE};
 use super::equipment_packs::{validate_pack_path, EQUIPMENT_PACK_MAX_BYTES};
+use crate::manual_catalog::canonical_aircraft_model as canonical_catalog_aircraft_model;
 
 const SEARCH_API_VERSION: &str = "2024-07-01";
 const SEARCH_PAGE_SIZE: usize = 1_000;
@@ -603,7 +604,7 @@ impl AzureManualLibrary {
             ));
         }
         if let Some(scope) = aircraft_scope {
-            let normalized_scope = compact_match_text(scope);
+            let normalized_scope = compact_match_text(&canonical_catalog_aircraft_model(scope));
             aircraft.retain(|model| compact_match_text(model) == normalized_scope);
             if aircraft.is_empty() {
                 return Err(ManualLibraryError::Contract(format!(
@@ -872,31 +873,6 @@ async fn lookup_registered_image(
         return Ok(None);
     }
     Ok(Some(best.clone()))
-}
-
-fn canonical_catalog_aircraft_model(value: &str) -> String {
-    let normalized = normalized_match_text(value);
-    let words = normalized.split_whitespace().collect::<Vec<_>>();
-    for window in words.windows(2) {
-        let family = window[0];
-        let variant = window[1];
-        if variant.chars().all(|character| character.is_ascii_digit()) {
-            match family {
-                "challenger" | "cl" => return format!("CL{variant}"),
-                "global" | "gl" => return format!("GL{variant}"),
-                _ => {}
-            }
-        }
-    }
-    let compact = compact_match_text(value);
-    for prefix in ["cl", "gl"] {
-        if compact.strip_prefix(prefix).is_some_and(|variant| {
-            !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit())
-        }) {
-            return compact.to_ascii_uppercase();
-        }
-    }
-    value.trim().to_owned()
 }
 
 fn verified_asset_match_score(
@@ -1487,7 +1463,20 @@ mod tests {
             "CL350"
         );
         assert_eq!(canonical_catalog_aircraft_model("CL350"), "CL350");
+        assert_eq!(
+            canonical_catalog_aircraft_model("Bombardier CL350"),
+            "CL350"
+        );
         assert_eq!(canonical_catalog_aircraft_model("Global 7500"), "GL7500");
+        assert_eq!(canonical_catalog_aircraft_model("Gulfstream G650"), "G650");
+        assert_eq!(
+            canonical_catalog_aircraft_model("Dassault Falcon 8X"),
+            "Falcon 8X"
+        );
+        assert_eq!(
+            canonical_catalog_aircraft_model("Textron/Cessna CE750 SN 0501-On"),
+            "CE750 SN 0501-On"
+        );
         assert_eq!(canonical_catalog_aircraft_model("Falcon 8X"), "Falcon 8X");
     }
 

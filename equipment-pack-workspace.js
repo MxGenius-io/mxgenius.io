@@ -184,6 +184,29 @@
     });
   }
 
+  function aircraftLibraryLabel(manufacturer) {
+    const value = String(manufacturer || '').trim();
+    return value.startsWith('Textron/') ? 'Textron Aviation' : value;
+  }
+
+  function aircraftOptionLabel(entry) {
+    const manufacturer = String(entry?.manufacturer || '').trim();
+    const aircraft = String(entry?.aircraft || '').trim();
+    if (!manufacturer.startsWith('Textron/')) return aircraft;
+    return `${manufacturer.slice('Textron/'.length)} · ${aircraft}`;
+  }
+
+  function driveLabel(pack) {
+    const name = String(pack?.name || '').trim();
+    const family = String(pack?.equipmentFamily || '').trim();
+    if (!name) return family || 'Equipment Drive';
+    if (!family) return name;
+    const scopedFamily = family.replace(/^(?:bombardier|dassault|gulfstream|textron(?:\/(?:beech|cessna|hawker))?)\s+/i, '');
+    const compact = (value) => value.toLocaleLowerCase('en-US').replace(/[^a-z0-9]+/g, '');
+    if (compact(scopedFamily) && compact(name).includes(compact(scopedFamily))) return name;
+    return `${name} · ${family}`;
+  }
+
   function init({ withSession }) {
     const client = window.MXApplicationClient?.equipmentPacks;
     if (!client || typeof withSession !== 'function') return;
@@ -247,14 +270,15 @@
       familySelect.replaceChildren(new Option('Select an aircraft library', ''));
       const groups = new Map();
       entries.forEach((entry) => {
-        let group = groups.get(entry.manufacturer);
+        const groupLabel = aircraftLibraryLabel(entry.manufacturer);
+        let group = groups.get(groupLabel);
         if (!group) {
           group = document.createElement('optgroup');
-          group.label = entry.manufacturer;
-          groups.set(entry.manufacturer, group);
+          group.label = groupLabel;
+          groups.set(groupLabel, group);
           familySelect.appendChild(group);
         }
-        const option = new Option(entry.aircraft, entry.aircraft);
+        const option = new Option(aircraftOptionLabel(entry), entry.aircraft);
         option.dataset.catalogId = entry.id;
         option.dataset.chapterCount = String(entry.chapterCount);
         group.appendChild(option);
@@ -318,7 +342,7 @@
         packs = packPayload.packs || [];
         devices = (devicePayload.devices || []).filter((device) => device.status !== 'revoked');
         fill(packSelect, packs, packs.length ? 'Select a drive' : 'Create the first drive',
-          (pack) => `${pack.name} · ${pack.equipmentFamily}`);
+          driveLabel);
         if (packs.length === 1) packSelect.value = packs[0].id;
         fill(deviceSelect, devices, devices.length ? 'Select a device' : 'Register a device first',
           (device) => `${device.displayName} · ${device.status}`);
@@ -501,6 +525,9 @@
     buildStoredZip,
     manualsFromVersion,
     manualLabel,
-    aircraftCatalog
+    aircraftCatalog,
+    aircraftLibraryLabel,
+    aircraftOptionLabel,
+    driveLabel
   });
 })();

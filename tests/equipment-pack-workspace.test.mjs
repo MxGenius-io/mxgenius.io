@@ -149,6 +149,35 @@ test('aircraft library picker accepts the complete grouped catalog contract', ()
   );
 });
 
+test('aircraft library labels present four readable source libraries', () => {
+  const equipmentPacks = workspace();
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Bombardier'), 'Bombardier');
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Dassault'), 'Dassault');
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Gulfstream'), 'Gulfstream');
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Textron/Beech'), 'Textron Aviation');
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Textron/Cessna'), 'Textron Aviation');
+  assert.equal(equipmentPacks.aircraftLibraryLabel('Textron/Hawker'), 'Textron Aviation');
+  assert.equal(equipmentPacks.aircraftOptionLabel({
+    manufacturer: 'Textron/Cessna', aircraft: 'CE750 SN 0501-On'
+  }), 'Cessna · CE750 SN 0501-On');
+  assert.equal(equipmentPacks.aircraftOptionLabel({
+    manufacturer: 'Dassault', aircraft: 'Falcon 8X'
+  }), 'Falcon 8X');
+});
+
+test('drive labels suppress repeated aircraft scope without hiding useful scope', () => {
+  const equipmentPacks = workspace();
+  assert.equal(equipmentPacks.driveLabel({
+    name: 'CL350 Manuals', equipmentFamily: 'Bombardier CL350'
+  }), 'CL350 Manuals');
+  assert.equal(equipmentPacks.driveLabel({
+    name: 'Falcon 8X Manuals', equipmentFamily: 'Falcon 8X'
+  }), 'Falcon 8X Manuals');
+  assert.equal(equipmentPacks.driveLabel({
+    name: 'Maintenance references', equipmentFamily: 'G650'
+  }), 'Maintenance references · G650');
+});
+
 test('frozen aircraft library catalog carries every prepared display-index family', () => {
   const entries = workspace().aircraftCatalog(fullCatalog);
   assert.equal(entries.length, 91);

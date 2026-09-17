@@ -14,6 +14,10 @@ use mxgenius_shared::adapters::source::{AdapterError, AdapterHealth, AdapterResu
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceAsset, EvidenceKind, SourceType};
 use mxgenius_shared::domain::ids::EvidenceId;
 
+use crate::manual_catalog::{
+    aircraft_models_match, canonical_aircraft_model, compact_aircraft_model,
+};
+
 const EVIDENCE_NAMESPACE: &str = "3a4c5b6c-2c7e-4f47-9a3e-2a2a2a2a2a2a";
 const FIXTURE_EXCERPTS: &str = include_str!("../../../fixtures/manual_corpus/excerpts.json");
 const SEARCH_API_VERSION: &str = "2024-07-01";
@@ -549,44 +553,12 @@ impl ManualCorpusAdapter for FixtureManualCorpusAdapter {
     }
 }
 
-fn compact_aircraft_model(value: &str) -> String {
-    value
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
-        .flat_map(char::to_uppercase)
-        .collect()
-}
-
 fn normalize_aircraft_model(requested: &str) -> Option<String> {
     let value = requested.trim();
     if value.is_empty() || value.chars().count() > 120 {
         return None;
     }
-    let mut compact = compact_aircraft_model(value);
-    if let Some(without_manufacturer) = compact.strip_prefix("BOMBARDIER") {
-        compact = without_manufacturer.to_owned();
-    }
-    if let Some(variant) = compact.strip_prefix("GLOBAL") {
-        if !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit()) {
-            return Some(format!("GL{variant}"));
-        }
-    }
-    if let Some(variant) = compact.strip_prefix("CHALLENGER") {
-        if !variant.is_empty() && variant.chars().all(|character| character.is_ascii_digit()) {
-            return Some(format!("CL{variant}"));
-        }
-    }
-    Some(value.to_owned())
-}
-
-fn aircraft_models_match(left: &str, right: &str) -> bool {
-    let left = normalize_aircraft_model(left)
-        .map(|value| compact_aircraft_model(&value))
-        .unwrap_or_default();
-    let right = normalize_aircraft_model(right)
-        .map(|value| compact_aircraft_model(&value))
-        .unwrap_or_default();
-    !left.is_empty() && left == right
+    Some(canonical_aircraft_model(value))
 }
 
 fn odata_string(value: &str) -> String {
@@ -686,6 +658,8 @@ mod contract_tests {
             ("Challenger 350", "CL350"),
             ("Falcon 7X", "falcon-7x"),
             ("G 650", "G650"),
+            ("Beechcraft 1900C", "MODEL 1900-C AIRLINER"),
+            ("Hawker 125-700", "125 Series 700"),
         ] {
             assert!(aircraft_models_match(left, right));
         }

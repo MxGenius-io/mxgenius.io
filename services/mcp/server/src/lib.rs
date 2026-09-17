@@ -19,6 +19,7 @@ pub mod demo_seed;
 pub mod dispatcher;
 pub mod error;
 pub mod handlers;
+mod manual_catalog;
 pub mod policy;
 pub mod prompts;
 pub mod registry;
