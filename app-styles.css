@@ -3889,6 +3889,30 @@ body.live-mode .api-status.connected .status-dot {
   opacity: 0.58;
 }
 
+.chat-thread-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-thread-controls .search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.chat-thread-controls .btn-primary,
+.chat-thread-controls .chat-clear-btn {
+  min-width: 60px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
 .mx-chat-client-actions {
   display: flex;
   flex-wrap: wrap;

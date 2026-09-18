@@ -620,6 +620,9 @@ test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal 
 
 test('chat users can explicitly clear saved conversations from the active context', () => {
   assert.match(dashboard, /id="chatClearThreadsBtn"[^>]*>Clear<\/button>/);
+  assert.match(dashboard, /class="chat-thread-controls"/);
+  assert.match(applicationStyles, /\.chat-thread-controls\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
+  assert.match(applicationStyles, /\.chat-thread-controls \.search-input\s*\{[\s\S]*min-width:\s*0/);
   assert.match(application, /new Set\(\[\.\.\.visibleThreadIds, activeThreadId\]\.filter\(Boolean\)\)/);
   assert.match(application, /threadIdsToClear\.map\(threadId => MXApplicationClient\.threads\.archive\(threadId, session\)\)/);
   assert.match(application, /window\.confirm\(`Clear \$\{threadIdsToClear\.length\} saved conversation/);

@@ -7,7 +7,7 @@
 // changing the HTTP wire contract.
 #![allow(clippy::result_large_err)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -10768,10 +10768,7 @@ fn bounded_display_context(value: Option<&Value>, include_visible_response: bool
     context
 }
 
-fn advisory_citations_are_valid(
-    advisory: &Value,
-    allowed: &std::collections::HashSet<String>,
-) -> bool {
+fn advisory_citations_are_valid(advisory: &Value, allowed: &HashSet<String>) -> bool {
     match advisory {
         Value::Object(fields) => fields.iter().all(|(key, value)| {
             if key == "citations" {
@@ -10791,6 +10788,20 @@ fn advisory_citations_are_valid(
             .all(|item| advisory_citations_are_valid(item, allowed)),
         _ => true,
     }
+}
+
+fn structured_chat_citations_are_valid(answer: &str, allowed: &HashSet<String>) -> bool {
+    serde_json::from_str::<Value>(answer)
+        .ok()
+        .and_then(|response| normalize_chat_response(response).ok())
+        .is_some_and(|advisory| advisory_citations_are_valid(&advisory, allowed))
+}
+
+fn model_tool_call_fingerprint(tool_name: &str, arguments: &Value) -> String {
+    format!(
+        "{tool_name}:{}",
+        serde_json::to_string(arguments).unwrap_or_else(|_| "null".into())
+    )
 }
 
 fn registered_manual_reference(entry: &ManualImageRegisterEntry, index: usize) -> Value {
@@ -11541,8 +11552,10 @@ async fn chat(
     let mut manual_tool_calls = 0usize;
     let mut retrieved_manual_records = manual_model_context.clone();
     let mut client_actions = Vec::new();
+    let mut seen_tool_calls = HashSet::new();
+    let mut force_synthesis = false;
     for attempt in 0..MAX_CHAT_MODEL_ROUNDS {
-        request_body["tool_choice"] = if attempt + 1 == MAX_CHAT_MODEL_ROUNDS {
+        request_body["tool_choice"] = if force_synthesis || attempt + 1 == MAX_CHAT_MODEL_ROUNDS {
             // Reserve the last model round for synthesis so a useful answer is
             // returned even when a legitimate multi-capability lookup needs
             // several sequential tool calls.
@@ -11656,7 +11669,39 @@ async fn chat(
             .cloned()
             .collect::<Vec<_>>();
         if function_calls.is_empty() {
-            answer = extract_openai_output_text(&payload);
+            let candidate_answer = extract_openai_output_text(&payload);
+            let allowed_citations = retrieved_manual_records
+                .iter()
+                .filter_map(|record| record.get("citation").and_then(Value::as_str))
+                .map(str::to_owned)
+                .collect::<HashSet<_>>();
+            if !structured_chat_citations_are_valid(&candidate_answer, &allowed_citations)
+                && attempt + 1 < MAX_CHAT_MODEL_ROUNDS
+            {
+                tracing::warn!(
+                    target: "mxgenius.openai",
+                    correlation_id = %context.correlation_id,
+                    attempt = attempt + 1,
+                    "structured response failed citation validation; requesting one bounded repair"
+                );
+                let next_input = request_body["input"]
+                    .as_array_mut()
+                    .expect("chat input is always an array");
+                next_input.extend(output_items);
+                next_input.push(json!({
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": format!(
+                            "Rewrite the response now without calling tools. Every citations array may contain only these retrieved labels: {}. Remove invented labels. If no label supports a technical claim, omit that claim; when no labels are available, use empty citations arrays or advisory=null.",
+                            serde_json::to_string(&allowed_citations).unwrap_or_else(|_| "[]".into())
+                        )
+                    }]
+                }));
+                force_synthesis = true;
+                continue;
+            }
+            answer = candidate_answer;
             final_payload = Some(payload);
             break;
         }
@@ -11717,6 +11762,28 @@ async fn chat(
                 arguments
                     .entry("include_images")
                     .or_insert_with(|| json!(true));
+            }
+            let fingerprint = model_tool_call_fingerprint(&tool_name, &arguments);
+            if !seen_tool_calls.insert(fingerprint) {
+                tracing::warn!(
+                    target: "mxgenius.openai",
+                    tool_name,
+                    correlation_id = %context.correlation_id,
+                    "model repeated an identical capability call; forcing synthesis"
+                );
+                next_input.push(json!({
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": json!({
+                        "status": "failed",
+                        "errors": [{
+                            "code": "DUPLICATE_TOOL_CALL",
+                            "message": "This identical capability call already completed. Use the earlier result and synthesize the response now."
+                        }]
+                    }).to_string()
+                }));
+                force_synthesis = true;
+                continue;
             }
             let reads_current_highlight =
                 arguments.get("read_current").and_then(Value::as_bool) == Some(true);
@@ -11834,7 +11901,7 @@ async fn chat(
         .iter()
         .filter_map(|record| record.get("citation").and_then(Value::as_str))
         .map(str::to_owned)
-        .collect::<std::collections::HashSet<_>>();
+        .collect::<HashSet<_>>();
     if !advisory_citations_are_valid(&advisory, &allowed_citations) {
         return realtime_error(
             StatusCode::BAD_GATEWAY,
@@ -13582,6 +13649,28 @@ mod structured_advisory_tests {
             &json!({"verify_first":[{"text":"Inspect","citations":["M-99"]}]}),
             &allowed
         ));
+        assert!(structured_chat_citations_are_valid(
+            r#"{"answer":"Supported","advisory":{"advisory_title":null,"synthesis":null,"verify_first":[{"text":"Inspect","citations":["M-01"]}],"leading_historical_patterns":null,"what_worked":null,"labor_by_action":null,"parts_used_in_records":null,"limitations":null,"follow_up_question":null}}"#,
+            &allowed
+        ));
+        assert!(!structured_chat_citations_are_valid(
+            r#"{"answer":"Unsupported","advisory":{"advisory_title":null,"synthesis":null,"verify_first":[{"text":"Inspect","citations":["M-99"]}],"leading_historical_patterns":null,"what_worked":null,"labor_by_action":null,"parts_used_in_records":null,"limitations":null,"follow_up_question":null}}"#,
+            &allowed
+        ));
+    }
+
+    #[test]
+    fn identical_model_tool_calls_share_a_stable_fingerprint() {
+        let first = json!({"query":"strobe lens","available_only":true});
+        let reordered = json!({"available_only":true,"query":"strobe lens"});
+        assert_eq!(
+            model_tool_call_fingerprint("mxg.parts.resolve", &first),
+            model_tool_call_fingerprint("mxg.parts.resolve", &reordered)
+        );
+        assert_ne!(
+            model_tool_call_fingerprint("mxg.parts.resolve", &first),
+            model_tool_call_fingerprint("mxg.parts.inventory", &first)
+        );
     }
 
     #[test]

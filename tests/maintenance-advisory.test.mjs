@@ -26,6 +26,9 @@ test('chat uses a compact conversation envelope with model-selected, bounded man
   assert.match(manualAdapter, /ata eq/);
   assert.match(backend, /Every technical procedure, limit, interval, or part claim must cite/);
   assert.match(backend, /"semantic_requests_made": manual_tool_calls/);
+  assert.match(backend, /DUPLICATE_TOOL_CALL/);
+  assert.match(backend, /structured response failed citation validation; requesting one bounded repair/);
+  assert.match(backend, /force_synthesis/);
 });
 
 test('structured advisory keeps chat and uses human evidence labels without raw search scores', () => {

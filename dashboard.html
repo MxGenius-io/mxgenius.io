@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=25">
+  <link rel="stylesheet" href="app-styles.css?v=26">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
@@ -738,11 +738,11 @@
         </div>
       </div>
       <!-- Bottom Row: Thread Selection -->
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <select id="chatThreadSelect" class="search-input" aria-label="Conversation thread" style="flex: 1; padding: 6px 10px; font-size: 0.8rem; border-radius: 6px;">
+      <div class="chat-thread-controls">
+        <select id="chatThreadSelect" class="search-input" aria-label="Conversation thread">
           <option value="">New conversation</option>
         </select>
-        <button id="chatNewThreadBtn" type="button" class="btn-primary" title="Start a new conversation" aria-label="Start a new conversation" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; flex-shrink: 0; min-width: 60px;">New</button>
+        <button id="chatNewThreadBtn" type="button" class="btn-primary" title="Start a new conversation" aria-label="Start a new conversation">New</button>
         <button id="chatClearThreadsBtn" type="button" class="chat-clear-btn" title="Clear saved conversations in this context" aria-label="Clear saved conversations">Clear</button>
         <button id="realtimeInterruptBtn" class="realtime-interrupt" type="button" hidden>Interrupt</button>
       </div>
