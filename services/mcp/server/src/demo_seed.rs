@@ -18,6 +18,17 @@ fn tenant_seed_sql(organization_id: Uuid) -> String {
             sql = sql.replace(&fixture_id, &tenant_id.to_string());
         }
     }
+    // Expanded part masters are a shared fictional catalog, but their stock
+    // units belong to the organization loading the demo. Tenantize only the
+    // d2 stock-card fixtures so a second organization receives its own 47
+    // cards instead of colliding with the first organization's primary keys.
+    for value in 1..=47_u16 {
+        let fixture_id = format!("d2000000-0000-4000-8000-{value:012}");
+        if sql.contains(&fixture_id) {
+            let tenant_id = Uuid::new_v5(&organization_id, fixture_id.as_bytes());
+            sql = sql.replace(&fixture_id, &tenant_id.to_string());
+        }
+    }
     sql
 }
 
@@ -112,14 +123,25 @@ mod tests {
 
     #[test]
     fn record_ids_are_stable_and_unique_per_tenant() {
-        let left = tenant_seed_sql(Uuid::from_u128(1));
-        let left_again = tenant_seed_sql(Uuid::from_u128(1));
-        let right = tenant_seed_sql(Uuid::from_u128(2));
+        let left_org = Uuid::from_u128(1);
+        let right_org = Uuid::from_u128(2);
+        let left = tenant_seed_sql(left_org);
+        let left_again = tenant_seed_sql(left_org);
+        let right = tenant_seed_sql(right_org);
         assert_eq!(left, left_again);
         assert_ne!(left, right);
         assert!(left.contains("d0000000-0000-4000-8000-000000000601"));
         assert!(!left.contains("d0000000-0000-4000-8000-000000000101"));
         assert!(!right.contains("d0000000-0000-4000-8000-000000000101"));
+        assert!(left.contains("d1000000-0000-4000-8000-000000000001"));
+        assert!(!left.contains("d2000000-0000-4000-8000-000000000001"));
+        assert!(!right.contains("d2000000-0000-4000-8000-000000000001"));
+        let expanded_stock_fixture = b"d2000000-0000-4000-8000-000000000001";
+        let left_stock_id = Uuid::new_v5(&left_org, expanded_stock_fixture).to_string();
+        let right_stock_id = Uuid::new_v5(&right_org, expanded_stock_fixture).to_string();
+        assert_ne!(left_stock_id, right_stock_id);
+        assert!(left.contains(&left_stock_id));
+        assert!(right.contains(&right_stock_id));
     }
 
     #[test]

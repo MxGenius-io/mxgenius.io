@@ -1824,6 +1824,7 @@ const MXPartsWorkspace = (() => {
         query: presentationEnabled() && !state.query ? 'MXG-DEMO-' : state.query,
         status: state.status,
         location: state.location,
+        pageSize: presentationEnabled() ? 200 : undefined,
         session: await session()
       }));
       if (!units.length) {
@@ -1845,7 +1846,7 @@ const MXPartsWorkspace = (() => {
     card.innerHTML = `
       ${visual ? `
         <span class="inventory-card-visual">
-          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}" loading="lazy">
+          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}" loading="lazy" decoding="async">
           <span class="inventory-card-visual-label">Demo visual</span>
         </span>` : ''}
       <span class="inventory-card-body">
@@ -1911,7 +1912,7 @@ const MXPartsWorkspace = (() => {
       const visual = globalThis.MXDemoVisualRegistry?.forPart?.(unit) || null;
       content.innerHTML = `
         ${visual ? `<figure class="parts-detail-visual">
-          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}">
+          <img src="${escapeHtml(visual.src)}" alt="${escapeHtml(visual.alt)}" decoding="async">
           <figcaption>Demo visual</figcaption>
         </figure>` : ''}
         <dl class="parts-detail-list">

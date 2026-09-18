@@ -1292,11 +1292,13 @@ const MXApplicationClient = (() => {
   }
 
   const parts = Object.freeze({
-    search: async ({ query, status, location, session = {} } = {}) => {
+    search: async ({ query, status, location, page, pageSize, session = {} } = {}) => {
       const params = new URLSearchParams();
       if (query) params.set('query', query);
       if (status) params.set('status', status);
       if (location) params.set('location', location);
+      if (page) params.set('page', String(page));
+      if (pageSize) params.set('pageSize', String(pageSize));
       const payload = await applicationJson(`/api/parts?${params}`, { session });
       return payload.units || [];
     },

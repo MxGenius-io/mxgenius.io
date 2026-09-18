@@ -102,14 +102,8 @@
   const PRESENTATION_STORAGE_KEY = 'mxg_demo_presentation_mode';
   const DEMO_DATASET = 'mxgenius_complete_demo';
   const FRIDAY_DEMO_SUITE = 'friday_funding_demo';
-  const FRIDAY_DEMO_PARTS = new Set([
-    'MXG-DEMO-33-5101',
-    'MXG-DEMO-32-1101',
-    'MXG-DEMO-32-1301',
-    'MXG-DEMO-32-1202',
-    'MXG-DEMO-32-1504',
-    'MXG-DEMO-32-1601'
-  ]);
+  const EXPANDED_PART_VISUAL_ROOT = 'media/demo/parts';
+  const EXPANDED_PART_VISUAL_KEY = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
   function value(record, snake, camel = snake) {
     return record?.[snake] ?? record?.[camel] ?? '';
@@ -176,11 +170,6 @@
 
   function isFridayDemoCase(caseState = {}) {
     return metadata(caseState)?.demo_suite === FRIDAY_DEMO_SUITE;
-  }
-
-  function isFridayDemoPart(unit = {}) {
-    return metadata(unit)?.demo_suite === FRIDAY_DEMO_SUITE
-      || FRIDAY_DEMO_PARTS.has(String(value(unit, 'part_number', 'partNumber')).toUpperCase());
   }
 
   function isDemoLocation(location = {}) {
@@ -255,6 +244,17 @@
 
   function forPart(unit = {}) {
     if (!isDemoPart(unit)) return null;
+    const visualKey = String(metadata(unit)?.demo_visual_key || '').trim().toLowerCase();
+    if (EXPANDED_PART_VISUAL_KEY.test(visualKey)) {
+      const description = String(unit?.description || 'aviation component')
+        .replace(/^\[DEMO\]\s*/i, '')
+        .trim();
+      return Object.freeze({
+        src: `${EXPANDED_PART_VISUAL_ROOT}/${visualKey}.jpg`,
+        alt: `Fictional demo visual of ${description || 'an aviation component'}`,
+        classification: 'demonstration'
+      });
+    }
     const searchable = [
       value(unit, 'part_number', 'partNumber'),
       unit?.description,
@@ -289,7 +289,7 @@
       mode,
       isEnabled: isPresentationEnabled,
       scopeCases: (records) => scopeFocused(records, isDemoCase, isFridayDemoCase),
-      scopeParts: (records) => scopeFocused(records, isDemoPart, isFridayDemoPart),
+      scopeParts: (records) => scope(records, isDemoPart),
       scopeLocations: (records) => scope(records, isDemoLocation),
       scopeRecords: (records) => scope(records, hasDemoMarker),
       scopeReportRows

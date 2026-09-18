@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync('dashboard.html', 'utf8');
@@ -11,6 +12,28 @@ const css = readFileSync('parts-workspace.css', 'utf8');
 const demoVisuals = readFileSync('demo-visual-registry.js', 'utf8');
 const demoSeed = readFileSync('services/mcp/demo/seed.sql', 'utf8');
 const partsHttp = readFileSync('services/mcp/server/src/transport/http.rs', 'utf8');
+const expandedDemoPartsDoc = readFileSync('docs/design/demo-parts-catalog.md', 'utf8');
+
+function jpegDimensions(buffer) {
+  assert.equal(buffer[0], 0xff, 'JPEG must start with an FF marker');
+  assert.equal(buffer[1], 0xd8, 'JPEG must start with SOI');
+  let offset = 2;
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    const length = buffer.readUInt16BE(offset);
+    if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+      return { height: buffer.readUInt16BE(offset + 3), width: buffer.readUInt16BE(offset + 5) };
+    }
+    offset += length;
+  }
+  throw new Error('JPEG dimensions were not found');
+}
 
 test('demo visual registry keeps fictional imagery out of production records', () => {
   const context = {};
@@ -50,6 +73,53 @@ test('demo visual registry keeps fictional imagery out of production records', (
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-24-3001', description: '[DEMO] Generator control unit' }).src, 'media/demo/part-electrical.jpg');
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-34-6001', description: '[DEMO] Pitot probe' }).src, 'media/demo/part-pitot-probe.jpg');
   assert.equal(registry.forPart({ part_number: 'MXG-DEMO-33-5101', description: '[DEMO] Strobe light assembly' }).src, 'media/demo/part-strobe-light.png');
+  const expandedVisual = registry.forPart({
+    part_number: 'MXG-DEMO-LGT-1101',
+    description: '[DEMO] Aurora Wingtip Navigation Module',
+    metadata: { demo: true, demo_visual_key: 'aurora-wingtip-nav-module' }
+  });
+  assert.equal(expandedVisual.src, 'media/demo/parts/aurora-wingtip-nav-module.jpg');
+  assert.equal(expandedVisual.alt, 'Fictional demo visual of Aurora Wingtip Navigation Module');
+  assert.equal(expandedVisual.classification, 'demonstration');
+  assert.equal(
+    registry.forPart({
+      part_number: 'MXG-DEMO-LGT-1101',
+      metadata: { demo: true, demo_visual_key: '../../outside' }
+    }).src,
+    'media/demo/part-consumables.jpg',
+    'invalid visual keys must not escape the demo asset root'
+  );
+});
+
+test('expanded demo parts have a one-to-one card and visual contract', () => {
+  const partRows = demoSeed.match(/\('d1000000-0000-4000-8000-000000000\d{3}'/g) || [];
+  const stockRows = demoSeed.match(/\('d2000000-0000-4000-8000-000000000\d{3}'/g) || [];
+  const visualKeys = [...demoSeed.matchAll(/"demo_visual_key":"([a-z0-9-]+)"/g)]
+    .map((match) => match[1]);
+  const uniqueVisualKeys = [...new Set(visualKeys)];
+
+  assert.equal(partRows.length, 47, 'expected exactly 47 expanded part masters');
+  assert.equal(stockRows.length, 47, 'expected exactly 47 expanded inventory cards');
+  assert.equal(uniqueVisualKeys.length, 47, 'every expanded card needs one stable visual key');
+  assert.equal((expandedDemoPartsDoc.match(/^\| \d+ \| MXG-DEMO-/gm) || []).length, 47);
+  assert.match(js, /pageSize: presentationEnabled\(\) \? 200 : undefined/);
+  assert.match(client, /if \(pageSize\) params\.set\('pageSize', String\(pageSize\)\)/);
+
+  const files = readdirSync('media/demo/parts').filter((name) => name.endsWith('.jpg')).sort();
+  assert.equal(files.length, 47, 'expanded visual directory must contain exactly 47 JPEGs');
+  assert.deepEqual(files, uniqueVisualKeys.map((key) => `${key}.jpg`).sort());
+
+  const hashes = new Set();
+  for (const name of files) {
+    const path = `media/demo/parts/${name}`;
+    const image = readFileSync(path);
+    const { width, height } = jpegDimensions(image);
+    assert.equal(width, 1536, `${name} must be 1536 pixels wide`);
+    assert.equal(height, 1024, `${name} must be 1024 pixels high`);
+    assert.ok(statSync(path).size <= 350 * 1024, `${name} exceeds the 350 KB budget`);
+    hashes.add(createHash('sha256').update(image).digest('hex'));
+  }
+  assert.equal(hashes.size, 47, 'every expanded part must have a distinct image');
 });
 
 test('demo presentation scopes maintenance and parts without deleting operational records', () => {
@@ -98,7 +168,7 @@ test('demo presentation scopes maintenance and parts without deleting operationa
       { partNumber: 'MXG-DEMO-33-5101', description: '[DEMO] Strobe light assembly' },
       { partNumber: 'MXG-DEMO-32-1101', description: '[DEMO] Main wheel assembly' }
     ]), (row) => row.partNumber),
-    ['MXG-DEMO-33-5101', 'MXG-DEMO-32-1101']
+    ['MXG-DEMO-29-1001', 'MXG-DEMO-33-5101', 'MXG-DEMO-32-1101']
   );
   assert.equal(presentation.isEnabled(), true);
   assert.equal(attributes.has('data-demo-presentation'), true);
@@ -1031,9 +1101,9 @@ test('The inspection and discrepancy workflow is reachable from the UI', async (
   await t.test('assets changed together get a fresh cache-bust version', () => {
     // dashboard.html is the only page loading the parts workspace; a stale
     // pin serves the build without these controls.
-    assert.match(html, /parts-workspace\.js\?v=31/);
+    assert.match(html, /parts-workspace\.js\?v=32/);
     assert.match(html, /parts-workspace\.css\?v=21/);
-    assert.match(html, /application-client\.js\?v=49/);
+    assert.match(html, /application-client\.js\?v=50/);
   });
 });
 
