@@ -46,6 +46,14 @@
       meshName: source.meshName,
       path: source.componentPath
     };
+    const modelSource = source.model || {
+      id: source.modelId,
+      name: source.modelName,
+      file: source.modelFile,
+      provider: source.modelProvider,
+      revision: source.modelRevision,
+      operationalStatus: source.modelOperationalStatus
+    };
     const partSource = source.part || { id: source.partId, partNumber: source.partNumber, requestId: source.requestId };
     const locationSource = source.location && typeof source.location === 'object'
       ? source.location
@@ -61,6 +69,13 @@
         family: text(aircraftSource?.family ?? aircraftSource?.model, 160)
       }),
       case: identity(caseSource),
+      model: identity(modelSource, {
+        name: text(modelSource?.name, 240),
+        file: text(modelSource?.file, 500),
+        provider: text(modelSource?.provider, 120),
+        type: text(modelSource?.type, 120),
+        operationalStatus: text(modelSource?.operationalStatus, 120)
+      }),
       component: identity(componentSource, {
         meshName: text(componentSource?.meshName ?? componentSource?.name, 240),
         path: text(componentSource?.path, 500)
@@ -93,7 +108,7 @@
     const left = normalize(current);
     const right = normalize({ ...left, ...update });
     assertTenantBoundary(left, right);
-    for (const key of ['aircraft', 'case', 'component', 'part', 'location']) {
+    for (const key of ['aircraft', 'case', 'model', 'component', 'part', 'location']) {
       if (Object.prototype.hasOwnProperty.call(update, key)) {
         const candidate = update[key] === null ? null : { ...(left[key] || {}), ...(update[key] || {}) };
         right[key] = candidate ? normalize({ [key]: candidate })[key] : null;

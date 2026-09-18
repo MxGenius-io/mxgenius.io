@@ -1353,7 +1353,10 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=43"></script>
     <script src="../sound-storage.js?v=2"></script>
-    <script src="../spatial-context.js?v=1"></script>
+    <script src="../xr-target-registry.js?v=1"></script>
+    <script src="../xr-target-context.js?v=2"></script>
+    <script src="../spatial-commands.js?v=1"></script>
+    <script src="../spatial-context.js?v=2"></script>
     <script src="../realtime-client.js?v=3"></script>
     <script src="../guided-tooltip.js?v=12"></script>
     <script type="module">
@@ -1380,10 +1383,10 @@
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=11';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=12';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=7';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=5';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=6';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
@@ -1452,6 +1455,7 @@
         let viewerContext = {
             caseId: spatialContext.case?.id || null,
             aircraftId: spatialContext.aircraft?.id || null,
+            model: spatialContext.model || null,
             componentId: spatialContext.component?.id || spatialContext.component?.meshName || null,
             location: spatialContext.location || null,
             spatialSource: spatialContext.source || null
@@ -1464,6 +1468,7 @@
         let xrSensors = null;
         let xrWitness = null;
         let xrSpatialShell = null;
+        let xrSpatialCommands = null;
         let xrOperationsSurface = null;
         let xrWindowManager = null;
         let spatialMode = spatialContext.mode === 'operations' ? 'operations' : 'maintenance';
@@ -1803,7 +1808,9 @@
                     surface: 'maintenance-viewer',
                     caseId: activeCaseState?.caseId || viewerContext?.caseId || null,
                     aircraftId: activeCaseState?.case?.aircraft_id || viewerContext?.aircraftId || null,
-                    componentId: selectedMesh?.name || viewerContext?.componentId || null
+                    componentId: selectedMesh?.name || viewerContext?.componentId || null,
+                    model: spatialContext.model || viewerContext?.model || null,
+                    spatialTargets: globalThis.MXTargetContext?.registry?.modelProjection?.() || null
                 }),
                 launcherVisible: false,
                 onSnapshotRequest: requestMaintenanceSnapshot,
@@ -1836,7 +1843,8 @@
                     return renderer.domElement.captureStream(30);
                 },
                 nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
-                dockProvider: () => xrSpatialShell?.group || null,
+                dockProvider: () => xrSpatialShell?.contentAnchor?.() || null,
+                launcherVisible: false,
                 remoteStreamConsumer: (stream) => {
                     if (!witnessGuestAudio) {
                         witnessGuestAudio = document.createElement('audio');
@@ -1882,7 +1890,16 @@
                 focus: () => xrWitness?.requestPlacement()
             });
             xrWindowManager.register('thermal', {
-                show: ({ input = 'xr' } = {}) => xrSensors?.setActive(true, input),
+                show: ({ input = 'xr' } = {}) => {
+                    const dock = xrSpatialShell?.contentAnchor?.();
+                    if (dock && xrSensors?.group) {
+                        dock.updateMatrixWorld(true);
+                        dock.getWorldPosition(xrSensors.group.position);
+                        dock.getWorldQuaternion(xrSensors.group.quaternion);
+                        xrSensors.setScreenPinned(true, input);
+                    }
+                    xrSensors?.setActive(true, input);
+                },
                 hide: ({ input = 'xr' } = {}) => xrSensors?.setActive(false, input)
             });
             xrSpatialShell = new XRSpatialShell({
@@ -1894,26 +1911,60 @@
                     { id: 'capture', enabled: Boolean(viewerContext?.caseId || localStorage.getItem('mxg_active_case_id')) }
                 ],
                 onModeChange: (mode, { input = 'xr' } = {}) => {
-                    if (mode === 'maintenance') {
-                        void openSensorDiagnostics(input);
-                        return;
-                    }
                     setSpatialMode(mode, { source: 'spatial-tray' });
-                },
-                onActiveMode: (mode, { input = 'xr' } = {}) => {
-                    if (mode !== 'maintenance') return false;
-                    void openSensorDiagnostics(input);
-                    return true;
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
+                    xrWitness?.requestPlacement();
                     xrMaintenanceHUD?.setPresenting(true, camera);
                 },
                 onToolAction: handleMaintenanceTool,
-                onAction: emitXRAction,
-                activeModeHints: { maintenance: 'OPEN SENSOR SCENE' }
+                onAction: emitXRAction
             });
             scene.add(xrSpatialShell.group);
+            xrVoice.setDockTarget(xrSpatialShell.contentAnchor());
+            xrVoice.requestPlacement('spatial-shell');
+            const spatialRegistry = globalThis.MXTargetContext?.registry;
+            if (spatialRegistry && globalThis.MXSpatialCommands?.createDispatcher) {
+                const displaySpatialTarget = ({ target, isCurrent }, lock = false) => {
+                    const guard = isCurrent();
+                    if (!guard.current) return { status: 'stale', reason: guard.reason };
+                    const aliases = target?.aliases || {};
+                    const selected = selectPartBySelector({
+                        modelId: aliases.modelId || null,
+                        meshName: aliases.meshId || target?.anchor?.objectName || null,
+                        path: aliases.meshPath || null
+                    });
+                    if (!selected) return { status: 'stale', reason: 'The selected mesh is no longer visible' };
+                    if (lock && !spatialRegistry.lock(target.targetId, { reason: 'spatial-command-lock' })) {
+                        return { status: 'stale', reason: 'The selected target changed before it could be locked' };
+                    }
+                    return { status: 'applied' };
+                };
+                xrSpatialCommands = globalThis.MXSpatialCommands.createDispatcher({
+                    registry: spatialRegistry,
+                    adapter: globalThis.MXSpatialCommands.createWebXRAdapter({
+                        scan: () => ({ status: 'unavailable', reason: 'Select a visible mesh with the controller ray to identify it' }),
+                        highlight: (context) => displaySpatialTarget(context, false),
+                        lock: (context) => displaySpatialTarget(context, true),
+                        clear: ({ isCurrent }) => {
+                            const guard = isCurrent();
+                            if (!guard.current) return { status: 'stale', reason: guard.reason };
+                            spatialRegistry.clear({ reason: 'spatial-command-clear' });
+                            clearPartSelection();
+                            return { status: 'applied' };
+                        },
+                        setThermal: ({ command, isCurrent }) => {
+                            const guard = isCurrent();
+                            if (!guard.current) return { status: 'stale', reason: guard.reason };
+                            if (command.arguments.enabled) xrWindowManager.open('thermal', { input: 'model' });
+                            else xrWindowManager.minimize('thermal', { input: 'model' });
+                            return { status: 'applied' };
+                        }
+                    })
+                });
+                xrVoice.setSpatialCommands(xrSpatialCommands);
+            }
             applySpatialMode();
             void restoreViewerCaseEvidence().then((current) => {
                 xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
@@ -2075,6 +2126,7 @@
             if (idx < 0 || idx >= catalog.length) return;
             catalogIndex = idx;
             const entry = catalog[idx];
+            syncActiveModelContext(entry);
             if (entry.provider === 'uploaded') {
                 loadUploadedModel(entry);
                 return;
@@ -2528,22 +2580,6 @@
             if (renderer.xr.isPresenting && spatialMode === 'operations') currentModel.visible = false;
 
             fitCameraToModel();
-            if (window.parent !== window) {
-                const entry = currentCatalogEntry() || {};
-                window.parent.postMessage({
-                    type: 'mxgenius.viewer.ready',
-                    version: 1,
-                    model: {
-                        id: entry.modelId || entry.id || null,
-                        name: entry.name || entry.file || 'Unknown model',
-                        file: entry.file || null,
-                        type: entry.type || null,
-                        revision: entry.revision || null,
-                        operationalStatus: entry.operationalStatus || 'unclassified',
-                        description: entry.description || ''
-                    }
-                }, window.location.origin);
-            }
             if (pendingRemoteSelector) {
                 const selector = pendingRemoteSelector;
                 pendingRemoteSelector = null;
@@ -2655,6 +2691,7 @@
                 ...viewerContext,
                 caseId: spatialContext.case?.id || viewerContext.caseId || null,
                 aircraftId: spatialContext.aircraft?.id || viewerContext.aircraftId || null,
+                model: spatialContext.model || viewerContext.model || null,
                 componentId: spatialContext.component?.id || spatialContext.component?.meshName || viewerContext.componentId || null,
                 location: spatialContext.location || viewerContext.location || null,
                 spatialSource: spatialContext.source || viewerContext.spatialSource || null
@@ -2690,6 +2727,7 @@
                 mode: spatialMode,
                 aircraft: update.aircraft || spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
                 case: update.case || spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                model: update.model || spatialContext.model || viewerContext.model || modelContextForEntry(),
                 component: update.component || (selectedMesh ? {
                     id: viewerContext.componentId || selectedMesh.name || null,
                     meshName: selectedMesh.name || null,
@@ -2700,43 +2738,6 @@
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
             emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
-        }
-
-        let sensorSceneNavigationPending = false;
-
-        async function openSensorDiagnostics(input = 'xr') {
-            if (sensorSceneNavigationPending) return;
-            sensorSceneNavigationPending = true;
-            spatialContext = globalThis.MXSpatialContext?.update?.({
-                source: 'maintenance-vr-handoff',
-                mode: 'maintenance',
-                aircraft: spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
-                case: spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
-                component: selectedMesh ? {
-                    id: viewerContext.componentId || selectedMesh.name || null,
-                    meshName: selectedMesh.name || null,
-                    path: getObjectPath(selectedMesh)
-                } : spatialContext.component
-            }) || { ...spatialContext, source: 'maintenance-vr-handoff', mode: 'maintenance' };
-            emitXRAction('sensor-diagnostics-open', input, { returnSurface: 'maintenance-vr' });
-            postSpatialStatus('connecting');
-            if (spatialSession) {
-                try {
-                    await spatialSession.end();
-                } catch (error) {
-                    console.warn('Unable to close the VR session before sensor handoff', error);
-                }
-            }
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'mxgenius.viewer.sensor-scene-request',
-                    version: 1,
-                    context: spatialContext,
-                    returnMode: 'maintenance'
-                }, window.location.origin);
-                return;
-            }
-            window.location.assign('../globe-vr.html?v=20&scene=sensor&return=vr');
         }
 
         async function enterSpatialWorkspace({ mode = spatialMode, context = null } = {}) {
@@ -2834,8 +2835,7 @@
         function emitXRAction(action, input, target = {}) {
             const cue = cueForXRAction(action, target);
             if (cue) void xrUIAudio?.play(cue, { object: selectedMesh });
-            if (action === 'acquire' && !xrMaintenanceHUD?.targetObject) ensureMaintenanceHUDTarget();
-            else if (action === 'voice') void xrVoice?.toggle(input);
+            if (action === 'verify') void xrVoice?.verifyCurrentContext(input);
             else if (action === 'capture') void xrVoice?.captureSnapshot(input);
             else if (action === 'clear') clearPartSelection();
             const detail = { action, input, target, context: viewerContext };
@@ -3314,6 +3314,43 @@
             return catalogIndex >= 0 && catalogIndex < catalog.length ? catalog[catalogIndex] : null;
         }
 
+        function modelContextForEntry(entry = currentCatalogEntry()) {
+            if (!entry) return null;
+            return {
+                id: entry.modelId || entry.id || entry.file || null,
+                name: entry.name || entry.file || 'Unknown model',
+                file: entry.file || null,
+                provider: entry.provider || (entry.file ? 'static' : null),
+                type: entry.type || null,
+                revision: entry.revision || null,
+                operationalStatus: entry.operationalStatus || 'unclassified',
+                description: entry.description || ''
+            };
+        }
+
+        function syncActiveModelContext(entry = currentCatalogEntry()) {
+            const model = modelContextForEntry(entry);
+            if (!model) return null;
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                source: '3d-model-selection',
+                mode: spatialMode,
+                model,
+                component: null
+            }) || { ...spatialContext, model, component: null };
+            viewerContext = { ...viewerContext, model, componentId: null };
+            xrMaintenanceHUD?.setContext(viewerContext);
+            xrOperationsSurface?.setContext(spatialContext);
+            void xrVoice?.refreshContext();
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'mxgenius.viewer.ready',
+                    version: 1,
+                    model
+                }, window.location.origin);
+            }
+            return model;
+        }
+
         function findPartMapping(mesh, path) {
             const mappings = currentCatalogEntry()?.partMappings;
             if (!Array.isArray(mappings)) return null;
@@ -3355,6 +3392,17 @@
                 partSelectionName.textContent = 'Select a visible mesh';
                 partSelectionPath.textContent = 'Click a component to inspect its model hierarchy and mapping state.';
                 partSelectionStatus.textContent = 'No selection';
+                spatialContext = globalThis.MXSpatialContext?.update?.({
+                    source: '3d-mesh-cleared',
+                    mode: spatialMode,
+                    component: null
+                }) || { ...spatialContext, component: null };
+                viewerContext = { ...viewerContext, componentId: null };
+                globalThis.MXTargetContext?.clear?.({
+                    match: { kind: 'mesh' },
+                    reason: 'viewer-mesh-cleared'
+                });
+                void xrVoice?.refreshContext();
             }
         }
 
@@ -3385,15 +3433,27 @@
             mesh.material = selectedHighlightMaterial;
             document.body.dataset.partSelected = 'true';
 
+            const modelContext = modelContextForEntry(entry);
+            const componentContext = {
+                id: mapping?.componentId || mesh.name || path || null,
+                meshName: mesh.name || null,
+                path
+            };
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                source: '3d-mesh-raycast',
+                mode: spatialMode,
+                model: modelContext,
+                component: componentContext
+            }) || { ...spatialContext, model: modelContext, component: componentContext };
+            viewerContext = {
+                ...viewerContext,
+                model: modelContext,
+                componentId: componentContext.id
+            };
+
             const detail = {
                 context: viewerContext,
-                model: {
-                    id: entry.modelId || entry.id || null,
-                    name: entry.name || entry.file || 'Unknown model',
-                    file: entry.file || null,
-                    revision: entry.revision || null,
-                    operationalStatus: sourceStatus
-                },
+                model: modelContext,
                 selection: {
                     meshName: mesh.name || '(unnamed)',
                     path,
@@ -3421,6 +3481,9 @@
                     ? [`${entry.sourceAuthority || 'PUBLIC'} REFERENCE`.toUpperCase(), 'UNMAPPED', 'NO APPROVAL']
                     : ['COMPONENT MAP', 'CASE HISTORY', 'MANUAL LOOKUP']
             });
+            const localTarget = globalThis.MXTargetContext?.fromPartSelection?.(detail);
+            if (localTarget) globalThis.MXTargetContext.set(localTarget, { reason: 'viewer-mesh-raycast' });
+            void xrVoice?.refreshContext();
 
             partSelectionName.textContent = detail.selection.meshName;
             partSelectionPath.textContent = path || '(model root)';
@@ -3709,6 +3772,7 @@
                         mode: spatialMode,
                         aircraft: viewerContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
                         case: viewerContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                        model: viewerContext.model || spatialContext.model || modelContextForEntry(),
                         component: viewerContext.component || (viewerContext.componentId ? { id: viewerContext.componentId } : null),
                         location: viewerContext.location || null
                     }) || spatialContext;

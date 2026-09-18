@@ -33,6 +33,7 @@ test('spatial context v2 normalizes the shared workflow identities without secre
   const value = api.normalize({
     mode: 'maintenance', tenantId: 'tenant-a', organizationId: 'org-a',
     aircraftId: 'aircraft-1', caseId: 'case-9', componentId: 'strobe',
+    model: { id: 'cl350', name: 'Bombardier Challenger 350', provider: 'workspace', operationalStatus: 'demo_asset' },
     part: { partNumber: 'WHELEN-01', requestId: 'request-2' },
     location: { icao: 'kpbi', lat: 26.68, lng: -80.09 },
     token: 'must-not-survive', media: new Blob(['no'])
@@ -40,6 +41,9 @@ test('spatial context v2 normalizes the shared workflow identities without secre
   assert.equal(value.version, 2);
   assert.equal(value.aircraft.id, 'aircraft-1');
   assert.equal(value.case.id, 'case-9');
+  assert.equal(value.model.id, 'cl350');
+  assert.equal(value.model.name, 'Bombardier Challenger 350');
+  assert.equal(value.model.provider, 'workspace');
   assert.equal(value.component.id, 'strobe');
   assert.equal(value.part.partNumber, 'WHELEN-01');
   assert.equal(value.location.icao, 'KPBI');
@@ -86,13 +90,15 @@ test('the web application exposes one VR launcher and one canonical session owne
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
   assert.match(viewer, /navigator\.xr\.requestSession\('immersive-vr'/);
   assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
-  assert.match(viewer, /mxgenius\.viewer\.sensor-scene-request/);
+  assert.doesNotMatch(viewer, /mxgenius\.viewer\.sensor-scene-request/);
+  assert.doesNotMatch(application, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
 });
 
 test('operations and maintenance change inside the same renderer without dropping live pipes', () => {
   assert.match(viewer, /new XROperationsSurface/);
-  assert.match(viewer, /mode === 'maintenance'[\s\S]*openSensorDiagnostics\(input\)/);
+  assert.match(viewer, /new XRSensorOrb\(/);
+  assert.doesNotMatch(viewer, /openSensorDiagnostics/);
   assert.match(viewer, /setSpatialMode\(mode, \{ source: 'spatial-tray' \}\)/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
   assert.match(viewer, /xrWitness\.group\.visible = presenting && maintenance/);
@@ -101,13 +107,16 @@ test('operations and maintenance change inside the same renderer without droppin
   assert.match(globe, /"three": "\.\/3d-viewer\/lib\/three\.module\.js"/);
 });
 
-test('maintenance hands off to the Quest diagnostics scene and returns to canonical VR', () => {
+test('maintenance stays in the canonical renderer and opens tools from one world anchor', () => {
   assert.match(shell, /onActiveMode = \(\) => false/);
   assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
-  assert.match(viewer, /mxgenius\.viewer\.sensor-scene-request/);
-  assert.match(application, /globe-vr\.html[\s\S]*searchParams\.set\('scene', 'sensor'\)[\s\S]*searchParams\.set\('return', 'vr'\)/);
-  assert.match(globe, /Back to VR workspace/);
-  assert.match(globe, /returnToCanonicalVr[\s\S]*spatialReturn=\$\{encodeURIComponent\(mode\)\}#3d-viewer/);
+  assert.match(shell, /MXGeniusSpatialContentDock/);
+  assert.match(shell, /contentAnchor\(\)/);
+  assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
+  assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
+  assert.match(viewer, /xrWindowManager\.register\('thermal'/);
+  assert.doesNotMatch(viewer, /globe-vr\.html/);
+  assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
 });
 
 test('the spatial tray communicates minimized windows without ending Remote Witness', () => {
@@ -126,6 +135,16 @@ test('Remote Witness docks to the spatial tray and unfolds from its tool pivot',
   assert.match(witness, /this\.panelContent\.position\.set\(0\.47, -0\.14, -0\.038\)/);
   assert.match(witness, /const dock = this\.dockProvider\?\.\(\)/);
   assert.match(witness, /dock\.getWorldPosition\(this\.cameraPosition\)/);
-  assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.group \|\| null/);
+  assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.ok(viewer.indexOf('xrSpatialShell?.update(delta, { camera });') < viewer.indexOf('xrWitness?.update(delta, { camera });'));
+});
+
+test('mesh raycast selection is the authoritative identify and model-context event', () => {
+  assert.match(viewer, /raycaster\.intersectObjects\(xrInteractionTargets\(\), true\)/);
+  assert.match(viewer, /activateXRPart\(hit\.object, input\)/);
+  assert.match(viewer, /source: '3d-mesh-raycast'[\s\S]*model: modelContext[\s\S]*component: componentContext/);
+  assert.match(viewer, /MXTargetContext\.set\(localTarget, \{ reason: 'viewer-mesh-raycast' \}\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.setTarget\(mesh/);
+  assert.match(viewer, /if \(action === 'verify'\) void xrVoice\?\.verifyCurrentContext\(input\)/);
+  assert.match(application, /current_model: MX3DViewer\.currentModel \|\| null/);
 });

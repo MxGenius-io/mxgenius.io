@@ -667,12 +667,16 @@ export class XRRealtimePresence {
           : 'The fleet globe is active, but no JetNet location is selected yet.'
         : '';
       const spatialProjection = caseContext?.spatialTargets || null;
+      const modelContext = caseContext?.model || null;
+      const modelInstruction = modelContext
+        ? `The active 3D model is ${cleanText(modelContext.name || modelContext.id, 'an unnamed model')} (${cleanText(modelContext.operationalStatus, 'status unclassified')}). The selected component is ${cleanText(caseContext?.componentId, 'not yet selected')}. Treat geometry as presentation context, not approved maintenance evidence.`
+        : 'No active 3D model identity is mounted.';
       const spatialInstruction = spatialProjection
         ? `The bounded spatial target projection is ${JSON.stringify(spatialProjection)}. Use only exact target IDs and revisions from this projection. A stale command acknowledgement means the scene changed; do not retry it or move the visible highlight.`
         : 'No spatial target projection is available. Do not claim a target is visible or invoke a target-specific spatial command.';
       await this.session?.configureTools(listed.tools, {
         clientTools: this.spatialCommands?.clientTools?.() || [],
-        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} ${spatialInstruction} Spatial commands change local presentation only and must be acknowledged by their client tool result. Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
+        instructions: `You are the MXGenius maintenance copilot in an immersive workspace. Be concise because the transcript is spatial. Use only supplied typed capabilities for operational facts. ${caseInstruction} ${fleetInstruction} ${modelInstruction} ${spatialInstruction} Spatial commands change local presentation only and must be acknowledged by their client tool result. Read evidence, confidence, warnings, and partial states. Operational mutations require confirmation outside this immersive control and must not execute here.`
       });
       const spatialCount = this.spatialCommands?.clientTools?.().length || 0;
       this.toolText = `${(listed.tools?.length || 0) + spatialCount} operations ready`;
@@ -853,6 +857,29 @@ export class XRRealtimePresence {
     if (!this.session || ['disconnected', 'connecting', 'failed'].includes(this.state)) return false;
     await this.configureTools();
     return true;
+  }
+
+  async verifyCurrentContext(input = 'xr') {
+    const context = this.contextProvider() || {};
+    if (!context.model && !context.componentId && !context.spatialTargets?.activeTarget) {
+      this.toolText = 'Select a model component before verification';
+      this.panelTarget = 1;
+      this.drawPanel();
+      return false;
+    }
+    if (!this.session || ['disconnected', 'failed'].includes(this.state)) await this.connect(input);
+    if (!this.session || ['disconnected', 'connecting', 'failed'].includes(this.state)) return false;
+    await this.refreshContext();
+    const sent = this.session.sendUserMessage({
+      text: 'Verify the currently selected 3D component against the active case and available approved manual evidence. State what is identified, what is supported, and what still requires confirmation.'
+    });
+    if (sent) {
+      this.userText = 'Verify selected component';
+      this.toolText = 'Checking the selected model context';
+      this.panelTarget = 1;
+      this.drawPanel();
+    }
+    return sent;
   }
 
   drawSnapshotButton() {

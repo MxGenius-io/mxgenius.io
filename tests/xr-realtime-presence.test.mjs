@@ -12,6 +12,7 @@ const xrAudio = await readFile(new URL('../xr-ui-audio.js', import.meta.url), 'u
 const xrBrowser = await readFile(new URL('../xr-browser-panel.js', import.meta.url), 'utf8');
 const spatialShell = await readFile(new URL('../xr-spatial-shell.js', import.meta.url), 'utf8');
 const maintenanceRuntime = await readFile(new URL('../xr-maintenance-runtime.js', import.meta.url), 'utf8');
+const maintenanceHud = await readFile(new URL('../3d-viewer/xr-maintenance-hud.js', import.meta.url), 'utf8');
 const spatialHud = await readFile(new URL('../xr-spatial-target-hud.js', import.meta.url), 'utf8');
 const spatialAnalyzer = await readFile(new URL('../spatial-scan-analyzer.js', import.meta.url), 'utf8');
 const spatialCommands = await readFile(new URL('../spatial-commands.js', import.meta.url), 'utf8');
@@ -91,6 +92,8 @@ test('globe and viewer share one world-anchored two-mode spatial tray', () => {
 test('3D viewer mounts the same voice presence and forwards active case context', () => {
   assert.match(viewer, /XRRealtimePresence/);
   assert.match(viewer, /viewerContext\?\.caseId/);
+  assert.match(viewer, /model: spatialContext\.model \|\| viewerContext\?\.model \|\| null/);
+  assert.match(viewer, /spatialTargets: globalThis\.MXTargetContext\?\.registry\?\.modelProjection/);
   assert.doesNotMatch(viewer, /anchor: rightWrist/);
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
@@ -240,6 +243,7 @@ test('dashboard and WebXR share bounded revision-guarded spatial commands', () =
   assert.match(globe, /spatial-commands\.js\?v=1/);
   assert.match(globe, /createWebXRAdapter/);
   assert.match(globe, /xrVoice\.setSpatialCommands\(spatialCommands\)/);
+  assert.match(viewer, /xrVoice\.setSpatialCommands\(xrSpatialCommands\)/);
   assert.match(globe, /spatialTargets: spatialRegistry\?\.modelProjection/);
   assert.match(app, /createEmbeddedViewerAdapter/);
   assert.match(app, /spatial_targets: globalThis\.MXTargetContext\?\.registry\?\.modelProjection/);
@@ -252,4 +256,14 @@ test('dashboard and WebXR share bounded revision-guarded spatial commands', () =
   assert.match(spatialCommands, /isCurrent: \(\) => this\.currentGuard/);
   assert.match(spatialHud, /async highlightTarget/);
   assert.match(spatialHud, /A newer highlight request replaced this one/);
+});
+
+test('maintenance verification is grounded in the selected model without promoting geometry to evidence', () => {
+  assert.match(presence, /The active 3D model is/);
+  assert.match(presence, /Treat geometry as presentation context, not approved maintenance evidence/);
+  assert.match(presence, /async verifyCurrentContext\(input = 'xr'\)/);
+  assert.match(presence, /Verify the currently selected 3D component against the active case/);
+  assert.match(maintenanceHud, /const WORKFLOW = \['OBSERVE', 'IDENTIFY', 'VERIFY', 'RECORD'\]/);
+  assert.match(maintenanceHud, /\['verify', 'VERIFY'\]/);
+  assert.doesNotMatch(maintenanceHud, /\['compare', 'COMPARE'\]/);
 });

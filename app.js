@@ -406,6 +406,12 @@ window.addEventListener('message', (event) => {
   const message = event.data || {};
   if (message.type === 'mxgenius.viewer.ready') {
     MX3DViewer.currentModel = message.model && typeof message.model === 'object' ? { ...message.model } : null;
+    globalThis.MXSpatialContext?.update?.({
+      source: '3d-model-selection',
+      model: MX3DViewer.currentModel,
+      component: null
+    });
+    MX3DViewer.context = { ...MX3DViewer.context, model: MX3DViewer.currentModel, componentId: null };
     MX3DViewer.post({ type: 'mxgenius.viewer.set-context', context: MX3DViewer.context });
     if (MX3DViewer.tutorial) {
       MX3DViewer.post({ type: 'mxgenius.viewer.set-tutorial', tutorial: MX3DViewer.tutorial });
@@ -418,6 +424,22 @@ window.addEventListener('message', (event) => {
   if (message.type === 'mxgenius.viewer.part-selected') {
     const target = globalThis.MXTargetContext?.fromPartSelection(message.detail);
     if (target) globalThis.MXTargetContext.set(target, { reason: 'viewer-part-selected' });
+    const selection = message.detail?.selection || {};
+    const model = message.detail?.model || MX3DViewer.currentModel;
+    globalThis.MXSpatialContext?.update?.({
+      source: '3d-mesh-raycast',
+      model,
+      component: {
+        id: selection.componentId || selection.meshName || selection.path || null,
+        meshName: selection.meshName || null,
+        path: selection.path || null
+      }
+    });
+    MX3DViewer.context = {
+      ...MX3DViewer.context,
+      model,
+      componentId: selection.componentId || selection.meshName || null
+    };
     window.dispatchEvent(new CustomEvent('mxgenius:part-selected', { detail: message.detail }));
   }
   if (message.type === 'mxgenius.viewer.xr-action') {
@@ -426,19 +448,6 @@ window.addEventListener('message', (event) => {
   }
   if (message.type === 'mxgenius.viewer.ar-request') {
     openViewerInAR(message.scene || {});
-  }
-  if (message.type === 'mxgenius.viewer.sensor-scene-request') {
-    const context = message.context && typeof message.context === 'object' ? message.context : {};
-    globalThis.MXSpatialContext?.update?.({
-      ...context,
-      source: 'maintenance-vr-handoff',
-      mode: 'maintenance'
-    });
-    const destination = new URL('globe-vr.html', window.location.href);
-    destination.searchParams.set('v', '20');
-    destination.searchParams.set('scene', 'sensor');
-    destination.searchParams.set('return', 'vr');
-    window.location.assign(destination.href);
   }
 });
 
@@ -931,6 +940,7 @@ function setupSpatialWorkspaceLauncher() {
       mode,
       aircraft: MX3DViewer.context?.aircraft || (MX3DViewer.context?.aircraftId ? { id: MX3DViewer.context.aircraftId } : null),
       case: MX3DViewer.context?.case || (MX3DViewer.context?.caseId ? { id: MX3DViewer.context.caseId } : null),
+      model: MX3DViewer.currentModel || MX3DViewer.context?.model || null,
       component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null)
     }) || MX3DViewer.context;
     cacheFleetForSpatialWorkspace();
@@ -1394,6 +1404,7 @@ function setupChatPanel() {
       spatial_targets: globalThis.MXTargetContext?.registry?.modelProjection?.() || null,
       digital_twin: {
         context: MX3DViewer.context || null,
+        current_model: MX3DViewer.currentModel || null,
         highlighted_part: MX3DViewer.pendingSelector || null,
         tutorial: MX3DViewer.tutorial ? {
           title: boundedDisplayText(MX3DViewer.tutorial.title || MX3DViewer.tutorial.name, 240)

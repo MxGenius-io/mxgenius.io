@@ -118,7 +118,7 @@ attention without entering Maintenance or seeing transaction-heavy controls.
   optional Pi status, and attached-sensor capabilities.
 - [~] `SWC-035` Preserve thermal capture, photographs, video, and other explicit
   case-evidence paths.
-- [ ] `SWC-036` Reframe the maintenance HUD as **Observe → Identify → Verify →
+- [x] `SWC-036` Reframe the maintenance HUD as **Observe → Identify → Verify →
   Record**, revealing only the next one or two useful actions.
 - [ ] `SWC-037` Retain grounded maintenance guidance with manuals, FAA sources,
   warnings, conflicts, and citations.

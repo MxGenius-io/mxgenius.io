@@ -48,6 +48,13 @@ export class XRSpatialShell {
     this.group.name = 'MXGeniusSpatialShell';
     this.group.visible = false;
 
+    // Every task window opens from this one world-anchored point. Individual
+    // tools stay separate scene objects without inventing their own placement.
+    this.contentDock = new THREE.Object3D();
+    this.contentDock.name = 'MXGeniusSpatialContentDock';
+    this.contentDock.position.set(0.82, 0.02, 0.02);
+    this.group.add(this.contentDock);
+
     this.backplate = new THREE.Mesh(
       new THREE.PlaneGeometry(0.68, tools.length ? 0.365 : 0.205),
       new THREE.MeshBasicMaterial({ color: 0x07131f, transparent: true, opacity: 0.92, toneMapped: false, side: THREE.DoubleSide })
@@ -250,6 +257,10 @@ export class XRSpatialShell {
   interactiveObjects() {
     if (!this.presenting) return [];
     return this.mode === 'maintenance' ? [...this.buttons, ...this.toolButtons] : this.buttons;
+  }
+
+  contentAnchor() {
+    return this.contentDock;
   }
 
   owns(object) {

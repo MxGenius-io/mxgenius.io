@@ -13,22 +13,14 @@ const COLORS = {
 };
 
 const TOOL_ACTIONS = [
-  ['acquire', 'ACQUIRE'],
-  ['inspect', 'INSPECT'],
-  ['compare', 'COMPARE'],
-  ['voice', 'VOICE'],
-  ['guide', 'GUIDE'],
-  ['capture', 'CAPTURE'],
-  ['clear', 'CLEAR']
+  ['verify', 'VERIFY'],
+  ['capture', 'RECORD'],
+  ['clear', 'RESET']
 ];
 
 const WORKFLOW = ['OBSERVE', 'IDENTIFY', 'VERIFY', 'RECORD'];
 const HUD_ACTION_CUES = Object.freeze({
-  acquire: 'spatial_acquire',
-  inspect: 'workflow_step_advance',
-  compare: 'workflow_step_advance',
-  voice: 'ui_press_primary',
-  guide: 'spatial_guide_begin',
+  verify: 'workflow_step_advance',
   capture: 'ui_press_primary',
   clear: 'ui_cancel_retract',
   why: 'provenance_open'
@@ -337,32 +329,21 @@ export class XRMaintenanceHUD {
         action,
         draw: (context, width, height) => {
           context.clearRect(0, 0, width, height);
-          if (action === 'voice') {
-            context.beginPath();
-            context.arc(width / 2, 72, 54, 0, Math.PI * 2);
-            context.fillStyle = 'rgba(24, 106, 132, 0.55)';
-            context.fill();
-            context.strokeStyle = COLORS.cyan;
-            context.lineWidth = 4;
-            context.stroke();
-          }
-          const iconColor = action === 'clear' ? COLORS.muted : action === 'voice' ? COLORS.cyan : COLORS.text;
+          const iconColor = action === 'clear' ? COLORS.muted : COLORS.text;
           context.strokeStyle = iconColor;
           context.lineWidth = 5;
           context.beginPath();
-          context.arc(width / 2, 70, action === 'voice' ? 22 : 28, 0, Math.PI * 2);
+          context.arc(width / 2, 70, 28, 0, Math.PI * 2);
           context.stroke();
-          if (action === 'acquire') {
-            context.strokeRect(width / 2 - 38, 32, 76, 76);
-          } else if (action === 'guide') {
-            context.moveTo(68, 92); context.lineTo(105, 50); context.lineTo(142, 92); context.stroke();
-          } else if (action === 'capture') {
+          if (action === 'capture') {
             context.strokeRect(68, 42, 74, 58);
+          } else if (action === 'verify') {
+            context.moveTo(64, 70); context.lineTo(92, 98); context.lineTo(148, 42); context.stroke();
           }
           drawText(context, label, width / 2, 158, { size: 20, weight: 650, align: 'center', color: iconColor });
         }
       });
-      panel.mesh.position.set(-0.51 + index * 0.17, -0.46, 0.002);
+      panel.mesh.position.set((index - (TOOL_ACTIONS.length - 1) / 2) * 0.24, -0.46, 0.002);
       this.group.add(panel.mesh);
       this.toolButtons.push(panel);
       this.interactives.push(panel.mesh);
@@ -682,11 +663,9 @@ export class XRMaintenanceHUD {
         if (action === 'why' && !this.targetData) return true;
         this.pressedObject = node;
         this.pressTime = 0.14;
-        if (action === 'acquire') this.restartReveal();
-        else if (action === 'clear') this.clearTarget();
+        if (action === 'clear') this.clearTarget();
         else if (action === 'why') this.toggleProvenance();
-        else if (action === 'inspect') this.setWorkflowStage(1);
-        else if (action === 'compare') this.setWorkflowStage(2);
+        else if (action === 'verify') this.setWorkflowStage(2);
         else if (action === 'capture') this.setWorkflowStage(3);
         const cue = HUD_ACTION_CUES[action];
         if (cue) this.onSound?.(cue, {
