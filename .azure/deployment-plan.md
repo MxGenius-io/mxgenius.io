@@ -1,5 +1,80 @@
 # MXGenius Azure Deployment Plan
 
+## Expanded Fictional Parts Demo — 2026-09-18
+
+> **Status:** Validated
+> **Recipe:** AZCLI (existing ACR + Container Apps + GitHub Pages release path)
+
+### Objective and approved scope
+
+Promote the 47-part fictional inventory expansion already committed on canonical
+`main`. The static application receives 47 distinct local catalog visuals and a
+complete demo-presentation view. The existing `mxg-core` receives the matching
+part masters, tenant-derived stock-card fixtures, and multi-tenant seed logic.
+This release creates no Azure resource, migration, secret, role assignment,
+network path, provider connection, or SKU change.
+
+### All validation checks pass
+
+- [x] Azure CLI 2.86.0 is authenticated to the enabled existing production
+  subscription and expected Central US resource group.
+- [x] `mxg-rg-50106`, ACR `mxgacr50106`, and Container App `mxg-core` report
+  successful provisioning; the current Core revision is healthy and serves
+  100% traffic with one replica.
+- [x] Infrastructure compilation, template validation, and what-if are not
+  applicable because this release changes no Bicep, Terraform, migration,
+  resource configuration, identity, RBAC, or secret source.
+- [x] The complete application suite, complete locked Rust workspace suite,
+  Rust formatting, warnings-denied Clippy, and locked optimized Core build pass.
+- [x] The Docker build context contains the required Dockerfile and lockfile;
+  ACR remote build remains the authoritative container build path.
+- [x] Subscription and resource-group policy assignment counts are zero.
+- [x] Static role review confirms no new data operation or RBAC requirement.
+
+### Validation Proof
+
+- At `2026-09-18T06:30:44-04:00`, source
+  `ff1007c94510e719a78b532dd3111413b240d858` matched `origin/main` and the
+  working tree was clean before this deployment record was added.
+- `npm test` passed 484/484 checks. The expanded inventory contract verified
+  exactly 47 roster rows, part masters, tenant stock cards, visual keys, and
+  unique 1536×1024 JPEGs within the 350 KB asset budget.
+- `cargo test --locked --workspace` passed 325 executable Rust checks with the
+  one live Azure credential-gated manual-library test intentionally ignored.
+  The new tenant-ID regression is included. `cargo fmt --all -- --check`,
+  warnings-denied workspace Clippy, and
+  `cargo build --locked --release -p mxgenius-mcp` also passed.
+- Azure read-only inspection confirmed enabled subscription
+  `d1a68ed7-2983-4a86-ab0e-e56df9e2e325`, resource group `mxg-rg-50106`, ACR
+  `mxgacr50106`, and the healthy current revision `mxg-core--flt155f23d` using
+  image `mxg-core:live-traffic-155f23d-20260917`.
+- Pre-deployment `https://mxg-core.kindbush-8fee3a17.centralus.azurecontainerapps.io/healthz`,
+  `/readyz`, and `/adapterz` each returned HTTP 200.
+- Subscription and resource-group Azure Policy assignment counts were zero.
+  Live role inspection confirmed the existing Core identity retains only its
+  required `Storage Blob Data Contributor` role on the private documents
+  container and `Cognitive Services User` role on Document Intelligence.
+- Diff inspection found no migration or infrastructure delta. The production
+  Dockerfile remains a locked multi-stage Rust build with a non-root runtime.
+
+### Promotion and acceptance
+
+- [ ] Commit and push this validated deployment record to canonical `main` and
+  confirm the GitHub Pages release succeeds.
+- [ ] Build the exact `services/mcp` source in ACR with an immutable source tag.
+- [ ] Promote one new `mxg-core` revision while retaining the current healthy
+  revision for rollback.
+- [ ] Confirm image digest, revision health, replica count, 100% traffic, and
+  post-deployment health/readiness/adapter probes.
+- [ ] Confirm the authenticated demo loader returns the expanded tenant stock
+  count; do not fabricate a user session or mutate another tenant for testing.
+
+### Rollback
+
+Shift traffic back to `mxg-core--flt155f23d` and restore the preceding static
+commit if acceptance fails. The seed is idempotent and additive; rollback does
+not delete parts, stock, cases, manuals, images, devices, or customer data.
+
 ## Deterministic OpenSky Live Traffic — 2026-09-17
 
 > **Status:** Deployed and live-verified
