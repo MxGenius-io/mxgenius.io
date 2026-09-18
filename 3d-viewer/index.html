@@ -1381,7 +1381,7 @@
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=11';
-        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=6';
+        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=7';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
         import { XRSpatialShell } from '../xr-spatial-shell.js?v=4';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
@@ -1836,6 +1836,7 @@
                     return renderer.domElement.captureStream(30);
                 },
                 nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+                dockProvider: () => xrSpatialShell?.group || null,
                 remoteStreamConsumer: (stream) => {
                     if (!witnessGuestAudio) {
                         witnessGuestAudio = document.createElement('audio');
@@ -1897,7 +1898,6 @@
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
-                    xrWitness?.requestPlacement();
                     xrMaintenanceHUD?.setPresenting(true, camera);
                 },
                 onToolAction: handleMaintenanceTool,
@@ -4040,8 +4040,8 @@
                 camera
             });
             xrSensors?.update(delta, time, { camera });
-            xrWitness?.update(delta, { camera });
             xrSpatialShell?.update(delta, { camera });
+            xrWitness?.update(delta, { camera });
             xrOperationsSurface?.update(delta, { camera });
             
             if (renderer.xr.isPresenting) {

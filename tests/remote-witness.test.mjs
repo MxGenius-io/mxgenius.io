@@ -129,6 +129,19 @@ test('public guest surface is temporary, identity-agnostic, and keeps credential
   assert.doesNotMatch(viewerSource, /controlRoom|create maintenance|approve case|close case/i);
 });
 
+test('guest view behaves like a live viewport and does not report live before a decoded frame', () => {
+  const liveVideoTag = viewerHtml.match(/<video id="witnessVideo"[^>]*>/)?.[0] || '';
+  assert.ok(liveVideoTag);
+  assert.doesNotMatch(liveVideoTag, /\scontrols(?:\s|>)/);
+  assert.match(liveVideoTag, /autoplay/);
+  assert.match(liveVideoTag, /playsinline/);
+  assert.match(viewerSource, /video\.readyState >= HTMLMediaElement\.HAVE_CURRENT_DATA/);
+  assert.match(viewerSource, /video\.videoWidth > 0/);
+  assert.match(viewerSource, /requestVideoFrameCallback/);
+  assert.match(viewerSource, /Connected · waiting for the first frame/);
+  assert.match(viewerSource, /approve the screen-sharing request/);
+});
+
 test('wearer approval gates media and recording remains consent-only', () => {
   assert.match(producerSource, /this\.room\?\.status !== 'live'/);
   assert.match(producerSource, /toggleApproval/);

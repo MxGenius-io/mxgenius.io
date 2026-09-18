@@ -109,3 +109,12 @@ test('the spatial tray communicates minimized windows without ending Remote Witn
   const setOpen = witness.slice(witness.indexOf('setOpen(open'), witness.indexOf('async createInvitation'));
   assert.doesNotMatch(setOpen, /closeMedia|socket\.close|revoke/);
 });
+
+test('Remote Witness docks to the spatial tray and unfolds from its tool pivot', () => {
+  assert.match(witness, /dockProvider = \(\) => null/);
+  assert.match(witness, /this\.panelContent\.position\.set\(0\.47, -0\.14, -0\.038\)/);
+  assert.match(witness, /const dock = this\.dockProvider\?\.\(\)/);
+  assert.match(witness, /dock\.getWorldPosition\(this\.cameraPosition\)/);
+  assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.group \|\| null/);
+  assert.ok(viewer.indexOf('xrSpatialShell?.update(delta, { camera });') < viewer.indexOf('xrWitness?.update(delta, { camera });'));
+});

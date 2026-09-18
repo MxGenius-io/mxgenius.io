@@ -7,8 +7,11 @@
   const roomElement = document.getElementById('room');
   const roomAudience = document.getElementById('roomAudience');
   const connectionState = document.getElementById('connectionState');
+  const videoCard = document.getElementById('videoCard');
   const video = document.getElementById('witnessVideo');
   const videoWaiting = document.getElementById('videoWaiting');
+  const videoWaitingTitle = document.getElementById('videoWaitingTitle');
+  const videoWaitingDetail = document.getElementById('videoWaitingDetail');
   const liveFlag = document.getElementById('liveFlag');
   const roomMessage = document.getElementById('roomMessage');
   const commentForm = document.getElementById('commentForm');
@@ -39,6 +42,10 @@
   let microphoneStream = null;
   let microphoneState = 'off';
   let microphoneRequestGeneration = 0;
+  let liveFrameReceived = false;
+  let playbackBlocked = false;
+  let peerConnected = false;
+  let frameWaitTimer = 0;
 
   function clean(value, fallback = '') {
     return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -47,6 +54,79 @@
   function setConnection(label, state = 'waiting') {
     connectionState.dataset.state = state;
     connectionState.querySelector('strong').textContent = label;
+  }
+
+  function setVideoWaiting(title, detail, action = '') {
+    videoWaitingTitle.textContent = title;
+    videoWaitingDetail.textContent = detail;
+    videoCard.dataset.action = action;
+  }
+
+  function hasDecodedFrame() {
+    return liveFrameReceived || (
+      Boolean(video.srcObject)
+      && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      && video.videoWidth > 0
+      && video.videoHeight > 0
+    );
+  }
+
+  function markLiveFrame() {
+    if (liveFrameReceived) return;
+    if (!video.srcObject || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+    liveFrameReceived = true;
+    playbackBlocked = false;
+    clearTimeout(frameWaitTimer);
+    roomMessage.textContent = 'Live video is flowing through the private peer-to-peer view.';
+    renderRoom();
+  }
+
+  async function attemptLivePlayback() {
+    if (!video.srcObject) return;
+    try {
+      await video.play();
+      playbackBlocked = false;
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        video.requestVideoFrameCallback(() => markLiveFrame());
+      }
+    } catch (_) {
+      playbackBlocked = true;
+      renderRoom();
+    }
+  }
+
+  function renderVideoState(state) {
+    const roomLive = state === 'live' && room?.layers?.pov !== false;
+    const decoded = roomLive && hasDecodedFrame();
+    videoWaiting.hidden = decoded;
+    liveFlag.hidden = !decoded;
+    if (decoded) {
+      setConnection('Live view', 'live');
+      videoCard.dataset.action = '';
+      return;
+    }
+    if (playbackBlocked && video.srcObject) {
+      setConnection('View ready', 'waiting');
+      setVideoWaiting('Live view is ready', 'Tap the view once to let this browser resume the live picture.', 'resume');
+      return;
+    }
+    if (roomLive && (peerConnected || video.srcObject)) {
+      setConnection('Connected · waiting for video', 'waiting');
+      setVideoWaiting(
+        'Connected · waiting for the first frame',
+        'On the headset, select Start live view and approve the screen-sharing request. The guest browser does not need camera permission.'
+      );
+      return;
+    }
+    if (state === 'paused') {
+      setVideoWaiting('Live view paused', 'The technician can resume this same private view from the headset.');
+    } else if (['revoked', 'expired'].includes(state)) {
+      setVideoWaiting('This guest view has ended', 'Ask the technician for a new service PIN if another view is needed.');
+    } else if (state === 'headset-offline') {
+      setVideoWaiting('Waiting for the headset', 'The private room is ready and will continue automatically when the headset reconnects.');
+    } else {
+      setVideoWaiting('Waiting for wearer approval', 'The technician controls when the live view begins and can pause it at any time.');
+    }
   }
 
   function renderMicrophone() {
@@ -132,10 +212,8 @@
     if (!room) return;
     roomAudience.textContent = clean(room.audience, 'Aircraft inspection');
     const state = room.status || 'waiting';
-    setConnection(state.replaceAll('-', ' '), state === 'live' ? 'live' : ['revoked', 'expired'].includes(state) ? 'ended' : 'waiting');
-    const live = state === 'live' && room.layers?.pov !== false && Boolean(video.srcObject);
-    videoWaiting.hidden = live;
-    liveFlag.hidden = !live;
+    setConnection(state.replaceAll('-', ' '), ['revoked', 'expired'].includes(state) ? 'ended' : 'waiting');
+    renderVideoState(state);
     recordingConsent.checked = Boolean(room.recording?.viewerConsented);
     recordingConsent.disabled = ['revoked', 'expired'].includes(state);
     if (['paused', 'revoked', 'expired', 'headset-offline'].includes(state)) closePeer();
@@ -313,20 +391,39 @@
       if (event.candidate) send({ type: 'witness.signal', signal: { kind: 'ice', candidate: event.candidate } });
     });
     peer.addEventListener('track', (event) => {
+      liveFrameReceived = false;
+      playbackBlocked = false;
       video.srcObject = event.streams[0] || new MediaStream([event.track]);
-      void video.play().catch(() => {});
+      event.track.addEventListener('mute', () => {
+        liveFrameReceived = false;
+        renderRoom();
+      });
+      event.track.addEventListener('unmute', () => void attemptLivePlayback());
+      event.track.addEventListener('ended', () => {
+        liveFrameReceived = false;
+        renderRoom();
+      }, { once: true });
+      clearTimeout(frameWaitTimer);
+      frameWaitTimer = setTimeout(() => renderRoom(), 3500);
+      void attemptLivePlayback();
       renderRoom();
     });
     peer.addEventListener('connectionstatechange', () => {
-      if (peer?.connectionState === 'connected') roomMessage.textContent = 'Live peer-to-peer view connected.';
+      peerConnected = peer?.connectionState === 'connected';
+      if (peerConnected) roomMessage.textContent = 'Private peer-to-peer path connected. Waiting for live video frames.';
       if (['failed', 'closed'].includes(peer?.connectionState)) renderRoom();
+      else renderRoom();
     });
     return peer;
   }
 
   function closePeer() {
+    clearTimeout(frameWaitTimer);
     peer?.close();
     peer = null;
+    peerConnected = false;
+    liveFrameReceived = false;
+    playbackBlocked = false;
     video.srcObject = null;
     stopMicrophone('off');
     if (room) {
@@ -361,6 +458,17 @@
 
   recordingConsent.addEventListener('change', () => {
     send({ type: 'witness.recording-consent', consent: recordingConsent.checked });
+  });
+
+  for (const eventName of ['loadeddata', 'canplay', 'playing', 'timeupdate']) {
+    video.addEventListener(eventName, markLiveFrame);
+  }
+  video.addEventListener('emptied', () => {
+    liveFrameReceived = false;
+    renderRoom();
+  });
+  videoCard.addEventListener('click', () => {
+    if (videoCard.dataset.action === 'resume') void attemptLivePlayback();
   });
 
   window.addEventListener('pagehide', () => {

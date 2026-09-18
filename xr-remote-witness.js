@@ -34,6 +34,7 @@ export class XRRemoteWitnessPanel {
     projectionProvider = () => ({}),
     mediaStreamProvider,
     nativeBootstrapProvider,
+    dockProvider = () => null,
     launcherVisible = true,
     remoteStreamConsumer = () => {},
     onAction = () => {},
@@ -48,6 +49,7 @@ export class XRRemoteWitnessPanel {
     this.projectionProvider = projectionProvider;
     this.mediaStreamProvider = mediaStreamProvider;
     this.nativeBootstrapProvider = nativeBootstrapProvider;
+    this.dockProvider = dockProvider;
     this.launcherVisible = Boolean(launcherVisible);
     this.remoteStreamConsumer = remoteStreamConsumer;
     this.onAction = onAction;
@@ -91,12 +93,18 @@ export class XRRemoteWitnessPanel {
 
     this.panelRoot = new THREE.Group();
     this.panelRoot.name = 'MXGeniusWitnessPanel';
-    // Open toward the center of the wearer's view so the panel remains inside
-    // the headset frustum instead of growing past the left edge.
-    this.panelRoot.position.set(0.39, -0.32, -0.018);
+    // The animated pivot lives beside the tray's Witness tool. The content is
+    // offset from that pivot so the window unfolds from the tool instead of
+    // materializing as another hand-attached surface.
+    this.panelRoot.position.set(-0.08, -0.18, 0.02);
     this.panelRoot.scale.setScalar(0.001);
     this.panelRoot.visible = false;
     this.group.add(this.panelRoot);
+
+    this.panelContent = new THREE.Group();
+    this.panelContent.name = 'MXGeniusWitnessPanelContent';
+    this.panelContent.position.set(0.47, -0.14, -0.038);
+    this.panelRoot.add(this.panelContent);
 
     this.panelCanvas = document.createElement('canvas');
     this.panelCanvas.width = 1024;
@@ -105,7 +113,7 @@ export class XRRemoteWitnessPanel {
     this.panelTexture = new THREE.CanvasTexture(this.panelCanvas);
     this.panelTexture.colorSpace = THREE.SRGBColorSpace;
     this.panel = this.makeSurface('MXGeniusWitnessSurface', 0.78, 0.67, this.panelTexture);
-    this.panelRoot.add(this.panel);
+    this.panelContent.add(this.panel);
 
     this.windowTargets = [
       this.makeHitTarget('MXGeniusWitnessClose', 0.048, 0.048, 'close', 0.342, 0.286),
@@ -119,7 +127,7 @@ export class XRRemoteWitnessPanel {
       this.makeHitTarget('MXGeniusWitnessLayers', 0.30, 0.07, 'layers', -0.185, -0.269),
       this.makeHitTarget('MXGeniusWitnessRevoke', 0.30, 0.07, 'revoke', 0.185, -0.269)
     ];
-    this.panelRoot.add(...this.windowTargets, ...this.actionTargets);
+    this.panelContent.add(...this.windowTargets, ...this.actionTargets);
     this.drawButton();
     this.drawPanel();
   }
@@ -508,6 +516,16 @@ export class XRRemoteWitnessPanel {
   }
 
   placeForView(camera = null) {
+    const dock = this.dockProvider?.();
+    if (dock) {
+      dock.updateMatrixWorld(true);
+      dock.getWorldPosition(this.cameraPosition);
+      dock.getWorldQuaternion(this.cameraQuaternion);
+      this.group.position.copy(this.cameraPosition);
+      this.group.quaternion.copy(this.cameraQuaternion);
+      this.placementPending = false;
+      return;
+    }
     if (!this.placementPending || !camera) return;
     camera.getWorldPosition(this.cameraPosition);
     camera.getWorldQuaternion(this.cameraQuaternion);
