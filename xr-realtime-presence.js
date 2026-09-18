@@ -62,6 +62,7 @@ export class XRRealtimePresence {
     this.assistantText = '';
     this.toolText = '';
     this.presenting = false;
+    this.surfaceOpen = false;
     this.placementPending = true;
     this.panelTarget = 0;
     this.session = null;
@@ -258,17 +259,13 @@ export class XRRealtimePresence {
   }
 
   interactiveObjects() {
-    if (!this.launcherVisible) return [];
     return [this.dockTarget ? this.micButton : this.hitTarget, this.snapshotButton, this.scanButton, this.pinTarget]
       .filter((object) => object.visible);
   }
 
   setDockTarget(target = null) {
     this.dockTarget = target;
-    this.micButton.visible = Boolean(this.launcherVisible && target);
-    this.snapshotButton.visible = Boolean(this.launcherVisible && target && this.onSnapshotRequest);
-    this.scanButton.visible = Boolean(this.launcherVisible && target && this.onSnapshotRequest);
-    this.evidenceTray.visible = Boolean(this.launcherVisible && target);
+    this.syncDockControls();
     this.hitTarget.visible = Boolean(this.launcherVisible && !target);
     if (target) {
       this.panel.position.set(0.58, 0.27, 0);
@@ -379,6 +376,22 @@ export class XRRealtimePresence {
     }
   }
 
+  syncDockControls() {
+    const controlsVisible = Boolean(this.dockTarget && (this.launcherVisible || this.surfaceOpen));
+    this.micButton.visible = controlsVisible;
+    this.snapshotButton.visible = Boolean(controlsVisible && this.onSnapshotRequest);
+    this.scanButton.visible = Boolean(controlsVisible && this.onSnapshotRequest);
+    this.evidenceTray.visible = controlsVisible;
+    this.pinTarget.visible = Boolean(this.launcherVisible || this.surfaceOpen);
+  }
+
+  setSurfaceOpen(open) {
+    if (this.disposed) return;
+    this.surfaceOpen = Boolean(open);
+    this.panelTarget = this.surfaceOpen && this.state !== 'disconnected' ? 1 : 0;
+    this.syncDockControls();
+  }
+
   async toggle(input = 'xr') {
     if (this.disposed) return;
     this.onAction('realtime-toggle', input, { state: this.state });
@@ -442,7 +455,7 @@ export class XRRealtimePresence {
       this.toolText = sent
         ? 'Saved to the active case and shared with the model'
         : 'Saved to the active maintenance case';
-      this.panelTarget = 1;
+      this.panelTarget = this.surfaceOpen ? 1 : 0;
       this.onAction('case-evidence-captured', input, {
         width: snapshot.width || 0,
         height: snapshot.height || 0,
@@ -642,7 +655,7 @@ export class XRRealtimePresence {
     if (event.type === 'transcript') {
       if (event.role === 'user') this.userText = event.text || '';
       else this.assistantText = event.text || '';
-      this.panelTarget = 1;
+      this.panelTarget = this.surfaceOpen ? 1 : 0;
       this.drawPanel();
       return;
     }
@@ -746,7 +759,7 @@ export class XRRealtimePresence {
   setState(state, reason = '') {
     this.state = state || 'disconnected';
     if (reason) this.toolText = reason;
-    this.panelTarget = this.state === 'disconnected' ? 0 : 1;
+    this.panelTarget = this.surfaceOpen && this.state !== 'disconnected' ? 1 : 0;
     const color = STATE_COLORS[this.state] || STATE_COLORS.disconnected;
     this.ring.material.color.setHex(color);
     this.drawPanel();
@@ -863,7 +876,7 @@ export class XRRealtimePresence {
     const context = this.contextProvider() || {};
     if (!context.model && !context.componentId && !context.spatialTargets?.activeTarget) {
       this.toolText = 'Select a model component before verification';
-      this.panelTarget = 1;
+      this.panelTarget = this.surfaceOpen ? 1 : 0;
       this.drawPanel();
       return false;
     }
@@ -876,7 +889,7 @@ export class XRRealtimePresence {
     if (sent) {
       this.userText = 'Verify selected component';
       this.toolText = 'Checking the selected model context';
-      this.panelTarget = 1;
+      this.panelTarget = this.surfaceOpen ? 1 : 0;
       this.drawPanel();
     }
     return sent;

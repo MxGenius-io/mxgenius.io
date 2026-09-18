@@ -104,7 +104,7 @@
     import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=11';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=7';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=5';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=7';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -546,6 +546,7 @@
         xrWitness?.requestPlacement();
         spatialHud?.requestPlacement();
       },
+      onExit: ({ input = 'xr' } = {}) => void returnToScene(input),
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrSpatialShell.group),
       activeModeHints: sensorOnlyScene ? { maintenance: 'BACK TO VR' } : {}
     });

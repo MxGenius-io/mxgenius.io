@@ -1124,12 +1124,14 @@ function setupChatPanel() {
   const history = document.getElementById('chatHistory');
   const threadSelect = document.getElementById('chatThreadSelect');
   const newThreadBtn = document.getElementById('chatNewThreadBtn');
+  const clearThreadsBtn = document.getElementById('chatClearThreadsBtn');
   const attachBtn = document.getElementById('chatAttachBtn');
   const imageInput = document.getElementById('chatImageInput');
   const attachmentPreview = document.getElementById('chatAttachmentPreview');
   let activeCaseContext = null;
   let activeAircraftContext = null;
   let activeThreadId = localStorage.getItem('mxg_active_thread_id') || null;
+  let visibleThreadIds = [];
   let lastDisplayedResponseContext = null;
   const chatTurns = [];
   let pendingImages = [];
@@ -1610,6 +1612,7 @@ function setupChatPanel() {
           ? thread.case_id === activeCaseContext.caseId
           : !thread.case_id;
       });
+      visibleThreadIds = threads.map(thread => thread.id).filter(Boolean);
       threadSelect.replaceChildren(new Option('New conversation', ''));
       threads.forEach(thread => threadSelect.add(new Option(thread.title, thread.id)));
       if (activeThreadId && threads.some(thread => thread.id === activeThreadId)) {
@@ -1652,6 +1655,52 @@ function setupChatPanel() {
     history.replaceChildren();
     syncAdvisoryPanelState();
     input.focus();
+  });
+
+  clearThreadsBtn?.addEventListener('click', async () => {
+    const threadIdsToClear = [...new Set([...visibleThreadIds, activeThreadId].filter(Boolean))];
+    if (!threadIdsToClear.length) {
+      activeThreadId = null;
+      chatTurns.length = 0;
+      lastDisplayedResponseContext = null;
+      clearPendingImages();
+      localStorage.removeItem('mxg_active_thread_id');
+      if (threadSelect) threadSelect.value = '';
+      history.replaceChildren();
+      syncAdvisoryPanelState();
+      input.focus();
+      return;
+    }
+    const contextLabel = activeCaseContext ? `case ${activeCaseContext.caseId}` : 'general chat';
+    if (!window.confirm(`Clear ${threadIdsToClear.length} saved conversation${threadIdsToClear.length === 1 ? '' : 's'} from ${contextLabel}?`)) return;
+    const session = currentApplicationSession();
+    clearThreadsBtn.disabled = true;
+    clearThreadsBtn.textContent = 'Clearing…';
+    try {
+      const results = await Promise.allSettled(
+        threadIdsToClear.map(threadId => MXApplicationClient.threads.archive(threadId, session))
+      );
+      const failed = results.filter(result => result.status === 'rejected');
+      if (failed.length) throw new Error(`${failed.length} conversation${failed.length === 1 ? '' : 's'} could not be cleared`);
+      visibleThreadIds = [];
+      activeThreadId = null;
+      activeAircraftContext = null;
+      chatTurns.length = 0;
+      lastDisplayedResponseContext = null;
+      clearPendingImages();
+      localStorage.removeItem('mxg_active_thread_id');
+      history.replaceChildren();
+      syncAdvisoryPanelState();
+      await refreshThreads();
+      input.focus();
+    } catch (error) {
+      console.warn('[MXGenius] Conversation history could not be cleared:', error.message);
+      window.alert(error.message || 'Conversation history could not be cleared.');
+      await refreshThreads();
+    } finally {
+      clearThreadsBtn.disabled = false;
+      clearThreadsBtn.textContent = 'Clear';
+    }
   });
 
   void refreshThreads(true);

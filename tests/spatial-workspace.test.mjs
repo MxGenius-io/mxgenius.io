@@ -115,6 +115,9 @@ test('maintenance stays in the canonical renderer and opens tools from one world
   assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);
+  assert.match(viewer, /xrWindowManager\.register\('voice'/);
+  assert.match(viewer, /syncMaintenanceSurfaces\(snapshot\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);
   assert.doesNotMatch(viewer, /globe-vr\.html/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
 });
@@ -127,7 +130,15 @@ test('the spatial tray communicates minimized windows without ending Remote Witn
   assert.match(witness, /witness-window-close/);
   assert.match(viewer, /xrWindowManager\?\.close\('witness'/);
   const setOpen = witness.slice(witness.indexOf('setOpen(open'), witness.indexOf('async createInvitation'));
-  assert.doesNotMatch(setOpen, /closeMedia|socket\.close|revoke/);
+  assert.doesNotMatch(setOpen, /closeMedia|socket\.close|this\.revoke/);
+});
+
+test('the shared spatial tray always exposes a session exit control', () => {
+  assert.match(shell, /MXGeniusExitVR/);
+  assert.match(shell, /xrShellAction = 'exit-vr'/);
+  assert.match(shell, /this\.onExit\(\{ input \}\)/);
+  assert.match(viewer, /onExit: \(\) => spatialSession\?\.end\?\.\(\)/);
+  assert.match(globe, /onExit: \(\{ input = 'xr' \} = \{\}\) => void returnToScene\(input\)/);
 });
 
 test('Remote Witness docks to the spatial tray and unfolds from its tool pivot', () => {

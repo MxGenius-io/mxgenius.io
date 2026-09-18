@@ -71,6 +71,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="com.oculus.intent.category.VR" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mxgenius" android:host="witness-consent" />
+            </intent-filter>
         </activity>
         <service
             android:name=".SensorBridgeService"

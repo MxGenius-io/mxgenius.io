@@ -542,7 +542,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=41/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=42/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -594,7 +594,8 @@ test('Settings exposes one Operations Center while the living feature catalog re
 test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal sequence', () => {
   assert.match(viewer, /id="hud-preview-button"/);
   assert.match(viewer, /import \{ XRMaintenanceHUD \}/);
-  assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(true, camera\)/);
+  assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);
+  assert.match(viewer, /const taskWindowOpen = Boolean\(snapshot\?\.activeId\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.interactiveObjects\(\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.fingerTargetAt/);
   assert.match(viewer, /raycaster\.intersectObjects\(xrMaintenanceHUD\?\.interactiveObjects\(\) \|\| \[\], true\)/);
@@ -617,6 +618,14 @@ test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal 
   assert.doesNotMatch(xrMaintenanceHud, /setInterval|visibility\s*=\s*!/);
 });
 
+test('chat users can explicitly clear saved conversations from the active context', () => {
+  assert.match(dashboard, /id="chatClearThreadsBtn"[^>]*>Clear<\/button>/);
+  assert.match(application, /new Set\(\[\.\.\.visibleThreadIds, activeThreadId\]\.filter\(Boolean\)\)/);
+  assert.match(application, /threadIdsToClear\.map\(threadId => MXApplicationClient\.threads\.archive\(threadId, session\)\)/);
+  assert.match(application, /window\.confirm\(`Clear \$\{threadIdsToClear\.length\} saved conversation/);
+  assert.match(application, /localStorage\.removeItem\('mxg_active_thread_id'\)/);
+});
+
 test('WebXR controllers expose a visible widget laser and use the same targets for activation', () => {
   assert.match(viewer, /function createXRControllerLaser\(controller\)/);
   assert.match(viewer, /line\.name = 'MXGeniusWidgetLaser'/);
@@ -630,7 +639,8 @@ test('WebXR controllers expose a visible widget laser and use the same targets f
 test('WebXR maintenance audio maps every delivered cue and completes the live frontend actions', async () => {
   assert.match(viewer, /id="hud-sound-button"/);
   assert.match(viewer, /new XRUIAudio\(\{ camera, onStateChange: updateXRAudioStatus \}\)/);
-  assert.match(viewer, /xrVoice\?\.toggle\(input\)/);
+  assert.match(viewer, /xrWindowManager\?\.open\('voice', \{ input \}\)/);
+  assert.match(viewer, /await xrVoice\?\.connect\(input\)/);
   assert.match(viewer, /xrVoice\?\.captureSnapshot\(input\)/);
   assert.match(viewer, /onSnapshotRequest: requestMaintenanceSnapshot/);
   assert.match(viewer, /xrSensors\?\.state === 'connected'/);
@@ -713,7 +723,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=41/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=42/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);

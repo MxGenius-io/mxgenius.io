@@ -13,7 +13,7 @@ final class BridgeActivation {
     static final String EXTRA_PILOT = "io.mxgenius.sensorbridge.PILOT";
     private static final Pattern SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{1,128}$");
     private static final Pattern LOCAL_TOKEN = Pattern.compile("^[A-Za-z0-9_-]{32,128}$");
-    private static final String SENSOR_SCENE_URL = "https://mxgenius.io/globe-vr.html?scene=sensor&bridgeManaged=1";
+    private static final String SENSOR_SCENE_URL = "https://mxgenius.io/3d-viewer/index.html?spatialMode=maintenance&bridgeManaged=1";
 
     final String sessionId;
     final String bridgeUrl;

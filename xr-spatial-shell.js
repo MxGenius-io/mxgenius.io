@@ -24,6 +24,7 @@ export class XRSpatialShell {
     onModeChange = () => {},
     onActiveMode = () => false,
     onRecenter = () => {},
+    onExit = () => {},
     onToolAction = () => {},
     onAction = () => {},
     activeModeHints = {}
@@ -32,6 +33,7 @@ export class XRSpatialShell {
     this.onModeChange = onModeChange;
     this.onActiveMode = onActiveMode;
     this.onRecenter = onRecenter;
+    this.onExit = onExit;
     this.onToolAction = onToolAction;
     this.onAction = onAction;
     this.activeModeHints = { ...activeModeHints };
@@ -56,7 +58,7 @@ export class XRSpatialShell {
     this.group.add(this.contentDock);
 
     this.backplate = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.68, tools.length ? 0.365 : 0.205),
+      new THREE.PlaneGeometry(0.68, tools.length ? 0.47 : 0.31),
       new THREE.MeshBasicMaterial({ color: 0x07131f, transparent: true, opacity: 0.92, toneMapped: false, side: THREE.DoubleSide })
     );
     this.backplate.name = 'MXGeniusSpatialTray';
@@ -67,6 +69,7 @@ export class XRSpatialShell {
       this.createModeButton('operations', -0.165, tools.length ? 0.08 : 0),
       this.createModeButton('maintenance', 0.165, tools.length ? 0.08 : 0)
     ];
+    this.exitButton = this.createExitButton();
     this.toolStates = new Map();
     this.toolButtons = tools.map((tool, index) => {
       const preset = TOOL_DEFAULTS.find((entry) => entry.id === tool.id) || {};
@@ -80,7 +83,7 @@ export class XRSpatialShell {
       this.toolStates.set(normalized.id, normalized);
       return this.createToolButton(normalized, index, tools.length);
     });
-    this.group.add(...this.buttons, ...this.toolButtons);
+    this.group.add(...this.buttons, ...this.toolButtons, this.exitButton);
     this.draw();
   }
 
@@ -132,6 +135,36 @@ export class XRSpatialShell {
     button.userData.canvas = canvas;
     button.userData.context = canvas.getContext('2d');
     button.userData.texture = texture;
+    return button;
+  }
+
+  createExitButton() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 384;
+    canvas.height = 128;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const button = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.22, 0.072),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    button.name = 'MXGeniusExitVR';
+    button.position.set(0.21, 0.195, 0.002);
+    button.userData.xrShellAction = 'exit-vr';
+    button.userData.xrHitSize = { width: 0.22, height: 0.072 };
+    button.userData.texture = texture;
+    const context = canvas.getContext('2d');
+    rounded(context, 6, 6, 372, 116, 28);
+    context.fillStyle = 'rgba(49, 15, 27, 0.96)';
+    context.fill();
+    context.strokeStyle = '#fb7185';
+    context.lineWidth = 6;
+    context.stroke();
+    context.fillStyle = '#fecdd3';
+    context.font = '700 34px ui-monospace, monospace';
+    context.textAlign = 'center';
+    context.fillText('EXIT VR', 192, 80);
+    texture.needsUpdate = true;
     return button;
   }
 
@@ -256,7 +289,9 @@ export class XRSpatialShell {
 
   interactiveObjects() {
     if (!this.presenting) return [];
-    return this.mode === 'maintenance' ? [...this.buttons, ...this.toolButtons] : this.buttons;
+    return this.mode === 'maintenance'
+      ? [...this.buttons, ...this.toolButtons, this.exitButton]
+      : [...this.buttons, this.exitButton];
   }
 
   contentAnchor() {
@@ -276,6 +311,11 @@ export class XRSpatialShell {
     if (!this.owns(object)) return false;
     let target = object;
     while (target && !target.userData?.xrShellAction) target = target.parent;
+    if (target?.userData?.xrShellAction === 'exit-vr') {
+      this.onExit({ input });
+      this.onAction('spatial-shell-exit', input, { mode: this.mode });
+      return true;
+    }
     const toolId = target?.userData?.xrShellTool;
     if (target?.userData?.xrShellAction === 'select-tool' && toolId) {
       const tool = this.toolStates.get(toolId);
@@ -359,7 +399,7 @@ export class XRSpatialShell {
     if (this.disposed || !this.presenting) return;
     this.placeForView(camera);
     const blend = 1 - Math.exp(-Math.max(0, delta) * 14);
-    for (const button of [...this.buttons, ...this.toolButtons]) {
+    for (const button of [...this.buttons, ...this.toolButtons, this.exitButton]) {
       const mode = button.userData.xrShellMode;
       const target = button === this.hoveredTarget ? 1.1 : mode === this.mode ? 1.035 : 1;
       const scale = THREE.MathUtils.lerp(button.scale.x, target, blend);
@@ -373,7 +413,7 @@ export class XRSpatialShell {
     this.group.visible = false;
     this.backplate.geometry.dispose();
     this.backplate.material.dispose();
-    for (const button of [...this.buttons, ...this.toolButtons]) {
+    for (const button of [...this.buttons, ...this.toolButtons, this.exitButton]) {
       button.geometry.dispose();
       button.material.dispose();
       button.userData.texture.dispose();

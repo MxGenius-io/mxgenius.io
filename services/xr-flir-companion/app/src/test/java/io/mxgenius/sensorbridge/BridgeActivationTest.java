@@ -18,7 +18,7 @@ public final class BridgeActivationTest {
         assertNull(activation.bridgeUrl);
         assertTrue(activation.canHandoffToBrowser());
         assertEquals(
-                "https://mxgenius.io/globe-vr.html?scene=sensor&bridgeManaged=1"
+                "https://mxgenius.io/3d-viewer/index.html?spatialMode=maintenance&bridgeManaged=1"
                         + "#sensorHandoff=1&sessionId=case-42&localToken=" + LOCAL_TOKEN,
                 activation.browserHandoffUrl());
     }

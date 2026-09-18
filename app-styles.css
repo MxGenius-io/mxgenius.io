@@ -3863,6 +3863,32 @@ body.live-mode .api-status.connected .status-dot {
   border-bottom-right-radius: 4px;
 }
 
+.chat-clear-btn {
+  min-width: 60px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.84);
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.chat-clear-btn:hover:not(:disabled),
+.chat-clear-btn:focus-visible {
+  border-color: rgba(34, 211, 238, 0.72);
+  background: rgba(15, 32, 52, 0.96);
+  color: #e6fbff;
+}
+
+.chat-clear-btn:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .mx-chat-client-actions {
   display: flex;
   flex-wrap: wrap;

@@ -34,8 +34,10 @@ export class XRRemoteWitnessPanel {
     projectionProvider = () => ({}),
     mediaStreamProvider,
     nativeBootstrapProvider,
+    nativeApprovalProvider,
     dockProvider = () => null,
     launcherVisible = true,
+    autoInviteOnOpen = false,
     remoteStreamConsumer = () => {},
     onAction = () => {},
     onStatus = () => {}
@@ -49,8 +51,10 @@ export class XRRemoteWitnessPanel {
     this.projectionProvider = projectionProvider;
     this.mediaStreamProvider = mediaStreamProvider;
     this.nativeBootstrapProvider = nativeBootstrapProvider;
+    this.nativeApprovalProvider = nativeApprovalProvider;
     this.dockProvider = dockProvider;
     this.launcherVisible = Boolean(launcherVisible);
+    this.autoInviteOnOpen = Boolean(autoInviteOnOpen);
     this.remoteStreamConsumer = remoteStreamConsumer;
     this.onAction = onAction;
     this.onStatus = onStatus;
@@ -208,6 +212,10 @@ export class XRRemoteWitnessPanel {
     if (this.open) this.panelRoot.visible = true;
     this.onAction('witness-panel-toggle', input, { open: this.open });
     this.drawButton();
+    const needsInvitation = !this.invitation || ['revoked', 'expired'].includes(this.room?.status);
+    if (this.open && this.autoInviteOnOpen && needsInvitation && !this.busy) {
+      void this.createInvitation(input);
+    }
   }
 
   toggleMaximized(input = 'xr') {
@@ -271,6 +279,28 @@ export class XRRemoteWitnessPanel {
     }
     const action = this.room?.status === 'live' ? 'pause'
       : this.room?.approved ? 'resume' : 'approve';
+    if (this.nativeProducer && ['approve', 'resume'].includes(action)
+      && typeof this.nativeApprovalProvider === 'function') {
+      try {
+        const launched = await this.nativeApprovalProvider({
+          action,
+          roomId: this.invitation.roomId,
+          sessionId: this.xrSessionId
+        });
+        if (launched !== false) {
+          this.message = 'Quest sharing permission opened. Approve it in the headset to start the live view.';
+          this.onAction('witness-native-approval-requested', input, { roomId: this.invitation.roomId, action });
+          this.drawPanel();
+          this.emitStatus();
+          return;
+        }
+      } catch (error) {
+        this.message = clean(error?.message, 'Quest sharing permission could not be opened.');
+        this.drawPanel();
+        this.emitStatus();
+        return;
+      }
+    }
     if (!this.nativeProducer && ['approve', 'resume'].includes(action) && !this.localStream?.active) {
       try {
         // This runs only from the wearer's explicit APPROVE/RESUME gesture.

@@ -22,6 +22,14 @@ Legend: `[ ]` queued, `[~]` active or partially complete, `[x]` verified.
   hidden. The first OS-style window manager enforces one visible tool window,
   shows a blue minimized indicator, and keeps explicit revoke/end controls
   separate from window close or minimize.
+- The shared tray now owns a reachable Exit VR control in both canonical and
+  rollback scenes. Maintenance context appears only after a mesh raycast, and
+  opening Thermal, Witness, or Voice hides the contextual HUD/media surfaces
+  until the active task is minimized.
+- Alpha 24 is built and locally release-verified. Its browser-to-native consent
+  handoff opens Horizon MediaProjection for the already bootstrapped witness
+  room without placing room credentials in the deep link. It is not marked
+  published until the release-channel upload and physical Quest run occur.
 - Automated contract coverage is green locally. Physical Quest behavior remains
   deliberately unverified until the headset acceptance run in Wave 7.
 
@@ -63,9 +71,9 @@ versioned, and no scene consolidation begins with an unknown data dependency.
 
 - [x] `SWC-010` Create one world-anchored tray with Operations and Maintenance
   mode controls.
-- [~] `SWC-011` Add shared recenter, close, and return behavior without attaching
+- [x] `SWC-011` Add shared recenter, close, and return behavior without attaching
   controls to the headset.
-- [~] `SWC-012` Enforce one active panel or tool at a time with deliberate open,
+- [x] `SWC-012` Enforce one active panel or tool at a time with deliberate open,
   close, and mode-transition animation.
 - [~] `SWC-013` Mount shared aircraft, case, component, and location context in a
   compact form that does not become another dashboard.
@@ -188,7 +196,7 @@ cross-tenant leakage, duplicate records, or optimistic completion claims.
 
 ### Wave 7 — acceptance and cutover
 
-- [~] `SWC-070` Add contract tests for mode ownership, shared context, one-active-
+- [x] `SWC-070` Add contract tests for mode ownership, shared context, one-active-
   panel behavior, Service-mode isolation, and the FLIR-only follow exception.
 - [ ] `SWC-071` Run desktop and narrow-viewport interaction checks with keyboard,
   pointer, reduced motion, and reconnect scenarios.

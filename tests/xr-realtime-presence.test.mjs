@@ -97,6 +97,11 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.doesNotMatch(viewer, /anchor: rightWrist/);
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
+  assert.match(viewer, /xrWindowManager\.register\('voice'/);
+  assert.match(presence, /setSurfaceOpen\(open\)/);
+  assert.match(presence, /this\.surfaceOpen \? 1 : 0/);
+  assert.match(presence, /const controlsVisible = Boolean\(this\.dockTarget && \(this\.launcherVisible \|\| this\.surfaceOpen\)\)/);
+  assert.doesNotMatch(presence, /interactiveObjects\(\) \{\s*if \(!this\.launcherVisible\) return \[\]/);
 });
 
 test('sensor scene owns the head-following thermal bridge while the fleet globe omits that runtime', () => {

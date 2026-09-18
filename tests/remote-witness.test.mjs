@@ -4,7 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
-const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource, nativeAudioSource, nativeManifestSource] = await Promise.all([
+const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource, nativeAudioSource, nativeManifestSource, maintenanceViewerSource] = await Promise.all([
   readFile(new URL('application-client.js', root), 'utf8'),
   readFile(new URL('xr-remote-witness.js', root), 'utf8'),
   readFile(new URL('witness.js', root), 'utf8'),
@@ -23,7 +23,8 @@ const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, 
   readFile(new URL('services/xr-flir-companion/app/src/main/res/layout/immersive_thermal_panel.xml', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessUiState.java', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessAudioController.java', root), 'utf8'),
-  readFile(new URL('services/xr-flir-companion/app/src/main/AndroidManifest.xml', root), 'utf8')
+  readFile(new URL('services/xr-flir-companion/app/src/main/AndroidManifest.xml', root), 'utf8'),
+  readFile(new URL('3d-viewer/index.html', root), 'utf8')
 ]);
 
 test('public PIN exchange does not require or emit an application bearer', async () => {
@@ -148,6 +149,13 @@ test('wearer approval gates media and recording remains consent-only', () => {
   assert.match(transportSource, /RemoteWitnessError::ApprovalRequired/);
   assert.match(transportSource, /accepts_media.*false/s);
   assert.match(producerSource, /recording.*state/s);
+  assert.match(producerSource, /nativeApprovalProvider/);
+  assert.match(producerSource, /witness-native-approval-requested/);
+  assert.match(maintenanceViewerSource, /launchQuestWitnessApproval/);
+  assert.match(maintenanceViewerSource, /mxgenius;package=io\.mxgenius\.sensorbridge/);
+  assert.match(nativeManifestSource, /android:scheme="mxgenius" android:host="witness-consent"/);
+  assert.match(nativeActivitySource, /launchRequestedWitnessConsentIfReady/);
+  assert.match(nativeActivitySource, /requestWitnessProjection\(witnessConsentResume\)/);
 });
 
 test('customer microphone is explicit, permission-scoped, and uses the existing peer', () => {

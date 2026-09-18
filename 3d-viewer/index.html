@@ -1383,10 +1383,10 @@
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=12';
-        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=7';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=13';
+        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=8';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=6';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=7';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
@@ -1837,14 +1837,22 @@
                 }),
                 launcherVisible: false,
                 mediaStreamProvider: async () => {
+                    if (renderer.xr.isPresenting && navigator.mediaDevices?.getDisplayMedia) {
+                        return navigator.mediaDevices.getDisplayMedia({
+                            video: { frameRate: { ideal: 30, max: 30 } },
+                            audio: false
+                        });
+                    }
                     if (typeof renderer.domElement.captureStream !== 'function') {
                         throw new Error('This browser cannot share the rendered maintenance view');
                     }
                     return renderer.domElement.captureStream(30);
                 },
                 nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+                nativeApprovalProvider: launchQuestWitnessApproval,
                 dockProvider: () => xrSpatialShell?.contentAnchor?.() || null,
                 launcherVisible: false,
+                autoInviteOnOpen: true,
                 remoteStreamConsumer: (stream) => {
                     if (!witnessGuestAudio) {
                         witnessGuestAudio = document.createElement('audio');
@@ -1877,11 +1885,12 @@
             xrOperationsSurface.setContext(spatialContext);
             scene.add(xrOperationsSurface.group);
             xrWindowManager = new SpatialWindowManager({
-                onChange: ({ id, state, active }) => {
+                onChange: ({ id, state, active, snapshot }) => {
                     xrSpatialShell?.setToolState(id, {
                         active: Boolean(active),
                         windowState: state
                     });
+                    syncMaintenanceSurfaces(snapshot);
                 }
             });
             xrWindowManager.register('witness', {
@@ -1902,6 +1911,10 @@
                 },
                 hide: ({ input = 'xr' } = {}) => xrSensors?.setActive(false, input)
             });
+            xrWindowManager.register('voice', {
+                show: () => xrVoice?.setSurfaceOpen(true),
+                hide: () => xrVoice?.setSurfaceOpen(false)
+            });
             xrSpatialShell = new XRSpatialShell({
                 mode: spatialMode,
                 tools: [
@@ -1916,14 +1929,16 @@
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
                     xrWitness?.requestPlacement();
-                    xrMaintenanceHUD?.setPresenting(true, camera);
+                    syncMaintenanceSurfaces(xrWindowManager?.snapshot());
                 },
+                onExit: () => spatialSession?.end?.(),
                 onToolAction: handleMaintenanceTool,
                 onAction: emitXRAction
             });
             scene.add(xrSpatialShell.group);
             xrVoice.setDockTarget(xrSpatialShell.contentAnchor());
             xrVoice.requestPlacement('spatial-shell');
+            xrSensors.startPreflight();
             const spatialRegistry = globalThis.MXTargetContext?.registry;
             if (spatialRegistry && globalThis.MXSpatialCommands?.createDispatcher) {
                 const displaySpatialTarget = ({ target, isCurrent }, lock = false) => {
@@ -2708,14 +2723,21 @@
             xrSpatialShell?.setMode(spatialMode);
             xrOperationsSurface?.setPresenting(presenting, camera);
             xrOperationsSurface?.setVisible(presenting && !maintenance, camera);
-            xrMediaPanel?.setPresenting(presenting && maintenance);
-            xrAnimationScrubber?.setPresenting(presenting && maintenance);
-            xrMaintenanceHUD?.setPresenting(presenting && maintenance, camera);
             if (xrSensors?.group) xrSensors.group.visible = presenting && maintenance;
             if (xrVoice?.group) xrVoice.group.visible = presenting && maintenance;
             if (xrWitness?.group) xrWitness.group.visible = presenting && maintenance;
             if (!maintenance) xrWindowManager?.minimizeAll({ input: 'system', reason: 'mode-change' });
-            if (presenting && maintenance) ensureMaintenanceHUDTarget();
+            syncMaintenanceSurfaces(xrWindowManager?.snapshot());
+        }
+
+        function syncMaintenanceSurfaces(snapshot = xrWindowManager?.snapshot()) {
+            const presenting = Boolean(renderer?.xr?.isPresenting);
+            const maintenance = spatialMode === 'maintenance';
+            const taskWindowOpen = Boolean(snapshot?.activeId);
+            const showContext = presenting && maintenance && !taskWindowOpen;
+            xrMediaPanel?.setPresenting(showContext);
+            xrAnimationScrubber?.setPresenting(showContext);
+            xrMaintenanceHUD?.setPresenting(showContext && Boolean(selectedMesh), camera);
         }
 
         function setSpatialMode(mode, { source = 'spatial-workspace', context = null } = {}) {
@@ -2774,6 +2796,7 @@
             });
             renderer.xr.addEventListener('sessionend', () => {
                 spatialSession = null;
+                xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
                 xrOperationsSurface?.setVisible(false, camera);
                 xrOperationsSurface?.setPresenting(false, camera);
                 xrMediaPanel?.setPresenting(false);
@@ -2845,6 +2868,18 @@
             }
         }
 
+        function launchQuestWitnessApproval({ action = 'approve', sessionId = sensorRuntime.sessionId } = {}) {
+            const localQuestBridge = /^ws:\/\/127\.0\.0\.1:4109\//i.test(sensorRuntime.thermalBridgeUrl || '');
+            if (!localQuestBridge || !sessionId) return false;
+            const query = new URLSearchParams({
+                sessionId: String(sessionId),
+                action: action === 'resume' ? 'resume' : 'approve'
+            });
+            const intentUrl = `intent://witness-consent?${query}#Intent;scheme=mxgenius;package=io.mxgenius.sensorbridge;end`;
+            window.location.assign(intentUrl);
+            return true;
+        }
+
         async function handleMaintenanceTool(toolId, { input = 'xr' } = {}) {
             void xrUIAudio?.unlock();
             if (toolId === 'thermal') {
@@ -2856,12 +2891,23 @@
                 return;
             }
             if (toolId === 'voice') {
-                await xrVoice?.toggle(input);
+                const voiceState = xrWindowManager?.state('voice')?.state;
+                if (voiceState === 'open') {
+                    xrWindowManager?.minimize('voice', { input });
+                    return;
+                }
+                xrWindowManager?.open('voice', { input });
+                if (!xrVoice?.session || ['disconnected', 'failed'].includes(xrVoice.state)) {
+                    await xrVoice?.connect(input);
+                }
                 const active = Boolean(xrVoice?.session) && !['disconnected', 'failed'].includes(xrVoice?.state);
                 xrSpatialShell?.setToolState('voice', { active });
                 return;
             }
-            if (toolId === 'capture') await xrVoice?.captureSnapshot(input);
+            if (toolId === 'capture') {
+                xrWindowManager?.open('voice', { input });
+                await xrVoice?.captureSnapshot(input);
+            }
         }
 
         function activateXRPart(mesh, input) {
@@ -3387,6 +3433,7 @@
             selectedHighlightMaterial = null;
             document.body.dataset.partSelected = 'false';
             xrMaintenanceHUD?.clearTarget({ forget: updatePanel });
+            syncMaintenanceSurfaces(xrWindowManager?.snapshot());
 
             if (updatePanel) {
                 partSelectionName.textContent = 'Select a visible mesh';
@@ -3481,6 +3528,7 @@
                     ? [`${entry.sourceAuthority || 'PUBLIC'} REFERENCE`.toUpperCase(), 'UNMAPPED', 'NO APPROVAL']
                     : ['COMPONENT MAP', 'CASE HISTORY', 'MANUAL LOOKUP']
             });
+            syncMaintenanceSurfaces(xrWindowManager?.snapshot());
             const localTarget = globalThis.MXTargetContext?.fromPartSelection?.(detail);
             if (localTarget) globalThis.MXTargetContext.set(localTarget, { reason: 'viewer-mesh-raycast' });
             void xrVoice?.refreshContext();
@@ -3678,7 +3726,7 @@
             currentAction.clampWhenFinished = false;
             currentAction.timeScale = state.animationSpeed;
             xrAnimationScrubber?.configure(currentAction, animations[idx]);
-            if (renderer.xr.isPresenting) xrAnimationScrubber?.setPresenting(true);
+            if (renderer.xr.isPresenting) syncMaintenanceSurfaces(xrWindowManager?.snapshot());
 
             if (state.isPlaying) {
                 currentAction.paused = false;

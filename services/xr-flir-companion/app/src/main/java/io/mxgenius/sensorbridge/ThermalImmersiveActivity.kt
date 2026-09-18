@@ -57,6 +57,10 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
     private var witnessState = "NO ACTIVE SERVICE PIN"
     private var witnessUiState = RemoteWitnessUiState.EMPTY
     private var commissioningHandoffStarted = false
+    private var witnessConsentRequested = false
+    private var witnessConsentLaunched = false
+    private var witnessConsentResume = false
+    private var witnessConsentSessionId: String? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -66,6 +70,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             if (hasHeadsetCameraPermissions()) bridgeService?.prepareHeadsetCamera()
             tracePanelReadyIfPossible()
             renderPanel()
+            launchRequestedWitnessConsentIfReady()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -142,6 +147,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        readWitnessConsentRequest(intent)
         systemManager.unregisterSystem<LocomotionSystem>()
         systemManager.registerSystem(
             ThermalPanelFollowSystem(R.id.thermal_spatial_panel, followHead),
@@ -150,6 +156,13 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         val serviceIntent = Intent(this, SensorBridgeService::class.java)
         intent.extras?.let(serviceIntent::putExtras)
         startForegroundService(serviceIntent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readWitnessConsentRequest(intent)
+        launchRequestedWitnessConsentIfReady()
     }
 
     override fun onStart() {
@@ -199,6 +212,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
             bridgeService?.projectionConsentDenied()
         }
         renderPanel()
+        if (witnessConsentRequested) finish()
     }
 
     override fun onSceneReady() {
@@ -263,6 +277,7 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
     override fun onWitness(state: RemoteWitnessUiState) {
         witnessUiState = state
         renderPanel()
+        launchRequestedWitnessConsentIfReady()
     }
 
     private fun renderPanel() {
@@ -365,6 +380,30 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         val manager = getSystemService(MediaProjectionManager::class.java)
         service.recordTrace("W30", "WITNESS", "consent-requested", "wearer opened the Horizon compositor sharing prompt", "info")
         startActivityForResult(manager.createScreenCaptureIntent(), WITNESS_PROJECTION_REQUEST)
+    }
+
+    private fun readWitnessConsentRequest(source: Intent?) {
+        val data = source?.data ?: return
+        if (data.scheme != "mxgenius" || data.host != "witness-consent") return
+        witnessConsentRequested = true
+        witnessConsentLaunched = false
+        witnessConsentResume = data.getQueryParameter("action") == "resume"
+        witnessConsentSessionId = data.getQueryParameter("sessionId")
+    }
+
+    private fun launchRequestedWitnessConsentIfReady() {
+        if (!witnessConsentRequested || witnessConsentLaunched) return
+        val service = bridgeService ?: return
+        val requestedSession = witnessConsentSessionId
+        if (requestedSession.isNullOrBlank() || requestedSession != service.sessionId()) {
+            service.recordTrace("W30", "WITNESS", "blocked", "browser witness consent did not match the active Quest session", "warn")
+            witnessConsentLaunched = true
+            finish()
+            return
+        }
+        if (!service.canRequestWitnessCapture()) return
+        witnessConsentLaunched = true
+        requestWitnessProjection(witnessConsentResume)
     }
 
     private fun formatServicePin(pin: String?): String {

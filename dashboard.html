@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=24">
+  <link rel="stylesheet" href="app-styles.css?v=25">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
@@ -428,7 +428,7 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=41" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=42" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->
@@ -743,6 +743,7 @@
           <option value="">New conversation</option>
         </select>
         <button id="chatNewThreadBtn" type="button" class="btn-primary" title="Start a new conversation" aria-label="Start a new conversation" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; flex-shrink: 0; min-width: 60px;">New</button>
+        <button id="chatClearThreadsBtn" type="button" class="chat-clear-btn" title="Clear saved conversations in this context" aria-label="Clear saved conversations">Clear</button>
         <button id="realtimeInterruptBtn" class="realtime-interrupt" type="button" hidden>Interrupt</button>
       </div>
     </div>
@@ -801,7 +802,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="app.js?v=90"></script>
+  <script src="app.js?v=91"></script>
   <div id="onboardingRoot"></div>
 </body>
 
