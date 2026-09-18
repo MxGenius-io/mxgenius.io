@@ -6147,11 +6147,26 @@ async function configureNativeARGlobe() {
 
 function cacheFleetForSpatialWorkspace() {
   if (!allClusters.length) return null;
+  const selectedFlight = selectedLiveTrafficAircraft();
   const payload = {
-    version: 2,
+    version: 3,
     createdAt: new Date().toISOString(),
     totalAircraft: globeData?.totalAircraft || 0,
     mappedAircraft: globeData?.mappedAircraft || 0,
+    liveFlight: selectedFlight ? {
+      icao24: selectedFlight.icao24 || '',
+      callsign: selectedFlight.callsign || '',
+      originCountry: selectedFlight.originCountry || '',
+      lat: selectedFlight.lat,
+      lng: selectedFlight.lng,
+      trackDegrees: Number(selectedFlight.trackDegrees) || 0,
+      velocityMps: Number(selectedFlight.velocityMps) || 0,
+      baroAltitudeMeters: Number(selectedFlight.baroAltitudeMeters) || null,
+      geoAltitudeMeters: Number(selectedFlight.geoAltitudeMeters) || null,
+      onGround: Boolean(selectedFlight.onGround),
+      lastContact: Number(selectedFlight.lastContact) || 0,
+      source: 'OpenSky Network'
+    } : null,
     clusters: allClusters.map((cluster) => ({
       icao: cluster.icao,
       lat: cluster.lat,

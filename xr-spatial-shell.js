@@ -54,7 +54,10 @@ export class XRSpatialShell {
     // tools stay separate scene objects without inventing their own placement.
     this.contentDock = new THREE.Object3D();
     this.contentDock.name = 'MXGeniusSpatialContentDock';
-    this.contentDock.position.set(0.82, 0.02, 0.02);
+    // Keep an intentional air gap between the tray and every progressively
+    // disclosed task surface. This is the shared origin for Thermal, Witness,
+    // Voice, and Capture rather than a hand- or head-attached placement.
+    this.contentDock.position.set(0.96, 0.02, 0.02);
     this.group.add(this.contentDock);
 
     this.backplate = new THREE.Mesh(

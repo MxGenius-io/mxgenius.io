@@ -5,14 +5,15 @@ import vm from 'node:vm';
 import { SpatialWindowManager } from '../spatial-window-manager.js';
 
 const source = await readFile(new URL('../spatial-context.js', import.meta.url), 'utf8');
-const [dashboard, application, viewer, globe, shell, witness, operations] = await Promise.all([
+const [dashboard, application, viewer, globe, shell, witness, operations, sensors] = await Promise.all([
   readFile(new URL('../dashboard.html', import.meta.url), 'utf8'),
   readFile(new URL('../app.js', import.meta.url), 'utf8'),
   readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../globe-vr.html', import.meta.url), 'utf8'),
   readFile(new URL('../xr-spatial-shell.js', import.meta.url), 'utf8'),
   readFile(new URL('../xr-remote-witness.js', import.meta.url), 'utf8'),
-  readFile(new URL('../xr-operations-surface.js', import.meta.url), 'utf8')
+  readFile(new URL('../xr-operations-surface.js', import.meta.url), 'utf8'),
+  readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8')
 ]);
 
 function contextApi(seed = {}) {
@@ -104,6 +105,14 @@ test('operations and maintenance change inside the same renderer without droppin
   assert.match(viewer, /xrWitness\.group\.visible = presenting && maintenance/);
   assert.match(viewer, /xrWindowManager\?\.minimizeAll/);
   assert.match(operations, /MXGeniusOperationsGlobe/);
+  assert.match(operations, /new XRGlobeHUD/);
+  assert.match(operations, /earth-blue-marble\.jpg/);
+  assert.match(operations, /open-fleet-location/);
+  assert.match(operations, /MXGeniusLiveFlightRibbon/);
+  assert.match(operations, /MXGeniusLiveAircraft/);
+  assert.match(application, /liveFlight: selectedFlight \?/);
+  assert.match(viewer, /xrOperationsSurface\?\.interactiveObjects/);
+  assert.match(viewer, /xrOperationsSurface\?\.handleObject\(hit\.object, hit\.uv, input\)/);
   assert.match(globe, /"three": "\.\/3d-viewer\/lib\/three\.module\.js"/);
 });
 
@@ -112,6 +121,9 @@ test('maintenance stays in the canonical renderer and opens tools from one world
   assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
   assert.match(shell, /MXGeniusSpatialContentDock/);
   assert.match(shell, /contentAnchor\(\)/);
+  assert.match(shell, /this\.contentDock\.position\.set\(0\.96, 0\.02, 0\.02\)/);
+  assert.match(sensors, /this\.panel\.position\.set\(0, -0\.5 \* this\.screenScale - 0\.26, -0\.03\)/);
+  assert.match(sensors, /const diagnosticsTarget = this\.active \? 0\.78 : 0\.001/);
   assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);

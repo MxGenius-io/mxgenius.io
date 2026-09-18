@@ -327,7 +327,9 @@ export class XRSensorOrb {
     this.screenScaleDown.position.set(0.1, baseY, 0.014);
     this.screenScaleUp.position.set(0.31, baseY, 0.014);
     this.voiceDock.position.set(0.53, baseY + 0.015, 0.02);
-    this.panel.position.x = -0.42 * this.screenScale - 0.34;
+    // Diagnostics disclose beneath the thermal image. The previous left-side
+    // offset crossed back over the spatial tray and neighboring task surfaces.
+    this.panel.position.set(0, -0.5 * this.screenScale - 0.26, -0.03);
     this.drawScreenButtons();
   }
 
@@ -1101,7 +1103,7 @@ export class XRSensorOrb {
         this.group.position.lerp(this.headTargetPosition, 1 - Math.exp(-delta * 18));
         this.group.quaternion.slerp(this.cameraQuaternion, 1 - Math.exp(-delta * 18));
       }
-      const diagnosticsTarget = this.active ? 0.9 : 0.001;
+      const diagnosticsTarget = this.active ? 0.78 : 0.001;
       const diagnosticsScale = THREE.MathUtils.lerp(this.panel.scale.x, diagnosticsTarget, 1 - Math.exp(-delta * 11));
       this.panel.scale.setScalar(Math.max(0.001, diagnosticsScale));
       this.screenReveal = THREE.MathUtils.lerp(this.screenReveal, this.active ? 1 : 0, 1 - Math.exp(-delta * 12));

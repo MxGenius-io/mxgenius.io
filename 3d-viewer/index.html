@@ -1385,9 +1385,9 @@
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=13';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=8';
-        import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=7';
-        import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
+        import { XRSensorOrb } from '../xr-sensor-orb.js?v=14';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=8';
+        import { XROperationsSurface } from '../xr-operations-surface.js?v=2';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
             applicationSession,
@@ -2919,6 +2919,7 @@
         function xrWidgetInteractionTargets() {
             return [
                 ...(xrSpatialShell?.interactiveObjects() || []),
+                ...(xrOperationsSurface?.interactiveObjects() || []),
                 ...(xrSensors?.interactiveObjects() || []),
                 ...(xrVoice?.interactiveObjects() || []),
                 ...(xrWitness?.interactiveObjects() || []),
@@ -3015,6 +3016,7 @@
             if (!hit) return;
             const input = `controller-${index}`;
             if (xrSpatialShell?.handleObject(hit.object, input)) return;
+            if (xrOperationsSurface?.handleObject(hit.object, hit.uv, input)) return;
             if (xrSensors?.handleObject(hit.object, input)) return;
             if (xrVoice?.handleObject(hit.object, input)) return;
             if (xrWitness?.handleObject(hit.object, input)) return;
@@ -3220,6 +3222,15 @@
                     const previousShell = xrFingerTargets.get(index) || null;
                     if (shellTarget !== previousShell) xrSpatialShell.handleObject(shellTarget, `finger-${index}`);
                     xrFingerTargets.set(index, shellTarget);
+                    return;
+                }
+                const operationsTarget = xrOperationsSurface?.fingerTargetAt(xrFingerPoint);
+                if (operationsTarget) {
+                    const previousOperations = xrFingerTargets.get(index) || null;
+                    if (operationsTarget.key !== previousOperations) {
+                        xrOperationsSurface.activateFingerTarget(operationsTarget, `finger-${index}`);
+                    }
+                    xrFingerTargets.set(index, operationsTarget.key);
                     return;
                 }
                 const sensorTarget = xrSensors?.fingerTargetAt(xrFingerPoint);
