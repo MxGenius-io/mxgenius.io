@@ -181,9 +181,11 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
   assert.equal(traceSafe(`digest ${'a'.repeat(64)}`), 'digest [redacted]');
 });
 
-test('legacy isolated sensor route remains available without a separate dashboard launcher', () => {
-  assert.doesNotMatch(dashboard, /id="sensorSceneTab"/);
-  assert.doesNotMatch(dashboard, /assets\/thermal-sensor-scene-square\.png/);
+test('dashboard exposes the isolated sensor route from the globe filter rail', () => {
+  assert.match(dashboard, /id="sensorSceneTab"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=18"/);
+  assert.match(dashboard, /aria-label="Open AR Sensor Bridge scene"/);
+  assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);
   assert.match(globe, /globeGroup\.visible = !sensorOnlyScene/);
