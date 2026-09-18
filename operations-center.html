@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
   <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=4">
+  <link rel="stylesheet" href="operations-center.css?v=5">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -27,16 +27,17 @@
       <div>
         <p class="eyebrow">One operational record</p>
         <h1 id="operationsTitle">Operations Center</h1>
-        <p>Customer operations, delivery health, reports, readiness, shared work, feedback, and access controls stay one tab away.</p>
+        <p>R&amp;D highlights, customer operations, delivery health, reports, readiness, shared work, feedback, and access controls stay one tab away.</p>
       </div>
       <div class="operations-posture" aria-label="Operations center posture">
         <span><i></i> Authenticated workspace</span>
-        <small id="operationsState" role="status" aria-live="polite">Reports centered</small>
+        <small id="operationsState" role="status" aria-live="polite">R&amp;D highlights ready</small>
       </div>
     </section>
 
     <nav class="operations-tabs" role="tablist" aria-label="Operations Center views">
-      <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="true" data-tab="reports">Reports</button>
+      <button type="button" role="tab" id="tab-highlights" aria-controls="panel-highlights" aria-selected="true" data-tab="highlights">R&amp;D Highlights</button>
+      <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false" data-tab="reports">Reports</button>
       <button type="button" role="tab" id="tab-customers" aria-controls="panel-customers" aria-selected="false" data-tab="customers">Customers</button>
       <button type="button" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" data-tab="build">Build</button>
       <button type="button" role="tab" id="tab-readiness" aria-controls="panel-readiness" aria-selected="false" data-tab="readiness">Readiness</button>
@@ -46,7 +47,148 @@
       <button type="button" role="tab" id="tab-access" aria-controls="panel-access" aria-selected="false" data-tab="access">Access</button>
     </nav>
 
-    <section class="operations-panel" id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" data-panel="reports">
+    <section class="operations-panel highlights-panel" id="panel-highlights" role="tabpanel" aria-labelledby="tab-highlights" data-panel="highlights">
+      <header class="highlights-heading">
+        <div>
+          <p class="eyebrow">Research &amp; development</p>
+          <h2>Highlights in motion</h2>
+          <p>Walkthroughs and experiments collected from the weekly reports, preserved with their original context.</p>
+        </div>
+        <div class="highlights-summary" aria-label="R and D video collection summary">
+          <strong>7</strong>
+          <span>report videos · Weeks 1–22</span>
+        </div>
+      </header>
+
+      <div class="highlights-grid">
+        <article class="highlight-card highlight-card--featured" data-report-video="Generated Reports/week-22/817-walkthrough.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 22 XR edge hardware walkthrough">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-22/817-walkthrough.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 22</span><span>04:06 · 328 MB</span></div>
+            <h3>XR edge hardware walkthrough</h3>
+            <p>The sprint-closing view of the Quest sensor bridge, Raspberry Pi diagnostics, and the audited XR edge architecture.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=22" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-22/817-walkthrough.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-19/Recording 2026-07-27 062935.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 19 realtime AI tool calling demonstration">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-19/Recording%202026-07-27%20062935.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 19</span><span>02:37 · 57 MB</span></div>
+            <h3>Realtime AI tool calling</h3>
+            <p>A live model conversation producing operational tool calls while the interface remains responsive.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=19" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-19/Recording%202026-07-27%20062935.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-17/walkthrough.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 17 MXGenius platform walkthrough">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-17/walkthrough.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 17</span><span>34:46 · 2.54 GB</span></div>
+            <h3>Platform walkthrough</h3>
+            <p>The dashboard rebuild, 3D environments, model workflow, fleet globe, and product-wide UX overhaul in one tour.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=17" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-17/walkthrough.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-07/noda.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 7 Noda collaborative planning demonstration">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/noda.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 07</span><span>11:59 · 1.67 GB</span></div>
+            <h3>Noda collaborative planning</h3>
+            <p>A spatial workspace experiment for mapping large systems together without losing the small implementation details.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=7" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/noda.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-07/GravitySketch.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 7 Gravity Sketch workspace demonstration">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/GravitySketch.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 07</span><span>07:09 · 1.0 GB</span></div>
+            <h3>Gravity Sketch workspace</h3>
+            <p>An Advanced AOG spatial design workspace for aligning product concepts with accelerator and engineering programs.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=7" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/GravitySketch.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-07/Meta Facebook.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 7 Meta Quest release infrastructure demonstration">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/Meta%20Facebook.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 07</span><span>03:14 · 458 MB</span></div>
+            <h3>Meta Quest release infrastructure</h3>
+            <p>The early private-channel and Meta server path that established how headset builds would reach testers.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=7" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-07/Meta%20Facebook.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-report-video="Generated Reports/week-01/MxGenius.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" aria-label="Week 1 MXGenius concept teaser">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-01/MxGenius.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Week 01</span><span>00:37 · 9 MB</span></div>
+            <h3>MXGenius concept teaser</h3>
+            <p>The first short visual used to shape the interface and tighten the original product vision.</p>
+            <div class="highlight-card__actions">
+              <a href="report-display.html?week=1" target="_blank" rel="noopener">Read report</a>
+              <a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/Generated%20Reports/week-01/MxGenius.mp4" target="_blank" rel="noopener">Open video</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+    <section class="operations-panel" id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" data-panel="reports" hidden>
       <iframe id="reportsFrame" title="MXGenius reports" src="progress.html?embed=1"></iframe>
     </section>
     <section class="operations-panel customer-panel" id="panel-customers" role="tabpanel" aria-labelledby="tab-customers" data-panel="customers" hidden>
@@ -273,6 +415,6 @@
   <script src="guided-tooltip.js?v=12"></script>
   <script src="equipment-pack-workspace.js?v=12"></script>
   <script src="customer-operations.js?v=2"></script>
-  <script src="operations-center.js?v=3"></script>
+  <script src="operations-center.js?v=4"></script>
 </body>
 </html>

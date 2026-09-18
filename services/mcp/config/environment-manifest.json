@@ -95,7 +95,7 @@
       "kind": "tab",
       "parent_id": null,
       "route": "#settings",
-      "purpose": "Manage account and model preference, approved content upload, demo visibility, and customization. Customize contains colors, themes, and Interface Sounds. Restart Tour and Sign Out are standalone actions at the bottom. Open the Operations Center for customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
+      "purpose": "Manage account and model preference, approved content upload, demo visibility, and customization. Customize contains colors, themes, and Interface Sounds. Restart Tour and Sign Out are standalone actions at the bottom. Open the Operations Center for R&D highlights, customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
       "capabilities": [
         {"id": "profile-model", "description": "Manage the user profile and preferred orchestration-capable text model."},
         {"id": "content-upload", "description": "Store an approved source for ingestion; upload alone does not make it searchable."},
@@ -140,8 +140,9 @@
       "kind": "workspace",
       "parent_id": "settings",
       "route": "operations-center.html",
-      "purpose": "Operate customer accounts, registered Pi fleets, Equipment Drive delivery, payment history, service health, reports, build activity, integration readiness, patents, feedback, and access management.",
+      "purpose": "Review the report-backed R&D video collection, then operate customer accounts, registered Pi fleets, Equipment Drive delivery, payment history, service health, reports, build activity, integration readiness, patents, feedback, and access management.",
       "capabilities": [
+        {"id": "rd-highlights", "description": "Play the complete R&D video collection extracted from weekly reports and open the original report context for each recording."},
         {"id": "customer-operations", "description": "Manage tenant-owned customer accounts, attach multiple Pi devices, review heartbeat and deployment errors, record payment history, and deliver approved Equipment Drives."},
         {"id": "reports-builds", "description": "Review generated reports and shared build activity."},
         {"id": "integration-readiness", "description": "Track integration boundaries, owners, access, and cutover state."},
@@ -149,7 +150,7 @@
         {"id": "feedback-access", "description": "Manage personal feedback, authorized triage, and access rules."},
         {"id": "shared-workspaces", "description": "Open durable team workspaces from one authenticated center."}
       ],
-      "target_ids": ["operations-customers", "operations-patents"]
+      "target_ids": ["operations-rd-highlights", "operations-customers", "operations-patents"]
     }
   ],
   "terminology": [
@@ -160,7 +161,8 @@
     {"term": "Maintenance Workspace", "meaning": "The 3D and spatial inspection surface; it does not replace the Case Workspace record."},
     {"term": "Equipment Drives", "meaning": "Versioned approved libraries managed in Operations Center customer accounts, then assigned to one of that customer's registered Pi devices."},
     {"term": "Customer Operations", "meaning": "The tenant-owned account layer that groups customer information, multiple Pi devices, payment history, heartbeat and deployment health, and Equipment Drive delivery without storing payment credentials."},
-    {"term": "Operations Center", "meaning": "The consolidated entry point opened from Settings for customer operations, reports, builds, readiness, patents, feedback, access, and shared workspaces."}
+    {"term": "R&D Highlights", "meaning": "The first Operations Center tab: a playable collection of every video referenced by the weekly reports, with links back to each source report."},
+    {"term": "Operations Center", "meaning": "The consolidated entry point opened from Settings for R&D highlights, customer operations, reports, builds, readiness, patents, feedback, access, and shared workspaces."}
   ],
   "state_boundary": {
     "stable_manifest": "This file describes durable product structure and guidance.",
@@ -614,7 +616,7 @@
     {
       "id": "settings-operations-center",
       "title": "Open the Operations Center",
-      "script": "The Operations Center is the single team entry point for reports, builds, readiness, patents, feedback, features, and access controls.",
+      "script": "The Operations Center is the single team entry point for R&D highlights, reports, customer operations, builds, readiness, patents, feedback, features, and access controls.",
       "video": null,
       "voiceover": null,
       "captions": null,
@@ -625,6 +627,24 @@
         "Locate the Operations Center entry above Account.",
         "Open the center without choosing from a redundant workspace menu.",
         "Choose the operational tab that matches the task."
+      ],
+      "activation": "semantic",
+      "status": "scripted"
+    },
+    {
+      "id": "operations-rd-highlights",
+      "title": "Review R&D highlights",
+      "script": "R&D Highlights collects every video referenced by the weekly reports. Play one recording at a time, open its source report for context, or use the direct video link when the embedded player is not convenient.",
+      "video": null,
+      "voiceover": null,
+      "captions": null,
+      "surface": "operations-center",
+      "touchpoints": ["#tab-highlights", "#panel-highlights", ".highlight-card"],
+      "beats": [
+        "Open Operations Center from Settings.",
+        "Use the first R&D Highlights tab.",
+        "Choose a report-backed recording and play it.",
+        "Open the source report when you need the surrounding sprint context."
       ],
       "activation": "semantic",
       "status": "scripted"

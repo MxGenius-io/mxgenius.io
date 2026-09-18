@@ -3471,7 +3471,7 @@ function initSettings() {
   }
 
   operationsCenterOpen?.addEventListener('click', () => {
-    window.location.href = 'operations-center.html';
+    window.location.href = 'operations-center.html?release=rd-highlights';
   });
 
   function renderJetNetConnection(payload, message = '') {

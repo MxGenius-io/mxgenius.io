@@ -42,14 +42,21 @@ test('every primary surface has a manifest-owned semantic guide target', () => {
   }
 });
 
-test('Operations Center owns customer-scoped devices and Equipment Drives', () => {
+test('Operations Center map covers R&D highlights, customer-scoped devices, and Equipment Drives', () => {
   const settings = manifest.surfaces.find((surface) => surface.id === 'settings');
   const operations = manifest.surfaces.find((surface) => surface.id === 'operations-center');
   const equipmentDriveTerm = manifest.terminology.find((entry) => entry.term === 'Equipment Drives');
+  const highlightsTerm = manifest.terminology.find((entry) => entry.term === 'R&D Highlights');
+  const highlightsTarget = manifest.tooltips.find((entry) => entry.id === 'operations-rd-highlights');
   assert.doesNotMatch(settings.purpose, /directly in Settings/);
   assert.match(settings.purpose, /Open the Operations Center/);
   assert.equal(operations.parent_id, 'settings');
   assert.match(operations.purpose, /customer accounts/);
+  assert.match(operations.purpose, /R&D video collection/);
+  assert.ok(operations.capabilities.some((capability) => capability.id === 'rd-highlights'));
+  assert.ok(operations.target_ids.includes('operations-rd-highlights'));
+  assert.equal(highlightsTarget.surface, 'operations-center');
+  assert.match(highlightsTerm.meaning, /every video referenced by the weekly reports/);
   assert.match(equipmentDriveTerm.meaning, /managed in Operations Center customer accounts/);
 });
 

@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-17
+Last updated: 2026-09-18
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -29,6 +29,7 @@ This is the canonical product inventory. It records what the current repository 
 | Native iOS AR | `[~]` | Fleet-globe parity bridge is mounted and strictly iOS-gated; native device acceptance remains. |
 | Onboarding and contextual guidance | `[~]` | First-run onboarding, question-mark help, and autoplay voice guidance are mounted; eleven guides pair video with voiceover and static guidance, while the remaining guides continue to work as audio-first help. |
 | Feedback and internal collaboration | `[x]` | Reporter, personal history, admin triage, build board, patent workspace, and release reports are mounted. |
+| R&D highlights | `[x]` | Operations Center opens on a report-backed gallery containing every current R&D video, with one-at-a-time playback and links to the source reports. |
 | Compliance, weather, and scheduling | `[~]` | Typed capabilities exist; configuration posture and user-facing availability need refinement. |
 | Analytics and KPIs | `[ ]` | Server handlers exist, but no current product surface consumes them. |
 | Public, trust, and access pages | `[x]` | Landing, waitlist, trust center, login, progress, and report display are present. |

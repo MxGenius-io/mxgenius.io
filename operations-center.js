@@ -4,6 +4,7 @@
   const stateLabel = document.getElementById('operationsState');
   const validTabs = new Set(tabs.map((tab) => tab.dataset.tab));
   const labels = {
+    highlights: 'R&D highlights ready',
     reports: 'Reports centered',
     customers: 'Customer operations active',
     build: 'Build board active',
@@ -13,6 +14,7 @@
     feedback: 'Feedback queue active',
     access: 'Access registry active'
   };
+  const highlightVideos = [...document.querySelectorAll('#panel-highlights video')];
   let accessLoaded = false;
   let customersLoaded = false;
 
@@ -59,7 +61,7 @@
   }
 
   function activate(name, { focus = false, updateHash = true } = {}) {
-    const next = validTabs.has(name) ? name : 'reports';
+    const next = validTabs.has(name) ? name : 'highlights';
     tabs.forEach((tab) => {
       const active = tab.dataset.tab === next;
       tab.setAttribute('aria-selected', String(active));
@@ -71,6 +73,7 @@
       panel.hidden = !active;
       if (active) loadPanel(panel);
     });
+    if (next !== 'highlights') highlightVideos.forEach((video) => video.pause());
     if (stateLabel) stateLabel.textContent = labels[next];
     if (next === 'access' && !accessLoaded) void refreshAccess();
     if (next === 'customers' && !customersLoaded) {
@@ -91,6 +94,14 @@
       if (event.key === 'Home') nextIndex = 0;
       if (event.key === 'End') nextIndex = tabs.length - 1;
       activate(tabs[nextIndex].dataset.tab, { focus: true });
+    });
+  });
+
+  highlightVideos.forEach((video) => {
+    video.addEventListener('play', () => {
+      highlightVideos.forEach((candidate) => {
+        if (candidate !== video && !candidate.paused) candidate.pause();
+      });
     });
   });
 
@@ -235,5 +246,5 @@
 
   accessRefresh.addEventListener('click', () => void refreshAccess());
   const requestedTab = location.hash.slice(1);
-  activate(requestedTab || 'reports', { updateHash: false });
+  activate(requestedTab || 'highlights', { updateHash: false });
 })();

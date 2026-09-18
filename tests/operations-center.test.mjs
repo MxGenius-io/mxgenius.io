@@ -1,25 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const html = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../operations-center.css', import.meta.url), 'utf8');
 const js = await readFile(new URL('../operations-center.js', import.meta.url), 'utf8');
+const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
-test('Operations Center is the one Settings workspace destination and Reports is centered first', () => {
+test('Operations Center is the one Settings workspace destination and R&D Highlights opens first', () => {
   assert.equal((dashboard.match(/id="settingsOperationsCenterOpen"/g) || []).length, 1);
+  assert.match(application, /operations-center\.html\?release=rd-highlights/);
   assert.doesNotMatch(dashboard, /id="settingsWorkspacesCard"|id="settingsWorkspaceSelect"/);
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress|feedback|feedback-admin)\.html">/);
-  assert.match(html, /id="tab-reports"[\s\S]*aria-selected="true"/);
+  assert.match(html, /id="tab-highlights"[\s\S]*aria-selected="true"/);
+  assert.ok(html.indexOf('id="tab-highlights"') < html.indexOf('id="tab-reports"'));
   assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1"/);
-  assert.match(js, /activate\(requestedTab \|\| 'reports'/);
+  assert.match(js, /activate\(requestedTab \|\| 'highlights'/);
 });
 
 test('the consolidated tabs preserve every existing operational workspace', () => {
-  for (const tab of ['reports', 'customers', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
+  for (const tab of ['highlights', 'reports', 'customers', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
     assert.match(html, new RegExp(`data-tab="${tab}"`));
     assert.match(html, new RegExp(`data-panel="${tab}"`));
   }
@@ -30,6 +33,37 @@ test('the consolidated tabs preserve every existing operational workspace', () =
   assert.match(js, /feedback\.html\?embed=1/);
   assert.match(css, /max-width: 1180px/);
   assert.match(css, /@media \(max-width: 760px\)/);
+});
+
+test('R&D Highlights contains every and only report-referenced video on the canonical media route', async () => {
+  const reportsRoot = new URL('../Generated Reports/', import.meta.url);
+  const weekFolders = (await readdir(reportsRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && /^week-\d+$/.test(entry.name));
+  const expected = [];
+  for (const folder of weekFolders) {
+    const reportUrl = new URL(`${folder.name}/${folder.name}-report.md`, reportsRoot);
+    let report;
+    try {
+      report = await readFile(reportUrl, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      throw error;
+    }
+    for (const match of report.matchAll(/🎬\s+\*\*Video:\*\*\s*(.+)/g)) {
+      expected.push(`Generated Reports/${folder.name}/${match[1].trim()}`);
+    }
+  }
+
+  const catalog = [...html.matchAll(/data-report-video="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(expected.length, 7);
+  assert.deepEqual(catalog.toSorted(), expected.toSorted());
+  assert.equal((html.match(/<video controls playsinline preload="metadata"/g) || []).length, expected.length);
+  for (const path of expected) {
+    const encoded = path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    assert.ok(html.includes(`https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/${encoded}`), path);
+  }
+  assert.match(js, /if \(next !== 'highlights'\) highlightVideos\.forEach\(\(video\) => video\.pause\(\)\)/);
+  assert.match(js, /candidate !== video && !candidate\.paused/);
 });
 
 test('the access registry moved out of Settings and remains server-managed', () => {
