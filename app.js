@@ -5360,6 +5360,7 @@ async function refreshLiveTraffic() {
   liveTrafficRequest = MXApplicationClient.liveTraffic({ bearer: BEARER })
     .then((payload) => {
       if (!liveTrafficEnabled) return;
+      const previousSelectedId = liveTrafficSelectedId;
       liveTrafficAircraft = (Array.isArray(payload?.aircraft) ? payload.aircraft : [])
         .map(normalizeLiveTrafficPoint)
         .filter(Boolean);
@@ -5374,6 +5375,9 @@ async function refreshLiveTraffic() {
       renderLiveTrafficList();
       const ageSeconds = Math.max(0, Math.round((Date.now() - liveTrafficLoadedAt) / 1000));
       const selected = selectedLiveTrafficAircraft();
+      if (selected && selected.icao24 !== previousSelectedId) {
+        globeInstance?.pointOfView({ lat: selected.lat, lng: selected.lng, altitude: 0.72 }, 700);
+      }
       const source = document.getElementById('globeLiveTrafficSource');
       if (source) source.textContent = selected ? `${liveTrafficIdentity(selected)} · OpenSky` : 'OpenSky live feed';
       const selectedSummary = selected
@@ -5552,7 +5556,10 @@ function setupGlobeSheet() {
   const liveTrafficButton = document.getElementById('globeLiveTrafficButton');
   if (liveTrafficButton && !liveTrafficButton.dataset.bound) {
     liveTrafficButton.dataset.bound = 'true';
-    liveTrafficButton.addEventListener('click', toggleLiveTraffic);
+    liveTrafficButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleLiveTraffic();
+    });
     setLiveTrafficButtonState('off');
     setLiveTrafficRibbonState('off');
   }
