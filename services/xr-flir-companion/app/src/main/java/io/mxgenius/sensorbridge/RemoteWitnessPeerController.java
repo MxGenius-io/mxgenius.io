@@ -60,6 +60,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     private static final int MAX_BITRATE_BPS = 2_500_000;
     private static final int MIN_BITRATE_BPS = 350_000;
     private static final int STATS_INTERVAL_SECONDS = 5;
+    private static final int NEGOTIATION_TIMEOUT_SECONDS = 10;
     private static final int MAX_PEER_RECONNECT_ATTEMPTS = 2;
 
     private final RemoteWitnessBootstrap bootstrap;
@@ -72,14 +73,18 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     private final JavaAudioDeviceModule audioDeviceModule;
     private final RemoteWitnessAudioController audio;
     private final RemoteWitnessCaptureController capture;
+    private final RemoteWitnessMediaProgress mediaProgress = new RemoteWitnessMediaProgress();
     private PeerConnection peer;
     private UUID viewerId;
     private UUID pendingViewerId;
     private RtpSender videoSender;
+    private PeerConnection.PeerConnectionState peerState = PeerConnection.PeerConnectionState.NEW;
     private boolean roomLive;
     private boolean closed;
     private boolean statsStarted;
     private int peerReconnectAttempt;
+    private long peerGeneration;
+    private long negotiationGeneration = -1L;
 
     RemoteWitnessPeerController(
             Context context,
@@ -137,7 +142,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         if (closed || !roomLive) return false;
         if (!capture.isActive()) capture.start(consentData);
         listener.onState("capture-ready", captureProfile());
-        if (pendingViewerId != null) negotiate(pendingViewerId);
+        if (pendingViewerId != null && peer == null) negotiate(pendingViewerId);
         return true;
     }
 
@@ -164,7 +169,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
             return;
         }
         listener.onState(capture.isActive() ? "capture-ready" : "ready-for-consent", captureProfile());
-        if (capture.isActive() && pendingViewerId != null) negotiate(pendingViewerId);
+        if (capture.isActive() && pendingViewerId != null && peer == null) negotiate(pendingViewerId);
     }
 
     synchronized void onSignal(UUID participantId, JSONObject signal) {
@@ -173,7 +178,14 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         if ("viewer-ready".equals(kind)) {
             if (viewerId != null && !viewerId.equals(participantId)) return;
             pendingViewerId = participantId;
-            peerReconnectAttempt = 0;
+            if (peer != null && participantId.equals(viewerId)
+                    && (peerState == PeerConnection.PeerConnectionState.CONNECTED
+                    || peerState == PeerConnection.PeerConnectionState.DISCONNECTED
+                    || peerState == PeerConnection.PeerConnectionState.FAILED
+                    || peerState == PeerConnection.PeerConnectionState.CLOSED)) {
+                closePeer("viewer-restart");
+                pendingViewerId = participantId;
+            }
             if (roomLive && capture.isActive()) negotiate(participantId);
             return;
         }
@@ -187,13 +199,18 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         } else if ("ice".equals(kind)) {
             JSONObject candidate = signal.optJSONObject("candidate");
             if (candidate == null || peer == null) return;
-            peer.addIceCandidate(new IceCandidate(
+            PeerConnection current = peer;
+            long generation = peerGeneration;
+            current.addIceCandidate(new IceCandidate(
                     candidate.isNull("sdpMid") ? null : candidate.optString("sdpMid", null),
                     candidate.optInt("sdpMLineIndex", 0),
                     candidate.optString("candidate", "")),
                     new AddIceObserver() {
                         @Override public void onAddSuccess() {}
                         @Override public void onAddFailure(String error) {
+                            synchronized (RemoteWitnessPeerController.this) {
+                                if (generation != peerGeneration || current != peer) return;
+                            }
                             listener.onState("ice-rejected", bounded(error, 160));
                         }
                     });
@@ -223,20 +240,52 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         if (closed || !roomLive || !capture.isActive()) return;
         if (peer == null) createPeer(participantId);
         if (peer == null || !participantId.equals(viewerId)) return;
+        PeerConnection current = peer;
+        long generation = peerGeneration;
+        if (negotiationGeneration == generation) return;
+        negotiationGeneration = generation;
         capture.setEnabled(true);
-        peer.createOffer(new CreateSdpObserver() {
+        current.createOffer(new CreateSdpObserver() {
             @Override public void onCreateSuccess(SessionDescription description) {
                 synchronized (RemoteWitnessPeerController.this) {
-                    if (closed || peer == null) return;
-                    peer.setLocalDescription(new SetSdpObserver("local-offer") {
+                    if (closed || generation != peerGeneration || current != peer) return;
+                    current.setLocalDescription(new SetSdpObserver("local-offer") {
                         @Override public void onSetSuccess() {
-                            sendDescription("offer", participantId, description);
-                            listener.onState("negotiating", captureProfile());
+                            synchronized (RemoteWitnessPeerController.this) {
+                                if (closed || generation != peerGeneration || current != peer) return;
+                                if (!sendDescription("offer", participantId, description)) {
+                                    negotiationGeneration = -1L;
+                                    recoverPeer("offer-signal-failed", generation);
+                                    return;
+                                }
+                                listener.onState("negotiating", captureProfile());
+                            }
+                        }
+
+                        @Override public void onSetFailure(String error) {
+                            synchronized (RemoteWitnessPeerController.this) {
+                                if (negotiationGeneration == generation) negotiationGeneration = -1L;
+                            }
+                            super.onSetFailure(error);
                         }
                     }, description);
                 }
             }
+
+            @Override public void onCreateFailure(String error) {
+                synchronized (RemoteWitnessPeerController.this) {
+                    if (negotiationGeneration == generation) negotiationGeneration = -1L;
+                }
+                super.onCreateFailure(error);
+            }
         }, witnessMediaConstraints());
+        statsWorker.schedule(() -> {
+            synchronized (RemoteWitnessPeerController.this) {
+                if (closed || generation != peerGeneration || current != peer
+                        || negotiationGeneration != generation) return;
+            }
+            recoverPeer("answer-timeout", generation);
+        }, NEGOTIATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     private void createPeer(UUID participantId) {
@@ -245,7 +294,10 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         configuration.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
         configuration.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
         configuration.iceConnectionReceivingTimeout = 12_000;
-        peer = factory.createPeerConnection(configuration, new PeerObserver());
+        long generation = ++peerGeneration;
+        mediaProgress.reset();
+        peerState = PeerConnection.PeerConnectionState.NEW;
+        peer = factory.createPeerConnection(configuration, new PeerObserver(generation));
         if (peer == null) {
             audio.close();
             listener.onState("peer-failed", "native peer creation failed");
@@ -287,17 +339,29 @@ final class RemoteWitnessPeerController implements AutoCloseable {
 
     private void setRemoteDescription(SessionDescription description) {
         PeerConnection current = peer;
-        if (current == null || description.description.isBlank()) return;
+        long generation = peerGeneration;
+        if (current == null || negotiationGeneration != generation || description.description.isBlank()) return;
         current.setRemoteDescription(new SetSdpObserver("remote-answer") {
             @Override public void onSetSuccess() {
+                synchronized (RemoteWitnessPeerController.this) {
+                    if (generation != peerGeneration || current != peer) return;
+                    negotiationGeneration = -1L;
+                }
                 listener.onState("answer-applied", captureProfile());
+            }
+
+            @Override public void onSetFailure(String error) {
+                synchronized (RemoteWitnessPeerController.this) {
+                    if (negotiationGeneration == generation) negotiationGeneration = -1L;
+                }
+                super.onSetFailure(error);
             }
         }, description);
     }
 
-    private void sendDescription(String kind, UUID participantId, SessionDescription description) {
+    private boolean sendDescription(String kind, UUID participantId, SessionDescription description) {
         try {
-            signaling.send(new JSONObject()
+            return signaling.send(new JSONObject()
                     .put("kind", kind)
                     .put("to", participantId.toString())
                     .put("description", new JSONObject()
@@ -305,6 +369,7 @@ final class RemoteWitnessPeerController implements AutoCloseable {
                             .put("sdp", description.description)));
         } catch (JSONException error) {
             listener.onState("signal-failed", "offer serialization failed");
+            return false;
         }
     }
 
@@ -338,22 +403,26 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         statsStarted = true;
         statsWorker.scheduleAtFixedRate(() -> {
             PeerConnection current;
+            long generation;
             synchronized (RemoteWitnessPeerController.this) {
                 current = peer;
-                if (closed || current == null) return;
+                generation = peerGeneration;
+                if (closed || current == null
+                        || peerState != PeerConnection.PeerConnectionState.CONNECTED) return;
             }
-            current.getStats(report -> reportStats(current, report));
+            current.getStats(report -> reportStats(current, generation, report));
         }, STATS_INTERVAL_SECONDS, STATS_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
-    private void reportStats(PeerConnection source, RTCStatsReport report) {
+    private void reportStats(PeerConnection source, long generation, RTCStatsReport report) {
         synchronized (this) {
-            if (closed || source != peer) return;
+            if (closed || generation != peerGeneration || source != peer
+                    || peerState != PeerConnection.PeerConnectionState.CONNECTED) return;
         }
         String codec = "unknown";
         String audioCodec = "unknown audio";
         long bytesSent = 0L;
-        long framesEncoded = capture.capturedFrames();
+        long framesEncoded = 0L;
         long audioPacketsReceived = 0L;
         long audioBytesReceived = 0L;
         Map<String, RTCStats> stats = report.getStatsMap();
@@ -390,16 +459,65 @@ final class RemoteWitnessPeerController implements AutoCloseable {
             }
         }
         audio.onInboundAudio(audioPacketsReceived, audioBytesReceived, audioCodec);
-        listener.onState("live", codec + " · " + framesEncoded + " frames · " + bytesSent + " bytes");
+        long capturedFrames = capture.capturedFrames();
+        RemoteWitnessMediaProgress.State progress;
+        synchronized (this) {
+            if (closed || generation != peerGeneration || source != peer
+                    || peerState != PeerConnection.PeerConnectionState.CONNECTED) return;
+            progress = mediaProgress.observe(capturedFrames, bytesSent);
+            if (progress == RemoteWitnessMediaProgress.State.STABLE) peerReconnectAttempt = 0;
+        }
+        String detail = codec + " · " + framesEncoded + " encoded · "
+                + capturedFrames + " captured · " + bytesSent + " bytes";
+        if (progress == RemoteWitnessMediaProgress.State.LIVE
+                || progress == RemoteWitnessMediaProgress.State.STABLE) {
+            listener.onState("live", detail);
+        } else if (progress == RemoteWitnessMediaProgress.State.WARMING) {
+            listener.onState("media-warming", detail);
+        } else if (progress == RemoteWitnessMediaProgress.State.CAPTURE_STALLED) {
+            listener.onState("capture-stalled", detail);
+            capture.stop("capture-stalled");
+        } else {
+            listener.onState("transport-stalled", detail);
+            recoverPeer("transport-stalled", generation);
+        }
+    }
+
+    private void recoverPeer(String reason, long observedGeneration) {
+        UUID retryTarget;
+        int attempt;
+        synchronized (this) {
+            if (closed || observedGeneration != peerGeneration || !roomLive || !capture.isActive()) return;
+            retryTarget = viewerId != null ? viewerId : pendingViewerId;
+            attempt = ++peerReconnectAttempt;
+            closePeer(reason);
+            pendingViewerId = retryTarget;
+        }
+        if (retryTarget == null) return;
+        if (attempt > MAX_PEER_RECONNECT_ATTEMPTS) {
+            capture.stop(reason);
+            return;
+        }
+        statsWorker.schedule(() -> {
+            synchronized (RemoteWitnessPeerController.this) {
+                if (!closed && roomLive && capture.isActive() && peer == null) {
+                    negotiate(retryTarget);
+                }
+            }
+        }, attempt, TimeUnit.SECONDS);
     }
 
     private synchronized void closePeer(String reason) {
         capture.setEnabled(false);
         audio.close();
+        mediaProgress.reset();
         videoSender = null;
         viewerId = null;
+        negotiationGeneration = -1L;
         PeerConnection current = peer;
         peer = null;
+        peerState = PeerConnection.PeerConnectionState.CLOSED;
+        peerGeneration += 1L;
         if (current != null) {
             current.close();
             current.dispose();
@@ -445,6 +563,12 @@ final class RemoteWitnessPeerController implements AutoCloseable {
     }
 
     private final class PeerObserver implements PeerConnection.Observer {
+        private final long generation;
+
+        PeerObserver(long generation) {
+            this.generation = generation;
+        }
+
         @Override public void onSignalingChange(PeerConnection.SignalingState state) {}
         @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state) {}
         @Override public void onIceConnectionReceivingChange(boolean receiving) {}
@@ -452,7 +576,10 @@ final class RemoteWitnessPeerController implements AutoCloseable {
 
         @Override public void onIceCandidate(IceCandidate candidate) {
             UUID target;
-            synchronized (RemoteWitnessPeerController.this) { target = viewerId; }
+            synchronized (RemoteWitnessPeerController.this) {
+                if (generation != peerGeneration || peer == null) return;
+                target = viewerId;
+            }
             if (target == null) return;
             try {
                 JSONObject payload = new JSONObject()
@@ -469,24 +596,25 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         }
 
         @Override public void onConnectionChange(PeerConnection.PeerConnectionState state) {
-            listener.onState(state == PeerConnection.PeerConnectionState.CONNECTED ? "live" : "peer-" + state.name().toLowerCase(Locale.US), captureProfile());
-            if (state == PeerConnection.PeerConnectionState.CONNECTED) startStats();
-            if (state == PeerConnection.PeerConnectionState.CONNECTED) peerReconnectAttempt = 0;
-            if (state == PeerConnection.PeerConnectionState.FAILED) {
-                UUID retryTarget;
-                int attempt;
-                synchronized (RemoteWitnessPeerController.this) {
-                    retryTarget = viewerId;
-                    closePeer("peer-failed");
-                    attempt = ++peerReconnectAttempt;
-                }
-                if (retryTarget != null && attempt <= MAX_PEER_RECONNECT_ATTEMPTS) {
-                    statsWorker.schedule(() -> {
-                        synchronized (RemoteWitnessPeerController.this) {
-                            if (!closed && roomLive && capture.isActive()) negotiate(retryTarget);
-                        }
-                    }, attempt, TimeUnit.SECONDS);
-                }
+            synchronized (RemoteWitnessPeerController.this) {
+                if (generation != peerGeneration) return;
+                peerState = state;
+            }
+            String label = "peer-" + state.name().toLowerCase(Locale.US);
+            listener.onState(state == PeerConnection.PeerConnectionState.CONNECTED ? "media-warming" : label, captureProfile());
+            if (state == PeerConnection.PeerConnectionState.CONNECTED) {
+                startStats();
+            } else if (state == PeerConnection.PeerConnectionState.DISCONNECTED) {
+                statsWorker.schedule(() -> {
+                    synchronized (RemoteWitnessPeerController.this) {
+                        if (generation != peerGeneration || peer == null
+                                || peerState != PeerConnection.PeerConnectionState.DISCONNECTED) return;
+                    }
+                    recoverPeer("peer-disconnected", generation);
+                }, 2L, TimeUnit.SECONDS);
+            } else if (state == PeerConnection.PeerConnectionState.FAILED
+                    || state == PeerConnection.PeerConnectionState.CLOSED) {
+                recoverPeer(label, generation);
             }
         }
 
@@ -496,6 +624,9 @@ final class RemoteWitnessPeerController implements AutoCloseable {
         @Override public void onDataChannel(DataChannel channel) {}
         @Override public void onRenegotiationNeeded() {}
         @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] mediaStreams) {
+            synchronized (RemoteWitnessPeerController.this) {
+                if (generation != peerGeneration || peer == null) return;
+            }
             if (receiver.track() instanceof AudioTrack) {
                 receiver.track().setEnabled(true);
                 audio.onTrackNegotiated();

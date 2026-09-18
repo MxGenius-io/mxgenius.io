@@ -30,6 +30,7 @@ final class RemoteWitnessCaptureController implements AutoCloseable {
     private SurfaceTextureHelper textureHelper;
     private VideoSource videoSource;
     private VideoTrack videoTrack;
+    private boolean captureStarted;
     private boolean stopping;
 
     RemoteWitnessCaptureController(
@@ -47,22 +48,24 @@ final class RemoteWitnessCaptureController implements AutoCloseable {
         if (consentData == null) throw new IllegalArgumentException("projection consent is required");
         if (videoTrack != null) throw new IllegalStateException("projection is already active");
         stopping = false;
+        captureStarted = false;
         textureHelper = SurfaceTextureHelper.create("MxGWitnessProjection", eglContext);
         if (textureHelper == null) throw new IllegalStateException("projection texture unavailable");
         videoSource = factory.createVideoSource(true);
         capturer = new ScreenCapturerAndroid(consentData, new MediaProjection.Callback() {
             @Override public void onStop() {
-                release(false, "projection-revoked");
+                release("projection-revoked");
             }
         });
         try {
             capturer.initialize(textureHelper, context, videoSource.getCapturerObserver());
             capturer.startCapture(CAPTURE_WIDTH, CAPTURE_HEIGHT, CAPTURE_FPS);
+            captureStarted = true;
             videoTrack = factory.createVideoTrack(TRACK_ID, videoSource);
             videoTrack.setEnabled(false);
             return videoTrack;
         } catch (RuntimeException | LinkageError error) {
-            release(true, "projection-start-failed");
+            release("projection-start-failed");
             throw error;
         }
     }
@@ -84,18 +87,19 @@ final class RemoteWitnessCaptureController implements AutoCloseable {
     }
 
     void stop(String reason) {
-        release(true, reason);
+        release(reason);
     }
 
     @Override public void close() {
-        release(true, "capture-closed");
+        release("capture-closed");
     }
 
-    private void release(boolean stopProjection, String reason) {
+    private void release(String reason) {
         ScreenCapturerAndroid currentCapturer;
         VideoTrack currentTrack;
         VideoSource currentSource;
         SurfaceTextureHelper currentHelper;
+        boolean currentCaptureStarted;
         synchronized (this) {
             if (stopping) return;
             if (capturer == null && textureHelper == null && videoSource == null && videoTrack == null) return;
@@ -104,10 +108,12 @@ final class RemoteWitnessCaptureController implements AutoCloseable {
             currentTrack = videoTrack;
             currentSource = videoSource;
             currentHelper = textureHelper;
+            currentCaptureStarted = captureStarted;
             capturer = null;
             videoTrack = null;
             videoSource = null;
             textureHelper = null;
+            captureStarted = false;
         }
         // Let the owner remove the sender/peer while the detached track is still valid.
         try {
@@ -116,11 +122,12 @@ final class RemoteWitnessCaptureController implements AutoCloseable {
             // Resource release must complete even if a UI/status callback fails.
         }
         if (currentCapturer != null) {
-            if (stopProjection) {
+            if (currentCaptureStarted) {
                 try {
                     currentCapturer.stopCapture();
                 } catch (RuntimeException ignored) {
-                    // Cleanup remains best-effort and idempotent after system revocation.
+                    // A revoked projection may reject stop(), but WebRTC still
+                    // gets one chance to release its listener and VirtualDisplay.
                 }
             }
             currentCapturer.dispose();

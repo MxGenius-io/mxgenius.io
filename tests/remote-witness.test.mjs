@@ -4,10 +4,11 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
-const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource, nativeAudioSource, nativeManifestSource, maintenanceViewerSource] = await Promise.all([
+const [clientSource, producerSource, viewerSource, mediaHealthSource, viewerHtml, transportSource, serviceSource, globeSource, sensorOrbSource, nativeWitnessSource, nativePeerSource, nativeCaptureSource, nativeMediaProgressSource, witnessSchema, androidOfferFixture, androidIceFixture, nativeServiceSource, nativeActivitySource, nativeLayoutSource, nativeUiStateSource, nativeAudioSource, nativeManifestSource, maintenanceViewerSource] = await Promise.all([
   readFile(new URL('application-client.js', root), 'utf8'),
   readFile(new URL('xr-remote-witness.js', root), 'utf8'),
   readFile(new URL('witness.js', root), 'utf8'),
+  readFile(new URL('witness-media-health.js', root), 'utf8'),
   readFile(new URL('witness.html', root), 'utf8'),
   readFile(new URL('services/mcp/server/src/transport/http.rs', root), 'utf8'),
   readFile(new URL('services/mcp/server/src/application/remote_witness.rs', root), 'utf8'),
@@ -15,6 +16,8 @@ const [clientSource, producerSource, viewerSource, viewerHtml, transportSource, 
   readFile(new URL('xr-sensor-orb.js', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessSocket.java', root), 'utf8'),
   readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessPeerController.java', root), 'utf8'),
+  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessCaptureController.java', root), 'utf8'),
+  readFile(new URL('services/xr-flir-companion/app/src/main/java/io/mxgenius/sensorbridge/RemoteWitnessMediaProgress.java', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/contracts/remote-witness-session.schema.json', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/fixtures/witness-android-offer.json', root), 'utf8'),
   readFile(new URL('services/xr-diagnostics-kiosk/fixtures/witness-android-ice.json', root), 'utf8'),
@@ -136,11 +139,106 @@ test('guest view behaves like a live viewport and does not report live before a 
   assert.doesNotMatch(liveVideoTag, /\scontrols(?:\s|>)/);
   assert.match(liveVideoTag, /autoplay/);
   assert.match(liveVideoTag, /playsinline/);
-  assert.match(viewerSource, /video\.readyState >= HTMLMediaElement\.HAVE_CURRENT_DATA/);
-  assert.match(viewerSource, /video\.videoWidth > 0/);
+  assert.doesNotMatch(viewerSource, /video\.readyState >= HTMLMediaElement\.HAVE_CURRENT_DATA/);
+  assert.match(viewerSource, /function startFrameMonitoring\(\)/);
+  assert.match(viewerSource, /video\.requestVideoFrameCallback\(observeFrame\)/);
+  assert.match(viewerSource, /video\.addEventListener\(eventName, observeFallbackFrame\)/);
+  assert.doesNotMatch(viewerSource, /video\.addEventListener\(eventName, markLiveFrame\)/);
+  assert.match(viewerSource, /decodedFrames <= fallbackDecodedFrames/);
+  assert.match(mediaHealthSource, /'frame-stalled'/);
+  assert.match(viewerHtml, /id="witnessLastFrame"/);
+  assert.match(viewerHtml, /witness-media-health\.js\?v=1/);
   assert.match(viewerSource, /requestVideoFrameCallback/);
   assert.match(viewerSource, /Connected · waiting for the first frame/);
   assert.match(viewerSource, /approve the screen-sharing request/);
+});
+
+test('Quest requests full-display projection instead of a disappearing single-app capture', () => {
+  assert.match(nativeActivitySource, /MediaProjectionConfig\.createConfigForDefaultDisplay\(\)/);
+  assert.match(nativeActivitySource, /createScreenCaptureIntent\(projectionConfig\)/);
+  assert.doesNotMatch(nativeActivitySource, /createScreenCaptureIntent\(\)/);
+});
+
+test('frame health detects stalls, recovers with a bounded budget, and resets on a fresh frame', () => {
+  let now = 0;
+  let nextTimer = 1;
+  const timers = new Map();
+  const states = [];
+  const recoveries = [];
+  const schedule = (callback, delay) => {
+    const id = nextTimer++;
+    timers.set(id, { callback, at: now + Number(delay || 0) });
+    return id;
+  };
+  const cancel = (id) => timers.delete(id);
+  const advance = (milliseconds) => {
+    const target = now + milliseconds;
+    while (true) {
+      const due = [...timers.entries()]
+        .filter(([, timer]) => timer.at <= target)
+        .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])[0];
+      if (!due) break;
+      const [id, timer] = due;
+      timers.delete(id);
+      now = timer.at;
+      timer.callback();
+    }
+    now = target;
+  };
+  const context = { globalThis: null };
+  context.globalThis = context;
+  vm.runInNewContext(mediaHealthSource, context);
+  const health = new context.MXWitnessMediaHealth({
+    stallMs: 4_500,
+    recoveryWindowMs: 5_000,
+    maxRecoveryAttempts: 3,
+    now: () => now,
+    schedule,
+    cancel,
+    onState: (state) => states.push({ ...state }),
+    onRecover: (recovery) => recoveries.push({ ...recovery })
+  });
+
+  health.start();
+  health.frame();
+  advance(4_000);
+  assert.equal(health.status().state, 'live');
+  assert.equal(recoveries.length, 0);
+
+  advance(501);
+  assert.equal(health.status().state, 'recovering');
+  assert.equal(recoveries.length, 1);
+  assert.equal(recoveries[0].reason, 'frame-stalled');
+
+  health.start();
+  assert.equal(health.status().recoveryAttempt, 1, 'a replacement track without a frame must not reset the retry budget');
+  health.frame();
+  assert.equal(health.status().state, 'live');
+  assert.equal(health.status().recoveryAttempt, 1, 'one decoded frame must not grant a fresh retry budget');
+  health.interrupt('track-muted', { delayMs: 1_500 });
+  advance(1_000);
+  health.frame();
+  advance(1_000);
+  assert.equal(recoveries.length, 1, 'a transient mute must not rebuild the peer');
+
+  advance(3_501);
+  assert.equal(recoveries.length, 2);
+  advance(5_000);
+  assert.equal(recoveries.length, 3);
+  advance(5_000);
+  assert.equal(health.status().state, 'unavailable');
+  assert.equal(recoveries.length, 3, 'recovery attempts must stop at the configured cap across short flaps');
+  assert.ok(states.some((entry) => entry.state === 'unavailable'));
+
+  health.frame();
+  assert.equal(health.status().recoveryAttempt, 3);
+  for (let sample = 0; sample < 8; sample += 1) {
+    advance(4_000);
+    health.frame();
+  }
+  assert.equal(health.status().recoveryAttempt, 0, 'only a sustained healthy stream grants a fresh budget');
+  advance(4_501);
+  assert.equal(recoveries.length, 4);
 });
 
 test('wearer approval gates media and recording remains consent-only', () => {
@@ -237,9 +335,27 @@ test('native wearer controls own consent and never expose operational mutations 
   assert.match(nativeActivitySource, /SERVICE PIN/);
   assert.doesNotMatch(nativeActivitySource, /RemoteWitnessQrCode|renderWitnessQr/);
   assert.doesNotMatch(nativeLayoutSource, /immersive_witness_qr/);
-  assert.match(nativeActivitySource, /createScreenCaptureIntent\(\)/);
+  assert.match(nativeActivitySource, /createScreenCaptureIntent\(projectionConfig\)/);
   assert.match(nativeUiStateSource, /enum Phase \{ WAITING, CONNECTING, LIVE, PAUSED, ENDED, ERROR \}/);
   assert.match(nativeUiStateSource, /"live"\.equals\(mediaState\)/);
+  assert.match(nativeServiceSource, /void projectionConsentDenied\(\)[\s\S]*sendControl\("pause", null, null\)/);
   assert.doesNotMatch(nativeLayoutSource, /immersive_trace|Waiting for bridge trace/);
   assert.doesNotMatch(viewerSource, /beginWitnessStart|pauseWitness|endWitness|toggleWitnessExtras/);
+});
+
+test('native witness reports live only from advancing media and bounds peer recovery', () => {
+  assert.match(nativePeerSource, /new RemoteWitnessMediaProgress\(\)/);
+  assert.match(nativePeerSource, /RemoteWitnessMediaProgress\.State\.LIVE/);
+  assert.match(nativePeerSource, /RemoteWitnessMediaProgress\.State\.CAPTURE_STALLED/);
+  assert.match(nativePeerSource, /recoverPeer\("transport-stalled", generation\)/);
+  assert.match(nativePeerSource, /PeerConnection\.PeerConnectionState\.DISCONNECTED/);
+  assert.match(nativePeerSource, /MAX_PEER_RECONNECT_ATTEMPTS/);
+  assert.match(nativePeerSource, /progress == RemoteWitnessMediaProgress\.State\.STABLE/);
+  assert.match(nativePeerSource, /observedGeneration != peerGeneration/);
+  assert.match(nativePeerSource, /peerState != PeerConnection\.PeerConnectionState\.CONNECTED/);
+  assert.match(nativePeerSource, /generation != peerGeneration \|\| current != peer/);
+  assert.doesNotMatch(nativePeerSource, /PeerConnectionState\.CONNECTED \? "live"/);
+  assert.match(nativeMediaProgressSource, /enum State \{ WARMING, LIVE, STABLE, CAPTURE_STALLED, TRANSPORT_STALLED \}/);
+  assert.match(nativeCaptureSource, /currentCapturer\.stopCapture\(\)/);
+  assert.match(nativeServiceSource, /activeSocket != null && witnessRoomLive/);
 });

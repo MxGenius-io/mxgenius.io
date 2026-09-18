@@ -149,6 +149,7 @@ foreach ($requiredWitnessMediaToken in @(
     'HardwareVideoEncoderFactory',
     'FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION',
     'createScreenCaptureIntent',
+    'MediaProjectionConfig.createConfigForDefaultDisplay',
     'MXG-WITNESS-POV',
     '1280',
     '720',

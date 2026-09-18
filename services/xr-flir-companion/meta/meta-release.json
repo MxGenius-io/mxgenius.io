@@ -25,15 +25,15 @@
     }
   },
   "build": {
-    "versionCode": 24,
-    "versionName": "0.1.0-alpha.24",
+    "versionCode": 25,
+    "versionName": "0.1.0-alpha.25",
     "channel": "Alpha",
     "metaTestStatus": "LocalVerificationPassed",
     "artifact": {
       "path": "app/build/outputs/apk/release/app-release.apk",
       "sizeBytes": 176508634,
-      "sha256": "e8e1c7686424be984bd34d177892ff7aceb73a4a61b6e39b6156c385f169511a",
-      "builtAt": "2026-09-18T02:25:59-04:00"
+      "sha256": "970df1c93741579005c3095649bf3f4fbbf8ce326e1517d08400fc5d3a88977a",
+      "builtAt": "2026-09-18T10:51:45-04:00"
     }
   },
   "releaseChannel": {

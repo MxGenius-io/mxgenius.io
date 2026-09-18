@@ -9,6 +9,8 @@
   const connectionState = document.getElementById('connectionState');
   const videoCard = document.getElementById('videoCard');
   const video = document.getElementById('witnessVideo');
+  const lastFrame = document.getElementById('witnessLastFrame');
+  const lastFrameContext = lastFrame.getContext('2d', { alpha: false });
   const videoWaiting = document.getElementById('videoWaiting');
   const videoWaitingTitle = document.getElementById('videoWaitingTitle');
   const videoWaitingDetail = document.getElementById('videoWaitingDetail');
@@ -45,7 +47,30 @@
   let liveFrameReceived = false;
   let playbackBlocked = false;
   let peerConnected = false;
-  let frameWaitTimer = 0;
+  let frameCallbackGeneration = 0;
+  let lastFrameSnapshotAt = 0;
+  let fallbackDecodedFrames = -1;
+
+  const mediaHealth = new globalThis.MXWitnessMediaHealth({
+    stallMs: 4_500,
+    recoveryWindowMs: 5_000,
+    maxRecoveryAttempts: 3,
+    onState: (status) => {
+      liveFrameReceived = status.state === 'live';
+      videoCard.dataset.viewState = ['recovering', 'unavailable'].includes(status.state)
+        ? 'recovering' : status.state;
+      if (status.state === 'live') lastFrame.hidden = true;
+      else if (lastFrame.width > 0 && lastFrame.height > 0) lastFrame.hidden = false;
+      renderRoom();
+    },
+    onRecover: ({ attempt, maxAttempts }) => {
+      resetPeerForRecovery();
+      const requested = send({ type: 'witness.signal', signal: { kind: 'viewer-ready' } });
+      roomMessage.textContent = requested
+        ? `Restoring the private live view · attempt ${attempt} of ${maxAttempts}.`
+        : 'The private link is reconnecting before video recovery can continue.';
+    }
+  });
 
   function clean(value, fallback = '') {
     return String(value ?? '').replace(/\s+/g, ' ').trim() || fallback;
@@ -63,22 +88,75 @@
   }
 
   function hasDecodedFrame() {
-    return liveFrameReceived || (
-      Boolean(video.srcObject)
-      && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-      && video.videoWidth > 0
-      && video.videoHeight > 0
-    );
+    return liveFrameReceived;
+  }
+
+  function captureLastFrame() {
+    if (!video.srcObject || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+    const now = Date.now();
+    if (lastFrame.width > 0 && now - lastFrameSnapshotAt < 750) return;
+    try {
+      if (lastFrame.width !== video.videoWidth || lastFrame.height !== video.videoHeight) {
+        lastFrame.width = video.videoWidth;
+        lastFrame.height = video.videoHeight;
+      }
+      lastFrameContext.drawImage(video, 0, 0, lastFrame.width, lastFrame.height);
+      lastFrameSnapshotAt = now;
+    } catch (_) {
+      // A transient decoder transition must not interrupt the live element.
+    }
+  }
+
+  function clearLastFrame() {
+    lastFrame.hidden = true;
+    lastFrameContext.clearRect(0, 0, lastFrame.width, lastFrame.height);
+    lastFrame.width = 0;
+    lastFrame.height = 0;
+    lastFrameSnapshotAt = 0;
   }
 
   function markLiveFrame() {
-    if (liveFrameReceived) return;
     if (!video.srcObject || video.videoWidth <= 0 || video.videoHeight <= 0) return;
-    liveFrameReceived = true;
+    const wasLive = liveFrameReceived;
+    captureLastFrame();
     playbackBlocked = false;
-    clearTimeout(frameWaitTimer);
-    roomMessage.textContent = 'Live video is flowing through the private peer-to-peer view.';
-    renderRoom();
+    mediaHealth.frame();
+    if (!wasLive) roomMessage.textContent = 'Live video is flowing through the private peer-to-peer view.';
+  }
+
+  function decodedFrameCount() {
+    const qualityFrames = Number(video.getVideoPlaybackQuality?.().totalVideoFrames);
+    if (Number.isFinite(qualityFrames)) return qualityFrames;
+    const webkitFrames = Number(video.webkitDecodedFrameCount);
+    return Number.isFinite(webkitFrames) ? webkitFrames : null;
+  }
+
+  function observeFallbackFrame() {
+    if (typeof video.requestVideoFrameCallback === 'function' || !video.srcObject) return;
+    const decodedFrames = decodedFrameCount();
+    if (decodedFrames === null) {
+      if (fallbackDecodedFrames >= 0) return;
+      fallbackDecodedFrames = 0;
+    } else {
+      if (decodedFrames <= 0 || decodedFrames <= fallbackDecodedFrames) return;
+      fallbackDecodedFrames = decodedFrames;
+    }
+    markLiveFrame();
+  }
+
+  function startFrameMonitoring() {
+    const generation = ++frameCallbackGeneration;
+    if (typeof video.requestVideoFrameCallback !== 'function') {
+      fallbackDecodedFrames = -1;
+      observeFallbackFrame();
+      return;
+    }
+    const observeFrame = () => {
+      if (generation !== frameCallbackGeneration || !video.srcObject) return;
+      markLiveFrame();
+      video.requestVideoFrameCallback(observeFrame);
+    };
+    video.requestVideoFrameCallback(observeFrame);
   }
 
   async function attemptLivePlayback() {
@@ -86,9 +164,7 @@
     try {
       await video.play();
       playbackBlocked = false;
-      if (typeof video.requestVideoFrameCallback === 'function') {
-        video.requestVideoFrameCallback(() => markLiveFrame());
-      }
+      startFrameMonitoring();
     } catch (_) {
       playbackBlocked = true;
       renderRoom();
@@ -103,6 +179,17 @@
     if (decoded) {
       setConnection('Live view', 'live');
       videoCard.dataset.action = '';
+      return;
+    }
+    const health = mediaHealth.status();
+    if (roomLive && ['recovering', 'unavailable'].includes(health.state)) {
+      setConnection(health.state === 'unavailable' ? 'Live view interrupted' : 'Restoring live view', 'waiting');
+      setVideoWaiting(
+        health.state === 'unavailable' ? 'The live picture needs a restart' : 'Video interrupted · restoring',
+        health.state === 'unavailable'
+          ? 'The automatic recovery limit was reached. Ask the technician to pause and resume the private view.'
+          : 'Holding the last good frame while the peer-to-peer video path reconnects.'
+      );
       return;
     }
     if (playbackBlocked && video.srcObject) {
@@ -216,7 +303,9 @@
     renderVideoState(state);
     recordingConsent.checked = Boolean(room.recording?.viewerConsented);
     recordingConsent.disabled = ['revoked', 'expired'].includes(state);
-    if (['paused', 'revoked', 'expired', 'headset-offline'].includes(state)) closePeer();
+    const mediaOpen = Boolean(peer || video.srcObject || mediaHealth.status().active);
+    if (mediaOpen && ['paused', 'headset-offline'].includes(state)) closePeer({ preserveLastFrame: true });
+    if (mediaOpen && ['revoked', 'expired'].includes(state)) closePeer({ preserveLastFrame: false });
     renderProjection();
   }
 
@@ -325,7 +414,7 @@
     });
     socket.addEventListener('close', () => {
       if (generation !== socketGeneration) return;
-      closePeer();
+      closePeer({ preserveLastFrame: true });
       if (Date.now() >= Number(viewerSession.expiresAtMs) || ['revoked', 'expired'].includes(room?.status)) return;
       const delay = Math.min(10_000, 500 * (2 ** reconnectAttempt));
       reconnectAttempt += 1;
@@ -360,7 +449,7 @@
       socketGeneration += 1;
       socket?.close();
       socket = null;
-      closePeer();
+      closePeer({ preserveLastFrame: false });
       setConnection('Session ended', 'ended');
       roomMessage.textContent = 'This temporary guest room has closed.';
       commentText.disabled = true;
@@ -386,45 +475,65 @@
 
   function ensurePeer() {
     if (peer && !['closed', 'failed'].includes(peer.connectionState)) return peer;
-    peer = new RTCPeerConnection({ iceServers: viewerSession.iceServers || [] });
-    peer.addEventListener('icecandidate', (event) => {
+    resetPeerForRecovery();
+    const connection = new RTCPeerConnection({ iceServers: viewerSession.iceServers || [] });
+    peer = connection;
+    connection.addEventListener('icecandidate', (event) => {
       if (event.candidate) send({ type: 'witness.signal', signal: { kind: 'ice', candidate: event.candidate } });
     });
-    peer.addEventListener('track', (event) => {
+    connection.addEventListener('track', (event) => {
       liveFrameReceived = false;
       playbackBlocked = false;
       video.srcObject = event.streams[0] || new MediaStream([event.track]);
+      mediaHealth.start();
       event.track.addEventListener('mute', () => {
-        liveFrameReceived = false;
-        renderRoom();
+        mediaHealth.interrupt('track-muted', { delayMs: 1_500 });
       });
       event.track.addEventListener('unmute', () => void attemptLivePlayback());
       event.track.addEventListener('ended', () => {
-        liveFrameReceived = false;
-        renderRoom();
+        mediaHealth.interrupt('track-ended');
       }, { once: true });
-      clearTimeout(frameWaitTimer);
-      frameWaitTimer = setTimeout(() => renderRoom(), 3500);
       void attemptLivePlayback();
       renderRoom();
     });
-    peer.addEventListener('connectionstatechange', () => {
-      peerConnected = peer?.connectionState === 'connected';
+    connection.addEventListener('connectionstatechange', () => {
+      if (peer !== connection) return;
+      peerConnected = connection.connectionState === 'connected';
       if (peerConnected) roomMessage.textContent = 'Private peer-to-peer path connected. Waiting for live video frames.';
-      if (['failed', 'closed'].includes(peer?.connectionState)) renderRoom();
-      else renderRoom();
+      if (connection.connectionState === 'disconnected') {
+        mediaHealth.interrupt('peer-disconnected', { delayMs: 1_500 });
+      } else if (['failed', 'closed'].includes(connection.connectionState)) {
+        mediaHealth.interrupt(`peer-${connection.connectionState}`);
+      }
+      renderRoom();
     });
-    return peer;
+    return connection;
   }
 
-  function closePeer() {
-    clearTimeout(frameWaitTimer);
-    peer?.close();
+  function resetPeerForRecovery() {
+    if (!peer) return;
+    const stalePeer = peer;
+    peer = null;
+    peerConnected = false;
+    frameCallbackGeneration += 1;
+    captureLastFrame();
+    video.srcObject = null;
+    try { stalePeer.close(); } catch (_) { /* already closed */ }
+  }
+
+  function closePeer({ preserveLastFrame = false } = {}) {
+    if (preserveLastFrame) captureLastFrame();
+    frameCallbackGeneration += 1;
+    const closingPeer = peer;
     peer = null;
     peerConnected = false;
     liveFrameReceived = false;
     playbackBlocked = false;
     video.srcObject = null;
+    mediaHealth.stop();
+    closingPeer?.close();
+    if (preserveLastFrame && lastFrame.width > 0) lastFrame.hidden = false;
+    else clearLastFrame();
     stopMicrophone('off');
     if (room) {
       videoWaiting.hidden = false;
@@ -461,10 +570,16 @@
   });
 
   for (const eventName of ['loadeddata', 'canplay', 'playing', 'timeupdate']) {
-    video.addEventListener(eventName, markLiveFrame);
+    video.addEventListener(eventName, observeFallbackFrame);
   }
   video.addEventListener('emptied', () => {
-    liveFrameReceived = false;
+    if (!video.srcObject) {
+      renderRoom();
+      return;
+    }
+    if (room?.status === 'live' && mediaHealth.status().active) {
+      mediaHealth.interrupt('media-emptied');
+    }
     renderRoom();
   });
   videoCard.addEventListener('click', () => {
@@ -475,7 +590,7 @@
     clearTimeout(reconnectTimer);
     socketGeneration += 1;
     socket?.close();
-    closePeer();
+    closePeer({ preserveLastFrame: false });
     for (const source of mediaObjectUrls) URL.revokeObjectURL(source);
     mediaObjectUrls = [];
   });

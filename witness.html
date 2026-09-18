@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="referrer" content="no-referrer">
   <title>MXGenius Remote Witness</title>
-  <link rel="stylesheet" href="witness.css?v=4">
+  <link rel="stylesheet" href="witness.css?v=5">
 </head>
 <body>
   <main class="witness-shell">
@@ -46,6 +46,7 @@
       <div class="viewer-grid">
         <section class="video-card" id="videoCard" aria-label="Technician live view" aria-live="polite">
           <video id="witnessVideo" autoplay playsinline muted disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback" aria-label="Live technician point of view"></video>
+          <canvas id="witnessLastFrame" class="witness-last-frame" hidden aria-hidden="true"></canvas>
           <div class="video-waiting" id="videoWaiting">
             <span class="pulse-ring" aria-hidden="true"></span>
             <strong id="videoWaitingTitle">Waiting for wearer approval</strong>
@@ -100,6 +101,7 @@
   </main>
   <script src="runtime-config.js?v=5"></script>
   <script src="application-client.js?v=43"></script>
-  <script src="witness.js?v=4"></script>
+  <script src="witness-media-health.js?v=1"></script>
+  <script src="witness.js?v=5"></script>
 </body>
 </html>

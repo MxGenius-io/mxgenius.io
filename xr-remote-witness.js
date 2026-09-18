@@ -288,7 +288,9 @@ export class XRRemoteWitnessPanel {
           sessionId: this.xrSessionId
         });
         if (launched !== false) {
-          this.message = 'Quest sharing permission opened. Approve it in the headset to start the live view.';
+          this.message = typeof launched?.message === 'string'
+            ? launched.message
+            : 'Quest sharing permission opened. Approve it in the headset to start the live view.';
           this.onAction('witness-native-approval-requested', input, { roomId: this.invitation.roomId, action });
           this.drawPanel();
           this.emitStatus();
@@ -323,6 +325,20 @@ export class XRRemoteWitnessPanel {
     if (['approve', 'resume'].includes(action)) {
       this.publishProjection();
       await this.negotiateAll();
+    }
+  }
+
+  async pause(input = 'browser') {
+    if (!this.invitation?.roomId) return true;
+    if (await this.control('pause', {}, input)) return true;
+    try {
+      const session = await this.sessionProvider();
+      this.room = await this.api.getRoom(this.invitation.roomId, session);
+      this.drawPanel();
+      this.emitStatus();
+      return this.room?.status !== 'live';
+    } catch {
+      return false;
     }
   }
 

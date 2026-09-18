@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
@@ -379,7 +380,8 @@ class ThermalImmersiveActivity : AppSystemActivity(), SensorBridgeService.Status
         }
         val manager = getSystemService(MediaProjectionManager::class.java)
         service.recordTrace("W30", "WITNESS", "consent-requested", "wearer opened the Horizon compositor sharing prompt", "info")
-        startActivityForResult(manager.createScreenCaptureIntent(), WITNESS_PROJECTION_REQUEST)
+        val projectionConfig = MediaProjectionConfig.createConfigForDefaultDisplay()
+        startActivityForResult(manager.createScreenCaptureIntent(projectionConfig), WITNESS_PROJECTION_REQUEST)
     }
 
     private fun readWitnessConsentRequest(source: Intent?) {

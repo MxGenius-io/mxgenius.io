@@ -122,7 +122,29 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=43/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=44/);
+});
+
+test('Remote Witness consent leaves WebXR deliberately and resumes through fresh gestures', () => {
+  const approval = viewer.slice(
+    viewer.indexOf('async function launchQuestWitnessApproval'),
+    viewer.indexOf('function openExternalWitnessConsent')
+  );
+  const externalLaunch = viewer.slice(
+    viewer.indexOf('function openExternalWitnessConsent'),
+    viewer.indexOf('async function handleMaintenanceTool')
+  );
+  assert.match(approval, /pendingExternalSpatialHandoff = \{/);
+  assert.match(approval, /spatialHandoffWindowState = xrWindowManager\?\.snapshot\?\.\(\) \|\| null/);
+  assert.match(approval, /await spatialSession\.end\(\)/);
+  assert.match(externalLaunch, /window\.location\.assign\(handoff\.intentUrl\)/);
+  assert.match(viewer, /externalHandoff\.phase === 'launch'[\s\S]*openExternalWitnessConsent\(\)/);
+  assert.match(viewer, /document\.addEventListener\('visibilitychange', updateExternalHandoffVisibility\)/);
+  assert.match(viewer, /handoff\.phase = 'resume'[\s\S]*showExternalSpatialHandoff\(\{ state: 'resume' \}\)/);
+  assert.match(viewer, /sessionMode: externalHandoff\.resumeMode/);
+  assert.match(viewer, /externalHandoff\?\.phase === 'resume'[\s\S]*xrWitness\?\.pause\?\.\('browser'\)/);
+  assert.match(viewer, /state === 'resume' \? 'Pause live view' : 'Stay in 3D viewer'/);
+  assert.doesNotMatch(approval, /localStorage|sessionStorage|producerCredential/);
 });
 
 test('operations and maintenance change inside the same renderer without dropping live pipes', () => {
@@ -157,6 +179,8 @@ test('maintenance stays in the canonical renderer and opens tools from one world
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);
   assert.match(viewer, /xrWindowManager\.register\('voice'/);
+  assert.match(viewer, /new XRRealtimePresence\(\{[\s\S]*pointCount: 1800,[\s\S]*pointSize: 0\.0007,[\s\S]*launcherVisible: true/);
+  assert.match(viewer, /\{ id: 'voice', label: 'AI' \}/);
   assert.match(viewer, /syncMaintenanceSurfaces\(snapshot\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);
   assert.doesNotMatch(viewer, /globe-vr\.html/);

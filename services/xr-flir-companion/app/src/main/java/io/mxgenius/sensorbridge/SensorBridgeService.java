@@ -394,10 +394,17 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
     }
 
     void projectionConsentDenied() {
+        boolean approvalWasSent = witnessStartRequested;
         pendingWitnessConsent = null;
         witnessStartRequested = false;
+        RemoteWitnessSocket socket = witnessSocket;
+        boolean paused = !approvalWasSent || (socket != null && socket.sendControl("pause", null, null));
+        RemoteWitnessPeerController peer = witnessPeer;
+        if (peer != null && peer.captureActive()) peer.stopCapture("consent-denied");
         trace("W30", "WITNESS", "consent-denied", "wearer did not grant compositor sharing", "warn");
-        setWitnessUiState(witnessUiState.withMedia("consent-required", "Sharing permission was not granted"));
+        setWitnessUiState(witnessUiState.withMedia(
+                paused ? "consent-required" : "control-failed",
+                paused ? "Sharing permission was not granted" : "Sharing permission was denied; pause could not reach the room"));
     }
 
     String sessionId() {
@@ -687,7 +694,7 @@ public final class SensorBridgeService extends Service implements FlirCameraCont
                                     "consent-required", reason.replace('-', ' ')));
                         }
                         RemoteWitnessSocket activeSocket = witnessSocket;
-                        if (activeSocket != null && ("projection-revoked".equals(reason) || "projection-start-failed".equals(reason))) {
+                        if (activeSocket != null && witnessRoomLive) {
                             activeSocket.sendControl("pause", null, null);
                         }
                     }
