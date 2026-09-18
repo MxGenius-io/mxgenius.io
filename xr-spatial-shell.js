@@ -21,7 +21,10 @@ export class XRSpatialShell {
   constructor({
     mode = 'operations',
     tools = [],
+    sessionMode = 'immersive-vr',
+    sessionModeSupport = {},
     onModeChange = () => {},
+    onSessionModeChange = null,
     onActiveMode = () => false,
     onRecenter = () => {},
     onExit = () => {},
@@ -30,7 +33,13 @@ export class XRSpatialShell {
     activeModeHints = {}
   } = {}) {
     this.mode = MODES[mode] ? mode : 'operations';
+    this.sessionMode = sessionMode === 'immersive-ar' ? 'immersive-ar' : 'immersive-vr';
+    this.sessionModeSupport = {
+      'immersive-vr': sessionModeSupport['immersive-vr'] ?? null,
+      'immersive-ar': sessionModeSupport['immersive-ar'] ?? null
+    };
     this.onModeChange = onModeChange;
+    this.onSessionModeChange = typeof onSessionModeChange === 'function' ? onSessionModeChange : null;
     this.onActiveMode = onActiveMode;
     this.onRecenter = onRecenter;
     this.onExit = onExit;
@@ -72,6 +81,7 @@ export class XRSpatialShell {
       this.createModeButton('operations', -0.165, tools.length ? 0.08 : 0),
       this.createModeButton('maintenance', 0.165, tools.length ? 0.08 : 0)
     ];
+    this.sessionModeButton = this.onSessionModeChange ? this.createSessionModeButton() : null;
     this.exitButton = this.createExitButton();
     this.toolStates = new Map();
     this.toolButtons = tools.map((tool, index) => {
@@ -86,7 +96,9 @@ export class XRSpatialShell {
       this.toolStates.set(normalized.id, normalized);
       return this.createToolButton(normalized, index, tools.length);
     });
-    this.group.add(...this.buttons, ...this.toolButtons, this.exitButton);
+    this.group.add(...this.buttons, ...this.toolButtons);
+    if (this.sessionModeButton) this.group.add(this.sessionModeButton);
+    this.group.add(this.exitButton);
     this.draw();
   }
 
@@ -151,12 +163,20 @@ export class XRSpatialShell {
       new THREE.PlaneGeometry(0.22, 0.072),
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
-    button.name = 'MXGeniusExitVR';
     button.position.set(0.21, 0.195, 0.002);
     button.userData.xrShellAction = 'exit-vr';
     button.userData.xrHitSize = { width: 0.22, height: 0.072 };
+    button.userData.context = canvas.getContext('2d');
     button.userData.texture = texture;
-    const context = canvas.getContext('2d');
+    return button;
+  }
+
+  drawExitButton() {
+    const button = this.exitButton;
+    if (!button) return;
+    const context = button.userData.context;
+    const label = this.sessionMode === 'immersive-ar' ? 'EXIT AR' : 'EXIT VR';
+    context.clearRect(0, 0, 384, 128);
     rounded(context, 6, 6, 372, 116, 28);
     context.fillStyle = 'rgba(49, 15, 27, 0.96)';
     context.fill();
@@ -166,9 +186,54 @@ export class XRSpatialShell {
     context.fillStyle = '#fecdd3';
     context.font = '700 34px ui-monospace, monospace';
     context.textAlign = 'center';
-    context.fillText('EXIT VR', 192, 80);
-    texture.needsUpdate = true;
+    context.fillText(label, 192, 80);
+    button.name = this.sessionMode === 'immersive-ar' ? 'MXGeniusExitAR' : 'MXGeniusExitVR';
+    button.userData.texture.needsUpdate = true;
+  }
+
+  createSessionModeButton() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const button = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.34, 0.072),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
+    );
+    button.position.set(-0.145, 0.195, 0.002);
+    button.userData.xrShellAction = 'switch-session-mode';
+    button.userData.xrHitSize = { width: 0.34, height: 0.072 };
+    button.userData.canvas = canvas;
+    button.userData.context = canvas.getContext('2d');
+    button.userData.texture = texture;
     return button;
+  }
+
+  drawSessionModeButton() {
+    const button = this.sessionModeButton;
+    if (!button) return;
+    const targetMode = this.sessionMode === 'immersive-ar' ? 'immersive-vr' : 'immersive-ar';
+    const targetLabel = targetMode === 'immersive-ar' ? 'AR' : 'VR';
+    const supported = this.sessionModeSupport[targetMode];
+    const context = button.userData.context;
+    context.clearRect(0, 0, 512, 128);
+    rounded(context, 8, 8, 496, 112, 28);
+    context.fillStyle = supported === false ? 'rgba(24, 31, 40, 0.96)' : 'rgba(8, 67, 82, 0.96)';
+    context.fill();
+    context.strokeStyle = supported === false ? '#64748b' : '#22d3ee';
+    context.lineWidth = 5;
+    context.stroke();
+    context.fillStyle = supported === false ? '#94a3b8' : '#cffafe';
+    context.font = '700 29px ui-monospace, monospace';
+    context.textAlign = 'center';
+    context.fillText(supported === false ? `${targetLabel} UNAVAILABLE` : `SWITCH TO ${targetLabel}`, 256, 73);
+    context.font = '18px system-ui, sans-serif';
+    context.fillStyle = supported === null ? '#fbbf24' : supported === false ? '#64748b' : '#67e8f9';
+    context.fillText(supported === null ? 'CHECKING DEVICE' : 'PRESERVES WORKSPACE', 256, 102);
+    button.name = targetMode === 'immersive-ar' ? 'MXGeniusSwitchToAR' : 'MXGeniusSwitchToVR';
+    button.userData.xrShellSessionMode = targetMode;
+    button.userData.texture.needsUpdate = true;
   }
 
   drawModeIcon(context, mode, x, y, color) {
@@ -288,13 +353,18 @@ export class XRSpatialShell {
       button.visible = this.mode === 'maintenance';
       button.userData.texture.needsUpdate = true;
     }
+    this.drawSessionModeButton();
+    this.drawExitButton();
   }
 
   interactiveObjects() {
     if (!this.presenting) return [];
+    const sessionControls = this.sessionModeButton
+      ? [this.sessionModeButton, this.exitButton]
+      : [this.exitButton];
     return this.mode === 'maintenance'
-      ? [...this.buttons, ...this.toolButtons, this.exitButton]
-      : [...this.buttons, this.exitButton];
+      ? [...this.buttons, ...this.toolButtons, ...sessionControls]
+      : [...this.buttons, ...sessionControls];
   }
 
   contentAnchor() {
@@ -314,6 +384,17 @@ export class XRSpatialShell {
     if (!this.owns(object)) return false;
     let target = object;
     while (target && !target.userData?.xrShellAction) target = target.parent;
+    if (target?.userData?.xrShellAction === 'switch-session-mode') {
+      const nextSessionMode = target.userData.xrShellSessionMode;
+      const supported = this.sessionModeSupport[nextSessionMode];
+      if (supported !== false) this.onSessionModeChange?.(nextSessionMode, { input });
+      this.onAction(
+        supported === false ? 'spatial-shell-session-mode-unavailable' : 'spatial-shell-session-mode',
+        input,
+        { from: this.sessionMode, to: nextSessionMode, supported }
+      );
+      return true;
+    }
     if (target?.userData?.xrShellAction === 'exit-vr') {
       this.onExit({ input });
       this.onAction('spatial-shell-exit', input, { mode: this.mode });
@@ -377,6 +458,19 @@ export class XRSpatialShell {
     this.draw();
   }
 
+  setSessionMode(mode) {
+    const normalized = mode === 'immersive-ar' ? 'immersive-ar' : 'immersive-vr';
+    if (normalized === this.sessionMode) return;
+    this.sessionMode = normalized;
+    this.draw();
+  }
+
+  setSessionModeSupport(mode, supported) {
+    if (mode !== 'immersive-ar' && mode !== 'immersive-vr') return;
+    this.sessionModeSupport[mode] = typeof supported === 'boolean' ? supported : null;
+    this.drawSessionModeButton();
+  }
+
   setPresenting(value, camera = null) {
     this.presenting = Boolean(value);
     this.group.visible = this.presenting;
@@ -402,7 +496,10 @@ export class XRSpatialShell {
     if (this.disposed || !this.presenting) return;
     this.placeForView(camera);
     const blend = 1 - Math.exp(-Math.max(0, delta) * 14);
-    for (const button of [...this.buttons, ...this.toolButtons, this.exitButton]) {
+    const interactive = [...this.buttons, ...this.toolButtons];
+    if (this.sessionModeButton) interactive.push(this.sessionModeButton);
+    interactive.push(this.exitButton);
+    for (const button of interactive) {
       const mode = button.userData.xrShellMode;
       const target = button === this.hoveredTarget ? 1.1 : mode === this.mode ? 1.035 : 1;
       const scale = THREE.MathUtils.lerp(button.scale.x, target, blend);
@@ -416,7 +513,10 @@ export class XRSpatialShell {
     this.group.visible = false;
     this.backplate.geometry.dispose();
     this.backplate.material.dispose();
-    for (const button of [...this.buttons, ...this.toolButtons, this.exitButton]) {
+    const disposable = [...this.buttons, ...this.toolButtons];
+    if (this.sessionModeButton) disposable.push(this.sessionModeButton);
+    disposable.push(this.exitButton);
+    for (const button of disposable) {
       button.geometry.dispose();
       button.material.dispose();
       button.userData.texture.dispose();

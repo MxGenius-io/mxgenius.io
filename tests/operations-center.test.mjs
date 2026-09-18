@@ -22,7 +22,7 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
 });
 
 test('the consolidated tabs preserve every existing operational workspace', () => {
-  for (const tab of ['highlights', 'reports', 'customers', 'build', 'readiness', 'features', 'patents', 'feedback', 'access']) {
+  for (const tab of ['highlights', 'reports', 'customers', 'build', 'readiness', 'features', 'patents', 'feedback', 'settings', 'access']) {
     assert.match(html, new RegExp(`data-tab="${tab}"`));
     assert.match(html, new RegExp(`data-panel="${tab}"`));
   }
@@ -33,6 +33,17 @@ test('the consolidated tabs preserve every existing operational workspace', () =
   assert.match(js, /feedback\.html\?embed=1/);
   assert.match(css, /max-width: 1180px/);
   assert.match(css, /@media \(max-width: 760px\)/);
+});
+
+test('provider settings own the server-managed JetNet connection', () => {
+  assert.doesNotMatch(dashboard, /id="settingsJetNetCard"/);
+  assert.match(html, /id="tab-settings"[\s\S]*id="panel-settings"/);
+  assert.match(html, /id="settingsJetNetCard"[\s\S]*JetNet Connection/);
+  assert.match(js, /MXApplicationClient\.jetnetConnection\.get/);
+  assert.match(js, /MXApplicationClient\.jetnetConnection\.put/);
+  assert.match(js, /MXApplicationClient\.jetnetConnection\.delete/);
+  assert.match(js, /authenticatedSession\(\{ forceRefresh: true \}\)/);
+  assert.doesNotMatch(js, /localStorage|sessionStorage/);
 });
 
 test('R&D Highlights contains every and only report-referenced video on the canonical media route', async () => {

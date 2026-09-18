@@ -312,6 +312,74 @@
             pointer-events: none;
         }
 
+        .spatial-mode-handoff {
+            position: absolute;
+            inset: 0;
+            z-index: 75;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: rgba(3, 10, 18, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .spatial-mode-handoff[hidden] { display: none; }
+
+        .spatial-mode-handoff__card {
+            width: min(460px, 100%);
+            padding: 26px;
+            border: 1px solid rgba(34, 211, 238, 0.48);
+            border-radius: 14px;
+            background: rgba(7, 19, 31, 0.97);
+            box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
+        }
+
+        .spatial-mode-handoff__eyebrow {
+            color: #67e8f9;
+            font: 700 0.68rem/1 var(--font-mono);
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .spatial-mode-handoff__card h2 {
+            margin-top: 10px;
+            font-size: 1.35rem;
+            font-weight: 650;
+        }
+
+        .spatial-mode-handoff__card p {
+            margin-top: 10px;
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            line-height: 1.55;
+        }
+
+        .spatial-mode-handoff__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .spatial-mode-handoff__actions button {
+            min-height: 38px;
+            padding: 0 16px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        #spatial-mode-handoff-continue {
+            border-color: rgba(34, 211, 238, 0.7);
+            background: rgba(8, 91, 111, 0.74);
+            color: #cffafe;
+        }
+
+        #spatial-mode-handoff-continue:disabled { cursor: wait; opacity: 0.62; }
+
         .loader-brand {
             font-size: 1.1rem;
             font-weight: 500;
@@ -1314,6 +1382,18 @@
         <div id="canvas-container"></div>
         <iframe id="sketchfab-frame" title="Public 3D model" hidden allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
 
+        <section class="spatial-mode-handoff" id="spatial-mode-handoff" hidden role="dialog" aria-modal="true" aria-labelledby="spatial-mode-handoff-title">
+            <div class="spatial-mode-handoff__card">
+                <div class="spatial-mode-handoff__eyebrow">Immersive workspace handoff</div>
+                <h2 id="spatial-mode-handoff-title">Continue in AR</h2>
+                <p id="spatial-mode-handoff-message" aria-live="polite">Your aircraft, case, selected part, and workspace mode are preserved. Continue to grant the browser a fresh immersive session.</p>
+                <div class="spatial-mode-handoff__actions">
+                    <button id="spatial-mode-handoff-cancel" type="button">Stay in 3D viewer</button>
+                    <button id="spatial-mode-handoff-continue" type="button">Continue in AR</button>
+                </div>
+            </div>
+        </section>
+
         <button id="reset-camera" type="button" title="Reset camera" aria-label="Reset camera">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 5v6h-6"/><circle cx="12" cy="12" r="2.5"/></svg>
         </button>
@@ -1386,7 +1466,7 @@
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=13';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=8';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=14';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=8';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=9';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=2';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
@@ -1473,6 +1553,13 @@
         let xrWindowManager = null;
         let spatialMode = spatialContext.mode === 'operations' ? 'operations' : 'maintenance';
         let spatialSession = null;
+        let activeSpatialSessionMode = null;
+        let pendingSpatialSessionMode = null;
+        let spatialHandoffWindowState = null;
+        const spatialSessionSupport = {
+            'immersive-vr': null,
+            'immersive-ar': null
+        };
         let activeCaseState = null;
         let witnessGuestAudio = null;
         const sensorRuntime = resolveXRSensorRuntime();
@@ -1917,6 +2004,8 @@
             });
             xrSpatialShell = new XRSpatialShell({
                 mode: spatialMode,
+                sessionMode: activeSpatialSessionMode || 'immersive-vr',
+                sessionModeSupport: spatialSessionSupport,
                 tools: [
                     { id: 'thermal' },
                     { id: 'witness' },
@@ -1925,6 +2014,9 @@
                 ],
                 onModeChange: (mode, { input = 'xr' } = {}) => {
                     setSpatialMode(mode, { source: 'spatial-tray' });
+                },
+                onSessionModeChange: (sessionMode, { input = 'xr' } = {}) => {
+                    void beginSpatialSessionModeHandoff(sessionMode, { input });
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
@@ -2689,7 +2781,11 @@
             }
         }
 
-        function postSpatialStatus(state, { supported = Boolean(navigator.xr), ready = true } = {}) {
+        function postSpatialStatus(state, {
+            supported = spatialSessionSupport['immersive-vr'] === true,
+            ready = true,
+            sessionMode = activeSpatialSessionMode || pendingSpatialSessionMode || null
+        } = {}) {
             if (window.parent === window) return;
             window.parent.postMessage({
                 type: 'mxgenius.spatial.status',
@@ -2697,7 +2793,11 @@
                 state,
                 supported,
                 ready,
-                mode: spatialMode
+                mode: spatialMode,
+                sessionMode,
+                availableSessionModes: Object.entries(spatialSessionSupport)
+                    .filter(([, available]) => available === true)
+                    .map(([name]) => name)
             }, window.location.origin);
         }
 
@@ -2762,48 +2862,184 @@
             emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
         }
 
-        async function enterSpatialWorkspace({ mode = spatialMode, context = null } = {}) {
-            setSpatialMode(mode, { source: 'dashboard-header', context });
-            if (spatialSession) return { active: true, mode: spatialMode };
-            if (!window.isSecureContext || !navigator.xr?.requestSession) throw new Error('Immersive VR is unavailable');
-            postSpatialStatus('connecting');
-            const session = await navigator.xr.requestSession('immersive-vr', {
-                optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers']
+        function spatialSessionModeLabel(sessionMode) {
+            return sessionMode === 'immersive-ar' ? 'AR' : 'VR';
+        }
+
+        function spatialSessionOptions(sessionMode) {
+            return {
+                optionalFeatures: sessionMode === 'immersive-ar'
+                    ? ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'hit-test']
+                    : ['local-floor', 'bounded-floor', 'hand-tracking', 'layers']
+            };
+        }
+
+        function showSpatialModeHandoff(sessionMode, { state = 'ready', error = null } = {}) {
+            const handoff = document.getElementById('spatial-mode-handoff');
+            const title = document.getElementById('spatial-mode-handoff-title');
+            const message = document.getElementById('spatial-mode-handoff-message');
+            const continueButton = document.getElementById('spatial-mode-handoff-continue');
+            const cancelButton = document.getElementById('spatial-mode-handoff-cancel');
+            if (!handoff || !title || !message || !continueButton || !cancelButton) return;
+            const label = spatialSessionModeLabel(sessionMode);
+            handoff.hidden = false;
+            handoff.dataset.sessionMode = sessionMode;
+            title.textContent = state === 'ending' ? `Leaving ${spatialSessionModeLabel(activeSpatialSessionMode)}…` : `Continue in ${label}`;
+            message.textContent = error
+                ? `${error} Your workspace is still preserved; retry when the browser is ready.`
+                : state === 'ending'
+                    ? `Ending the current immersive session safely. The ${label} launch will require one fresh confirmation.`
+                    : `Your aircraft, case, selected part, and workspace mode are preserved. Continue to grant the browser a fresh immersive ${label} session.`;
+            continueButton.textContent = state === 'connecting' ? `Opening ${label}…` : `Continue in ${label}`;
+            continueButton.disabled = state === 'ending' || state === 'connecting';
+            cancelButton.disabled = state === 'ending' || state === 'connecting';
+            if (!continueButton.disabled) queueMicrotask(() => continueButton.focus({ preventScroll: true }));
+        }
+
+        function hideSpatialModeHandoff() {
+            const handoff = document.getElementById('spatial-mode-handoff');
+            if (handoff) {
+                handoff.hidden = true;
+                delete handoff.dataset.sessionMode;
+            }
+        }
+
+        async function resolveSpatialSessionSupport(sessionMode) {
+            if (spatialSessionSupport[sessionMode] !== null) return spatialSessionSupport[sessionMode];
+            let supported = false;
+            try {
+                supported = Boolean(await navigator.xr?.isSessionSupported?.(sessionMode));
+            } catch (_) {
+                supported = false;
+            }
+            spatialSessionSupport[sessionMode] = supported;
+            xrSpatialShell?.setSessionModeSupport(sessionMode, supported);
+            return supported;
+        }
+
+        async function beginSpatialSessionModeHandoff(sessionMode, { input = 'xr' } = {}) {
+            const requestedMode = sessionMode === 'immersive-ar' ? 'immersive-ar' : 'immersive-vr';
+            if (requestedMode === activeSpatialSessionMode) return { active: true, sessionMode: requestedMode };
+            if (!await resolveSpatialSessionSupport(requestedMode)) {
+                emitXRAction('spatial-session-mode-unavailable', input, { sessionMode: requestedMode });
+                return { active: Boolean(spatialSession), unavailable: true, sessionMode: requestedMode };
+            }
+            pendingSpatialSessionMode = requestedMode;
+            spatialHandoffWindowState = xrWindowManager?.snapshot?.() || null;
+            postSpatialStatus('handoff', { sessionMode: requestedMode });
+            if (!spatialSession) {
+                showSpatialModeHandoff(requestedMode);
+                return { active: false, handoff: true, sessionMode: requestedMode };
+            }
+            showSpatialModeHandoff(requestedMode, { state: 'ending' });
+            emitXRAction('spatial-session-mode-handoff', input, {
+                from: activeSpatialSessionMode,
+                to: requestedMode
             });
-            spatialSession = session;
-            session.addEventListener('end', () => { spatialSession = null; }, { once: true });
-            await renderer.xr.setSession(session);
-            return { active: true, mode: spatialMode };
+            try {
+                await spatialSession.end();
+            } catch (error) {
+                pendingSpatialSessionMode = null;
+                spatialHandoffWindowState = null;
+                hideSpatialModeHandoff();
+                postSpatialStatus('active');
+                console.warn('Unable to end the current immersive session', error);
+                return { active: true, handoff: false, sessionMode: activeSpatialSessionMode };
+            }
+            return { active: false, handoff: true, sessionMode: requestedMode };
+        }
+
+        async function enterSpatialWorkspace({ mode = spatialMode, context = null, sessionMode = 'immersive-vr' } = {}) {
+            const requestedSessionMode = sessionMode === 'immersive-ar' ? 'immersive-ar' : 'immersive-vr';
+            setSpatialMode(mode, { source: 'dashboard-header', context });
+            if (spatialSession) {
+                if (activeSpatialSessionMode === requestedSessionMode) {
+                    return { active: true, mode: spatialMode, sessionMode: activeSpatialSessionMode };
+                }
+                return beginSpatialSessionModeHandoff(requestedSessionMode, { input: 'workspace-api' });
+            }
+            if (!window.isSecureContext || !navigator.xr?.requestSession) {
+                throw new Error(`Immersive ${spatialSessionModeLabel(requestedSessionMode)} is unavailable`);
+            }
+            if (spatialSessionSupport[requestedSessionMode] === false) {
+                throw new Error(`This device does not support immersive ${spatialSessionModeLabel(requestedSessionMode)}`);
+            }
+            postSpatialStatus('connecting', { sessionMode: requestedSessionMode });
+            let session = null;
+            try {
+                session = await navigator.xr.requestSession(requestedSessionMode, spatialSessionOptions(requestedSessionMode));
+                spatialSessionSupport[requestedSessionMode] = true;
+                activeSpatialSessionMode = requestedSessionMode;
+                spatialSession = session;
+                xrSpatialShell?.setSessionModeSupport(requestedSessionMode, true);
+                session.addEventListener('end', () => {
+                    if (spatialSession === session) spatialSession = null;
+                }, { once: true });
+                await renderer.xr.setSession(session);
+                pendingSpatialSessionMode = null;
+                hideSpatialModeHandoff();
+                return { active: true, mode: spatialMode, sessionMode: activeSpatialSessionMode };
+            } catch (error) {
+                if (spatialSession === session) spatialSession = null;
+                activeSpatialSessionMode = null;
+                if (session) await session.end().catch(() => {});
+                throw error;
+            }
         }
 
         function setupXRButton() {
             window.MXSpatialWorkspace = Object.freeze({
                 enter: enterSpatialWorkspace,
                 exit: () => spatialSession?.end?.(),
+                switchSessionMode: (sessionMode) => beginSpatialSessionModeHandoff(sessionMode, { input: 'workspace-api' }),
                 setMode: (mode, context) => setSpatialMode(mode, { source: 'workspace-api', context }),
-                status: () => ({ active: Boolean(spatialSession), mode: spatialMode })
+                status: () => ({
+                    active: Boolean(spatialSession),
+                    mode: spatialMode,
+                    sessionMode: activeSpatialSessionMode,
+                    pendingSessionMode: pendingSpatialSessionMode,
+                    availableSessionModes: Object.entries(spatialSessionSupport)
+                        .filter(([, supported]) => supported === true)
+                        .map(([name]) => name)
+                })
             });
 
             renderer.xr.addEventListener('sessionstart', () => {
                 void xrUIAudio?.unlock();
-                stageSceneForXR('local-floor');
+                xrSpatialShell?.setSessionMode(activeSpatialSessionMode);
+                stageSceneForXR('local-floor', { sessionMode: activeSpatialSessionMode });
                 xrSensors?.setPresenting(true);
                 xrVoice?.setPresenting(true);
                 xrWitness?.setPresenting(true);
                 xrSpatialShell?.setPresenting(true, camera);
+                if (spatialHandoffWindowState?.activeId) {
+                    xrWindowManager?.open(spatialHandoffWindowState.activeId, {
+                        input: 'system',
+                        reason: 'session-mode-handoff'
+                    });
+                }
+                spatialHandoffWindowState = null;
                 applySpatialMode();
                 postSpatialStatus('active');
             });
             renderer.xr.addEventListener('sessionend', () => {
                 spatialSession = null;
-                xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
+                if (!pendingSpatialSessionMode) {
+                    xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
+                }
                 xrOperationsSurface?.setVisible(false, camera);
                 xrOperationsSurface?.setPresenting(false, camera);
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
                 xrMaintenanceHUD?.setPresenting(false, camera);
                 xrSensors?.setPresenting(false);
-                xrVoice?.setPresenting(false);
+                if (pendingSpatialSessionMode) {
+                    // Keep the realtime audio channel alive across the short
+                    // browser-confirmed handoff; only its scene group is hidden.
+                    if (xrVoice?.group) xrVoice.group.visible = false;
+                } else {
+                    xrVoice?.setPresenting(false);
+                }
                 xrWitness?.setPresenting(false);
                 xrSpatialShell?.setPresenting(false, camera);
                 xrUIAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
@@ -2811,14 +3047,29 @@
                 restoreSceneFromXR();
                 if (currentModel) currentModel.visible = true;
                 if (inspectionGrid) inspectionGrid.visible = true;
-                postSpatialStatus('ready');
+                activeSpatialSessionMode = null;
+                if (pendingSpatialSessionMode) {
+                    showSpatialModeHandoff(pendingSpatialSessionMode);
+                    postSpatialStatus('handoff', { sessionMode: pendingSpatialSessionMode });
+                } else {
+                    hideSpatialModeHandoff();
+                    postSpatialStatus('ready');
+                }
             });
 
             if (window.isSecureContext && navigator.xr?.isSessionSupported) {
-                navigator.xr.isSessionSupported('immersive-vr')
-                    .then((supported) => postSpatialStatus(supported ? 'ready' : 'unavailable', { supported, ready: true }))
-                    .catch(() => postSpatialStatus('unavailable', { supported: false, ready: true }));
+                Promise.all(['immersive-vr', 'immersive-ar'].map(async (sessionMode) => {
+                    const supported = await resolveSpatialSessionSupport(sessionMode);
+                    return [sessionMode, supported];
+                })).then(() => {
+                    const vrSupported = spatialSessionSupport['immersive-vr'] === true;
+                    postSpatialStatus(vrSupported ? 'ready' : 'unavailable', { supported: vrSupported, ready: true });
+                });
             } else {
+                spatialSessionSupport['immersive-vr'] = false;
+                spatialSessionSupport['immersive-ar'] = false;
+                xrSpatialShell?.setSessionModeSupport('immersive-vr', false);
+                xrSpatialShell?.setSessionModeSupport('immersive-ar', false);
                 postSpatialStatus('unavailable', { supported: false, ready: true });
             }
         }
@@ -3286,7 +3537,7 @@
             });
         }
 
-        function stageSceneForXR(referenceSpaceType = 'local') {
+        function stageSceneForXR(referenceSpaceType = 'local', { sessionMode = 'immersive-vr' } = {}) {
             if (!currentModel || xrPresentationState) return;
             xrPresentationState = {
                 modelPosition: currentModel.position.clone(),
@@ -3308,7 +3559,12 @@
             currentModel.updateMatrixWorld(true);
 
             controls.enabled = false;
-            if (hdriTexture) {
+            if (sessionMode === 'immersive-ar') {
+                // An opaque scene background hides the device passthrough. Keep
+                // the environment map for lighting while allowing alpha through.
+                scene.background = null;
+                if (hdriTexture) scene.environment = hdriTexture;
+            } else if (hdriTexture) {
                 scene.background = hdriTexture;
                 scene.environment = hdriTexture;
             }
@@ -3780,6 +4036,35 @@
             const procedureDrawer = document.getElementById('procedure-media-drawer');
             const hudPreviewButton = document.getElementById('hud-preview-button');
             const hudSoundButton = document.getElementById('hud-sound-button');
+            const handoffContinue = document.getElementById('spatial-mode-handoff-continue');
+            const handoffCancel = document.getElementById('spatial-mode-handoff-cancel');
+            handoffContinue?.addEventListener('click', async () => {
+                const requestedSessionMode = pendingSpatialSessionMode
+                    || document.getElementById('spatial-mode-handoff')?.dataset.sessionMode;
+                if (!requestedSessionMode) return;
+                showSpatialModeHandoff(requestedSessionMode, { state: 'connecting' });
+                try {
+                    await enterSpatialWorkspace({
+                        mode: spatialMode,
+                        context: spatialContext,
+                        sessionMode: requestedSessionMode
+                    });
+                } catch (error) {
+                    pendingSpatialSessionMode = requestedSessionMode;
+                    showSpatialModeHandoff(requestedSessionMode, {
+                        error: error?.message || `The browser could not open immersive ${spatialSessionModeLabel(requestedSessionMode)}`
+                    });
+                    postSpatialStatus('handoff', { sessionMode: requestedSessionMode });
+                }
+            });
+            handoffCancel?.addEventListener('click', () => {
+                pendingSpatialSessionMode = null;
+                spatialHandoffWindowState = null;
+                xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-mode-handoff-cancelled' });
+                xrVoice?.setPresenting(false);
+                hideSpatialModeHandoff();
+                postSpatialStatus('ready');
+            });
             hudPreviewButton.addEventListener('click', () => {
                 void xrUIAudio?.unlock();
                 const preview = hudPreviewButton.getAttribute('aria-pressed') !== 'true';

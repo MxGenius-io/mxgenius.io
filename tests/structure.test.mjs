@@ -7,6 +7,7 @@ const rootReadme = await readFile(new URL('../README.md', import.meta.url), 'utf
 const featureCatalog = await readFile(new URL('../FEATURES.md', import.meta.url), 'utf8');
 const featureCatalogPage = await readFile(new URL('../feature-catalog.html', import.meta.url), 'utf8');
 const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
+const operationsCenterScript = await readFile(new URL('../operations-center.js', import.meta.url), 'utf8');
 const customerOperations = await readFile(new URL('../customer-operations.js', import.meta.url), 'utf8');
 const landing = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
@@ -519,15 +520,15 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
   assert.match(dashboard, /id="spatialWorkspaceBtn"/);
   assert.doesNotMatch(viewer, /id="enter-vr-button"|VRButton\.createButton/);
   assert.match(viewer, /window\.MXSpatialWorkspace = Object\.freeze/);
-  assert.match(viewer, /navigator\.xr\.requestSession\('immersive-vr'/);
+  assert.match(viewer, /navigator\.xr\.requestSession\(requestedSessionMode/);
   assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionend'/);
-  assert.match(viewer, /stageSceneForXR\('local-floor'\)/);
+  assert.match(viewer, /stageSceneForXR\('local-floor', \{ sessionMode: activeSpatialSessionMode \}\)/);
   assert.match(viewer, /alpha: true/);
-  assert.match(viewer, /if \(hdriTexture\) \{[\s\S]*scene\.background = hdriTexture;[\s\S]*scene\.environment = hdriTexture;/);
+  assert.match(viewer, /else if \(hdriTexture\) \{[\s\S]*scene\.background = hdriTexture;[\s\S]*scene\.environment = hdriTexture;/);
   assert.match(viewer, /sceneBackground: scene\.background/);
   assert.match(viewer, /sceneEnvironment: scene\.environment/);
   assert.doesNotMatch(viewer, /setReferenceSpaceType/);
@@ -542,7 +543,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=42/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=43/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -726,7 +727,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=42/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=43/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -759,7 +760,7 @@ test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.match(viewer, /#reset-camera \{[\s\S]*right: 16px;[\s\S]*bottom: 16px;/);
   assert.doesNotMatch(viewer, /id="enter-vr-button"|id="vr-support-message"/);
   assert.match(dashboard, /id="spatialWorkspaceBtn"[^>]*disabled[^>]*data-state="unavailable"/);
-  assert.match(viewer, /navigator\.xr\.isSessionSupported\('immersive-vr'\)/);
+  assert.match(viewer, /navigator\.xr\?\.isSessionSupported\?\.\(sessionMode\)/);
   assert.match(application, /setupSpatialWorkspaceLauncher\(\)/);
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
 });
@@ -1143,14 +1144,19 @@ test('Settings groups model controls under AI and appearance plus sounds under C
   assert.match(applicationStyles, /\.settings-actions\s*\{[\s\S]*flex-direction: row/);
 });
 
-test('Settings provides a server-owned organization JetNet connection without browser credential storage', () => {
-  assert.match(dashboard, /id="settingsJetNetCard"[\s\S]*JetNet Connection/);
-  assert.match(dashboard, /id="settingsJetNetIdentity"[^>]*type="email"/);
-  assert.match(dashboard, /id="settingsJetNetCredential"[^>]*type="password"/);
-  assert.match(dashboard, /encrypted server-side, and never returned to this browser/);
-  assert.match(application, /MXApplicationClient\.jetnetConnection\.put/);
-  assert.match(application, /MXApplicationClient\.jetnetConnection\.delete/);
-  assert.doesNotMatch(application, /localStorage\.setItem\([^\n]*JetNet/i);
+test('Operations Center Settings owns the server-managed JetNet connection without browser credential storage', () => {
+  assert.match(operationsCenter, /data-tab="settings"[\s\S]*id="panel-settings"/);
+  assert.match(operationsCenter, /id="settingsJetNetCard"[\s\S]*JetNet Connection/);
+  assert.match(operationsCenter, /id="settingsJetNetIdentity"[^>]*type="email"/);
+  assert.match(operationsCenter, /id="settingsJetNetCredential"[^>]*type="password"/);
+  assert.match(operationsCenter, /encrypted server-side, and never returned to this browser/);
+  assert.doesNotMatch(dashboard, /id="settingsJetNetCard"/);
+  assert.doesNotMatch(application, /MXApplicationClient\.jetnetConnection\.(?:get|put|delete)/);
+  assert.match(operationsCenterScript, /MXApplicationClient\.jetnetConnection\.get/);
+  assert.match(operationsCenterScript, /MXApplicationClient\.jetnetConnection\.put/);
+  assert.match(operationsCenterScript, /MXApplicationClient\.jetnetConnection\.delete/);
+  assert.match(operationsCenterScript, /authenticatedSession\(\{ forceRefresh: true \}\)/);
+  assert.doesNotMatch(operationsCenterScript, /localStorage\.setItem\([^\n]*JetNet/i);
 });
 
 test('Customer Operations exposes the complete Equipment Drive publish and assign lifecycle', async () => {

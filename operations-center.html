@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
-  <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=5">
+  <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, provider settings, feedback, and access rules">
+  <link rel="stylesheet" href="operations-center.css?v=6">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -27,7 +27,7 @@
       <div>
         <p class="eyebrow">One operational record</p>
         <h1 id="operationsTitle">Operations Center</h1>
-        <p>R&amp;D highlights, customer operations, delivery health, reports, readiness, shared work, feedback, and access controls stay one tab away.</p>
+        <p>R&amp;D highlights, customer operations, delivery health, reports, readiness, provider settings, feedback, and access controls stay one tab away.</p>
       </div>
       <div class="operations-posture" aria-label="Operations center posture">
         <span><i></i> Authenticated workspace</span>
@@ -44,6 +44,7 @@
       <button type="button" role="tab" id="tab-features" aria-controls="panel-features" aria-selected="false" data-tab="features">Features</button>
       <button type="button" role="tab" id="tab-patents" aria-controls="panel-patents" aria-selected="false" data-tab="patents">Patents</button>
       <button type="button" role="tab" id="tab-feedback" aria-controls="panel-feedback" aria-selected="false" data-tab="feedback">Feedback</button>
+      <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
       <button type="button" role="tab" id="tab-access" aria-controls="panel-access" aria-selected="false" data-tab="access">Access</button>
     </nav>
 
@@ -374,6 +375,43 @@
       </div>
       <iframe id="feedbackFrame" title="MXGenius feedback queue" data-src="feedback-admin.html?embed=1"></iframe>
     </section>
+    <section class="operations-panel settings-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-panel="settings" hidden>
+      <header class="settings-panel__heading">
+        <div>
+          <p class="eyebrow">Organization configuration</p>
+          <h2>Provider settings</h2>
+          <p>Manage the organization-owned connections used by operational workspaces.</p>
+        </div>
+      </header>
+
+      <article class="settings-provider-card" id="settingsJetNetCard">
+        <div class="provider-connection__intro">
+          <div>
+            <span class="provider-connection__kicker">Fleet data provider</span>
+            <h3>JetNet Connection</h3>
+            <span id="settingsJetNetStatus" class="settings-hint" role="status" aria-live="polite">Open this tab to check the connection.</span>
+          </div>
+          <span id="settingsJetNetBadge" class="source-readiness" data-state="limited">Not checked</span>
+        </div>
+        <form id="settingsJetNetForm" class="provider-connection" novalidate>
+          <div class="provider-connection__fields">
+            <label class="settings-field" for="settingsJetNetIdentity">
+              <span>JetNet account email</span>
+              <input id="settingsJetNetIdentity" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="account@company.com" required>
+            </label>
+            <label class="settings-field" for="settingsJetNetCredential">
+              <span>API credential</span>
+              <input id="settingsJetNetCredential" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Enter a new credential" required>
+            </label>
+          </div>
+          <p class="provider-connection__note">The credential is verified with JetNet, encrypted server-side, and never returned to this browser. Managers and administrators can replace or disconnect it.</p>
+          <div class="provider-connection__actions">
+            <button class="button button--primary" id="settingsJetNetConnect" type="submit">Connect JetNet</button>
+            <button class="button settings-action-button--danger" id="settingsJetNetDisconnect" type="button" hidden>Disconnect</button>
+          </div>
+        </form>
+      </article>
+    </section>
     <section class="operations-panel access-panel" id="panel-access" role="tabpanel" aria-labelledby="tab-access" data-panel="access" hidden>
       <div class="access-heading">
         <div>
@@ -415,6 +453,6 @@
   <script src="guided-tooltip.js?v=12"></script>
   <script src="equipment-pack-workspace.js?v=12"></script>
   <script src="customer-operations.js?v=2"></script>
-  <script src="operations-center.js?v=4"></script>
+  <script src="operations-center.js?v=5"></script>
 </body>
 </html>

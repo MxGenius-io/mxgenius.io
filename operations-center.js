@@ -12,11 +12,13 @@
     features: 'Feature inventory active',
     patents: 'Patent portfolio active',
     feedback: 'Feedback queue active',
+    settings: 'Operations settings active',
     access: 'Access registry active'
   };
   const highlightVideos = [...document.querySelectorAll('#panel-highlights video')];
   let accessLoaded = false;
   let customersLoaded = false;
+  let settingsLoaded = false;
 
   function embeddedStyle() {
     return `
@@ -76,6 +78,7 @@
     if (next !== 'highlights') highlightVideos.forEach((video) => video.pause());
     if (stateLabel) stateLabel.textContent = labels[next];
     if (next === 'access' && !accessLoaded) void refreshAccess();
+    if (next === 'settings' && !settingsLoaded) void refreshJetNetConnection();
     if (next === 'customers' && !customersLoaded) {
       customersLoaded = true;
       void window.MXCustomerOperations?.load?.();
@@ -126,6 +129,13 @@
   const accessRuleTotal = document.getElementById('accessRuleTotal');
   const accessEmailTotal = document.getElementById('accessEmailTotal');
   const accessDomainTotal = document.getElementById('accessDomainTotal');
+  const jetNetForm = document.getElementById('settingsJetNetForm');
+  const jetNetIdentity = document.getElementById('settingsJetNetIdentity');
+  const jetNetCredential = document.getElementById('settingsJetNetCredential');
+  const jetNetStatus = document.getElementById('settingsJetNetStatus');
+  const jetNetBadge = document.getElementById('settingsJetNetBadge');
+  const jetNetConnect = document.getElementById('settingsJetNetConnect');
+  const jetNetDisconnect = document.getElementById('settingsJetNetDisconnect');
   let accessRules = [];
 
   function setAccessStatus(message, state = '') {
@@ -141,7 +151,7 @@
     const current = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
     const accessToken = renewed || current.accessToken;
     if (!accessToken && !globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) {
-      const error = new Error('Sign in is required to manage access.');
+      const error = new Error('Sign in is required to manage Operations Center data.');
       error.code = 'AUTH_REQUIRED';
       throw error;
     }
@@ -158,6 +168,80 @@
       return operation(session);
     }
   }
+
+  function renderJetNetConnection(payload, message = '') {
+    const configured = payload?.configured === true;
+    const connection = payload?.connection || {};
+    jetNetBadge.dataset.state = configured ? 'live' : 'unavailable';
+    jetNetBadge.textContent = configured ? 'Connected' : 'Not connected';
+    jetNetStatus.textContent = message || (configured
+      ? `${connection.identityHint || 'Organization account'} verified with JetNet`
+      : 'Add your organization’s JetNet account to use its licensed fleet data.');
+    jetNetIdentity.value = '';
+    jetNetIdentity.placeholder = configured
+      ? connection.identityHint || 'Enter the account email to replace'
+      : 'account@company.com';
+    jetNetCredential.value = '';
+    jetNetConnect.textContent = configured ? 'Replace connection' : 'Connect JetNet';
+    jetNetDisconnect.hidden = !configured;
+  }
+
+  async function refreshJetNetConnection() {
+    jetNetBadge.dataset.state = 'checking';
+    jetNetBadge.textContent = 'Checking';
+    jetNetStatus.textContent = 'Checking organization connection…';
+    try {
+      const payload = await withSession((session) => MXApplicationClient.jetnetConnection.get(session));
+      settingsLoaded = true;
+      renderJetNetConnection(payload);
+    } catch (error) {
+      jetNetBadge.dataset.state = 'degraded';
+      jetNetBadge.textContent = 'Unavailable';
+      jetNetStatus.textContent = error.message;
+    }
+  }
+
+  jetNetForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const identity = jetNetIdentity.value.trim();
+    const credential = jetNetCredential.value;
+    if (!identity || credential.length < 8) {
+      jetNetStatus.textContent = 'Enter the JetNet account email and API credential.';
+      return;
+    }
+    jetNetConnect.disabled = true;
+    jetNetStatus.textContent = 'Verifying with JetNet…';
+    jetNetBadge.dataset.state = 'checking';
+    jetNetBadge.textContent = 'Checking';
+    try {
+      const payload = await withSession((session) => (
+        MXApplicationClient.jetnetConnection.put({ identity, credential, session })
+      ));
+      settingsLoaded = true;
+      renderJetNetConnection(payload, 'Connection verified. Fleet requests now use this organization’s JetNet access.');
+    } catch (error) {
+      jetNetCredential.value = '';
+      jetNetBadge.dataset.state = 'degraded';
+      jetNetBadge.textContent = 'Not connected';
+      jetNetStatus.textContent = error.message;
+    } finally {
+      jetNetConnect.disabled = false;
+    }
+  });
+
+  jetNetDisconnect.addEventListener('click', async () => {
+    if (!globalThis.confirm('Disconnect this organization’s JetNet account? Fleet requests will return to the MXGenius service connection.')) return;
+    jetNetDisconnect.disabled = true;
+    jetNetStatus.textContent = 'Disconnecting…';
+    try {
+      await withSession((session) => MXApplicationClient.jetnetConnection.delete(session));
+      renderJetNetConnection({ configured: false });
+    } catch (error) {
+      jetNetStatus.textContent = error.message;
+    } finally {
+      jetNetDisconnect.disabled = false;
+    }
+  });
 
   function renderAccess() {
     accessRows.replaceChildren();

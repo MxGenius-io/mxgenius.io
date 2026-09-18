@@ -925,8 +925,10 @@ function setupSpatialWorkspaceLauncher() {
     if (message.type !== 'mxgenius.spatial.status') return;
     MX3DViewer.spatialSupported = Boolean(message.supported);
     MX3DViewer.spatialReady = Boolean(message.ready);
-    if (message.state === 'active') setSpatialWorkspaceButtonState('active', 'VR workspace active');
-    else if (message.state === 'connecting') setSpatialWorkspaceButtonState('connecting', 'Opening VR workspace…');
+    const sessionLabel = message.sessionMode === 'immersive-ar' ? 'AR' : 'VR';
+    if (message.state === 'active') setSpatialWorkspaceButtonState('active', `${sessionLabel} workspace active`);
+    else if (message.state === 'handoff') setSpatialWorkspaceButtonState('connecting', `Continue the switch to ${sessionLabel} in the 3D viewer`);
+    else if (message.state === 'connecting') setSpatialWorkspaceButtonState('connecting', `Opening ${sessionLabel} workspace…`);
     else if (message.supported && message.ready) setSpatialWorkspaceButtonState('ready', 'Open the MXGenius VR workspace');
     else setSpatialWorkspaceButtonState('unavailable', 'No VR headset detected');
   });
@@ -3411,13 +3413,6 @@ function initSettings() {
   const demoPresentation = window.MXDemoVisualRegistry?.presentation;
   const textModelSelect = document.getElementById('settingsTextModel');
   const operationsCenterOpen = document.getElementById('settingsOperationsCenterOpen');
-  const jetNetForm = document.getElementById('settingsJetNetForm');
-  const jetNetIdentity = document.getElementById('settingsJetNetIdentity');
-  const jetNetCredential = document.getElementById('settingsJetNetCredential');
-  const jetNetStatus = document.getElementById('settingsJetNetStatus');
-  const jetNetBadge = document.getElementById('settingsJetNetBadge');
-  const jetNetConnect = document.getElementById('settingsJetNetConnect');
-  const jetNetDisconnect = document.getElementById('settingsJetNetDisconnect');
   let profileImageObjectUrl = null;
 
   function syncDemoPresentationControls(message = '') {
@@ -3473,86 +3468,6 @@ function initSettings() {
   operationsCenterOpen?.addEventListener('click', () => {
     window.location.href = 'operations-center.html?release=rd-highlights';
   });
-
-  function renderJetNetConnection(payload, message = '') {
-    const configured = payload?.configured === true;
-    const connection = payload?.connection || {};
-    if (jetNetBadge) {
-      jetNetBadge.dataset.state = configured ? 'live' : 'unavailable';
-      jetNetBadge.textContent = configured ? 'Connected' : 'Not connected';
-    }
-    if (jetNetStatus) {
-      jetNetStatus.textContent = message || (configured
-        ? `${connection.identityHint || 'Organization account'} verified with JetNet`
-        : 'Add your organization’s JetNet account to use its licensed fleet data.');
-    }
-    if (jetNetIdentity) {
-      jetNetIdentity.value = '';
-      jetNetIdentity.placeholder = configured
-        ? connection.identityHint || 'Enter the account email to replace'
-        : 'account@company.com';
-    }
-    if (jetNetCredential) jetNetCredential.value = '';
-    if (jetNetConnect) jetNetConnect.textContent = configured ? 'Replace connection' : 'Connect JetNet';
-    if (jetNetDisconnect) jetNetDisconnect.hidden = !configured;
-  }
-
-  if (jetNetForm) {
-    void withSettingsSession((requestSession) => MXApplicationClient.jetnetConnection.get(requestSession))
-      .then((payload) => renderJetNetConnection(payload))
-      .catch((error) => {
-        if (jetNetBadge) {
-          jetNetBadge.dataset.state = 'degraded';
-          jetNetBadge.textContent = 'Unavailable';
-        }
-        if (jetNetStatus) jetNetStatus.textContent = error.message;
-      });
-
-    jetNetForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const identity = jetNetIdentity?.value.trim() || '';
-      const credential = jetNetCredential?.value || '';
-      if (!identity || credential.length < 8) {
-        if (jetNetStatus) jetNetStatus.textContent = 'Enter the JetNet account email and API credential.';
-        return;
-      }
-      if (jetNetConnect) jetNetConnect.disabled = true;
-      if (jetNetStatus) jetNetStatus.textContent = 'Verifying with JetNet…';
-      if (jetNetBadge) {
-        jetNetBadge.dataset.state = 'checking';
-        jetNetBadge.textContent = 'Checking';
-      }
-      try {
-        const payload = await withSettingsSession((requestSession) => (
-          MXApplicationClient.jetnetConnection.put({ identity, credential, session: requestSession })
-        ));
-        renderJetNetConnection(payload, 'Connection verified. Fleet requests now use this organization’s JetNet access.');
-      } catch (error) {
-        if (jetNetCredential) jetNetCredential.value = '';
-        if (jetNetBadge) {
-          jetNetBadge.dataset.state = 'degraded';
-          jetNetBadge.textContent = 'Not connected';
-        }
-        if (jetNetStatus) jetNetStatus.textContent = error.message;
-      } finally {
-        if (jetNetConnect) jetNetConnect.disabled = false;
-      }
-    });
-
-    jetNetDisconnect?.addEventListener('click', async () => {
-      if (!window.confirm('Disconnect this organization’s JetNet account? Fleet requests will return to the MXGenius service connection.')) return;
-      jetNetDisconnect.disabled = true;
-      if (jetNetStatus) jetNetStatus.textContent = 'Disconnecting…';
-      try {
-        await withSettingsSession((requestSession) => MXApplicationClient.jetnetConnection.delete(requestSession));
-        renderJetNetConnection({ configured: false });
-      } catch (error) {
-        if (jetNetStatus) jetNetStatus.textContent = error.message;
-      } finally {
-        jetNetDisconnect.disabled = false;
-      }
-    });
-  }
 
   if (acct) {
     const displayName = acct.name || acct.username || 'User';

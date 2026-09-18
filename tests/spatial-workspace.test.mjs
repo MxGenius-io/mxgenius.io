@@ -84,16 +84,45 @@ test('spatial window manager keeps one active window and preserves minimized lif
   assert.deepEqual(calls, ['witness:show', 'witness:hide:true', 'thermal:show', 'thermal:hide:false']);
 });
 
-test('the web application exposes one VR launcher and one canonical session owner', () => {
+test('the web application exposes one launcher and one canonical VR or AR session owner', () => {
   assert.equal((dashboard.match(/id="spatialWorkspaceBtn"/g) || []).length, 1);
   assert.doesNotMatch(dashboard, /id="globeVrButton"/);
   assert.doesNotMatch(viewer, /id="enter-vr-button"|VRButton\.createButton/);
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
-  assert.match(viewer, /navigator\.xr\.requestSession\('immersive-vr'/);
+  assert.match(viewer, /navigator\.xr\.requestSession\(requestedSessionMode/);
+  assert.match(viewer, /\['immersive-vr', 'immersive-ar'\]/);
+  assert.match(viewer, /sessionMode === 'immersive-ar'[\s\S]*'hit-test'/);
   assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
   assert.doesNotMatch(viewer, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(application, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
+});
+
+test('VR and AR switch through a bounded user-gesture handoff while preserving workspace state', () => {
+  assert.match(shell, /MXGeniusSwitchToAR/);
+  assert.match(shell, /MXGeniusSwitchToVR/);
+  assert.match(shell, /xrShellAction = 'switch-session-mode'/);
+  assert.match(shell, /this\.onSessionModeChange\?\.\(nextSessionMode, \{ input \}\)/);
+  assert.match(viewer, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
+  const handoff = viewer.slice(
+    viewer.indexOf('async function beginSpatialSessionModeHandoff'),
+    viewer.indexOf('async function enterSpatialWorkspace')
+  );
+  assert.match(handoff, /pendingSpatialSessionMode = requestedMode/);
+  assert.match(handoff, /spatialHandoffWindowState = xrWindowManager\?\.snapshot\?\.\(\) \|\| null/);
+  assert.match(handoff, /await spatialSession\.end\(\)/);
+  assert.doesNotMatch(handoff, /requestSession\(/);
+  assert.match(viewer, /handoffContinue\?\.addEventListener\('click', async \(\) =>/);
+  assert.match(viewer, /context: spatialContext,[\s\S]*sessionMode: requestedSessionMode/);
+  assert.match(viewer, /if \(!pendingSpatialSessionMode\) \{[\s\S]*xrWindowManager\?\.minimizeAll/);
+  assert.match(viewer, /xrWindowManager\?\.open\(spatialHandoffWindowState\.activeId/);
+  assert.match(viewer, /if \(pendingSpatialSessionMode\) \{[\s\S]*xrVoice\.group\.visible = false/);
+  assert.match(viewer, /sessionMode === 'immersive-ar'[\s\S]*scene\.background = null/);
+  assert.match(viewer, /spatial-mode-handoff-message/);
+  assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
+  assert.match(application, /message\.state === 'handoff'/);
+  assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=43/);
 });
 
 test('operations and maintenance change inside the same renderer without dropping live pipes', () => {
@@ -147,6 +176,7 @@ test('the spatial tray communicates minimized windows without ending Remote Witn
 
 test('the shared spatial tray always exposes a session exit control', () => {
   assert.match(shell, /MXGeniusExitVR/);
+  assert.match(shell, /MXGeniusExitAR/);
   assert.match(shell, /xrShellAction = 'exit-vr'/);
   assert.match(shell, /this\.onExit\(\{ input \}\)/);
   assert.match(viewer, /onExit: \(\) => spatialSession\?\.end\?\.\(\)/);

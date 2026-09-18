@@ -428,7 +428,7 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=42" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=43" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->
@@ -486,38 +486,6 @@
               <span class="settings-hint" id="settingsSessionStatus">Checking&hellip;</span>
             </div>
           </div>
-        </div>
-
-        <!-- Organization-owned JetNet connection -->
-        <div class="settings-card" id="settingsJetNetCard">
-          <h3 class="settings-card-title">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M5.5 4a3.5 3.5 0 015.96-2.47l1.01 1.01a3.5 3.5 0 010 4.95l-1.4 1.4-1.42-1.42 1.4-1.4a1.5 1.5 0 000-2.12l-1-1a1.5 1.5 0 00-2.13 0L5.8 5.07a1.5 1.5 0 000 2.12l.7.7-1.42 1.42-.7-.7A3.5 3.5 0 015.5 4zm9 12a3.5 3.5 0 01-5.96 2.47l-1.01-1.01a3.5 3.5 0 010-4.95l1.4-1.4 1.42 1.42-1.4 1.4a1.5 1.5 0 000 2.12l1 1a1.5 1.5 0 002.13 0l2.12-2.12a1.5 1.5 0 000-2.12l-.7-.7 1.42-1.42.7.7A3.5 3.5 0 0114.5 16zM7.29 14.12l-1.41-1.41 6.83-6.83 1.41 1.41-6.83 6.83z"/></svg>
-            JetNet Connection
-          </h3>
-          <form id="settingsJetNetForm" class="provider-connection" novalidate>
-            <div class="provider-connection__intro">
-              <div>
-                <strong>Use your organization&rsquo;s JetNet access</strong>
-                <span id="settingsJetNetStatus" class="settings-hint" role="status" aria-live="polite">Checking connection&hellip;</span>
-              </div>
-              <span id="settingsJetNetBadge" class="source-readiness" data-state="limited">Checking</span>
-            </div>
-            <div class="provider-connection__fields">
-              <label class="settings-field" for="settingsJetNetIdentity">
-                <span>JetNet account email</span>
-                <input id="settingsJetNetIdentity" class="search-input" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="account@company.com" required>
-              </label>
-              <label class="settings-field" for="settingsJetNetCredential">
-                <span>API credential</span>
-                <input id="settingsJetNetCredential" class="search-input" type="password" autocomplete="new-password" minlength="8" maxlength="1024" placeholder="Enter a new credential" required>
-              </label>
-            </div>
-            <p class="provider-connection__note">The credential is verified with JetNet, encrypted server-side, and never returned to this browser. Managers and administrators can replace or disconnect it.</p>
-            <div class="provider-connection__actions">
-              <button class="btn-primary" id="settingsJetNetConnect" type="submit">Connect JetNet</button>
-              <button class="btn-primary settings-action-button--danger" id="settingsJetNetDisconnect" type="button" hidden>Disconnect</button>
-            </div>
-          </form>
         </div>
 
         <!-- AI -->
@@ -802,7 +770,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="app.js?v=92"></script>
+  <script src="app.js?v=93"></script>
   <div id="onboardingRoot"></div>
 </body>
 
