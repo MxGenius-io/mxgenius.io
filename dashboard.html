@@ -11,7 +11,7 @@
     @font-face { font-family: 'Inter'; src: local('Inter'), local('SF Pro Display'), local('Helvetica Neue'); }
     @font-face { font-family: 'JetBrains Mono'; src: local('JetBrains Mono'), local('SF Mono'), local('Menlo'); }
   </style>
-  <link rel="stylesheet" href="app-styles.css?v=26">
+  <link rel="stylesheet" href="app-styles.css?v=27">
   <link rel="stylesheet" href="case-workspace.css?v=13">
   <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
@@ -118,7 +118,7 @@
                 <button class="texture-btn" data-texture="earth-dark-hd.png" title="Dark Mode">🌑</button>
                 <button class="texture-btn" data-texture="earth-water-hd.png" title="Ocean Mode">💧</button>
                 <button class="texture-btn active" data-texture="osm" title="Open Street Map">🗺️</button>
-                <a class="texture-btn sensor-scene-tab" id="sensorSceneTab" href="globe-vr.html?scene=sensor&amp;v=19" title="Open the AR Sensor Bridge scene" aria-label="Open AR Sensor Bridge scene">
+                <a class="texture-btn sensor-scene-tab" id="sensorSceneTab" href="globe-vr.html?scene=bridge&amp;v=20" title="Open Sensor Bridge on the JetNet fleet globe" aria-label="Open Sensor Bridge on the JetNet fleet globe">
                   <img src="assets/thermal-sensor-scene-square.png" alt="" aria-hidden="true">
                 </a>
                 <button class="texture-btn live-traffic-button" id="globeLiveTrafficButton" type="button" title="Show live flight data" aria-label="Show live flight data" aria-pressed="false" data-state="off">
@@ -135,6 +135,7 @@
                 </svg>
               </button>
             </div>
+            <div class="sensor-scene-status" id="sensorSceneStatus" role="status" aria-live="polite" hidden>Fleet is still loading. Sensor Bridge will be ready in a moment.</div>
             
             <button id="globeRotateToggle" class="texture-btn globe-rotate-overlay" title="Toggle Auto-Rotation">
               <svg viewBox="0 0 20 20" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
@@ -431,7 +432,7 @@
 
 
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
-      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=45" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
+      <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=46" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
 
     <!-- Settings Tab -->
@@ -773,7 +774,7 @@
   <script src="html2canvas.js"></script>
   <script src="feedback-reporter.js?v=2"></script>
   <script src="sound-settings.js?v=2"></script>
-  <script src="app.js?v=93"></script>
+  <script src="app.js?v=94"></script>
   <div id="onboardingRoot"></div>
 </body>
 

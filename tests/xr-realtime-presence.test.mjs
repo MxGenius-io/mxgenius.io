@@ -29,8 +29,8 @@ test('XR voice presence is a dense point cloud with dedicated mic, snapshot, and
   assert.match(presence, /new THREE\.CanvasTexture\(/);
   assert.match(presence, /xrVoiceAction = 'recenter'/);
   assert.match(presence, /WORLD ANCHORED/);
-  assert.match(globe, /pointCount: sensorOnlyScene \? 1800 : 720/);
-  assert.match(globe, /pointSize: sensorOnlyScene \? 0\.0007 : 0\.0012/);
+  assert.match(globe, /pointCount: sensorBridgeScene \? 1800 : 720/);
+  assert.match(globe, /pointSize: sensorBridgeScene \? 0\.0007 : 0\.0012/);
   assert.match(presence, /MXGeniusRealtimeMic/);
   assert.match(presence, /MXGeniusRealtimeSnapshot/);
   assert.match(presence, /capture-snapshot/);
@@ -104,9 +104,9 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.doesNotMatch(presence, /interactiveObjects\(\) \{\s*if \(!this\.launcherVisible\) return \[\]/);
 });
 
-test('sensor scene docks thermal, witness, and AI behind one world-anchored task tray', () => {
-  assert.match(globe, /if \(sensorOnlyScene\) \(\{ XRSensorOrb: SensorOrbClass \} = await import/);
-  assert.match(globe, /if \(sensorOnlyScene\) xrSensors = new SensorOrbClass/);
+test('Sensor Bridge docks thermal, witness, and AI behind one world-anchored task tray', () => {
+  assert.match(globe, /if \(sensorBridgeScene\) \(\{ XRSensorOrb: SensorOrbClass \} = await import/);
+  assert.match(globe, /if \(sensorBridgeScene\) xrSensors = new SensorOrbClass/);
   assert.match(globe, /presentation: 'head-screen'/);
   assert.match(globe, /initialActive: false/);
   assert.match(globe, /showControls: false/);
@@ -168,8 +168,8 @@ test('sensor scene docks thermal, witness, and AI behind one world-anchored task
   assert.match(headsetFrame, /headset\.snapshot\.request/);
   assert.match(headsetFrame, /headset\.snapshot\.result/);
   assert.match(headsetFrame, /frame-busy/);
-  assert.match(globe, /onSnapshotRequest: sensorOnlyScene \? requestHeadsetFrame : null/);
-  assert.match(globe, /onSnapshotCaptured: sensorOnlyScene \? saveSnapshotToActiveCase : null/);
+  assert.match(globe, /onSnapshotRequest: sensorBridgeScene \? requestHeadsetFrame : null/);
+  assert.match(globe, /onSnapshotCaptured: sensorBridgeScene \? saveSnapshotToActiveCase : null/);
   assert.match(globe, /mxg_active_case_id/);
   assert.match(globe, /MXApplicationClient\.cases\.attachMedia/);
   assert.match(globe, /emitSceneAction\('sensor-status'/);
@@ -190,17 +190,32 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
   assert.equal(traceSafe(`digest ${'a'.repeat(64)}`), 'digest [redacted]');
 });
 
-test('dashboard exposes the isolated sensor route from the globe filter rail', () => {
+test('dashboard opens Sensor Bridge on the mature JetNet fleet globe', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=19"/);
-  assert.match(dashboard, /aria-label="Open AR Sensor Bridge scene"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=bridge&amp;v=20"/);
+  assert.match(dashboard, /aria-label="Open Sensor Bridge on the JetNet fleet globe"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
+  assert.match(dashboard, /id="sensorSceneStatus"[\s\S]*Fleet is still loading/);
+  assert.match(app, /setupSensorSceneTab\(\)[\s\S]*status\.hidden = false/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
+  assert.match(globe, /const sensorBridgeScene = sensorOnlyScene[\s\S]*pageQuery\.get\('scene'\) === 'bridge'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);
   assert.match(globe, /globeGroup\.visible = !sensorOnlyScene/);
+  assert.match(globe, /if \(sensorBridgeScene\) xrSensors = new SensorOrbClass/);
+  assert.match(globe, /JetNetImageGrid/);
+  assert.match(globe, /MXApplicationClient\.aircraftBundle/);
+  assert.match(globe, /MXApplicationClient\.aircraftImageBlobUrl/);
+  assert.match(globe, /URL\.revokeObjectURL/);
   assert.match(globe, /surface: sceneSurface/);
-  assert.match(globe, /Isolated FLIR \+ Pi workspace · no JetNet fleet data loaded/);
-  assert.match(globe, /SensorDiagnosticsBackdrop/);
+  assert.match(globe, /tools: sensorBridgeScene \? \[/);
+  assert.match(globe, /toolModes: sensorBridgeScene \? \['operations', 'maintenance'\]/);
+  assert.match(globe, /placement: sensorOnlyScene \? null : sensorBridgeScene \? \{ x: 0, y: -0\.52, z: -1\.05 \}/);
+  assert.match(globe, /dismissFleetDetails\(input\)/);
+  assert.match(globe, /xrWindowManager\?\.minimizeAll\(\{ input, reason: 'fleet-details-open' \}\)/);
+  assert.match(presence, /setPresenceVisible\(visible\)/);
+  assert.match(globe, /xrVoice\?\.setPresenceVisible\(!fleetDetailsOpen && \(!activeId \|\| activeId === 'voice'\)\)/);
+  assert.match(globe, /detailsPanel\.visible = true;[\s\S]*syncBridgePresence\(\)/);
+  assert.match(globe, /detailsPanel\.visible = false;[\s\S]*syncBridgePresence\(\)/);
 });
 
 test('sensor scene cache-busts the commissioning browser client', () => {
@@ -240,7 +255,7 @@ test('sensor scene mounts simulated and authenticated bounded target analyzers',
   assert.match(globe, /MXApplicationClient\.spatial\.scan/);
   assert.match(globe, /applySpatialScanResult/);
   assert.match(globe, /new XRSpatialTargetHUD/);
-  assert.match(globe, /spatialSimulationEnabled = sensorOnlyScene && localPreviewHost/);
+  assert.match(globe, /spatialSimulationEnabled = sensorBridgeScene && localPreviewHost/);
   assert.match(globe, /spatialHud\?\.update\(delta, time, \{ camera \}\)/);
   assert.match(globe, /spatialHud\?\.setPresenting\(true\)/);
   assert.match(globe, /detail\.reason === 'spatial-targets-expired'/);

@@ -381,6 +381,12 @@ export class XRRealtimePresence {
     }
   }
 
+  setPresenceVisible(visible) {
+    if (this.disposed) return;
+    this.presenceVisible = Boolean(visible);
+    this.syncDockControls();
+  }
+
   syncDockControls() {
     const controlsVisible = Boolean(this.presenting && this.dockTarget && (this.launcherVisible || this.surfaceOpen));
     this.orb.visible = Boolean(this.presenting && this.presenceVisible);
@@ -682,7 +688,8 @@ export class XRRealtimePresence {
         ? `The active maintenance case is ${caseContext.caseId}.`
         : 'No maintenance case is active. Do not attempt a case-bound mutation.';
       const fleetLocation = caseContext?.fleetLocation || null;
-      const fleetInstruction = caseContext?.surface === 'fleet-globe'
+      const fleetSurfaceActive = String(caseContext?.surface || '').startsWith('fleet-globe');
+      const fleetInstruction = fleetSurfaceActive
         ? fleetLocation?.icao
           ? `The selected JetNet fleet location is ${cleanText(fleetLocation.icao)} in ${cleanText([fleetLocation.city, fleetLocation.country].filter(Boolean).join(', '), 'an unknown location')}, representing ${Number(fleetLocation.count) || 0} cached aircraft. Use that location as the current fleet context.`
           : 'The fleet globe is active, but no JetNet location is selected yet.'

@@ -21,6 +21,8 @@ export class XRSpatialShell {
   constructor({
     mode = 'operations',
     tools = [],
+    toolModes = ['maintenance'],
+    placement = null,
     sessionMode = 'immersive-vr',
     sessionModeSupport = {},
     onModeChange = () => {},
@@ -46,6 +48,9 @@ export class XRSpatialShell {
     this.onToolAction = onToolAction;
     this.onAction = onAction;
     this.activeModeHints = { ...activeModeHints };
+    this.toolModes = new Set(
+      toolModes.filter((candidate) => Boolean(MODES[candidate]))
+    );
     this.presenting = false;
     this.disposed = false;
     this.placementPending = true;
@@ -55,7 +60,11 @@ export class XRSpatialShell {
     // Place the command tray below the user's sightline and anchor it once in
     // world space. The previous positive world-Y offset put it above eye level
     // and made neighboring task windows feel head-attached.
-    this.placementOffset = new THREE.Vector3(0, -0.30, -1.05);
+    this.placementOffset = new THREE.Vector3(
+      Number.isFinite(placement?.x) ? placement.x : 0,
+      Number.isFinite(placement?.y) ? placement.y : -0.30,
+      Number.isFinite(placement?.z) ? placement.z : -1.05
+    );
     this.localPoint = new THREE.Vector3();
 
     this.group = new THREE.Group();
@@ -353,7 +362,7 @@ export class XRSpatialShell {
         context.fill();
         context.shadowBlur = 0;
       }
-      button.visible = this.mode === 'maintenance';
+      button.visible = this.toolModes.has(this.mode);
       button.userData.texture.needsUpdate = true;
     }
     this.drawSessionModeButton();
@@ -365,7 +374,7 @@ export class XRSpatialShell {
     const sessionControls = this.sessionModeButton
       ? [this.sessionModeButton, this.exitButton]
       : [this.exitButton];
-    return this.mode === 'maintenance'
+    return this.toolModes.has(this.mode)
       ? [...this.buttons, ...this.toolButtons, ...sessionControls]
       : [...this.buttons, ...sessionControls];
   }

@@ -1463,11 +1463,10 @@
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
-        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=14';
+        import { XRRealtimePresence } from '../xr-realtime-presence.js?v=15';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=9';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=14';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=10';
-        import { XROperationsSurface } from '../xr-operations-surface.js?v=2';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=11';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
             applicationSession,
@@ -1532,6 +1531,13 @@
         let pendingRemoteSelector = null;
         let pointerDownPosition = null;
         let spatialContext = globalThis.MXSpatialContext?.read?.() || { version: 2, mode: 'maintenance' };
+        if (spatialContext.mode === 'operations') {
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                ...spatialContext,
+                source: 'viewer-maintenance-normalize',
+                mode: 'maintenance'
+            }) || { ...spatialContext, source: 'viewer-maintenance-normalize', mode: 'maintenance' };
+        }
         let viewerContext = {
             caseId: spatialContext.case?.id || null,
             aircraftId: spatialContext.aircraft?.id || null,
@@ -1549,9 +1555,8 @@
         let xrWitness = null;
         let xrSpatialShell = null;
         let xrSpatialCommands = null;
-        let xrOperationsSurface = null;
         let xrWindowManager = null;
-        let spatialMode = spatialContext.mode === 'operations' ? 'operations' : 'maintenance';
+        let spatialMode = 'maintenance';
         let spatialSession = null;
         let activeSpatialSessionMode = null;
         let pendingSpatialSessionMode = null;
@@ -1973,9 +1978,6 @@
                 }
             });
             scene.add(xrWitness.group);
-            xrOperationsSurface = new XROperationsSurface({ onAction: emitXRAction });
-            xrOperationsSurface.setContext(spatialContext);
-            scene.add(xrOperationsSurface.group);
             xrWindowManager = new SpatialWindowManager({
                 onChange: ({ id, state, active, snapshot }) => {
                     xrSpatialShell?.setToolState(id, {
@@ -2018,7 +2020,16 @@
                     { id: 'capture', enabled: Boolean(viewerContext?.caseId || localStorage.getItem('mxg_active_case_id')) }
                 ],
                 onModeChange: (mode, { input = 'xr' } = {}) => {
+                    if (mode === 'operations') {
+                        void openMatureOperationsGlobe(input);
+                        return;
+                    }
                     setSpatialMode(mode, { source: 'spatial-tray' });
+                },
+                onActiveMode: (mode, { input = 'xr' } = {}) => {
+                    if (mode !== 'operations') return false;
+                    void openMatureOperationsGlobe(input);
+                    return true;
                 },
                 onSessionModeChange: (sessionMode, { input = 'xr' } = {}) => {
                     void beginSpatialSessionModeHandoff(sessionMode, { input });
@@ -2817,7 +2828,6 @@
                 spatialSource: spatialContext.source || viewerContext.spatialSource || null
             };
             xrMaintenanceHUD?.setContext(viewerContext);
-            xrOperationsSurface?.setContext(spatialContext);
         }
 
         function applySpatialMode() {
@@ -2826,8 +2836,6 @@
             if (currentModel) currentModel.visible = !presenting || maintenance;
             if (inspectionGrid) inspectionGrid.visible = !presenting || maintenance;
             xrSpatialShell?.setMode(spatialMode);
-            xrOperationsSurface?.setPresenting(presenting, camera);
-            xrOperationsSurface?.setVisible(presenting && !maintenance, camera);
             if (xrSensors?.group) xrSensors.group.visible = presenting && maintenance;
             if (xrVoice?.group) xrVoice.group.visible = presenting && maintenance;
             if (xrWitness?.group) xrWitness.group.visible = presenting && maintenance;
@@ -2865,6 +2873,38 @@
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
             emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
+        }
+
+        let matureOperationsNavigationPending = false;
+        async function openMatureOperationsGlobe(input = 'xr', context = null) {
+            if (matureOperationsNavigationPending) return;
+            matureOperationsNavigationPending = true;
+            const update = context && typeof context === 'object' ? context : {};
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                ...spatialContext,
+                ...update,
+                source: 'mature-globe-handoff',
+                mode: 'operations'
+            }) || { ...spatialContext, ...update, source: 'mature-globe-handoff', mode: 'operations' };
+            updateViewerContextFromSpatialContext();
+            emitXRAction('mature-globe-handoff', input, { destination: 'globe-vr.html', sensorBridge: true });
+            const session = renderer?.xr?.getSession?.() || spatialSession;
+            if (session) {
+                try {
+                    await session.end();
+                } catch (error) {
+                    console.warn('Unable to end the maintenance XR session before opening the fleet globe', error);
+                }
+            }
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'mxgenius.viewer.operations-request',
+                    version: 1,
+                    context: spatialContext
+                }, window.location.origin);
+                return;
+            }
+            window.location.assign('../globe-vr.html?scene=bridge&return=vr&v=20');
         }
 
         function spatialSessionModeLabel(sessionMode) {
@@ -2995,6 +3035,10 @@
 
         async function enterSpatialWorkspace({ mode = spatialMode, context = null, sessionMode = 'immersive-vr' } = {}) {
             const requestedSessionMode = sessionMode === 'immersive-ar' ? 'immersive-ar' : 'immersive-vr';
+            if (mode === 'operations') {
+                await openMatureOperationsGlobe('workspace-api', context);
+                return { active: false, handoff: true, mode: 'operations', sessionMode: activeSpatialSessionMode };
+            }
             setSpatialMode(mode, { source: 'dashboard-header', context });
             if (spatialSession) {
                 if (activeSpatialSessionMode === requestedSessionMode) {
@@ -3036,7 +3080,9 @@
                 enter: enterSpatialWorkspace,
                 exit: () => spatialSession?.end?.(),
                 switchSessionMode: (sessionMode) => beginSpatialSessionModeHandoff(sessionMode, { input: 'workspace-api' }),
-                setMode: (mode, context) => setSpatialMode(mode, { source: 'workspace-api', context }),
+                setMode: (mode, context) => mode === 'operations'
+                    ? openMatureOperationsGlobe('workspace-api', context)
+                    : setSpatialMode(mode, { source: 'workspace-api', context }),
                 status: () => ({
                     active: Boolean(spatialSession),
                     mode: spatialMode,
@@ -3071,8 +3117,6 @@
                 if (!pendingSpatialSessionMode) {
                     xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
                 }
-                xrOperationsSurface?.setVisible(false, camera);
-                xrOperationsSurface?.setPresenting(false, camera);
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
                 xrMaintenanceHUD?.setPresenting(false, camera);
@@ -3278,7 +3322,6 @@
         function xrWidgetInteractionTargets() {
             return [
                 ...(xrSpatialShell?.interactiveObjects() || []),
-                ...(xrOperationsSurface?.interactiveObjects() || []),
                 ...(xrSensors?.interactiveObjects() || []),
                 ...(xrVoice?.interactiveObjects() || []),
                 ...(xrWitness?.interactiveObjects() || []),
@@ -3375,7 +3418,6 @@
             if (!hit) return;
             const input = `controller-${index}`;
             if (xrSpatialShell?.handleObject(hit.object, input)) return;
-            if (xrOperationsSurface?.handleObject(hit.object, hit.uv, input)) return;
             if (xrSensors?.handleObject(hit.object, input)) return;
             if (xrVoice?.handleObject(hit.object, input)) return;
             if (xrWitness?.handleObject(hit.object, input)) return;
@@ -3583,15 +3625,6 @@
                     xrFingerTargets.set(index, shellTarget);
                     return;
                 }
-                const operationsTarget = xrOperationsSurface?.fingerTargetAt(xrFingerPoint);
-                if (operationsTarget) {
-                    const previousOperations = xrFingerTargets.get(index) || null;
-                    if (operationsTarget.key !== previousOperations) {
-                        xrOperationsSurface.activateFingerTarget(operationsTarget, `finger-${index}`);
-                    }
-                    xrFingerTargets.set(index, operationsTarget.key);
-                    return;
-                }
                 const sensorTarget = xrSensors?.fingerTargetAt(xrFingerPoint);
                 if (sensorTarget) {
                     const previousSensor = xrFingerTargets.get(index) || null;
@@ -3760,7 +3793,6 @@
             }) || { ...spatialContext, model, component: null };
             viewerContext = { ...viewerContext, model, componentId: null };
             xrMaintenanceHUD?.setContext(viewerContext);
-            xrOperationsSurface?.setContext(spatialContext);
             void xrVoice?.refreshContext();
             if (window.parent !== window) {
                 window.parent.postMessage({
@@ -4289,7 +4321,6 @@
                         location: viewerContext.location || null
                     }) || spatialContext;
                     xrMaintenanceHUD?.setContext(viewerContext);
-                    xrOperationsSurface?.setContext(spatialContext);
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                     void restoreViewerCaseEvidence().then((current) => {
                         xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
@@ -4310,6 +4341,10 @@
                     configureProcedureMedia(message.tutorial);
                 } else if (message.type === 'mxgenius.viewer.clear-selection') {
                     clearPartSelection();
+                } else if (message.type === 'mxgenius.viewer.operations-unavailable') {
+                    matureOperationsNavigationPending = false;
+                    setSpatialMode('maintenance', { source: 'operations-unavailable' });
+                    console.warn(message.message || 'The JetNet fleet globe is not ready yet.');
                 } else if (message.type === 'mxgenius.viewer.ar-capability') {
                     const arContainer = document.getElementById('ar-button-container');
                     const arButton = document.getElementById('enter-ar-button');
@@ -4665,7 +4700,6 @@
             xrSensors?.update(delta, time, { camera });
             xrSpatialShell?.update(delta, { camera });
             xrWitness?.update(delta, { camera });
-            xrOperationsSurface?.update(delta, { camera });
             
             if (renderer.xr.isPresenting) {
                 renderer.render(scene, camera);

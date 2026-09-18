@@ -130,9 +130,9 @@ test('target HUD source keeps navigation, locking, clearing, expiry, and staged 
   assert.match(hud, /phase\(progress, 0\.38, 0\.66\)/);
   assert.match(hud, /phase\(progress, 0\.58, 0\.88\)/);
   assert.doesNotMatch(hud, /blink|setInterval/);
-  assert.match(scene, /spatialSimulationEnabled = sensorOnlyScene && localPreviewHost/);
+  assert.match(scene, /spatialSimulationEnabled = sensorBridgeScene && localPreviewHost/);
   assert.match(scene, /new ConnectedSpatialScanAnalyzer/);
   assert.match(scene, /MXApplicationClient\.spatial\.scan/);
-  assert.match(scene, /onScanFrame: sensorOnlyScene \? analyzeSpatialFrame : null/);
+  assert.match(scene, /onScanFrame: sensorBridgeScene \? analyzeSpatialFrame : null/);
   assert.match(scene, /spatialPreviewScan\.addEventListener/);
 });

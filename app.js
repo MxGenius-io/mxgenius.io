@@ -446,6 +446,23 @@ window.addEventListener('message', (event) => {
     globalThis.MXTargetContext?.ingestXRAction(message.detail, { reason: `viewer:${message.detail?.action || 'xr-action'}` });
     window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
   }
+  if (message.type === 'mxgenius.viewer.operations-request') {
+    const snapshot = cacheFleetForSpatialWorkspace();
+    if (!snapshot?.clusters?.length) {
+      setSpatialWorkspaceButtonState('ready', 'Fleet is still loading; try Operations again in a moment');
+      MX3DViewer.post({
+        type: 'mxgenius.viewer.operations-unavailable',
+        message: 'Fleet is still loading. Return to the dashboard and try Operations again in a moment.'
+      });
+      return;
+    }
+    globalThis.MXSpatialContext?.update?.({
+      ...(message.context && typeof message.context === 'object' ? message.context : {}),
+      source: 'mature-globe-handoff',
+      mode: 'operations'
+    });
+    window.location.assign('globe-vr.html?scene=bridge&return=vr&v=20');
+  }
   if (message.type === 'mxgenius.viewer.ar-request') {
     openViewerInAR(message.scene || {});
   }
@@ -878,6 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   setupSpatialWorkspaceLauncher();
+  setupSensorSceneTab();
   const spatialReturnMode = new URLSearchParams(window.location.search).get('spatialReturn');
   if (spatialReturnMode === 'maintenance' || spatialReturnMode === 'operations') {
     globalThis.MXSpatialContext?.update?.({
@@ -910,6 +928,29 @@ function setSpatialWorkspaceButtonState(state, message) {
   button.disabled = state === 'unavailable' || state === 'preparing';
   button.title = message;
   button.setAttribute('aria-label', message);
+}
+
+function setupSensorSceneTab() {
+  const tab = document.getElementById('sensorSceneTab');
+  const status = document.getElementById('sensorSceneStatus');
+  if (!tab || tab.dataset.bound === 'true') return;
+  tab.dataset.bound = 'true';
+  let statusTimer = 0;
+  tab.addEventListener('click', (event) => {
+    const snapshot = cacheFleetForSpatialWorkspace();
+    if (snapshot?.clusters?.length) {
+      if (status) status.hidden = true;
+      return;
+    }
+    event.preventDefault();
+    tab.title = 'Fleet is still loading; try Sensor Bridge again in a moment';
+    tab.setAttribute('aria-label', tab.title);
+    if (status) {
+      status.hidden = false;
+      window.clearTimeout(statusTimer);
+      statusTimer = window.setTimeout(() => { status.hidden = true; }, 3200);
+    }
+  });
 }
 
 function setupSpatialWorkspaceLauncher() {
@@ -945,7 +986,16 @@ function setupSpatialWorkspaceLauncher() {
       model: MX3DViewer.currentModel || MX3DViewer.context?.model || null,
       component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null)
     }) || MX3DViewer.context;
-    cacheFleetForSpatialWorkspace();
+    const fleetSnapshot = cacheFleetForSpatialWorkspace();
+    if (mode === 'operations') {
+      if (!fleetSnapshot?.clusters?.length) {
+        setSpatialWorkspaceButtonState('ready', 'Fleet is still loading; try Operations again in a moment');
+        return;
+      }
+      setSpatialWorkspaceButtonState('connecting', 'Opening the JetNet fleet globe…');
+      window.location.assign('globe-vr.html?scene=bridge&v=20');
+      return;
+    }
     setSpatialWorkspaceButtonState('connecting', 'Opening VR workspace…');
     try {
       await MX3DViewer.requestSpatialSession({ mode, context: current });

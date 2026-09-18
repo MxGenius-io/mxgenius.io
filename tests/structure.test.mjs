@@ -543,7 +543,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=45/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=46/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -727,7 +727,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=45/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=46/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -845,7 +845,7 @@ test('viewer quick access is limited to the curated local model folder set', asy
   assert.match(viewer, /<option value="workspace">Workspace models<\/option>/);
 });
 
-test('one header launcher opens the cached fleet inside the canonical spatial workspace', () => {
+test('one header launcher opens the cached fleet in the mature JetNet spatial globe', () => {
   assert.match(dashboard, /id="spatialWorkspaceBtn"/);
   assert.doesNotMatch(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
@@ -855,8 +855,10 @@ test('one header launcher opens the cached fleet inside the canonical spatial wo
   assert.match(application, /function cacheFleetForSpatialWorkspace\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(viewer, /new XROperationsSurface/);
-  assert.match(viewer, /setSpatialMode\(mode/);
+  assert.match(application, /if \(mode === 'operations'\) \{[\s\S]*globe-vr\.html\?scene=bridge&v=20/);
+  assert.match(viewer, /openMatureOperationsGlobe/);
+  assert.match(viewer, /type: 'mxgenius\.viewer\.operations-request'/);
+  assert.match(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr&v=20/);
   assert.match(globeVr, /VRButton\.createButton\(renderer,/);
   assert.match(globeVr, /three\/addons\/webxr\/VRButton\.js/);
   assert.match(globeVr, /alpha: true/);
@@ -876,7 +878,8 @@ test('one header launcher opens the cached fleet inside the canonical spatial wo
   assert.match(globeVr, /MXApplicationClient\.aircraftBundle/);
   assert.match(client, /function aircraftImageUrl/);
   assert.match(globeVr, /JetNetImageGrid/);
-  assert.match(globeVr, /MXApplicationClient\.aircraftImageUrl/);
+  assert.match(globeVr, /MXApplicationClient\.aircraftImageBlobUrl/);
+  assert.match(globeVr, /URL\.revokeObjectURL/);
   assert.match(globeVr, /Math\.ceil\(urls\.length \/ 6\)/);
   assert.match(globeVr, /slice\(imagePage \* 6, \(imagePage \+ 1\) \* 6\)/);
   assert.match(globeVr, /IMAGES \$\{imagePage \+ 1\} \/ \$\{imagePageCount\}/);
@@ -915,8 +918,8 @@ test('one header launcher opens the cached fleet inside the canonical spatial wo
   assert.match(xrGlobeHud, /RECENTER/);
   assert.match(xrGlobeHud, /type: 'texture'/);
   assert.match(xrGlobeHud, /type: 'select-location'/);
-  assert.match(globeVr, /contextProvider: \(\) => sensorOnlyScene/);
-  assert.match(globeVr, /surface: 'fleet-globe'/);
+  assert.match(globeVr, /contextProvider: \(\) => sensorBridgeScene/);
+  assert.match(globeVr, /surface: sceneSurface/);
   assert.match(globeVr, /xrVoice\.refreshContext\(\)/);
   assert.match(xrGlobeHud, /Math\.exp\(-10/);
 });

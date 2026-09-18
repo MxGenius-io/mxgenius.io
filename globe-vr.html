@@ -102,9 +102,9 @@
   <script type="module">
     import * as THREE from 'three';
     import { VRButton } from 'three/addons/webxr/VRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=14';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=15';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=9';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=10';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=11';
     import { SpatialWindowManager } from './spatial-window-manager.js?v=1';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
@@ -152,22 +152,31 @@
     const sensorHandoff = sensorRuntime.handoff;
     const xrSessionId = sensorRuntime.sessionId;
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
-    const returnsToVr = sensorOnlyScene && pageQuery.get('return') === 'vr';
-    const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
+    const sensorBridgeScene = sensorOnlyScene
+      || pageQuery.get('scene') === 'bridge'
+      || pageQuery.get('bridge') === 'sensor';
+    const returnsToVr = sensorBridgeScene && pageQuery.get('return') === 'vr';
+    const sensorPreviewMode = sensorBridgeScene && pageQuery.get('previewXR') === '1';
     const localPreviewHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)
       || /^10\./.test(location.hostname)
       || /^192\.168\./.test(location.hostname)
       || /^172\.(1[6-9]|2\d|3[01])\./.test(location.hostname);
     const spatialSimulationScenario = pageQuery.get('spatialSim');
-    const spatialSimulationEnabled = sensorOnlyScene && localPreviewHost
+    const spatialSimulationEnabled = sensorBridgeScene && localPreviewHost
       && ['empty', 'single', 'multi'].includes(spatialSimulationScenario);
-    const sceneSurface = sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe';
-    sensorSetup.hidden = !sensorOnlyScene;
+    const sceneSurface = sensorOnlyScene
+      ? 'sensor-diagnostics'
+      : sensorBridgeScene ? 'fleet-globe-sensor-bridge' : 'fleet-globe';
+    sensorSetup.hidden = !sensorBridgeScene;
     let SensorOrbClass = null;
-    if (sensorOnlyScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=13'));
+    if (sensorBridgeScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=13'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
-    document.title = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe VR';
-    sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
+    document.title = sensorOnlyScene
+      ? 'MXGenius Sensor Diagnostics'
+      : sensorBridgeScene ? 'MXGenius Fleet Globe + Sensor Bridge' : 'MXGenius Fleet Globe VR';
+    sceneTitle.textContent = sensorOnlyScene
+      ? 'MXGenius Sensor Diagnostics'
+      : sensorBridgeScene ? 'MXGenius Fleet Globe + Sensor Bridge' : 'MXGenius Fleet Globe';
     sceneHelpButton.dataset.guideId = sensorOnlyScene ? 'sensor-bridge-flow' : 'fleet-globe-controls';
     sceneHelpButton.setAttribute('aria-label', sensorOnlyScene ? 'Explain the sensor bridge flow' : 'Explain the fleet globe controls');
     if (returnsToVr) {
@@ -264,7 +273,7 @@
       sensorSetup.hidden = true;
       void xrAudio?.play('ui_back_close');
     });
-    if (sensorOnlyScene) renderSensorSetup();
+    if (sensorBridgeScene) renderSensorSetup();
     function readSceneFleet() {
       const emptyFleet = { totalAircraft: 0, mappedAircraft: 0, clusters: [] };
       if (sensorOnlyScene) return emptyFleet;
@@ -303,7 +312,7 @@
     }) || null;
     const spatialAnalyzer = spatialSimulationEnabled
       ? new SimulatedSpatialScanAnalyzer({ scenario: spatialSimulationScenario })
-      : sensorOnlyScene
+      : sensorBridgeScene
         ? new ConnectedSpatialScanAnalyzer({
             sessionId: xrSessionId,
             analyze: ({ sessionId, frame }) => withRenewedSensorSession((session) => (
@@ -317,7 +326,7 @@
     const snapshotFile = sharedSnapshotFile;
 
     async function restoreActiveCase() {
-      if (!sensorOnlyScene) return null;
+      if (!sensorBridgeScene) return null;
       const caseId = localStorage.getItem('mxg_active_case_id');
       if (!caseId) {
         activeCaseState = null;
@@ -460,7 +469,7 @@
       return THREE.MathUtils.clamp(Number.isFinite(value) ? value : fallback, minimum, maximum);
     }
     let lastSensorAudioStatus = null;
-    if (sensorOnlyScene) xrSensors = new SensorOrbClass({
+    if (sensorBridgeScene) xrSensors = new SensorOrbClass({
       sessionId: xrSessionId,
       bridgeUrl: thermalBridgeUrl,
       diagnosticsBridgeUrl: piDiagnosticsBridgeUrl,
@@ -512,14 +521,20 @@
     });
     if (xrSensors) scene.add(xrSensors.group);
     xrVoice = new XRRealtimePresence({
-      pointCount: sensorOnlyScene ? 1800 : 720,
-      pointSize: sensorOnlyScene ? 0.0007 : 0.0012,
-      contextProvider: () => sensorOnlyScene
+      pointCount: sensorBridgeScene ? 1800 : 720,
+      pointSize: sensorBridgeScene ? 0.0007 : 0.0012,
+      contextProvider: () => sensorBridgeScene
         ? {
-            surface: 'sensor-diagnostics',
+            surface: sceneSurface,
             caseId: activeCaseState?.caseId || null,
             aircraftId: activeCaseState?.case?.aircraft_id || null,
             caseVersion: activeCaseState?.case?.version ?? null,
+            fleetLocation: selectedCluster ? {
+              icao: selectedCluster.icao,
+              city: selectedCluster.city || '',
+              country: selectedCluster.country || '',
+              count: Number(selectedCluster.count) || 0
+            } : null,
             spatialTargets: spatialRegistry?.modelProjection?.() || null
           }
         : {
@@ -532,23 +547,30 @@
             } : null,
             spatialTargets: spatialRegistry?.modelProjection?.() || null
           },
-      onSnapshotRequest: sensorOnlyScene ? requestHeadsetFrame : null,
-      onSnapshotCaptured: sensorOnlyScene ? saveSnapshotToActiveCase : null,
-      onScanFrame: sensorOnlyScene ? analyzeSpatialFrame : null,
-      launcherVisible: !sensorOnlyScene,
+      onSnapshotRequest: sensorBridgeScene ? requestHeadsetFrame : null,
+      onSnapshotCaptured: sensorBridgeScene ? saveSnapshotToActiveCase : null,
+      onScanFrame: sensorBridgeScene ? analyzeSpatialFrame : null,
+      launcherVisible: !sensorBridgeScene,
       presenceVisible: true,
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrVoice.group)
     });
     scene.add(xrVoice.group);
-    function syncSensorWindow(id, state, active) {
-      if (!sensorOnlyScene) return;
+    function syncBridgePresence(snapshot = xrWindowManager?.snapshot()) {
+      if (!sensorBridgeScene) return;
+      const activeId = snapshot?.activeId || null;
+      const fleetDetailsOpen = Boolean(detailsPanel?.visible || detailsTarget > 0);
+      xrVoice?.setPresenceVisible(!fleetDetailsOpen && (!activeId || activeId === 'voice'));
+    }
+    function syncSensorWindow(id, state, active, snapshot) {
+      if (!sensorBridgeScene) return;
       xrSpatialShell?.setToolState(id, {
         active: Boolean(active),
         windowState: state
       });
+      syncBridgePresence(snapshot);
     }
     function syncThermalDock() {
-      if (!sensorOnlyScene || xrWindowManager?.state('thermal')?.state !== 'open') return;
+      if (!sensorBridgeScene || xrWindowManager?.state('thermal')?.state !== 'open') return;
       const dock = xrSpatialShell?.contentAnchor?.();
       if (!dock || !xrSensors?.group) return;
       dock.updateMatrixWorld(true);
@@ -557,6 +579,7 @@
     }
     async function handleSensorTool(toolId, { input = 'xr' } = {}) {
       void xrAudio?.unlock();
+      dismissFleetDetails(input);
       if (toolId === 'thermal' || toolId === 'witness') {
         xrWindowManager?.toggle(toolId, { input });
         return;
@@ -581,9 +604,9 @@
         await xrVoice?.captureSnapshot(input);
       }
     }
-    if (sensorOnlyScene) {
+    if (sensorBridgeScene) {
       xrWindowManager = new SpatialWindowManager({
-        onChange: ({ id, state, active }) => syncSensorWindow(id, state, active)
+        onChange: ({ id, state, active, snapshot }) => syncSensorWindow(id, state, active, snapshot)
       });
       xrWindowManager.register('thermal', {
         show: ({ input = 'xr' } = {}) => {
@@ -601,12 +624,14 @@
     }
     xrSpatialShell = new XRSpatialShell({
       mode: sensorOnlyScene ? 'maintenance' : 'operations',
-      tools: sensorOnlyScene ? [
+      tools: sensorBridgeScene ? [
         { id: 'thermal' },
         { id: 'witness' },
         { id: 'voice', label: 'AI' },
         { id: 'capture', enabled: Boolean(localStorage.getItem('mxg_active_case_id')) }
       ] : [],
+      toolModes: sensorBridgeScene ? ['operations', 'maintenance'] : ['maintenance'],
+      placement: sensorOnlyScene ? null : sensorBridgeScene ? { x: 0, y: -0.52, z: -1.05 } : null,
       onModeChange: (mode, { input = 'xr' } = {}) => {
         void returnToCanonicalVr(input, mode);
       },
@@ -626,7 +651,7 @@
       activeModeHints: sensorOnlyScene ? { maintenance: 'BACK TO VR' } : {}
     });
     scene.add(xrSpatialShell.group);
-    if (sensorOnlyScene) {
+    if (sensorBridgeScene) {
       xrVoice.setDockTarget(xrSpatialShell.contentAnchor());
       xrVoice.requestPlacement('spatial-shell');
     }
@@ -644,7 +669,7 @@
           } : undefined
       });
     }
-    if (sensorOnlyScene) {
+    if (sensorBridgeScene) {
       xrWitness = new XRRemoteWitnessPanel({
         xrSessionId,
         sessionProvider: sensorApplicationSession,
@@ -715,7 +740,7 @@
         focus: () => xrWitness?.requestPlacement()
       });
     }
-    if (sensorOnlyScene && spatialRegistry) {
+    if (sensorBridgeScene && spatialRegistry) {
       spatialHud = new XRSpatialTargetHUD({
         registry: spatialRegistry,
         onAction: (action, input, target) => emitSceneAction(action, input, target, spatialHud.group)
@@ -767,7 +792,7 @@
       spatialPreviewClear.addEventListener('click', () => spatialHud.clear('desktop-preview'));
     }
     xrSensors?.startPreflight();
-    if (sensorOnlyScene) void restoreActiveCase();
+    if (sensorBridgeScene) void restoreActiveCase();
     const TOKEN = 'LIVE_TOKEN';
 
     const globeGroup = new THREE.Group();
@@ -965,6 +990,7 @@
     let detailModel = null;
     let panelHitRegions = [];
     let imageGridGeneration = 0;
+    const detailImageObjectUrls = new Set();
     let rightHand = null;
     let rightController = null;
     const panelWorldPosition = new THREE.Vector3(0.95, 1.48, -1.5);
@@ -1123,6 +1149,8 @@
     function clearDetailImageGrid() {
       imageGridGeneration += 1;
       detailImageGrid.visible = false;
+      detailImageObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+      detailImageObjectUrls.clear();
       while (detailImageGrid.children.length) {
         const child = detailImageGrid.children[0];
         detailImageGrid.remove(child);
@@ -1135,33 +1163,50 @@
       }
     }
 
+    function releaseDetailImageObjectUrl(url) {
+      if (!url) return;
+      detailImageObjectUrls.delete(url);
+      URL.revokeObjectURL(url);
+    }
+
     function populateDetailImageGrid(urls) {
       clearDetailImageGrid();
       const generation = imageGridGeneration;
       const pageCount = Math.max(1, Math.ceil(urls.length / 6));
       imagePage = THREE.MathUtils.clamp(imagePage, 0, pageCount - 1);
       const sources = urls.slice(imagePage * 6, (imagePage + 1) * 6)
-        .map((url) => MXApplicationClient.aircraftImageUrl(url))
-        .filter(Boolean);
+        .filter((url) => /^https:\/\//i.test(String(url)));
       if (!sources.length) return;
       detailImageGrid.visible = true;
-      sources.forEach((url, index) => {
+      sources.forEach((sourceUrl, index) => {
         const column = index % 3;
         const row = Math.floor(index / 3);
         const material = new THREE.MeshBasicMaterial({ color: 0x13283a, toneMapped: false, side: THREE.DoubleSide });
         const image = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.135), material);
         image.position.set(-0.24 + column * 0.24, 0.66 - row * 0.16, 0.018);
         detailImageGrid.add(image);
-        new THREE.TextureLoader().load(url, (texture) => {
+        void MXApplicationClient.aircraftImageBlobUrl(sourceUrl).then((objectUrl) => {
+          if (!objectUrl) throw new Error('JetNet image proxy returned no content');
           if (generation !== imageGridGeneration || !image.parent) {
-            texture.dispose();
+            URL.revokeObjectURL(objectUrl);
             return;
           }
-          texture.colorSpace = THREE.SRGBColorSpace;
-          material.map = texture;
-          material.color.setHex(0xffffff);
-          material.needsUpdate = true;
-        }, undefined, () => {
+          detailImageObjectUrls.add(objectUrl);
+          new THREE.TextureLoader().load(objectUrl, (texture) => {
+            releaseDetailImageObjectUrl(objectUrl);
+            if (generation !== imageGridGeneration || !image.parent) {
+              texture.dispose();
+              return;
+            }
+            texture.colorSpace = THREE.SRGBColorSpace;
+            material.map = texture;
+            material.color.setHex(0xffffff);
+            material.needsUpdate = true;
+          }, undefined, () => {
+            releaseDetailImageObjectUrl(objectUrl);
+            material.color.setHex(0x3a1720);
+          });
+        }).catch(() => {
           material.color.setHex(0x3a1720);
         });
       });
@@ -1272,7 +1317,18 @@
       return Boolean(region);
     }
 
-    function openLocationDetails(cluster, index) {
+    function dismissFleetDetails(input = 'unknown') {
+      const wasOpen = Boolean(detailsPanel.visible || detailsTarget > 0);
+      detailsTarget = 0;
+      detailsPanel.visible = false;
+      detailsPanel.scale.setScalar(0.001);
+      clearDetailImageGrid();
+      syncBridgePresence();
+      if (wasOpen) emitSceneAction('fleet-details-close', input, {}, detailsPanel);
+    }
+
+    function openLocationDetails(cluster, index, input = 'unknown') {
+      xrWindowManager?.minimizeAll({ input, reason: 'fleet-details-open' });
       if (selectedClusterIndex >= 0) {
         markers.setColorAt(selectedClusterIndex, color.setHex(markerColor(fleet.clusters[selectedClusterIndex])));
       }
@@ -1287,6 +1343,7 @@
       drawLocationDetails(cluster);
       detailsPanel.visible = true;
       detailsTarget = 1;
+      syncBridgePresence();
     }
 
     function updateDetailsPresentation(delta) {
@@ -1404,7 +1461,7 @@
           hasHighTime: Boolean(cluster.hasHighTime)
         }
       };
-      openLocationDetails(cluster, index);
+      openLocationDetails(cluster, index, input);
       void xrVoice.refreshContext();
       emitSceneAction(detail.action, input, detail.target, globeGroup);
       localStorage.setItem('mxg_globe_xr_selection', JSON.stringify(detail.target));
@@ -1730,7 +1787,7 @@
 
     renderer.xr.addEventListener('sessionstart', () => {
       void xrAudio?.unlock();
-      detailsTarget = 0;
+      dismissFleetDetails('session-start');
       dashboardNavigationPending = false;
       backButton.visible = true;
       if (!sensorOnlyScene) fleetHud.beginReveal();
@@ -1746,7 +1803,7 @@
         : `${Number(fleet.mappedAircraft).toLocaleString()} mapped aircraft in VR`;
     });
     renderer.xr.addEventListener('sessionend', () => {
-      detailsTarget = 0;
+      dismissFleetDetails('session-end');
       backButton.visible = false;
       xrVoice.setPresenting(false);
       xrSpatialShell.setPresenting(false, camera);
