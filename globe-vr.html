@@ -37,7 +37,7 @@
     .sensor-trace-shell { margin: 10px 0 0; border-top: 1px solid rgba(49,86,108,.7); padding-top: 8px; }
     .sensor-trace-shell summary { color: #7dd3fc; cursor: pointer; font: 700 10px/1.3 ui-monospace, monospace; letter-spacing: .06em; }
     .sensor-trace { max-height: 128px; margin: 7px 0 0; overflow: auto; white-space: pre-wrap; color: #a9c5d5; font: 10px/1.45 ui-monospace, monospace; }
-    #XRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
+    #VRButton { opacity: 1 !important; border-color: #22d3ee !important; background: rgba(4,40,56,.9) !important; }
     body.sensor-scene { background: radial-gradient(circle at 55% 42%, #0b2740 0, #050914 56%, #02050d 100%); }
     body.sensor-scene .hud { border-color: rgba(251,146,60,.44); }
     body.sensor-scene .hud strong { color: #fb923c; }
@@ -101,7 +101,7 @@
   <script src="guided-tooltip.js?v=12"></script>
   <script type="module">
     import * as THREE from 'three';
-    import { XRButton } from 'three/addons/webxr/XRButton.js';
+    import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=11';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=7';
     import { XRSpatialShell } from './xr-spatial-shell.js?v=5';
@@ -447,7 +447,7 @@
     renderer.setClearColor(0x000000, 0);
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
-    document.body.appendChild(XRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
+    document.body.appendChild(VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] }));
     function sensorCalibration(name, fallback, minimum, maximum) {
       const raw = pageQuery.get(name);
       const value = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);

@@ -843,7 +843,8 @@ test('one header launcher opens the cached fleet inside the canonical spatial wo
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
   assert.match(viewer, /new XROperationsSurface/);
   assert.match(viewer, /setSpatialMode\(mode/);
-  assert.match(globeVr, /XRButton\.createButton\(renderer,/);
+  assert.match(globeVr, /VRButton\.createButton\(renderer,/);
+  assert.match(globeVr, /three\/addons\/webxr\/VRButton\.js/);
   assert.match(globeVr, /alpha: true/);
   assert.match(globeVr, /scene\.background = null/);
   assert.match(globeVr, /renderer\.setAnimationLoop/);
