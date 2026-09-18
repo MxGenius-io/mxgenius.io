@@ -24,10 +24,13 @@ test('chat uses a compact conversation envelope with model-selected, bounded man
   assert.match(manualAdapter, /"searchFields": "title,section,content,aircraft_model"/);
   assert.match(manualAdapter, /"vectorFilterMode": "preFilter"/);
   assert.match(manualAdapter, /ata eq/);
-  assert.match(backend, /Every technical procedure, limit, interval, or part claim must cite/);
+  assert.match(backend, /Every technical procedure, limit, interval, or manual-derived part claim must cite/);
+  assert.match(backend, /Inventory identifiers, quantities, condition, trace, stageability, and locations supplied by authoritative_case_inventory are current application facts rather than manual claims/);
   assert.match(backend, /"semantic_requests_made": manual_tool_calls/);
   assert.match(backend, /DUPLICATE_TOOL_CALL/);
   assert.match(backend, /structured response failed citation validation; requesting one bounded repair/);
+  assert.match(backend, /citation_repair_attempted/);
+  assert.match(backend, /Output only that user-facing response/);
   assert.match(backend, /force_synthesis/);
 });
 
