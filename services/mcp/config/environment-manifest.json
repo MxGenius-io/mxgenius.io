@@ -1,7 +1,7 @@
 {
   "manifest_kind": "mxgenius_environment",
   "schema_version": "1.0.0",
-  "version": 10,
+  "version": 11,
   "released_at": "2026-09-17",
   "product": {
     "id": "mxgenius",
@@ -125,15 +125,14 @@
       "kind": "experience",
       "parent_id": "dashboard",
       "route": "globe-vr.html",
-      "purpose": "Explore fleet locations and aircraft context in browser, WebXR, or capability-gated native AR views. The browser globe can optionally overlay recent JetNet origin-to-destination records or a user-started OpenSky live-position layer without changing the fleet-location layer.",
+      "purpose": "Explore fleet locations and aircraft context in browser, WebXR, or capability-gated native AR views. One user-started live-flight control opens a provider-neutral aircraft list and maps only the selected flight over the unchanged fleet-location layer.",
       "capabilities": [
         {"id": "location-exploration", "description": "Filter and select mapped fleet locations and inspect their aircraft."},
-        {"id": "recent-flight-routes", "description": "Load a cached, on-demand overlay of recent JetNet flight routes; route arcs are historical source records, not live aircraft positions."},
-        {"id": "live-flight-positions", "description": "Start or stop a shared OpenSky position overlay. It refreshes at most twice per minute only while the Fleet Globe is visible."},
+        {"id": "live-flight-positions", "description": "Start or stop the shared live-flight feed, browse aircraft in the details panel, and map one selected airplane with a short course ribbon. It refreshes at most twice per minute only while the Fleet Globe is visible."},
         {"id": "xr-fleet-view", "description": "Open the same bounded fleet context in a headset browser."},
         {"id": "native-ar-fleet-view", "description": "Open native AR placement only when the host reports that capability."}
       ],
-      "target_ids": ["fleet-xr", "fleet-globe-controls", "fleet-flight-routes", "fleet-live-traffic", "fleet-location-data", "native-ar-globe"]
+      "target_ids": ["fleet-xr", "fleet-globe-controls", "fleet-live-traffic", "fleet-location-data", "native-ar-globe"]
     },
     {
       "id": "operations-center",
@@ -426,7 +425,7 @@
     {
       "id": "fleet-location-data",
       "title": "Read a mapped fleet location",
-      "script": "A selected point represents a mapped JetNet base location, not a live aircraft position. Optional route arcs show recent JetNet origin-to-destination records. Review timestamps and source context before asking the copilot to compare or summarize them.",
+      "script": "A fleet point represents a mapped JetNet base location, not a live aircraft position. Live-flight mode is separate: its panel lists the current feed while the globe shows only the selected airplane and its short course ribbon. Review timestamps and source context before asking the copilot to compare or summarize them.",
       "video": "../../../visual/tooltips/fleet-location-data.mp4",
       "voiceover": "../voiceover/fleet-location-data.wav",
       "captions": null,
@@ -436,42 +435,24 @@
         "Select a mapped point and name the location.",
         "Scan the aircraft and operator records grouped at that point.",
         "Open one aircraft to establish model context.",
-        "Distinguish mapped base locations and recent route records from live aircraft positions."
+        "Distinguish mapped base locations from the one selected live aircraft."
       ],
       "status": "ready"
     },
     {
-      "id": "fleet-flight-routes",
-      "title": "Show recent flight routes",
-      "script": "Select Recent routes to load a tenant-scoped, server-cached JetNet overlay on the current globe. The control is on demand to avoid repeated provider calls. Each animated arc connects the recorded origin and destination; it does not claim to be the aircraft's current position.",
-      "video": null,
-      "voiceover": null,
-      "captions": null,
-      "surface": "fleet-globe",
-      "touchpoints": ["#globeFlightRoutesButton", "animated route arcs", "route hover label"],
-      "beats": [
-        "Open Fleet Context and expand the globe controls.",
-        "Select Recent routes once to load the cached route layer.",
-        "Hover an arc to read the aircraft, route, and source date.",
-        "Select Recent routes again to return to the base-location-only view."
-      ],
-      "activation": "semantic",
-      "status": "scripted"
-    },
-    {
       "id": "fleet-live-traffic",
-      "title": "Start live aircraft positions",
-      "script": "Select Live traffic beside the map controls to start the shared OpenSky layer. The Pull, List, Render ribbon follows each snapshot onto the globe and settles with the current aircraft count. Refreshes run no more than twice per minute while this globe remains visible. Selecting the control again stops requests and removes the live-position points.",
+      "title": "Browse live flights",
+      "script": "Select the single live-flight control beside the map filters to open the current aircraft list. Choose a row to place only that airplane and a short estimated course ribbon on the globe; the ribbon reflects its reported heading and is not a claimed origin-to-destination route. The source is currently OpenSky behind a provider-neutral control. Refreshes run no more than twice per minute while this globe remains visible. Selecting the control again stops requests and removes the live selection.",
       "video": null,
       "voiceover": null,
       "captions": null,
       "surface": "fleet-globe",
-      "touchpoints": ["#globeLiveTrafficButton", "#globeLiveTrafficRibbon", "live aircraft points", "live or stale status dot"],
+      "touchpoints": ["#globeLiveTrafficButton", "#globeLiveTrafficRibbon", "#globeSheetResults", ".live-flight-marker", "live or stale status dot"],
       "beats": [
         "Open Fleet Context and expand the globe controls.",
-        "Select Live traffic and follow the Pull, List, Render ribbon through the first shared OpenSky snapshot.",
-        "Hover a live point to read its callsign, altitude, speed, and source country.",
-        "Select Live traffic again, leave the dashboard, or hide the page to stop browser polling."
+        "Select live-flight data and let the details panel fill with the shared snapshot.",
+        "Select an aircraft row to see one airplane and its course ribbon.",
+        "Select another row to replace the map selection, or select the live-flight control again to stop polling."
       ],
       "activation": "semantic",
       "status": "scripted"

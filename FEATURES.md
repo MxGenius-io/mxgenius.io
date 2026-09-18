@@ -230,6 +230,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Continuous spatial reveal sequence: target box, outline, extension line, and detail card.
 - `[x]` Shared spatial sound cues and sound enable/disable control.
 - `[x]` WebXR session entry when supported.
+- `[x]` Controller laser with live hit reticle and shared widget activation targets in the canonical spatial workspace.
 - `[x]` One-grab model translation and two-grab scale/rotation.
 - `[x]` Native AR viewer entry exposed only through a supported iOS bridge.
 - `[~]` Production aircraft/component mapping files and supporting evidence.

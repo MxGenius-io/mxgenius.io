@@ -412,8 +412,8 @@ test('detailed JetNet success statuses remain renderable and cacheable', () => {
   const detailedStatusGuard = /\^success\\b\/i\.test\(String\(data\.responsestatus\)\.trim\(\)\)/g;
   assert.equal(
     (application.match(detailedStatusGuard) || []).length,
-    3,
-    'aircraft, globe, and route views should accept JetNet SUCCESS: detail summaries'
+    2,
+    'aircraft and globe views should accept JetNet SUCCESS: detail summaries'
   );
   assert.match(
     cache,
@@ -542,7 +542,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=36/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=37/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -615,6 +615,16 @@ test('WebXR maintenance HUD has a desktop preview and continuous spatial reveal 
   assert.match(xrMaintenanceHud, /clearTarget\(\)/);
   assert.doesNotMatch(xrMaintenanceHud, /buildStatusRail|statusPanel/);
   assert.doesNotMatch(xrMaintenanceHud, /setInterval|visibility\s*=\s*!/);
+});
+
+test('WebXR controllers expose a visible widget laser and use the same targets for activation', () => {
+  assert.match(viewer, /function createXRControllerLaser\(controller\)/);
+  assert.match(viewer, /line\.name = 'MXGeniusWidgetLaser'/);
+  assert.match(viewer, /reticle\.name = 'MXGeniusWidgetLaserReticle'/);
+  assert.match(viewer, /function xrWidgetInteractionTargets\(\)/);
+  assert.match(viewer, /raycaster\.intersectObjects\(xrInteractionTargets\(\), true\)/);
+  assert.match(viewer, /const widgetHit = Boolean\(hit && belongsToXRTarget\(hit\.object, widgetTargets\)\)/);
+  assert.match(viewer, /updateXRControllerLasers\(\)/);
 });
 
 test('WebXR maintenance audio maps every delivered cue and completes the live frontend actions', async () => {
@@ -703,7 +713,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=36/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=37/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -1233,7 +1243,7 @@ test('context help binds accessible anchored popovers across product surfaces', 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
   assert.equal(tooltipManifest.manifest_kind, 'mxgenius_environment');
   assert.equal(tooltipManifest.schema_version, '1.0.0');
-  assert.equal(tooltipManifest.version, 10);
+  assert.equal(tooltipManifest.version, 11);
   assert.ok(Array.isArray(tooltipManifest.surfaces));
   assert.equal(tooltipManifest.surfaces.length, 9);
   const surfaceIds = tooltipManifest.surfaces.map((surface) => surface.id);
@@ -1264,7 +1274,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       'model-context'
     ]
   );
-  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=10/);
+  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=11/);
   assert.match(guidedTooltip, /function loadEnvironmentManifest\(\)/);
   assert.match(viewerNavigationCaptions, /^WEBVTT\r?\n/);
   assert.match(viewerNavigationCaptions, /00:00:00\.400 --> 00:00:05\.850/);
@@ -1364,12 +1374,12 @@ test('fleet access uses the server-side proxy marker without browser credentials
 
 test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => {
   assert.match(application, /function aggregateGlobeClusters\(/);
-  assert.match(application, /\.htmlElementsData\(initialDisplayClusters\)/);
+  assert.match(application, /\.htmlElementsData\(selectedLiveTrafficAircraft\(\) \? \[\.\.\.initialDisplayClusters, selectedLiveTrafficAircraft\(\)\] : initialDisplayClusters\)/);
   assert.match(application, /\.htmlElement\(createGlobeClusterMarker\)/);
   assert.match(application, /anchor\.className = 'fleet-map-anchor'/);
-  assert.match(application, /\.htmlAltitude\(0\.0015\)/);
+  assert.match(application, /\.htmlAltitude\(d => d\?\._kind === 'live-traffic' \? 0\.006 : 0\.0015\)/);
   assert.match(application, /\.onZoom\(handleGlobeZoom\)/);
-  assert.match(application, /\.pointsData\(liveTrafficEnabled \? \[\.\.\.displayClusters, \.\.\.liveTrafficAircraft\] : displayClusters\)/);
+  assert.match(application, /\.pointsData\(displayClusters\)/);
   assert.match(application, /\.pointsTransitionDuration\(0\)/);
   assert.match(application, /\.htmlTransitionDuration\(0\)/);
   assert.match(application, /\.globeCurvatureResolution\(1\)/);
@@ -1385,21 +1395,24 @@ test('fleet globe uses zoom-aware screen-space aviation cluster markers', () => 
   assert.match(applicationStyles, /\.globe-sheet\s*\{[\s\S]*z-index: 30/);
 });
 
-test('fleet globe can overlay cached recent flight routes without changing the base-location layer', () => {
-  assert.match(dashboard, /id="globeFlightRoutesButton"/);
-  assert.match(application, /MXApplicationClient\.flightData/);
-  assert.match(application, /function normalizeFlightRoute\(/);
-  assert.match(application, /\.arcsData\(flightRoutesVisible \? recentFlightRoutes : \[\]\)/);
+test('fleet globe maps one selected live flight without altitude pegs or duplicate data controls', () => {
+  assert.doesNotMatch(dashboard, /id="globeFlightRoutesButton"/);
+  assert.equal((dashboard.match(/id="globeLiveTrafficButton"/g) || []).length, 1);
+  assert.match(application, /function renderLiveTrafficList\(/);
+  assert.match(application, /function selectLiveTrafficAircraft\(/);
+  assert.match(application, /\.pointsData\(displayClusters\)/);
+  assert.match(application, /\.htmlElementsData\(selectedFlight \? \[\.\.\.displayClusters, selectedFlight\] : displayClusters\)/);
+  assert.match(application, /\.arcsData\(selectedFlight \? \[liveTrafficCourseRibbon\(selectedFlight\)\] : \[\]\)/);
   assert.match(application, /\.arcDashAnimateTime\(2400\)/);
-  assert.match(application, /MAX_GLOBE_FLIGHT_ROUTES = 120/);
-  assert.match(application, /startdate: recentFlightDate\(start\), enddate: recentFlightDate\(end\)/);
-  assert.match(application, /Recent JetNet flight routes are unavailable; select to retry/);
+  assert.doesNotMatch(application, /\.pointsData\(liveTrafficEnabled \? \[\.\.\.displayClusters, \.\.\.liveTrafficAircraft\]/);
+  assert.match(applicationStyles, /\.live-flight-marker/);
+  assert.match(applicationStyles, /\.live-flight-row\.is-selected/);
 });
 
 test('fleet globe starts deterministic OpenSky polling only from its live-traffic control', () => {
   assert.match(dashboard, /id="globeLiveTrafficButton"/);
   assert.match(dashboard, /id="globeLiveTrafficRibbon"/);
-  assert.match(dashboard, /<span>Pull<\/span><span>List<\/span><span>Render<\/span>/);
+  assert.match(dashboard, /<span>Feed<\/span><span>Select<\/span><span>Track<\/span>/);
   assert.match(application, /const LIVE_TRAFFIC_POLL_MS = 30000/);
   assert.match(application, /MXApplicationClient\.liveTraffic/);
   assert.match(application, /document\.visibilityState !== 'hidden'/);
@@ -1407,7 +1420,11 @@ test('fleet globe starts deterministic OpenSky polling only from its live-traffi
   assert.match(application, /scheduleLiveTrafficRefresh\(LIVE_TRAFFIC_POLL_MS - age\)/);
   assert.match(applicationStyles, /\.live-traffic-button\[data-state="live"\]/);
   assert.match(applicationStyles, /@keyframes live-traffic-flight/);
-  assert.match(application, /setLiveTrafficRibbonState\('live', `\$\{pipelineCount\} · 30s cadence`\)/);
+  assert.match(application, /setLiveTrafficRibbonState\('live', selectedSummary\)/);
+  assert.match(application, /renderLiveTrafficList\(\)/);
+  assert.match(application, /liveTrafficSelectedId = liveTrafficAircraft\.find/);
+  assert.match(application, /addEventListener\('wheel',[\s\S]*event\.preventDefault\(\);[\s\S]*\{ passive: false \}\)/);
+  assert.match(applicationStyles, /\.globe-container\s*\{[\s\S]*overscroll-behavior: contain/);
 });
 
 test('live traffic remains available when the optional fleet registry is degraded', () => {

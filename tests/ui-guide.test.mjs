@@ -64,16 +64,17 @@ test('Settings map follows the current Customize and standalone tour layout', ()
   assert.match(dashboard, /id="settingsRestartTourBtn"/);
 });
 
-test('fleet map distinguishes recent route records from live aircraft positions', () => {
+test('fleet map describes one source-neutral live-flight control and one selected aircraft', () => {
   const fleetGlobe = manifest.surfaces.find((surface) => surface.id === 'fleet-globe');
   const routeTarget = manifest.tooltips.find((target) => target.id === 'fleet-flight-routes');
   const liveTarget = manifest.tooltips.find((target) => target.id === 'fleet-live-traffic');
-  assert.ok(fleetGlobe.target_ids.includes('fleet-flight-routes'));
+  assert.ok(!fleetGlobe.target_ids.includes('fleet-flight-routes'));
   assert.ok(fleetGlobe.target_ids.includes('fleet-live-traffic'));
-  assert.equal(routeTarget.surface, 'fleet-globe');
+  assert.equal(routeTarget, undefined);
   assert.equal(liveTarget.surface, 'fleet-globe');
-  assert.match(routeTarget.script, /on demand/);
-  assert.match(routeTarget.script, /does not claim to be the aircraft's current position/);
+  assert.match(fleetGlobe.purpose, /One user-started live-flight control/);
+  assert.match(liveTarget.script, /only that airplane/);
+  assert.match(liveTarget.script, /not a claimed origin-to-destination route/);
   assert.match(liveTarget.script, /twice per minute/);
   assert.match(liveTarget.script, /stops requests/);
 });

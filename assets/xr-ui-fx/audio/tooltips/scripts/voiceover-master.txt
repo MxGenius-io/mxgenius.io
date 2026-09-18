@@ -28,7 +28,7 @@ The isolated sensor scene connects the native Quest thermal bridge, FLIR source,
 
 Filter the JetNet-backed fleet, select a mapped location, and open an aircraft record without leaving fleet context. The globe, list, and model copilot stay synchronized around the same selection.
 
-A selected point represents a mapped JetNet base location, not a live aircraft position. Optional route arcs show recent JetNet origin-to-destination records. Review timestamps and source context before asking the copilot to compare or summarize them.
+A fleet point represents a mapped JetNet base location, not a live aircraft position. Live-flight mode is separate: its panel lists the current feed while the globe shows only the selected airplane and its short course ribbon. Review timestamps and source context before asking the copilot to compare or summarize them.
 
 Use Fleet Triage to scan high-time, for-sale, type, and region groups. Switch to Direct Search when you already know the make, registration, serial number, or country.
 
