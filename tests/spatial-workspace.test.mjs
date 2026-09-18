@@ -146,5 +146,7 @@ test('mesh raycast selection is the authoritative identify and model-context eve
   assert.match(viewer, /MXTargetContext\.set\(localTarget, \{ reason: 'viewer-mesh-raycast' \}\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.setTarget\(mesh/);
   assert.match(viewer, /if \(action === 'verify'\) void xrVoice\?\.verifyCurrentContext\(input\)/);
+  assert.match(viewer, /entry\.provider === 'uploaded' && \/\^\[0-9a-f\]/);
+  assert.match(viewer, /if \(persistedModel\)[\s\S]*digitalTwin\.saveHighlight/);
   assert.match(application, /current_model: MX3DViewer\.currentModel \|\| null/);
 });
