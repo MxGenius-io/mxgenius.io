@@ -86,17 +86,28 @@ test('the web application exposes one VR launcher and one canonical session owne
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
   assert.match(viewer, /navigator\.xr\.requestSession\('immersive-vr'/);
   assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
-  assert.doesNotMatch(viewer, /location\.assign\([^)]*globe-vr/);
+  assert.match(viewer, /mxgenius\.viewer\.sensor-scene-request/);
+  assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
 });
 
 test('operations and maintenance change inside the same renderer without dropping live pipes', () => {
   assert.match(viewer, /new XROperationsSurface/);
+  assert.match(viewer, /mode === 'maintenance'[\s\S]*openSensorDiagnostics\(input\)/);
   assert.match(viewer, /setSpatialMode\(mode, \{ source: 'spatial-tray' \}\)/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
   assert.match(viewer, /xrWitness\.group\.visible = presenting && maintenance/);
   assert.match(viewer, /xrWindowManager\?\.minimizeAll/);
   assert.match(operations, /MXGeniusOperationsGlobe/);
   assert.match(globe, /"three": "\.\/3d-viewer\/lib\/three\.module\.js"/);
+});
+
+test('maintenance hands off to the Quest diagnostics scene and returns to canonical VR', () => {
+  assert.match(shell, /onActiveMode = \(\) => false/);
+  assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
+  assert.match(viewer, /mxgenius\.viewer\.sensor-scene-request/);
+  assert.match(application, /globe-vr\.html[\s\S]*searchParams\.set\('scene', 'sensor'\)[\s\S]*searchParams\.set\('return', 'vr'\)/);
+  assert.match(globe, /Back to VR workspace/);
+  assert.match(globe, /returnToCanonicalVr[\s\S]*spatialReturn=\$\{encodeURIComponent\(mode\)\}#3d-viewer/);
 });
 
 test('the spatial tray communicates minimized windows without ending Remote Witness', () => {

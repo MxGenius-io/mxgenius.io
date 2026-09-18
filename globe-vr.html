@@ -62,6 +62,7 @@
   <script src="realtime-client.js?v=3"></script>
   <script src="xr-target-registry.js?v=1"></script>
   <script src="spatial-commands.js?v=1"></script>
+  <script src="spatial-context.js?v=1"></script>
 </head>
 <body>
   <div class="hud">
@@ -70,7 +71,7 @@
     <button class="scene-sound" id="sceneSoundButton" type="button" aria-pressed="true">Sound On</button>
     <button class="guided-help-trigger" id="sceneHelpButton" type="button" data-guide-id="fleet-globe-controls" aria-label="Explain this XR scene" aria-expanded="false">?</button>
   </div>
-  <a class="back" href="dashboard.html">Back to dashboard</a>
+  <a class="back" id="sceneBackLink" href="dashboard.html">Back to dashboard</a>
   <section class="sensor-setup" id="sensorSetup" aria-live="polite">
     <strong>FLIR THERMAL · NATIVE QUEST</strong>
     <span id="sensorSetupStatus">Launch the native thermal workspace to connect and pin the FLIR panel…</span>
@@ -103,7 +104,7 @@
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=11';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=7';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=4';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=5';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -144,11 +145,13 @@
     const spatialPreviewNext = document.getElementById('spatialPreviewNext');
     const spatialPreviewLock = document.getElementById('spatialPreviewLock');
     const spatialPreviewClear = document.getElementById('spatialPreviewClear');
+    const sceneBackLink = document.getElementById('sceneBackLink');
     const pageQuery = new URLSearchParams(location.search);
     const sensorRuntime = resolveXRSensorRuntime();
     const sensorHandoff = sensorRuntime.handoff;
     const xrSessionId = sensorRuntime.sessionId;
     const sensorOnlyScene = pageQuery.get('scene') === 'sensor';
+    const returnsToVr = sensorOnlyScene && pageQuery.get('return') === 'vr';
     const sensorPreviewMode = sensorOnlyScene && pageQuery.get('previewXR') === '1';
     const localPreviewHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(location.hostname)
       || /^10\./.test(location.hostname)
@@ -166,6 +169,11 @@
     sceneTitle.textContent = sensorOnlyScene ? 'MXGenius Sensor Diagnostics' : 'MXGenius Fleet Globe';
     sceneHelpButton.dataset.guideId = sensorOnlyScene ? 'sensor-bridge-flow' : 'fleet-globe-controls';
     sceneHelpButton.setAttribute('aria-label', sensorOnlyScene ? 'Explain the sensor bridge flow' : 'Explain the fleet globe controls');
+    if (returnsToVr) {
+      sceneBackLink.href = 'dashboard.html?spatialReturn=maintenance#3d-viewer';
+      sceneBackLink.textContent = 'Back to VR workspace';
+      sceneBackLink.addEventListener('click', () => preserveSpatialContext('maintenance', 'sensor-diagnostics-return'));
+    }
     const sensorLocalToken = sensorRuntime.localToken;
     const thermalLocalEnabled = sensorRuntime.thermalLocalEnabled;
     const thermalBridgeUrl = sensorRuntime.thermalBridgeUrl;
@@ -525,32 +533,37 @@
     scene.add(xrVoice.group);
     xrSpatialShell = new XRSpatialShell({
       mode: sensorOnlyScene ? 'maintenance' : 'operations',
-      onModeChange: (mode) => {
-        if (mode === 'operations') {
-          window.location.assign('globe-vr.html?v=19');
-          return;
-        }
-        sessionStorage.setItem('mxg_spatial_context_v1', JSON.stringify({
-          version: 1,
-          source: sensorOnlyScene ? 'sensor-diagnostics' : 'fleet-globe',
-          caseId: activeCaseState?.caseId || null,
-          aircraftId: activeCaseState?.case?.aircraft_id || null,
-          location: selectedCluster ? {
-            icao: selectedCluster.icao || null,
-            city: selectedCluster.city || null,
-            country: selectedCluster.country || null
-          } : null
-        }));
-        window.location.assign('3d-viewer/index.html?v=34&spatial=1');
+      onModeChange: (mode, { input = 'xr' } = {}) => {
+        void returnToCanonicalVr(input, mode);
+      },
+      onActiveMode: (mode, { input = 'xr' } = {}) => {
+        if (!sensorOnlyScene || mode !== 'maintenance') return false;
+        void returnToCanonicalVr(input, 'maintenance');
+        return true;
       },
       onRecenter: () => {
         xrVoice?.requestPlacement('spatial-shell');
         xrWitness?.requestPlacement();
         spatialHud?.requestPlacement();
       },
-      onAction: (action, input, target) => emitSceneAction(action, input, target, xrSpatialShell.group)
+      onAction: (action, input, target) => emitSceneAction(action, input, target, xrSpatialShell.group),
+      activeModeHints: sensorOnlyScene ? { maintenance: 'BACK TO VR' } : {}
     });
     scene.add(xrSpatialShell.group);
+
+    function preserveSpatialContext(mode, source) {
+      return globalThis.MXSpatialContext?.update?.({
+        source,
+        mode,
+        case: activeCaseState?.caseId ? { id: activeCaseState.caseId } : undefined,
+        aircraft: activeCaseState?.case?.aircraft_id ? { id: activeCaseState.case.aircraft_id } : undefined,
+        location: selectedCluster ? {
+            icao: selectedCluster.icao || null,
+            city: selectedCluster.city || null,
+            country: selectedCluster.country || null
+          } : undefined
+      });
+    }
     if (sensorOnlyScene) {
       xrWitness = new XRRemoteWitnessPanel({
         xrSessionId,
@@ -1203,7 +1216,7 @@
       new THREE.PlaneGeometry(0.42, 0.13125),
       new THREE.MeshBasicMaterial({ map: backTexture, transparent: true, toneMapped: false, side: THREE.DoubleSide })
     );
-    backButton.name = 'BackToDashboard';
+    backButton.name = returnsToVr ? 'BackToVRWorkspace' : 'BackToDashboard';
     backButton.position.set(-0.46, 0.72, -1.12);
     backButton.visible = false;
     scene.add(backButton);
@@ -1219,15 +1232,20 @@
       backContext.fillStyle = '#67e8f9';
       backContext.font = '700 44px system-ui, sans-serif';
       backContext.textAlign = 'center';
-      backContext.fillText('\u2190  BACK TO DASHBOARD', 256, 98);
+      backContext.fillText(returnsToVr ? '\u2190  BACK TO VR' : '\u2190  BACK TO DASHBOARD', 256, 98);
       backTexture.needsUpdate = true;
     }
 
-    async function returnToDashboard(input) {
+    async function returnToCanonicalVr(input, mode = 'maintenance') {
+      preserveSpatialContext(mode, 'sensor-diagnostics-return');
+      returnToScene(input, `dashboard.html?spatialReturn=${encodeURIComponent(mode)}#3d-viewer`, 'back-to-vr');
+    }
+
+    async function returnToScene(input, destination = 'dashboard.html', action = 'back-to-dashboard') {
       if (dashboardNavigationPending) return;
       dashboardNavigationPending = true;
       status.textContent = `Closing VR session \u00b7 ${input}`;
-      emitSceneAction('back-to-dashboard', input, {}, backButton);
+      emitSceneAction(action, input, {}, backButton);
       const session = renderer.xr.getSession();
       if (session) {
         try {
@@ -1236,7 +1254,12 @@
           console.warn('Unable to end XR session cleanly', error);
         }
       }
-      window.location.assign('dashboard.html');
+      window.location.assign(destination);
+    }
+
+    async function returnToDashboard(input) {
+      if (returnsToVr) return returnToCanonicalVr(input, 'maintenance');
+      return returnToScene(input);
     }
 
     drawBackButton();

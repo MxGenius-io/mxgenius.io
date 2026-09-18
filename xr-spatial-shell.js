@@ -22,15 +22,19 @@ export class XRSpatialShell {
     mode = 'operations',
     tools = [],
     onModeChange = () => {},
+    onActiveMode = () => false,
     onRecenter = () => {},
     onToolAction = () => {},
-    onAction = () => {}
+    onAction = () => {},
+    activeModeHints = {}
   } = {}) {
     this.mode = MODES[mode] ? mode : 'operations';
     this.onModeChange = onModeChange;
+    this.onActiveMode = onActiveMode;
     this.onRecenter = onRecenter;
     this.onToolAction = onToolAction;
     this.onAction = onAction;
+    this.activeModeHints = { ...activeModeHints };
     this.presenting = false;
     this.disposed = false;
     this.placementPending = true;
@@ -209,7 +213,7 @@ export class XRSpatialShell {
       context.fillText(config.label, 256, 194);
       context.font = '20px system-ui, sans-serif';
       context.fillStyle = active ? '#86efdc' : '#68859a';
-      context.fillText(active ? 'ACTIVE · TAP TO RECENTER' : 'OPEN', 256, 225);
+      context.fillText(active ? (this.activeModeHints[mode] || 'ACTIVE · TAP TO RECENTER') : 'OPEN', 256, 225);
       button.userData.texture.needsUpdate = true;
     }
     for (const button of this.toolButtons) {
@@ -272,6 +276,10 @@ export class XRSpatialShell {
     const nextMode = target?.userData?.xrShellMode;
     if (!MODES[nextMode]) return false;
     if (nextMode === this.mode) {
+      if (this.onActiveMode(nextMode, { input }) === true) {
+        this.onAction('spatial-shell-active-mode', input, { mode: this.mode });
+        return true;
+      }
       this.placementPending = true;
       this.onRecenter({ mode: this.mode, input });
       this.onAction('spatial-shell-recenter', input, { mode: this.mode });

@@ -1383,7 +1383,7 @@
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=11';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=7';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=4';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=5';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
@@ -1893,15 +1893,25 @@
                     { id: 'voice' },
                     { id: 'capture', enabled: Boolean(viewerContext?.caseId || localStorage.getItem('mxg_active_case_id')) }
                 ],
-                onModeChange: (mode) => {
+                onModeChange: (mode, { input = 'xr' } = {}) => {
+                    if (mode === 'maintenance') {
+                        void openSensorDiagnostics(input);
+                        return;
+                    }
                     setSpatialMode(mode, { source: 'spatial-tray' });
+                },
+                onActiveMode: (mode, { input = 'xr' } = {}) => {
+                    if (mode !== 'maintenance') return false;
+                    void openSensorDiagnostics(input);
+                    return true;
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
                     xrMaintenanceHUD?.setPresenting(true, camera);
                 },
                 onToolAction: handleMaintenanceTool,
-                onAction: emitXRAction
+                onAction: emitXRAction,
+                activeModeHints: { maintenance: 'OPEN SENSOR SCENE' }
             });
             scene.add(xrSpatialShell.group);
             applySpatialMode();
@@ -2690,6 +2700,43 @@
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
             emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
+        }
+
+        let sensorSceneNavigationPending = false;
+
+        async function openSensorDiagnostics(input = 'xr') {
+            if (sensorSceneNavigationPending) return;
+            sensorSceneNavigationPending = true;
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                source: 'maintenance-vr-handoff',
+                mode: 'maintenance',
+                aircraft: spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
+                case: spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                component: selectedMesh ? {
+                    id: viewerContext.componentId || selectedMesh.name || null,
+                    meshName: selectedMesh.name || null,
+                    path: getObjectPath(selectedMesh)
+                } : spatialContext.component
+            }) || { ...spatialContext, source: 'maintenance-vr-handoff', mode: 'maintenance' };
+            emitXRAction('sensor-diagnostics-open', input, { returnSurface: 'maintenance-vr' });
+            postSpatialStatus('connecting');
+            if (spatialSession) {
+                try {
+                    await spatialSession.end();
+                } catch (error) {
+                    console.warn('Unable to close the VR session before sensor handoff', error);
+                }
+            }
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'mxgenius.viewer.sensor-scene-request',
+                    version: 1,
+                    context: spatialContext,
+                    returnMode: 'maintenance'
+                }, window.location.origin);
+                return;
+            }
+            window.location.assign('../globe-vr.html?v=20&scene=sensor&return=vr');
         }
 
         async function enterSpatialWorkspace({ mode = spatialMode, context = null } = {}) {

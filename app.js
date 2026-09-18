@@ -427,6 +427,19 @@ window.addEventListener('message', (event) => {
   if (message.type === 'mxgenius.viewer.ar-request') {
     openViewerInAR(message.scene || {});
   }
+  if (message.type === 'mxgenius.viewer.sensor-scene-request') {
+    const context = message.context && typeof message.context === 'object' ? message.context : {};
+    globalThis.MXSpatialContext?.update?.({
+      ...context,
+      source: 'maintenance-vr-handoff',
+      mode: 'maintenance'
+    });
+    const destination = new URL('globe-vr.html', window.location.href);
+    destination.searchParams.set('v', '20');
+    destination.searchParams.set('scene', 'sensor');
+    destination.searchParams.set('return', 'vr');
+    window.location.assign(destination.href);
+  }
 });
 
 window.addEventListener('mxg:case-selected', (event) => {
@@ -856,6 +869,16 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   setupSpatialWorkspaceLauncher();
+  const spatialReturnMode = new URLSearchParams(window.location.search).get('spatialReturn');
+  if (spatialReturnMode === 'maintenance' || spatialReturnMode === 'operations') {
+    globalThis.MXSpatialContext?.update?.({
+      source: 'sensor-diagnostics-return',
+      mode: spatialReturnMode
+    });
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('spatialReturn');
+    history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+  }
   const requestedTab = window.location.hash.slice(1);
   if (document.getElementById(`tab-${requestedTab}`)) switchTab(requestedTab);
   setupCollapsibleSettings(); // Auto-collapse multi-row settings cards
