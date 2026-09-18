@@ -2,7 +2,7 @@
 
 ## Expanded Fictional Parts Demo — 2026-09-18
 
-> **Status:** Validated
+> **Status:** Deployed and live-verified; authenticated tenant demo activation remains user-triggered
 > **Recipe:** AZCLI (existing ACR + Container Apps + GitHub Pages release path)
 
 ### Objective and approved scope
@@ -59,15 +59,35 @@ network path, provider connection, or SKU change.
 
 ### Promotion and acceptance
 
-- [ ] Commit and push this validated deployment record to canonical `main` and
+- [x] Commit and push this validated deployment record to canonical `main` and
   confirm the GitHub Pages release succeeds.
-- [ ] Build the exact `services/mcp` source in ACR with an immutable source tag.
-- [ ] Promote one new `mxg-core` revision while retaining the current healthy
+- [x] Build the exact `services/mcp` source in ACR with an immutable source tag.
+- [x] Promote one new `mxg-core` revision while retaining the current healthy
   revision for rollback.
-- [ ] Confirm image digest, revision health, replica count, 100% traffic, and
+- [x] Confirm image digest, revision health, replica count, 100% traffic, and
   post-deployment health/readiness/adapter probes.
 - [ ] Confirm the authenticated demo loader returns the expanded tenant stock
   count; do not fabricate a user session or mutate another tenant for testing.
+
+### Deployment proof
+
+- Deployment record commit `510379d918cb6f03078ecfacf88d559cff946829`
+  reached canonical `main`; GitHub Pages run `35335174878` completed
+  successfully.
+- ACR run `cj3w` built
+  `mxgacr50106.azurecr.io/mxg-core:parts-demo-510379d-20260918` with digest
+  `sha256:8bb07ddd5b64a26a779a51bbf2f7d6dd63d30dbfe66d8bbc4be8ab0d6ef2eac6`.
+- Container App revision `mxg-core--parts510379d` is active, healthy, has one
+  ready replica, and receives 100% of production traffic. Previous revision
+  `mxg-core--flt155f23d` remains the rollback target.
+- Post-deployment `/healthz`, `/readyz`, and `/adapterz` checks each returned
+  HTTP 200. The live dashboard returned HTTP 200 with the expected cache pins,
+  and a representative new catalog image returned HTTP 200 as `image/jpeg`
+  with the expected byte length.
+- Anonymous access to `/api/demo-data` returned HTTP 401, confirming that the
+  deployed route is mounted and remains fail-closed. Loading the expanded stock
+  into a specific tenant intentionally remains an explicit authenticated
+  **Load Demo Content** action in Settings.
 
 ### Rollback
 
