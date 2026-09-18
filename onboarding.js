@@ -124,10 +124,10 @@ const MXOnboarding = (() => {
         onEnter: () => { switchTabSafe('dashboard'); document.getElementById('aircraftExplorerCollapsible')?.setAttribute('open', ''); }
       },
       {
-        target: '#globeVrButton',
-        title: 'Fleet View in XR',
+        target: '#spatialWorkspaceBtn',
+        title: 'Spatial Workspace',
         guideId: 'fleet-xr',
-        body: 'On Meta Quest, open MXGenius in the native Quest Browser, load Fleet Context, then choose View in XR. The passthrough globe supports controller selection and fingertip contact with its fleet markers.',
+        body: 'On Meta Quest in the native Quest Browser, use this one VR control to enter the shared Operations and Maintenance workspace. Switch modes from the world-anchored tray without ending the session.',
         position: 'bottom-left',
         onEnter: () => { switchTabSafe('dashboard'); openFleetContext(); }
       }

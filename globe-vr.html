@@ -48,8 +48,8 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+      "three": "./3d-viewer/lib/three.module.js",
+      "three/addons/": "./3d-viewer/lib/"
     }
   }
   </script>
@@ -102,8 +102,8 @@
     import * as THREE from 'three';
     import { XRButton } from 'three/addons/webxr/XRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=11';
-    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=5';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=3';
+    import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=6';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=4';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -125,7 +125,7 @@
       resolveXRSensorRuntime,
       snapshotFile as sharedSnapshotFile,
       withRenewedApplicationSession
-    } from './xr-maintenance-runtime.js?v=1';
+    } from './xr-maintenance-runtime.js?v=2';
 
     const status = document.getElementById('fleetStatus');
     const sceneTitle = document.getElementById('sceneTitle');

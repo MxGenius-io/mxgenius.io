@@ -38,6 +38,8 @@ const MX3DViewer = {
   pendingSelector: null,
   tutorial: null,
   currentModel: null,
+  spatialSupported: false,
+  spatialReady: false,
 
   frame() {
     return document.getElementById('viewer-iframe');
@@ -78,6 +80,23 @@ const MX3DViewer = {
   clearSelection() {
     this.pendingSelector = null;
     this.post({ type: 'mxgenius.viewer.clear-selection' });
+  },
+
+  spatialWorkspace() {
+    const frame = this.frame();
+    if (!frame?.contentWindow) return null;
+    try {
+      if (frame.contentWindow.location?.origin !== window.location.origin) return null;
+      return frame.contentWindow.MXSpatialWorkspace || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async requestSpatialSession({ mode = 'maintenance', context = {} } = {}) {
+    const workspace = this.spatialWorkspace();
+    if (!workspace?.enter) throw new Error('The spatial workspace is still preparing');
+    return workspace.enter({ mode, context });
   }
 };
 
@@ -836,6 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Phase 1: UI + local engines (instant, no network)
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
+  setupSpatialWorkspaceLauncher();
   const requestedTab = window.location.hash.slice(1);
   if (document.getElementById(`tab-${requestedTab}`)) switchTab(requestedTab);
   setupCollapsibleSettings(); // Auto-collapse multi-row settings cards
@@ -850,6 +870,64 @@ document.addEventListener('DOMContentLoaded', () => {
     MXOnboarding.checkFirstRun(); 
   }).catch(() => { loadGlobe(); MXOnboarding.checkFirstRun(); });
 });
+
+function setSpatialWorkspaceButtonState(state, message) {
+  const button = document.getElementById('spatialWorkspaceBtn');
+  if (!button) return;
+  button.dataset.state = state;
+  button.disabled = state === 'unavailable' || state === 'preparing';
+  button.title = message;
+  button.setAttribute('aria-label', message);
+}
+
+function setupSpatialWorkspaceLauncher() {
+  const button = document.getElementById('spatialWorkspaceBtn');
+  if (!button || button.dataset.bound === 'true') return;
+  button.dataset.bound = 'true';
+  setSpatialWorkspaceButtonState('unavailable', 'No VR headset detected');
+
+  window.addEventListener('message', (event) => {
+    const frame = MX3DViewer.frame();
+    if (event.origin !== window.location.origin || event.source !== frame?.contentWindow) return;
+    const message = event.data || {};
+    if (message.type !== 'mxgenius.spatial.status') return;
+    MX3DViewer.spatialSupported = Boolean(message.supported);
+    MX3DViewer.spatialReady = Boolean(message.ready);
+    if (message.state === 'active') setSpatialWorkspaceButtonState('active', 'VR workspace active');
+    else if (message.state === 'connecting') setSpatialWorkspaceButtonState('connecting', 'Opening VR workspace…');
+    else if (message.supported && message.ready) setSpatialWorkspaceButtonState('ready', 'Open the MXGenius VR workspace');
+    else setSpatialWorkspaceButtonState('unavailable', 'No VR headset detected');
+  });
+
+  button.addEventListener('click', async () => {
+    if (!MX3DViewer.spatialSupported || !MX3DViewer.spatialReady) return;
+    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'dashboard';
+    const mode = activeTab === 'dashboard' ? 'operations' : 'maintenance';
+    const current = globalThis.MXSpatialContext?.update?.({
+      source: 'dashboard-header',
+      mode,
+      aircraft: MX3DViewer.context?.aircraft || (MX3DViewer.context?.aircraftId ? { id: MX3DViewer.context.aircraftId } : null),
+      case: MX3DViewer.context?.case || (MX3DViewer.context?.caseId ? { id: MX3DViewer.context.caseId } : null),
+      component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null)
+    }) || MX3DViewer.context;
+    cacheFleetForSpatialWorkspace();
+    setSpatialWorkspaceButtonState('connecting', 'Opening VR workspace…');
+    try {
+      await MX3DViewer.requestSpatialSession({ mode, context: current });
+    } catch (error) {
+      console.warn('Unable to open the spatial workspace', error);
+      setSpatialWorkspaceButtonState('ready', 'VR workspace needs another try');
+    }
+  });
+
+  if (!window.isSecureContext || !navigator.xr?.isSessionSupported) return;
+  navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+    MX3DViewer.spatialSupported = Boolean(supported);
+    if (!supported) return;
+    setSpatialWorkspaceButtonState('preparing', 'Preparing VR workspace…');
+    MX3DViewer.ensureLoaded();
+  }).catch(() => {});
+}
 
 async function refreshCoreReadiness(status, label) {
   const controller = new AbortController();
@@ -5953,8 +6031,8 @@ async function configureNativeARGlobe() {
   }
 }
 
-function openGlobeInVR() {
-  if (!allClusters.length) return;
+function cacheFleetForSpatialWorkspace() {
+  if (!allClusters.length) return null;
   const payload = {
     version: 2,
     createdAt: new Date().toISOString(),
@@ -5989,7 +6067,7 @@ function openGlobeInVR() {
   } catch (error) {
     console.warn('Unable to cache fleet globe data for VR', error);
   }
-  window.location.assign('globe-vr.html?v=19');
+  return payload;
 }
 
 async function loadGlobe() {
@@ -6037,17 +6115,7 @@ async function loadGlobe() {
   const pe = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   pe('pillAog', cn.aog); pe('pillAftt12000', cn.aftt12000); pe('pillAftt8000', cn.aftt8000); pe('pillOther', cn.other);
   pe('pillActiveCase', allClusters.some((cluster) => cluster.hasActiveCase) ? 1 : 0);
-  const vrButton = document.getElementById('globeVrButton');
-  if (vrButton) {
-    vrButton.disabled = !allClusters.length;
-    vrButton.title = registryUnavailable
-      ? 'Fleet registry unavailable; VR fleet view will be ready when it reconnects'
-      : 'Open the fleet globe directly in Quest Browser';
-    if (!vrButton.dataset.bound) {
-      vrButton.dataset.bound = 'true';
-      vrButton.addEventListener('click', openGlobeInVR);
-    }
-  }
+  cacheFleetForSpatialWorkspace();
   configureNativeARGlobe();
 
   if (!globeInstance) {

@@ -83,8 +83,9 @@ test('globe and viewer share one world-anchored two-mode spatial tray', () => {
   assert.match(spatialShell, /placeForView\(camera = null\)/);
   assert.match(spatialShell, /if \(!this\.placementPending \|\| !camera\) return/);
   assert.doesNotMatch(spatialShell, /position\.lerp|quaternion\.slerp/);
-  assert.match(globe, /sessionStorage\.setItem\('mxg_spatial_context_v1'/);
-  assert.match(viewer, /sessionStorage\.getItem\('mxg_spatial_context_v1'/);
+  assert.match(viewer, /MXSpatialContext\?\.read/);
+  assert.match(viewer, /MXSpatialContext\?\.update/);
+  assert.doesNotMatch(viewer, /mxg_spatial_context_v1/);
 });
 
 test('3D viewer mounts the same voice presence and forwards active case context', () => {
@@ -92,6 +93,7 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /viewerContext\?\.caseId/);
   assert.doesNotMatch(viewer, /anchor: rightWrist/);
   assert.match(viewer, /xrVoice\?\.setPresenting\(true\)/);
+  assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
 });
 
 test('sensor scene owns the head-following thermal bridge while the fleet globe omits that runtime', () => {

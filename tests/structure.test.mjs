@@ -516,11 +516,11 @@ test('3D viewer exposes raycast selection through the application boundary', () 
 
 test('3D viewer uses an immersive HDRI workspace during XR presentation', () => {
   assert.match(dashboard, /allow="xr-spatial-tracking; fullscreen"/);
-  assert.match(viewer, /id="enter-vr-button"/);
-  assert.match(viewer, /import \{ VRButton \} from 'three\/addons\/webxr\/VRButton\.js'/);
-  assert.match(viewer, /VRButton\.createButton\(renderer\)/);
-  assert.match(viewerVrButton, /isSessionSupported\( 'immersive-vr' \)/);
-  assert.match(viewerVrButton, /requestSession\( 'immersive-vr', sessionInit \)/);
+  assert.match(dashboard, /id="spatialWorkspaceBtn"/);
+  assert.doesNotMatch(viewer, /id="enter-vr-button"|VRButton\.createButton/);
+  assert.match(viewer, /window\.MXSpatialWorkspace = Object\.freeze/);
+  assert.match(viewer, /navigator\.xr\.requestSession\('immersive-vr'/);
+  assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
   assert.match(viewer, /renderer\.xr\.enabled = true/);
   assert.match(viewer, /renderer\.setAnimationLoop\(animate\)/);
   assert.match(viewer, /renderer\.xr\.addEventListener\('sessionstart'/);
@@ -530,7 +530,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
   assert.match(viewer, /if \(hdriTexture\) \{[\s\S]*scene\.background = hdriTexture;[\s\S]*scene\.environment = hdriTexture;/);
   assert.match(viewer, /sceneBackground: scene\.background/);
   assert.match(viewer, /sceneEnvironment: scene\.environment/);
-  assert.doesNotMatch(viewer, /navigator\.xr\.requestSession|setReferenceSpaceType/);
+  assert.doesNotMatch(viewer, /setReferenceSpaceType/);
   assert.match(viewer, /restoreSceneFromXR\(\)/);
   assert.match(viewer, /renderer\.xr\.getController/);
   assert.match(viewer, /renderer\.xr\.getHand/);
@@ -542,7 +542,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=35/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=36/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -703,7 +703,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=35/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=36/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -734,11 +734,11 @@ test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.match(viewer, /id="toggle-advanced-controls"[\s\S]*aria-label="Show display controls"/);
   assert.match(viewer, /document\.addEventListener\('pointerdown',[\s\S]*setAdvancedControlsOpen\(false\)/);
   assert.match(viewer, /#reset-camera \{[\s\S]*right: 16px;[\s\S]*bottom: 16px;/);
-  assert.match(viewer, /id="enter-vr-button"[\s\S]*aria-disabled="true"[\s\S]*aria-label="VR headset unavailable"/);
-  assert.match(viewer, /id="vr-support-message"[\s\S]*No headset detected/);
+  assert.doesNotMatch(viewer, /id="enter-vr-button"|id="vr-support-message"/);
+  assert.match(dashboard, /id="spatialWorkspaceBtn"[^>]*disabled[^>]*data-state="unavailable"/);
   assert.match(viewer, /navigator\.xr\.isSessionSupported\('immersive-vr'\)/);
-  assert.match(viewer, /if \(!headsetAvailable\) \{[\s\S]*showUnavailableMessage\(\)/);
-  assert.match(viewer, /nativeButton\.click\(\)/);
+  assert.match(application, /setupSpatialWorkspaceLauncher\(\)/);
+  assert.match(application, /MX3DViewer\.requestSpatialSession/);
 });
 
 test('feature catalog records the Alpha 22 guest microphone field failure', () => {
@@ -821,17 +821,18 @@ test('viewer quick access is limited to the curated local model folder set', asy
   assert.match(viewer, /<option value="workspace">Workspace models<\/option>/);
 });
 
-test('fleet globe opens a direct current-Three passthrough route with cached coordinates', () => {
-  assert.match(dashboard, /id="globeVrButton"/);
+test('one header launcher opens the cached fleet inside the canonical spatial workspace', () => {
+  assert.match(dashboard, /id="spatialWorkspaceBtn"/);
+  assert.doesNotMatch(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
   assert.match(application, /function attentionClusters/);
   assert.match(application, /\.ringsData\(attentionClusters\(initialDisplayClusters\)\)/);
   assert.match(application, /\.ringColor\(clusterRingColor\)/);
-  assert.match(application, /function openGlobeInVR\(\)/);
+  assert.match(application, /function cacheFleetForSpatialWorkspace\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /globe-vr\.html\?v=19/);
-  assert.match(globeVr, /three@0\.184\.0/);
+  assert.match(viewer, /new XROperationsSurface/);
+  assert.match(viewer, /setSpatialMode\(mode/);
   assert.match(globeVr, /XRButton\.createButton\(renderer,/);
   assert.match(globeVr, /alpha: true/);
   assert.match(globeVr, /scene\.background = null/);
@@ -924,7 +925,7 @@ test('maintenance cases use a stable human-readable display name', () => {
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.search(/<script src="guided-tooltip\.js\?v=\d+"><\/script>/);
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=10"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=11"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
@@ -948,12 +949,12 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /review OCR suggestions/);
   assert.match(onboarding, /FAA references, and QR label/);
   assert.doesNotMatch(onboarding, /data-tab="operations"/);
-  assert.match(onboarding, /target: '#globeVrButton'/);
+  assert.match(onboarding, /target: '#spatialWorkspaceBtn'/);
   assert.match(onboarding, /target: '\.nav-tab\[data-tab="3d-viewer"\]'/);
   assert.match(onboarding, /guideId: 'sensor-diagnostics'/);
   assert.match(onboarding, /familiar wrench tray/);
   assert.match(onboarding, /native Quest Browser/);
-  assert.match(onboarding, /controller selection and fingertip contact/);
+  assert.match(onboarding, /world-anchored tray without ending the session/);
   assert.match(onboarding, /MXGuidedTooltip\?\.mount/);
   assert.match(onboarding, /MXGuidedTooltip\?\.stop/);
   assert.doesNotMatch(onboarding, /placeHotspots|onboarding-hotspot/);

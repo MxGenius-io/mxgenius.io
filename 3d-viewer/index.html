@@ -887,7 +887,6 @@
             }
         }
 
-        #enter-vr-button,
         #enter-ar-button,
         #hud-preview-button,
         #hud-sound-button,
@@ -910,24 +909,6 @@
             outline: none !important;
             z-index: auto !important;
             transition: background 0.2s ease, border-color 0.2s ease;
-        }
-
-        #xr-button-container {
-            position: relative;
-        }
-
-        #enter-vr-button {
-            display: inline-grid !important;
-            place-items: center;
-            width: 38px !important;
-            height: 34px !important;
-            padding: 0 !important;
-        }
-
-        #enter-vr-button svg {
-            width: 21px;
-            height: 21px;
-            pointer-events: none;
         }
 
         #model-library-button,
@@ -955,7 +936,6 @@
             pointer-events: none;
         }
 
-        #enter-vr-button:hover[aria-disabled="false"],
         #enter-ar-button:hover:not(:disabled),
         #hud-preview-button:hover:not(:disabled),
         #hud-sound-button:hover:not(:disabled),
@@ -966,37 +946,10 @@
             border-color: rgba(255,255,255,0.4);
         }
 
-        #enter-vr-button[aria-disabled="true"],
         #enter-ar-button:disabled {
             cursor: not-allowed;
             opacity: 0.5 !important;
         }
-
-        #enter-vr-button[aria-disabled="true"] {
-            color: #94a3b8 !important;
-            border-color: rgba(148, 163, 184, 0.24) !important;
-            background: rgba(71, 85, 105, 0.12) !important;
-        }
-
-        #vr-support-message {
-            position: absolute;
-            top: calc(100% + 8px);
-            left: 0;
-            z-index: 120;
-            width: max-content;
-            max-width: min(220px, calc(100vw - 24px));
-            padding: 7px 10px;
-            border: 1px solid rgba(96, 165, 250, 0.42);
-            border-radius: 6px;
-            background: rgba(7, 12, 22, 0.96);
-            color: #d6e6ff;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
-            font-family: var(--font-sans);
-            font-size: 0.72rem;
-            white-space: nowrap;
-        }
-
-        #vr-support-message[hidden] { display: none; }
 
         #enter-ar-button {
             border-color: rgba(34, 211, 238, 0.58) !important;
@@ -1201,12 +1154,6 @@
                 <div id="ar-button-container" hidden>
                     <button id="enter-ar-button" type="button" disabled title="Checking native AR support">AR Scene</button>
                 </div>
-                <div id="xr-button-container">
-                    <button id="enter-vr-button" type="button" aria-disabled="true" title="No headset detected" aria-label="VR headset unavailable">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-3h-4l-2 3H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>
-                    </button>
-                    <span id="vr-support-message" role="status" aria-live="polite" hidden>No headset detected</span>
-                </div>
             </div>
             <div class="header-end-actions">
                 <button id="hud-preview-button" type="button" aria-pressed="false" title="Show spatial HUD preview" aria-label="Show spatial HUD preview">
@@ -1406,6 +1353,7 @@
     <script src="../runtime-config.js?v=3"></script>
     <script src="../application-client.js?v=43"></script>
     <script src="../sound-storage.js?v=2"></script>
+    <script src="../spatial-context.js?v=1"></script>
     <script src="../realtime-client.js?v=3"></script>
     <script src="../guided-tooltip.js?v=12"></script>
     <script type="module">
@@ -1428,21 +1376,22 @@
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
-        import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { XRMediaPanel } from './xr-media-panel.js';
         import { XRAnimationScrubber } from './xr-animation-scrubber.js';
         import { XRMaintenanceHUD } from './xr-maintenance-hud.js';
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=11';
-        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=5';
+        import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=6';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=13';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=3';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=4';
+        import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
+        import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
             applicationSession,
             resolveXRSensorRuntime,
             snapshotFile,
             withRenewedApplicationSession
-        } from '../xr-maintenance-runtime.js?v=1';
+        } from '../xr-maintenance-runtime.js?v=2';
 
         // =============================================
         //  PROJECT CONFIG — EDIT ONCE PER CONTRACT
@@ -1499,21 +1448,14 @@
         let selectedHighlightMaterial = null;
         let pendingRemoteSelector = null;
         let pointerDownPosition = null;
-        let viewerContext = (() => {
-            try {
-                const shared = JSON.parse(sessionStorage.getItem('mxg_spatial_context_v1') || 'null');
-                if (!shared || shared.version !== 1) return {};
-                return {
-                    caseId: shared.caseId || null,
-                    aircraftId: shared.aircraftId || null,
-                    componentId: shared.componentId || null,
-                    location: shared.location || null,
-                    spatialSource: shared.source || null
-                };
-            } catch {
-                return {};
-            }
-        })();
+        let spatialContext = globalThis.MXSpatialContext?.read?.() || { version: 2, mode: 'maintenance' };
+        let viewerContext = {
+            caseId: spatialContext.case?.id || null,
+            aircraftId: spatialContext.aircraft?.id || null,
+            componentId: spatialContext.component?.id || spatialContext.component?.meshName || null,
+            location: spatialContext.location || null,
+            spatialSource: spatialContext.source || null
+        };
         let xrMediaPanel = null;
         let xrAnimationScrubber = null;
         let xrMaintenanceHUD = null;
@@ -1522,6 +1464,10 @@
         let xrSensors = null;
         let xrWitness = null;
         let xrSpatialShell = null;
+        let xrOperationsSurface = null;
+        let xrWindowManager = null;
+        let spatialMode = spatialContext.mode === 'operations' ? 'operations' : 'maintenance';
+        let spatialSession = null;
         let activeCaseState = null;
         let witnessGuestAudio = null;
         const sensorRuntime = resolveXRSensorRuntime();
@@ -1837,7 +1783,9 @@
                 bridgeHandoff: Boolean(sensorRuntime.handoff),
                 onAction: (action, input, target) => {
                     if (action === 'toggle-thermal-screen') {
-                        xrSpatialShell?.setToolState('thermal', { active: Boolean(target?.active) });
+                        const state = xrWindowManager?.state('thermal')?.state;
+                        if (target?.active && state !== 'open') xrWindowManager?.open('thermal', { input, reason: 'sensor-control' });
+                        else if (!target?.active && state === 'open') xrWindowManager?.minimize('thermal', { input, reason: 'sensor-control' });
                     }
                     emitXRAction(action, input, target);
                 },
@@ -1902,14 +1850,42 @@
                 },
                 onAction: (action, input, target) => {
                     if (action === 'witness-panel-toggle') {
-                        xrSpatialShell?.setToolState('witness', { active: Boolean(target?.open) });
+                        const state = xrWindowManager?.state('witness')?.state;
+                        if (target?.open && state !== 'open') {
+                            xrWindowManager?.open('witness', { input, reason: 'panel-control' });
+                        } else if (!target?.open && state === 'open') {
+                            xrWindowManager.minimize('witness', { input, reason: 'panel-control' });
+                        }
+                    }
+                    if (action === 'witness-window-close') {
+                        xrWindowManager?.close('witness', { input, reason: 'panel-control' });
                     }
                     emitXRAction(action, input, target);
                 }
             });
             scene.add(xrWitness.group);
+            xrOperationsSurface = new XROperationsSurface({ onAction: emitXRAction });
+            xrOperationsSurface.setContext(spatialContext);
+            scene.add(xrOperationsSurface.group);
+            xrWindowManager = new SpatialWindowManager({
+                onChange: ({ id, state, active }) => {
+                    xrSpatialShell?.setToolState(id, {
+                        active: Boolean(active),
+                        windowState: state
+                    });
+                }
+            });
+            xrWindowManager.register('witness', {
+                show: ({ input = 'xr' } = {}) => xrWitness?.setOpen(true, input),
+                hide: ({ input = 'xr' } = {}) => xrWitness?.setOpen(false, input),
+                focus: () => xrWitness?.requestPlacement()
+            });
+            xrWindowManager.register('thermal', {
+                show: ({ input = 'xr' } = {}) => xrSensors?.setActive(true, input),
+                hide: ({ input = 'xr' } = {}) => xrSensors?.setActive(false, input)
+            });
             xrSpatialShell = new XRSpatialShell({
-                mode: 'maintenance',
+                mode: spatialMode,
                 tools: [
                     { id: 'thermal' },
                     { id: 'witness' },
@@ -1917,15 +1893,7 @@
                     { id: 'capture', enabled: Boolean(viewerContext?.caseId || localStorage.getItem('mxg_active_case_id')) }
                 ],
                 onModeChange: (mode) => {
-                    if (mode !== 'operations') return;
-                    sessionStorage.setItem('mxg_spatial_context_v1', JSON.stringify({
-                        version: 1,
-                        source: 'maintenance-viewer',
-                        caseId: viewerContext?.caseId || null,
-                        aircraftId: viewerContext?.aircraftId || null,
-                        componentId: selectedMesh?.name || null
-                    }));
-                    window.top.location.assign('../globe-vr.html?v=19');
+                    setSpatialMode(mode, { source: 'spatial-tray' });
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
@@ -1936,6 +1904,7 @@
                 onAction: emitXRAction
             });
             scene.add(xrSpatialShell.group);
+            applySpatialMode();
             void restoreViewerCaseEvidence().then((current) => {
                 xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
             });
@@ -2546,6 +2515,7 @@
             });
 
             scene.add(currentModel);
+            if (renderer.xr.isPresenting && spatialMode === 'operations') currentModel.visible = false;
 
             fitCameraToModel();
             if (window.parent !== window) {
@@ -2583,7 +2553,6 @@
             frame.hidden = true;
             container.style.display = '';
             document.getElementById('part-inspector').style.display = '';
-            document.getElementById('xr-button-container').hidden = false;
             document.getElementById('procedure-media-button').hidden = false;
         }
 
@@ -2605,7 +2574,6 @@
 
             container.style.display = 'none';
             document.getElementById('part-inspector').style.display = 'none';
-            document.getElementById('xr-button-container').hidden = true;
             document.getElementById('procedure-media-button').hidden = true;
             const frame = document.getElementById('sketchfab-frame');
             frame.hidden = false;
@@ -2660,81 +2628,106 @@
             }
         }
 
+        function postSpatialStatus(state, { supported = Boolean(navigator.xr), ready = true } = {}) {
+            if (window.parent === window) return;
+            window.parent.postMessage({
+                type: 'mxgenius.spatial.status',
+                version: 1,
+                state,
+                supported,
+                ready,
+                mode: spatialMode
+            }, window.location.origin);
+        }
+
+        function updateViewerContextFromSpatialContext() {
+            viewerContext = {
+                ...viewerContext,
+                caseId: spatialContext.case?.id || viewerContext.caseId || null,
+                aircraftId: spatialContext.aircraft?.id || viewerContext.aircraftId || null,
+                componentId: spatialContext.component?.id || spatialContext.component?.meshName || viewerContext.componentId || null,
+                location: spatialContext.location || viewerContext.location || null,
+                spatialSource: spatialContext.source || viewerContext.spatialSource || null
+            };
+            xrMaintenanceHUD?.setContext(viewerContext);
+            xrOperationsSurface?.setContext(spatialContext);
+        }
+
+        function applySpatialMode() {
+            const presenting = Boolean(renderer?.xr?.isPresenting);
+            const maintenance = spatialMode === 'maintenance';
+            if (currentModel) currentModel.visible = !presenting || maintenance;
+            if (inspectionGrid) inspectionGrid.visible = !presenting || maintenance;
+            xrSpatialShell?.setMode(spatialMode);
+            xrOperationsSurface?.setPresenting(presenting, camera);
+            xrOperationsSurface?.setVisible(presenting && !maintenance, camera);
+            xrMediaPanel?.setPresenting(presenting && maintenance);
+            xrAnimationScrubber?.setPresenting(presenting && maintenance);
+            xrMaintenanceHUD?.setPresenting(presenting && maintenance, camera);
+            if (xrSensors?.group) xrSensors.group.visible = presenting && maintenance;
+            if (xrVoice?.group) xrVoice.group.visible = presenting && maintenance;
+            if (xrWitness?.group) xrWitness.group.visible = presenting && maintenance;
+            if (!maintenance) xrWindowManager?.minimizeAll({ input: 'system', reason: 'mode-change' });
+            if (presenting && maintenance) ensureMaintenanceHUDTarget();
+        }
+
+        function setSpatialMode(mode, { source = 'spatial-workspace', context = null } = {}) {
+            spatialMode = mode === 'operations' ? 'operations' : 'maintenance';
+            const update = context && typeof context === 'object' ? context : {};
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                ...update,
+                source,
+                mode: spatialMode,
+                aircraft: update.aircraft || spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
+                case: update.case || spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                component: update.component || (selectedMesh ? {
+                    id: viewerContext.componentId || selectedMesh.name || null,
+                    meshName: selectedMesh.name || null,
+                    path: getObjectPath(selectedMesh)
+                } : spatialContext.component)
+            }) || { ...spatialContext, ...update, source, mode: spatialMode };
+            updateViewerContextFromSpatialContext();
+            applySpatialMode();
+            postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
+            emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
+        }
+
+        async function enterSpatialWorkspace({ mode = spatialMode, context = null } = {}) {
+            setSpatialMode(mode, { source: 'dashboard-header', context });
+            if (spatialSession) return { active: true, mode: spatialMode };
+            if (!window.isSecureContext || !navigator.xr?.requestSession) throw new Error('Immersive VR is unavailable');
+            postSpatialStatus('connecting');
+            const session = await navigator.xr.requestSession('immersive-vr', {
+                optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers']
+            });
+            spatialSession = session;
+            session.addEventListener('end', () => { spatialSession = null; }, { once: true });
+            await renderer.xr.setSession(session);
+            return { active: true, mode: spatialMode };
+        }
+
         function setupXRButton() {
-            const container = document.getElementById('xr-button-container');
-            if (!container) return;
-
-            const nativeButton = VRButton.createButton(renderer);
-            nativeButton.id = 'native-enter-vr-button';
-            nativeButton.hidden = true;
-            nativeButton.style.display = 'none';
-
-            const button = document.createElement('button');
-            button.id = 'enter-vr-button';
-            button.type = 'button';
-            button.setAttribute('aria-disabled', 'true');
-            button.setAttribute('aria-label', 'VR headset unavailable');
-            button.title = 'No headset detected';
-            button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4l-2-3h-4l-2 3H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/><circle cx="7" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg>';
-
-            const supportMessage = document.createElement('span');
-            supportMessage.id = 'vr-support-message';
-            supportMessage.setAttribute('role', 'status');
-            supportMessage.setAttribute('aria-live', 'polite');
-            supportMessage.hidden = true;
-            supportMessage.textContent = 'No headset detected';
-            let messageTimer = 0;
-            let headsetAvailable = false;
-
-            const setHeadsetAvailable = (available) => {
-                headsetAvailable = Boolean(available);
-                button.setAttribute('aria-disabled', String(!headsetAvailable));
-                button.setAttribute('aria-label', headsetAvailable ? 'Enter VR' : 'VR headset unavailable');
-                button.title = headsetAvailable
-                    ? 'View the aircraft in the HDRI maintenance workspace'
-                    : 'No headset detected';
-            };
-
-            const showUnavailableMessage = () => {
-                supportMessage.hidden = false;
-                window.clearTimeout(messageTimer);
-                messageTimer = window.setTimeout(() => { supportMessage.hidden = true; }, 2600);
-            };
-
-            button.addEventListener('click', () => {
-                if (!headsetAvailable) {
-                    showUnavailableMessage();
-                    return;
-                }
-                nativeButton.click();
+            window.MXSpatialWorkspace = Object.freeze({
+                enter: enterSpatialWorkspace,
+                exit: () => spatialSession?.end?.(),
+                setMode: (mode, context) => setSpatialMode(mode, { source: 'workspace-api', context }),
+                status: () => ({ active: Boolean(spatialSession), mode: spatialMode })
             });
 
-            container.replaceChildren(button, nativeButton, supportMessage);
-            if (window.isSecureContext && navigator.xr?.isSessionSupported) {
-                navigator.xr.isSessionSupported('immersive-vr')
-                    .then(setHeadsetAvailable)
-                    .catch(() => setHeadsetAvailable(false));
-            } else {
-                setHeadsetAvailable(false);
-            }
-
             renderer.xr.addEventListener('sessionstart', () => {
-                button.setAttribute('aria-label', 'Exit VR');
-                button.title = 'Exit VR';
                 void xrUIAudio?.unlock();
                 stageSceneForXR('local-floor');
-                xrMediaPanel?.setPresenting(true);
-                xrAnimationScrubber?.setPresenting(true);
-                xrMaintenanceHUD?.setContext(viewerContext);
-                xrMaintenanceHUD?.setPresenting(true, camera);
-                ensureMaintenanceHUDTarget();
                 xrSensors?.setPresenting(true);
                 xrVoice?.setPresenting(true);
                 xrWitness?.setPresenting(true);
                 xrSpatialShell?.setPresenting(true, camera);
+                applySpatialMode();
+                postSpatialStatus('active');
             });
             renderer.xr.addEventListener('sessionend', () => {
-                setHeadsetAvailable(headsetAvailable);
+                spatialSession = null;
+                xrOperationsSurface?.setVisible(false, camera);
+                xrOperationsSurface?.setPresenting(false, camera);
                 xrMediaPanel?.setPresenting(false);
                 xrAnimationScrubber?.setPresenting(false);
                 xrMaintenanceHUD?.setPresenting(false, camera);
@@ -2745,7 +2738,18 @@
                 xrUIAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
                 xrUIAudio?.stopCue('system_relocalizing_loop', { fadeMs: 70 });
                 restoreSceneFromXR();
+                if (currentModel) currentModel.visible = true;
+                if (inspectionGrid) inspectionGrid.visible = true;
+                postSpatialStatus('ready');
             });
+
+            if (window.isSecureContext && navigator.xr?.isSessionSupported) {
+                navigator.xr.isSessionSupported('immersive-vr')
+                    .then((supported) => postSpatialStatus(supported ? 'ready' : 'unavailable', { supported, ready: true }))
+                    .catch(() => postSpatialStatus('unavailable', { supported: false, ready: true }));
+            } else {
+                postSpatialStatus('unavailable', { supported: false, ready: true });
+            }
         }
 
         function setupNativeARButton() {
@@ -2797,11 +2801,11 @@
         async function handleMaintenanceTool(toolId, { input = 'xr' } = {}) {
             void xrUIAudio?.unlock();
             if (toolId === 'thermal') {
-                xrSensors?.setActive(!xrSensors.active, input);
+                xrWindowManager?.toggle('thermal', { input });
                 return;
             }
             if (toolId === 'witness') {
-                xrWitness?.setOpen(!xrWitness.open, input);
+                xrWindowManager?.toggle('witness', { input });
                 return;
             }
             if (toolId === 'voice') {
@@ -3564,7 +3568,16 @@
                     viewerContext = message.context && typeof message.context === 'object'
                         ? { ...message.context }
                         : {};
+                    spatialContext = globalThis.MXSpatialContext?.update?.({
+                        source: 'embedded-viewer',
+                        mode: spatialMode,
+                        aircraft: viewerContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
+                        case: viewerContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                        component: viewerContext.component || (viewerContext.componentId ? { id: viewerContext.componentId } : null),
+                        location: viewerContext.location || null
+                    }) || spatialContext;
                     xrMaintenanceHUD?.setContext(viewerContext);
+                    xrOperationsSurface?.setContext(spatialContext);
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                     void restoreViewerCaseEvidence().then((current) => {
                         xrSpatialShell?.setToolState('capture', { enabled: Boolean(current?.caseId) });
@@ -3939,6 +3952,7 @@
             xrSensors?.update(delta, time, { camera });
             xrWitness?.update(delta, { camera });
             xrSpatialShell?.update(delta, { camera });
+            xrOperationsSurface?.update(delta, { camera });
             
             if (renderer.xr.isPresenting) {
                 renderer.render(scene, camera);

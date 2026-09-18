@@ -54,6 +54,7 @@ export class XRRemoteWitnessPanel {
     this.onStatus = onStatus;
     this.presenting = false;
     this.open = false;
+    this.maximized = false;
     this.panelTarget = 0;
     this.invitation = null;
     this.room = null;
@@ -106,14 +107,19 @@ export class XRRemoteWitnessPanel {
     this.panel = this.makeSurface('MXGeniusWitnessSurface', 0.78, 0.67, this.panelTexture);
     this.panelRoot.add(this.panel);
 
-    this.closeButton = this.makeHitTarget('MXGeniusWitnessClose', 0.07, 0.07, 'close', 0.342, 0.285);
+    this.windowTargets = [
+      this.makeHitTarget('MXGeniusWitnessClose', 0.048, 0.048, 'close', 0.342, 0.286),
+      this.makeHitTarget('MXGeniusWitnessMinimize', 0.048, 0.048, 'minimize', 0.292, 0.286),
+      this.makeHitTarget('MXGeniusWitnessMaximize', 0.048, 0.048, 'maximize', 0.242, 0.286)
+    ];
+    this.closeButton = this.windowTargets[0];
     this.actionTargets = [
       this.makeHitTarget('MXGeniusWitnessInvite', 0.30, 0.07, 'invite', -0.185, -0.190),
       this.makeHitTarget('MXGeniusWitnessApproval', 0.30, 0.07, 'approval', 0.185, -0.190),
       this.makeHitTarget('MXGeniusWitnessLayers', 0.30, 0.07, 'layers', -0.185, -0.269),
       this.makeHitTarget('MXGeniusWitnessRevoke', 0.30, 0.07, 'revoke', 0.185, -0.269)
     ];
-    this.panelRoot.add(this.closeButton, ...this.actionTargets);
+    this.panelRoot.add(...this.windowTargets, ...this.actionTargets);
     this.drawButton();
     this.drawPanel();
   }
@@ -144,7 +150,7 @@ export class XRRemoteWitnessPanel {
   interactiveObjects() {
     if (!this.presenting || !this.group.visible) return [];
     const launcher = this.launcherVisible ? [this.button] : [];
-    return this.open ? [...launcher, this.closeButton, ...this.actionTargets] : launcher;
+    return this.open ? [...launcher, ...this.windowTargets, ...this.actionTargets] : launcher;
   }
 
   owns(object) {
@@ -162,7 +168,12 @@ export class XRRemoteWitnessPanel {
     while (target && !target.userData?.xrWitnessAction) target = target.parent;
     const action = target?.userData?.xrWitnessAction;
     if (action === 'toggle') this.setOpen(!this.open, input);
-    else if (action === 'close') this.setOpen(false, input);
+    else if (action === 'close') {
+      this.setOpen(false, input);
+      this.onAction('witness-window-close', input, {});
+    }
+    else if (action === 'minimize') this.setOpen(false, input);
+    else if (action === 'maximize') this.toggleMaximized(input);
     else if (action === 'invite') void this.createInvitation(input);
     else if (action === 'approval') void this.toggleApproval(input);
     else if (action === 'layers') void this.toggleShareLayers(input);
@@ -185,10 +196,17 @@ export class XRRemoteWitnessPanel {
 
   setOpen(open, input = 'xr') {
     this.open = Boolean(open);
-    this.panelTarget = this.open ? 1 : 0;
+    this.panelTarget = this.open ? (this.maximized ? 1.22 : 1) : 0;
     if (this.open) this.panelRoot.visible = true;
     this.onAction('witness-panel-toggle', input, { open: this.open });
     this.drawButton();
+  }
+
+  toggleMaximized(input = 'xr') {
+    this.maximized = !this.maximized;
+    this.panelTarget = this.open ? (this.maximized ? 1.22 : 1) : 0;
+    this.onAction('witness-window-maximize', input, { maximized: this.maximized });
+    this.drawPanel();
   }
 
   async createInvitation(input = 'xr') {
@@ -545,12 +563,14 @@ export class XRRemoteWitnessPanel {
     ctx.fillStyle = '#e7f8ff';
     ctx.font = '700 37px system-ui, sans-serif';
     ctx.fillText('Guest viewing', 48, 112);
-    ctx.strokeStyle = '#8dc9db';
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.moveTo(934, 43); ctx.lineTo(974, 83);
-    ctx.moveTo(974, 43); ctx.lineTo(934, 83);
-    ctx.stroke();
+    [
+      [950, '#fb7185'],
+      [886, '#fbbf24'],
+      [822, this.maximized ? '#67e8f9' : '#34d399']
+    ].forEach(([x, color]) => {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(x, 61, 17, 0, Math.PI * 2); ctx.fill();
+    });
 
     const state = this.room?.status || 'offline';
     const stateColor = state === 'live' ? '#34d399' : state === 'revoked' ? '#fb7185' : '#fbbf24';
@@ -628,7 +648,7 @@ export class XRRemoteWitnessPanel {
     this.socketGeneration += 1;
     this.socket?.close();
     this.closeMedia();
-    for (const mesh of [this.button, this.panel, this.closeButton, ...this.actionTargets]) {
+    for (const mesh of [this.button, this.panel, ...this.windowTargets, ...this.actionTargets]) {
       mesh.geometry.dispose();
       mesh.material.dispose();
     }

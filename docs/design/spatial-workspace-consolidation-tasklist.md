@@ -5,6 +5,26 @@ Source architecture:
 
 Legend: `[ ]` queued, `[~]` active or partially complete, `[x]` verified.
 
+## Current checkpoint
+
+- The embedded maintenance viewer is the canonical WebXR host and owns the only
+  advertised web `immersive-vr` request path.
+- The dashboard header is the only web VR launcher. The dashboard globe and 3D
+  viewer launchers are retired; native AR remains independent and capability
+  gated.
+- Operations and Maintenance now switch inside the same renderer and XR session.
+  The legacy globe and sensor URLs remain non-advertised rollback routes until
+  the physical Quest acceptance run passes.
+- Spatial context v2 carries tenant, organization, aircraft, case, component,
+  part, location, evidence, and manual identities without credentials or media
+  blobs. Same-origin embedded runtime calls inherit the authenticated parent.
+- Remote Witness and Realtime voice stay alive when their visual surfaces are
+  hidden. The first OS-style window manager enforces one visible tool window,
+  shows a blue minimized indicator, and keeps explicit revoke/end controls
+  separate from window close or minimize.
+- Automated contract coverage is green locally. Physical Quest behavior remains
+  deliberately unverified until the headset acceptance run in Wave 7.
+
 ## Outcome
 
 Replace the current collection of VR/AR destinations and floating utilities with
@@ -33,7 +53,7 @@ application.
   46-tool registry.
 - [ ] `SWC-004` Capture current desktop and physical-headset behavior for the two
   retained entry paths before removing legacy launchers.
-- [ ] `SWC-005` Define one typed spatial-context envelope for tenant, aircraft,
+- [x] `SWC-005` Define one typed spatial-context envelope for tenant, aircraft,
   case, component, part, and location identity.
 
 Wave 0 gate: current entry paths are recorded, the shared context contract is
@@ -45,13 +65,13 @@ versioned, and no scene consolidation begins with an unknown data dependency.
   mode controls.
 - [~] `SWC-011` Add shared recenter, close, and return behavior without attaching
   controls to the headset.
-- [ ] `SWC-012` Enforce one active panel or tool at a time with deliberate open,
+- [~] `SWC-012` Enforce one active panel or tool at a time with deliberate open,
   close, and mode-transition animation.
-- [ ] `SWC-013` Mount shared aircraft, case, component, and location context in a
+- [~] `SWC-013` Mount shared aircraft, case, component, and location context in a
   compact form that does not become another dashboard.
-- [ ] `SWC-014` Route hand, controller, pointer, audio, reduced-motion, and voice
+- [~] `SWC-014` Route hand, controller, pointer, audio, reduced-motion, and voice
   behavior through the shell rather than duplicating it per mode.
-- [ ] `SWC-015` Preserve authentication, tenant boundaries, and confirmation
+- [~] `SWC-015` Preserve authentication, tenant boundaries, and confirmation
   gates during every mode transition.
 - [ ] `SWC-016` Reduce connection state to quiet ready/recovering/action-required
   signals; place traces and raw identifiers in Service mode.
@@ -61,7 +81,7 @@ without duplicate controls, headset-following panels, or lost authentication.
 
 ### Wave 2 — Operations mode
 
-- [ ] `SWC-020` Move the fleet globe, clusters, locations, and geographic
+- [~] `SWC-020` Move the fleet globe, clusters, locations, and geographic
   exploration into Operations.
 - [ ] `SWC-021` Consolidate aircraft search and aircraft/operator/supplier/contact
   drill-down around the selected globe context.
@@ -168,7 +188,7 @@ cross-tenant leakage, duplicate records, or optimistic completion claims.
 
 ### Wave 7 — acceptance and cutover
 
-- [ ] `SWC-070` Add contract tests for mode ownership, shared context, one-active-
+- [~] `SWC-070` Add contract tests for mode ownership, shared context, one-active-
   panel behavior, Service-mode isolation, and the FLIR-only follow exception.
 - [ ] `SWC-071` Run desktop and narrow-viewport interaction checks with keyboard,
   pointer, reduced motion, and reconnect scenarios.

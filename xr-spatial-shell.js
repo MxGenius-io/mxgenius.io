@@ -59,7 +59,13 @@ export class XRSpatialShell {
     this.toolStates = new Map();
     this.toolButtons = tools.map((tool, index) => {
       const preset = TOOL_DEFAULTS.find((entry) => entry.id === tool.id) || {};
-      const normalized = { ...preset, ...tool, enabled: tool.enabled !== false, active: Boolean(tool.active) };
+      const normalized = {
+        ...preset,
+        ...tool,
+        enabled: tool.enabled !== false,
+        active: Boolean(tool.active),
+        windowState: tool.windowState || (tool.active ? 'open' : 'closed')
+      };
       this.toolStates.set(normalized.id, normalized);
       return this.createToolButton(normalized, index, tools.length);
     });
@@ -223,6 +229,15 @@ export class XRSpatialShell {
       context.font = '700 24px ui-monospace, monospace';
       context.textAlign = 'center';
       context.fillText(tool.label, 128, 151);
+      if (tool.windowState === 'minimized') {
+        context.fillStyle = '#38bdf8';
+        context.shadowColor = '#38bdf8';
+        context.shadowBlur = 16;
+        context.beginPath();
+        context.arc(128, 174, 7, 0, Math.PI * 2);
+        context.fill();
+        context.shadowBlur = 0;
+      }
       button.visible = this.mode === 'maintenance';
       button.userData.texture.needsUpdate = true;
     }
@@ -262,8 +277,10 @@ export class XRSpatialShell {
       this.onAction('spatial-shell-recenter', input, { mode: this.mode });
       return true;
     }
-    this.onAction('spatial-shell-mode', input, { from: this.mode, to: nextMode });
-    this.onModeChange(nextMode, { from: this.mode, input });
+    const previousMode = this.mode;
+    this.onAction('spatial-shell-mode', input, { from: previousMode, to: nextMode });
+    this.setMode(nextMode);
+    this.onModeChange(nextMode, { from: previousMode, input });
     return true;
   }
 

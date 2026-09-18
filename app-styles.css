@@ -444,6 +444,32 @@ main {
   padding: 20px;
 }
 
+.spatial-workspace-launcher[data-state="unavailable"],
+.spatial-workspace-launcher:disabled {
+  color: #526071;
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.spatial-workspace-launcher[data-state="ready"] {
+  color: #67e8f9;
+  border: 1px solid rgba(34, 211, 238, 0.34);
+  background: rgba(8, 47, 67, 0.52);
+}
+
+.spatial-workspace-launcher[data-state="connecting"] {
+  color: #fde68a;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  background: rgba(70, 43, 8, 0.48);
+}
+
+.spatial-workspace-launcher[data-state="active"] {
+  color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  background: rgba(6, 78, 59, 0.5);
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.18);
+}
+
 .settings-entry {
   display: flex;
   align-items: center;

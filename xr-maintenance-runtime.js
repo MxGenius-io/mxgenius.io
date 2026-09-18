@@ -18,6 +18,17 @@ export function createOpaqueXrId(prefix = 'xr') {
   return opaqueId(prefix);
 }
 
+function applicationRuntime() {
+  try {
+    if (globalThis.parent && globalThis.parent !== globalThis && globalThis.parent.location.origin === globalThis.location.origin) {
+      return globalThis.parent;
+    }
+  } catch {
+    // Cross-origin parents are deliberately excluded from the authenticated runtime.
+  }
+  return globalThis;
+}
+
 export function resolveXRSensorRuntime({ clearHandoffFragment = true } = {}) {
   const query = new URLSearchParams(globalThis.location?.search || '');
   let handoff = null;
@@ -70,11 +81,14 @@ export function resolveXRSensorRuntime({ clearHandoffFragment = true } = {}) {
 }
 
 export async function applicationSession({ forceRefresh = false } = {}) {
-  await globalThis.MXGENIUS_CONFIG?.ready;
-  const refreshed = globalThis.MXGENIUS_AUTH?.getToken
-    ? await globalThis.MXGENIUS_AUTH.getToken({ forceRefresh })
+  const runtime = applicationRuntime();
+  const config = runtime.MXGENIUS_CONFIG || globalThis.MXGENIUS_CONFIG;
+  const auth = runtime.MXGENIUS_AUTH || globalThis.MXGENIUS_AUTH;
+  await config?.ready;
+  const refreshed = auth?.getToken
+    ? await auth.getToken({ forceRefresh })
     : '';
-  const configured = globalThis.MXGENIUS_CONFIG?.getSession?.() || {};
+  const configured = config?.getSession?.() || {};
   return {
     accessToken: refreshed || configured.accessToken,
     organizationId: configured.organizationId,
@@ -87,8 +101,9 @@ export async function withRenewedApplicationSession(operation) {
   try {
     return await operation(session);
   } catch (error) {
-    if (error?.status !== 401 || globalThis.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
-    globalThis.MXApplicationClient?.capabilities?.disconnect?.(session);
+    const runtime = applicationRuntime();
+    if (error?.status !== 401 || runtime.MXGENIUS_CONFIG?.allowInsecurePilot) throw error;
+    runtime.MXApplicationClient?.capabilities?.disconnect?.(session);
     session = await applicationSession({ forceRefresh: true });
     return operation(session);
   }
