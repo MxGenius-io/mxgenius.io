@@ -12789,7 +12789,7 @@ mod structured_advisory_tests {
     #[test]
     fn application_environment_manifest_maps_the_durable_product_surfaces() {
         let manifest = application_environment_manifest();
-        assert_eq!(manifest["manifest_version"], "1.0.0+10");
+        assert_eq!(manifest["manifest_version"], "1.0.0+11");
         assert_eq!(manifest["surfaces"].as_array().unwrap().len(), 9);
         assert_eq!(
             manifest["navigation_order"]
