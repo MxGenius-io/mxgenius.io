@@ -102,9 +102,10 @@
   <script type="module">
     import * as THREE from 'three';
     import { VRButton } from 'three/addons/webxr/VRButton.js';
-    import { XRRealtimePresence } from './xr-realtime-presence.js?v=11';
+    import { XRRealtimePresence } from './xr-realtime-presence.js?v=14';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=9';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=8';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=10';
+    import { SpatialWindowManager } from './spatial-window-manager.js?v=1';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
     import {
@@ -287,6 +288,7 @@
     let xrSensors = null;
     let xrVoice = null;
     let xrSpatialShell = null;
+    let xrWindowManager = null;
     let xrWitness = null;
     let witnessGuestAudio = null;
     let spatialHud = null;
@@ -320,6 +322,7 @@
       if (!caseId) {
         activeCaseState = null;
         xrVoice?.setEvidenceContext();
+        xrSpatialShell?.setToolState('capture', { enabled: false });
         return null;
       }
       try {
@@ -335,12 +338,14 @@
           aircraftId: activeCaseState.case?.aircraft_id,
           count: activeCaseState.media.length
         });
+        xrSpatialShell?.setToolState('capture', { enabled: true });
         xrWitness?.publishProjection();
         void xrVoice?.refreshContext();
         return activeCaseState;
       } catch (error) {
         activeCaseState = null;
         xrVoice?.setEvidenceContext();
+        xrSpatialShell?.setToolState('capture', { enabled: false });
         status.textContent = `Open a maintenance case before capturing evidence · ${error.message}`;
         return null;
       }
@@ -367,6 +372,7 @@
         };
       });
       activeCaseState = refreshed;
+      xrSpatialShell?.setToolState('capture', { enabled: true });
       xrWitness?.publishProjection();
       void xrVoice?.refreshContext();
       return {
@@ -461,6 +467,8 @@
       remoteWitnessUrl,
       surface: sceneSurface,
       presentation: 'head-screen',
+      initialActive: false,
+      showControls: false,
       bridgeHandoff: Boolean(sensorHandoff),
       screenScale: sensorCalibration('thermalScale', 1, 0.65, 1.6),
       headOffset: {
@@ -527,12 +535,78 @@
       onSnapshotRequest: sensorOnlyScene ? requestHeadsetFrame : null,
       onSnapshotCaptured: sensorOnlyScene ? saveSnapshotToActiveCase : null,
       onScanFrame: sensorOnlyScene ? analyzeSpatialFrame : null,
+      launcherVisible: !sensorOnlyScene,
+      presenceVisible: true,
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrVoice.group)
     });
-    if (xrSensors) xrVoice.setDockTarget(xrSensors.voiceDock);
     scene.add(xrVoice.group);
+    function syncSensorWindow(id, state, active) {
+      if (!sensorOnlyScene) return;
+      xrSpatialShell?.setToolState(id, {
+        active: Boolean(active),
+        windowState: state
+      });
+    }
+    function syncThermalDock() {
+      if (!sensorOnlyScene || xrWindowManager?.state('thermal')?.state !== 'open') return;
+      const dock = xrSpatialShell?.contentAnchor?.();
+      if (!dock || !xrSensors?.group) return;
+      dock.updateMatrixWorld(true);
+      dock.getWorldPosition(xrSensors.group.position);
+      dock.getWorldQuaternion(xrSensors.group.quaternion);
+    }
+    async function handleSensorTool(toolId, { input = 'xr' } = {}) {
+      void xrAudio?.unlock();
+      if (toolId === 'thermal' || toolId === 'witness') {
+        xrWindowManager?.toggle(toolId, { input });
+        return;
+      }
+      if (toolId === 'voice') {
+        const voiceState = xrWindowManager?.state('voice')?.state;
+        if (voiceState === 'open') {
+          xrWindowManager?.minimize('voice', { input });
+          return;
+        }
+        xrWindowManager?.open('voice', { input });
+        if (!xrVoice?.session || ['disconnected', 'failed'].includes(xrVoice.state)) {
+          await xrVoice?.connect(input);
+        }
+        xrSpatialShell?.setToolState('voice', {
+          active: Boolean(xrVoice?.session) && !['disconnected', 'failed'].includes(xrVoice?.state)
+        });
+        return;
+      }
+      if (toolId === 'capture') {
+        xrWindowManager?.open('voice', { input });
+        await xrVoice?.captureSnapshot(input);
+      }
+    }
+    if (sensorOnlyScene) {
+      xrWindowManager = new SpatialWindowManager({
+        onChange: ({ id, state, active }) => syncSensorWindow(id, state, active)
+      });
+      xrWindowManager.register('thermal', {
+        show: ({ input = 'xr' } = {}) => {
+          xrSensors?.setScreenPinned(true, input);
+          syncThermalDock();
+          xrSensors?.setActive(true, input);
+        },
+        hide: ({ input = 'xr' } = {}) => xrSensors?.setActive(false, input)
+      });
+      xrWindowManager.register('voice', {
+        show: () => xrVoice?.setSurfaceOpen(true),
+        hide: () => xrVoice?.setSurfaceOpen(false),
+        focus: () => xrVoice?.requestPlacement('spatial-shell')
+      });
+    }
     xrSpatialShell = new XRSpatialShell({
       mode: sensorOnlyScene ? 'maintenance' : 'operations',
+      tools: sensorOnlyScene ? [
+        { id: 'thermal' },
+        { id: 'witness' },
+        { id: 'voice', label: 'AI' },
+        { id: 'capture', enabled: Boolean(localStorage.getItem('mxg_active_case_id')) }
+      ] : [],
       onModeChange: (mode, { input = 'xr' } = {}) => {
         void returnToCanonicalVr(input, mode);
       },
@@ -547,10 +621,15 @@
         spatialHud?.requestPlacement();
       },
       onExit: ({ input = 'xr' } = {}) => void returnToScene(input),
+      onToolAction: handleSensorTool,
       onAction: (action, input, target) => emitSceneAction(action, input, target, xrSpatialShell.group),
       activeModeHints: sensorOnlyScene ? { maintenance: 'BACK TO VR' } : {}
     });
     scene.add(xrSpatialShell.group);
+    if (sensorOnlyScene) {
+      xrVoice.setDockTarget(xrSpatialShell.contentAnchor());
+      xrVoice.requestPlacement('spatial-shell');
+    }
 
     function preserveSpatialContext(mode, source) {
       return globalThis.MXSpatialContext?.update?.({
@@ -593,6 +672,8 @@
           return renderer.domElement.captureStream(30);
         },
         nativeBootstrapProvider: (invitation, projection) => xrSensors.sendWitnessBootstrap(invitation, projection),
+        dockProvider: () => xrSpatialShell?.contentAnchor?.() || null,
+        launcherVisible: false,
         remoteStreamConsumer: (stream) => {
           if (!witnessGuestAudio) {
             witnessGuestAudio = document.createElement('audio');
@@ -605,7 +686,20 @@
           if (stream) void witnessGuestAudio.play().catch(() => {});
           else witnessGuestAudio.pause();
         },
-        onAction: (action, input, target) => emitSceneAction(action, input, target, xrWitness.group),
+        onAction: (action, input, target) => {
+          if (action === 'witness-panel-toggle') {
+            const state = xrWindowManager?.state('witness')?.state;
+            if (target?.open && state !== 'open') {
+              xrWindowManager?.open('witness', { input, reason: 'panel-control' });
+            } else if (!target?.open && state === 'open') {
+              xrWindowManager?.minimize('witness', { input, reason: 'panel-control' });
+            }
+          }
+          if (action === 'witness-window-close') {
+            xrWindowManager?.close('witness', { input, reason: 'panel-control' });
+          }
+          emitSceneAction(action, input, target, xrWitness.group);
+        },
         onStatus: ({ room, message }) => {
           if (renderer.xr.isPresenting && room) {
             status.textContent = `Witness ${room.status} · ${room.viewerCount} viewer${room.viewerCount === 1 ? '' : 's'}`;
@@ -615,6 +709,11 @@
         }
       });
       scene.add(xrWitness.group);
+      xrWindowManager?.register('witness', {
+        show: ({ input = 'xr' } = {}) => xrWitness?.setOpen(true, input),
+        hide: ({ input = 'xr' } = {}) => xrWitness?.setOpen(false, input),
+        focus: () => xrWitness?.requestPlacement()
+      });
     }
     if (sensorOnlyScene && spatialRegistry) {
       spatialHud = new XRSpatialTargetHUD({
@@ -1266,6 +1365,7 @@
     drawBackButton();
 
     const xrRaycaster = new THREE.Raycaster();
+    const xrControllerMatrix = new THREE.Matrix4();
     const xrHands = [];
     const xrControllers = [];
     const xrActiveGrips = new Map();
@@ -1311,15 +1411,121 @@
       status.textContent = `${detail.target.icao} · ${detail.target.count.toLocaleString()} aircraft · ${input}`;
     }
 
-    function setupController(index) {
-      const controller = renderer.xr.getController(index);
-      const grip = renderer.xr.getControllerGrip(index);
-      const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+    function xrWidgetInteractionTargets() {
+      const targets = [
+        ...xrSpatialShell.interactiveObjects(),
+        ...(spatialHud?.interactiveObjects() || []),
+        ...(xrWitness?.interactiveObjects() || []),
+        ...xrVoice.interactiveObjects(),
+        ...(xrSensors?.interactiveObjects() || []),
+        backButton
+      ];
+      if (!sensorOnlyScene) targets.push(detailsSurface, ...fleetHud.interactiveObjects());
+      return targets;
+    }
+
+    function belongsToXRTarget(object, targets) {
+      let candidate = object;
+      while (candidate) {
+        if (targets.includes(candidate)) return true;
+        candidate = candidate.parent;
+      }
+      return false;
+    }
+
+    function createXRControllerLaser(controller) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, 0, -1)
       ]);
-      controller.add(new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({ color: 0x67e8f9 })));
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.78 })
+      );
+      line.name = 'MXGeniusSensorWidgetLaser';
+      line.scale.z = 5;
+      line.visible = false;
+      line.raycast = () => {};
+      controller.add(line);
+      const reticle = new THREE.Mesh(
+        new THREE.RingGeometry(0.008, 0.014, 24),
+        new THREE.MeshBasicMaterial({
+          color: 0x22d3ee,
+          transparent: true,
+          opacity: 0.92,
+          side: THREE.DoubleSide,
+          depthTest: false,
+          toneMapped: false
+        })
+      );
+      reticle.name = 'MXGeniusSensorWidgetReticle';
+      reticle.position.z = -5;
+      reticle.visible = false;
+      reticle.raycast = () => {};
+      controller.add(reticle);
+      controller.userData.widgetLaser = { line, reticle };
+    }
+
+    function setControllerRay(controller) {
+      xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
+      xrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+      xrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
+    }
+
+    function selectFromXRController(controller, index) {
+      void xrAudio?.unlock();
+      setControllerRay(controller);
+      const widgetTargets = xrWidgetInteractionTargets();
+      const sceneTargets = sensorOnlyScene ? widgetTargets : [...widgetTargets, markers];
+      const hit = xrRaycaster.intersectObjects(sceneTargets, true).find((item) => item.object?.isMesh);
+      if (!hit) return;
+      const input = `controller-${index}`;
+      if (xrSpatialShell.handleObject(hit.object, input)) return;
+      if (spatialHud?.handleObject(hit.object, input)) return;
+      if (xrWitness?.handleObject(hit.object, input)) return;
+      if (xrSensors?.handleObject(hit.object, input)) return;
+      if (xrVoice.handleObject(hit.object, input)) return;
+      if (belongsToXRTarget(hit.object, [backButton])) return returnToDashboard(input);
+      if (!sensorOnlyScene && fleetHud.handleObject(hit.object, hit.uv, input)) return;
+      if (!sensorOnlyScene && belongsToXRTarget(hit.object, [detailsSurface]) && detailsPanel.visible && hit.uv && handlePanelUv(hit.uv)) return;
+      if (!sensorOnlyScene && belongsToXRTarget(hit.object, [markers]) && hit.instanceId !== undefined) {
+        activateCluster(hit.instanceId, input);
+      }
+    }
+
+    function updateXRControllerLasers() {
+      const presenting = Boolean(renderer.xr.isPresenting || sensorPreviewMode);
+      const widgetTargets = xrWidgetInteractionTargets();
+      for (const controller of xrControllers) {
+        const laser = controller.userData.widgetLaser;
+        if (!laser) continue;
+        const visible = presenting && controller.userData.connected === true;
+        laser.line.visible = visible;
+        if (!visible) {
+          laser.reticle.visible = false;
+          continue;
+        }
+        setControllerRay(controller);
+        const hit = xrRaycaster.intersectObjects(widgetTargets, true).find((item) => item.object?.isMesh);
+        const distance = Math.min(5, Math.max(0.08, Number(hit?.distance) || 5));
+        const widgetHit = Boolean(hit && belongsToXRTarget(hit.object, widgetTargets));
+        const color = widgetHit ? 0x22d3ee : 0x67e8f9;
+        laser.line.scale.z = distance;
+        laser.line.material.color.setHex(color);
+        laser.line.material.opacity = widgetHit ? 1 : 0.72;
+        laser.reticle.visible = Boolean(hit);
+        laser.reticle.position.z = -distance;
+        laser.reticle.material.color.setHex(color);
+        laser.reticle.scale.setScalar(widgetHit ? 1.25 : 1);
+      }
+    }
+
+    function setupController(index) {
+      const controller = renderer.xr.getController(index);
+      const grip = renderer.xr.getControllerGrip(index);
+      createXRControllerLaser(controller);
       controller.addEventListener('connected', (event) => {
+        controller.userData.connected = true;
         controller.userData.handedness = event.data?.handedness || '';
         grip.userData.handedness = controller.userData.handedness;
         if (controller.userData.handedness === 'right') {
@@ -1327,32 +1533,14 @@
           xrSensors?.setAnchors({ rightController });
         }
       });
-      controller.addEventListener('select', () => {
-        void xrAudio?.unlock();
-        xrRaycaster.setFromXRController(controller);
-        const uiTargets = [
-          ...xrSpatialShell.interactiveObjects(),
-          ...(spatialHud?.interactiveObjects() || []),
-          ...(xrWitness?.interactiveObjects() || []),
-          ...xrVoice.interactiveObjects(),
-          ...(xrSensors?.interactiveObjects() || []),
-          backButton
-        ];
-        if (!sensorOnlyScene) uiTargets.push(detailsSurface, ...fleetHud.interactiveObjects());
-        const uiHit = xrRaycaster.intersectObjects(uiTargets, false)[0];
-        if (uiHit && xrSpatialShell.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit && spatialHud?.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit && xrWitness?.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit && xrSensors?.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit && xrVoice.handleObject(uiHit.object, `controller-${index}`)) return;
-        if (uiHit?.object === backButton) return returnToDashboard(`controller-${index}`);
-        if (uiHit && fleetHud.handleObject(uiHit.object, uiHit.uv, `controller-${index}`)) return;
-        if (uiHit?.object === detailsSurface && detailsPanel.visible && uiHit.uv && handlePanelUv(uiHit.uv)) return;
-        if (!sensorOnlyScene) {
-          const hit = xrRaycaster.intersectObject(markers, false)[0];
-          if (hit?.instanceId !== undefined) activateCluster(hit.instanceId, `controller-${index}`);
+      controller.addEventListener('disconnected', () => {
+        controller.userData.connected = false;
+        if (controller.userData.widgetLaser) {
+          controller.userData.widgetLaser.line.visible = false;
+          controller.userData.widgetLaser.reticle.visible = false;
         }
       });
+      controller.addEventListener('select', () => selectFromXRController(controller, index));
       controller.addEventListener('squeezestart', () => {
         xrActiveGrips.set(index, controller);
         captureGlobeGesture();
@@ -1565,6 +1753,7 @@
       xrWitness?.setPresenting(false);
       spatialHud?.setPresenting(false);
       xrSensors?.setPresenting(false);
+      xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
       xrActiveGrips.clear();
       xrGlobeGesture = null;
       xrAudio?.stopCue('voice_processing_loop', { fadeMs: 70 });
@@ -1599,11 +1788,13 @@
         updateDetailsPresentation(delta);
       }
       updateFingerCollisions(time);
+      xrSpatialShell.update(delta, { camera });
+      syncThermalDock();
       xrSensors?.update(delta, time, { camera });
       xrVoice.update(delta, time, { camera });
-      xrSpatialShell.update(delta, { camera });
       xrWitness?.update(delta, { camera });
       spatialHud?.update(delta, time, { camera });
+      updateXRControllerLasers();
       renderer.render(scene, camera);
     });
 

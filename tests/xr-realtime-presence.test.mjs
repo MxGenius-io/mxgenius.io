@@ -100,15 +100,24 @@ test('3D viewer mounts the same voice presence and forwards active case context'
   assert.match(viewer, /xrWindowManager\.register\('voice'/);
   assert.match(presence, /setSurfaceOpen\(open\)/);
   assert.match(presence, /this\.surfaceOpen \? 1 : 0/);
-  assert.match(presence, /const controlsVisible = Boolean\(this\.dockTarget && \(this\.launcherVisible \|\| this\.surfaceOpen\)\)/);
+  assert.match(presence, /const controlsVisible = Boolean\(this\.presenting && this\.dockTarget && \(this\.launcherVisible \|\| this\.surfaceOpen\)\)/);
   assert.doesNotMatch(presence, /interactiveObjects\(\) \{\s*if \(!this\.launcherVisible\) return \[\]/);
 });
 
-test('sensor scene owns the head-following thermal bridge while the fleet globe omits that runtime', () => {
+test('sensor scene docks thermal, witness, and AI behind one world-anchored task tray', () => {
   assert.match(globe, /if \(sensorOnlyScene\) \(\{ XRSensorOrb: SensorOrbClass \} = await import/);
   assert.match(globe, /if \(sensorOnlyScene\) xrSensors = new SensorOrbClass/);
   assert.match(globe, /presentation: 'head-screen'/);
-  assert.match(globe, /xrVoice\.setDockTarget\(xrSensors\.voiceDock\)/);
+  assert.match(globe, /initialActive: false/);
+  assert.match(globe, /showControls: false/);
+  assert.match(globe, /new SpatialWindowManager/);
+  assert.match(globe, /xrWindowManager\.register\('thermal'/);
+  assert.match(globe, /xrWindowManager\?\.register\('witness'/);
+  assert.match(globe, /xrWindowManager\.register\('voice'/);
+  assert.match(globe, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
+  assert.match(globe, /xrSensors\?\.setScreenPinned\(true, input\)/);
+  assert.match(globe, /launcherVisible: false/);
+  assert.match(globe, /presenceVisible: true/);
   assert.match(globe, /sensorPreviewMode/);
   assert.match(globe, /xrSensors\?\.setAnchors\(\{ rightHand \}\)/);
   assert.match(globe, /xrSensors\?\.handleObject/);
@@ -183,7 +192,7 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
 
 test('dashboard exposes the isolated sensor route from the globe filter rail', () => {
   assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=18"/);
+  assert.match(dashboard, /href="globe-vr\.html\?scene=sensor&amp;v=19"/);
   assert.match(dashboard, /aria-label="Open AR Sensor Bridge scene"/);
   assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);

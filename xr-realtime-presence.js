@@ -47,6 +47,7 @@ export class XRRealtimePresence {
     onScanFrame = null,
     spatialCommands = null,
     launcherVisible = true,
+    presenceVisible = launcherVisible,
     onAction = () => {}
   } = {}) {
     this.sessionProvider = sessionProvider || (() => globalThis.MXGENIUS_CONFIG?.getSession?.() || {});
@@ -56,6 +57,7 @@ export class XRRealtimePresence {
     this.onScanFrame = typeof onScanFrame === 'function' ? onScanFrame : null;
     this.spatialCommands = spatialCommands;
     this.launcherVisible = Boolean(launcherVisible);
+    this.presenceVisible = Boolean(presenceVisible);
     this.onAction = onAction;
     this.state = 'disconnected';
     this.userText = '';
@@ -201,10 +203,12 @@ export class XRRealtimePresence {
     this.evidenceTray.position.set(0.34, -0.33, 0.01);
     this.evidenceTray.visible = false;
     this.group.add(this.evidenceTray);
-    if (!this.launcherVisible) {
+    if (!this.presenceVisible) {
       this.orb.visible = false;
-      this.hitTarget.visible = false;
       this.ring.visible = false;
+    }
+    if (!this.launcherVisible) {
+      this.hitTarget.visible = false;
       this.pinTarget.visible = false;
       this.micButton.visible = false;
       this.snapshotButton.visible = false;
@@ -266,7 +270,7 @@ export class XRRealtimePresence {
   setDockTarget(target = null) {
     this.dockTarget = target;
     this.syncDockControls();
-    this.hitTarget.visible = Boolean(this.launcherVisible && !target);
+    this.hitTarget.visible = Boolean(this.presenting && this.launcherVisible && !target);
     if (target) {
       this.panel.position.set(0.58, 0.27, 0);
       this.pinTarget.position.set(0.96, 0.44, 0.012);
@@ -365,6 +369,7 @@ export class XRRealtimePresence {
     if (this.disposed) return;
     this.presenting = Boolean(presenting);
     this.group.visible = this.presenting;
+    this.syncDockControls();
     if (this.presenting) this.placementPending = true;
     if (this.presenting && !this.toolText) {
       this.toolText = this.controlInstruction();
@@ -377,12 +382,15 @@ export class XRRealtimePresence {
   }
 
   syncDockControls() {
-    const controlsVisible = Boolean(this.dockTarget && (this.launcherVisible || this.surfaceOpen));
+    const controlsVisible = Boolean(this.presenting && this.dockTarget && (this.launcherVisible || this.surfaceOpen));
+    this.orb.visible = Boolean(this.presenting && this.presenceVisible);
+    this.ring.visible = Boolean(this.presenting && this.presenceVisible);
+    this.hitTarget.visible = Boolean(this.presenting && this.launcherVisible && !this.dockTarget);
     this.micButton.visible = controlsVisible;
     this.snapshotButton.visible = Boolean(controlsVisible && this.onSnapshotRequest);
     this.scanButton.visible = Boolean(controlsVisible && this.onSnapshotRequest);
     this.evidenceTray.visible = controlsVisible;
-    this.pinTarget.visible = Boolean(this.launcherVisible || this.surfaceOpen);
+    this.pinTarget.visible = Boolean(this.presenting && (this.launcherVisible || this.surfaceOpen));
   }
 
   setSurfaceOpen(open) {

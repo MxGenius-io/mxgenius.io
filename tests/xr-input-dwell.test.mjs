@@ -29,8 +29,8 @@ test('WebXR routes controller and hand input through the bounded spatial control
   const scene = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
   const hud = await readFile(new URL('../xr-spatial-target-hud.js', import.meta.url), 'utf8');
   const controllerTargets = scene.slice(
-    scene.indexOf('const uiTargets = ['),
-    scene.indexOf('const uiHit =', scene.indexOf('const uiTargets = ['))
+    scene.indexOf('function xrWidgetInteractionTargets()'),
+    scene.indexOf('function belongsToXRTarget', scene.indexOf('function xrWidgetInteractionTargets()'))
   );
 
   const orderedTargets = [
@@ -42,6 +42,8 @@ test('WebXR routes controller and hand input through the bounded spatial control
   ].map((target) => controllerTargets.indexOf(target));
   assert.ok(orderedTargets.every((index) => index >= 0));
   assert.deepEqual(orderedTargets, [...orderedTargets].sort((left, right) => left - right));
+  assert.match(scene, /intersectObjects\(sceneTargets, true\)/);
+  assert.match(scene, /controller\.addEventListener\('select', \(\) => selectFromXRController/);
   assert.match(scene, /new XRInputDwellGate\(\{ dwellMs: 180 \}\)/);
   assert.match(scene, /spatialFingerDwell\.update\(handIndex, spatialTarget, time\)/);
   assert.match(scene, /spatialFingerDwell\.clear\(\)/);

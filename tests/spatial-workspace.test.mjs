@@ -122,7 +122,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=44/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=45/);
 });
 
 test('Remote Witness consent leaves WebXR deliberately and resumes through fresh gestures', () => {
@@ -173,13 +173,14 @@ test('maintenance stays in the canonical renderer and opens tools from one world
   assert.match(shell, /MXGeniusSpatialContentDock/);
   assert.match(shell, /contentAnchor\(\)/);
   assert.match(shell, /this\.contentDock\.position\.set\(0\.96, 0\.02, 0\.02\)/);
+  assert.match(shell, /this\.placementOffset = new THREE\.Vector3\(0, -0\.30, -1\.05\)/);
   assert.match(sensors, /this\.panel\.position\.set\(0, -0\.5 \* this\.screenScale - 0\.26, -0\.03\)/);
   assert.match(sensors, /const diagnosticsTarget = this\.active \? 0\.78 : 0\.001/);
   assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);
   assert.match(viewer, /xrWindowManager\.register\('voice'/);
-  assert.match(viewer, /new XRRealtimePresence\(\{[\s\S]*pointCount: 1800,[\s\S]*pointSize: 0\.0007,[\s\S]*launcherVisible: true/);
+  assert.match(viewer, /new XRRealtimePresence\(\{[\s\S]*pointCount: 1800,[\s\S]*pointSize: 0\.0007,[\s\S]*launcherVisible: false,[\s\S]*presenceVisible: true/);
   assert.match(viewer, /\{ id: 'voice', label: 'AI' \}/);
   assert.match(viewer, /syncMaintenanceSurfaces\(snapshot\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);

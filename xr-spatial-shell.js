@@ -52,7 +52,10 @@ export class XRSpatialShell {
     this.hoveredTarget = null;
     this.cameraPosition = new THREE.Vector3();
     this.cameraQuaternion = new THREE.Quaternion();
-    this.forward = new THREE.Vector3();
+    // Place the command tray below the user's sightline and anchor it once in
+    // world space. The previous positive world-Y offset put it above eye level
+    // and made neighboring task windows feel head-attached.
+    this.placementOffset = new THREE.Vector3(0, -0.30, -1.05);
     this.localPoint = new THREE.Vector3();
 
     this.group = new THREE.Group();
@@ -484,10 +487,9 @@ export class XRSpatialShell {
     if (!this.placementPending || !camera) return;
     camera.getWorldPosition(this.cameraPosition);
     camera.getWorldQuaternion(this.cameraQuaternion);
-    this.forward.set(0, 0, -1).applyQuaternion(this.cameraQuaternion);
-    this.group.position.copy(this.cameraPosition)
-      .addScaledVector(this.forward, 1.05)
-      .add(new THREE.Vector3(0, 0.52, 0));
+    this.group.position.copy(this.placementOffset)
+      .applyQuaternion(this.cameraQuaternion)
+      .add(this.cameraPosition);
     this.group.quaternion.copy(this.cameraQuaternion);
     this.placementPending = false;
   }

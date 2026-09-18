@@ -70,7 +70,7 @@ test('thermal and Pi source state supports every independent configuration', () 
 
 test('immersive scene exits XR before returning to the dashboard', () => {
   assert.match(globeVr, /backButton\.name = returnsToVr \? 'BackToVRWorkspace' : 'BackToDashboard'/);
-  assert.match(globeVr, /uiTargets = \[[\s\S]*backButton[\s\S]*intersectObjects\(uiTargets/);
+  assert.match(globeVr, /function xrWidgetInteractionTargets\(\)[\s\S]*backButton[\s\S]*intersectObjects\(widgetTargets, true\)/);
   assert.match(globeVr, /async function returnToScene[\s\S]*await session\.end\(\)[\s\S]*window\.location\.assign\(destination\)/);
   assert.match(globeVr, /async function returnToDashboard[\s\S]*returnsToVr[\s\S]*returnToCanonicalVr/);
   assert.match(globeVr, /if \(overBack && !wasOverBack\) returnToDashboard\(`finger-\$\{handIndex\}`\)/);
