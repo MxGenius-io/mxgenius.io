@@ -1425,6 +1425,7 @@ test('fleet globe starts deterministic OpenSky polling only from its live-traffi
   assert.match(application, /liveTrafficSelectedId = liveTrafficAircraft\.find/);
   assert.match(application, /selected\.icao24 !== previousSelectedId[\s\S]*globeInstance\?\.pointOfView/);
   assert.match(application, /liveTrafficButton\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*toggleLiveTraffic\(\)/);
+  assert.match(application, /row\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*selectLiveTrafficAircraft/);
   assert.match(application, /addEventListener\('wheel',[\s\S]*event\.preventDefault\(\);[\s\S]*\{ passive: false \}\)/);
   assert.match(applicationStyles, /\.globe-container\s*\{[\s\S]*overscroll-behavior: contain/);
 });

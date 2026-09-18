@@ -5289,7 +5289,10 @@ function renderLiveTrafficList({ loading = false, error = '' } = {}) {
       }).join('') : `<div class="live-flight-list__empty">${loading ? 'Waiting for aircraft…' : 'No live flights match this search.'}</div>`}
     </div>`;
   results.querySelectorAll('[data-live-flight-id]').forEach((row) => {
-    row.addEventListener('click', () => selectLiveTrafficAircraft(row.dataset.liveFlightId, { focus: true }));
+    row.addEventListener('click', (event) => {
+      event.stopPropagation();
+      selectLiveTrafficAircraft(row.dataset.liveFlightId, { focus: true });
+    });
   });
 }
 
