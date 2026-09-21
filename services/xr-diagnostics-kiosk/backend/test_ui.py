@@ -109,7 +109,8 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn('rm -f "$ROOT_MOUNT/etc/xdg/autostart/piwiz.desktop"', IMAGE_BUILDER)
 
     def test_appliance_surface_exposes_local_connections_and_guarded_power(self):
-        for marker in ('data-view="connections"', 'id="wifiScan"', 'id="bluetoothScan"', 'id="powerDialog"'):
+        for marker in ('data-view="connections"', 'id="wifiScan"', 'id="wifiRemember"',
+                       'id="bluetoothScan"', 'id="powerDialog"'):
             self.assertIn(marker, HTML)
         self.assertIn("X-MXG-Control-Token", JS)
         self.assertNotIn("wifiPassword').value, error", JS)
@@ -123,8 +124,11 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn(".scan-button.is-busy .button-spinner", css)
         for marker in ("connection.autoconnect", "connection.autoconnect-priority", '"saved": True'):
             self.assertIn(marker, CONTROL_AGENT)
+        for marker in ('name="remember"', "Remember this password", "'wifiRemember'", "save\", \"no"):
+            self.assertIn(marker, HTML + JS + CONTROL_AGENT)
         self.assertIn("dismissAfterMs", JS)
-        self.assertIn("saved for automatic reconnect`, 'success', 5000", JS)
+        self.assertIn("password saved for automatic reconnect", JS)
+        self.assertIn("password kept for this session only", JS)
 
     def test_equipment_pack_status_is_compact_and_claim_is_device_originated(self):
         for marker in ('id="equipmentPackTitle"', 'id="packPhase"', 'id="packRetry"', 'id="packClaimCode"',

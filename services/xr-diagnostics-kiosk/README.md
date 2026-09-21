@@ -173,8 +173,11 @@ software updates use the same SSH path; Equipment Pack content updates happen
 from authenticated Settings and do not rewrite the card.
 
 Wi-Fi connections made from the local Connections view are saved as persistent
-NetworkManager profiles, marked for automatic reconnect, and the most recently
-joined network receives the preferred reconnect priority.
+NetworkManager profiles only when **Remember this password and reconnect
+automatically** is selected. Clearing that option creates an in-memory profile
+that disappears when NetworkManager or the appliance restarts. Remembered
+networks are marked for automatic reconnect, and the most recently joined
+network receives the preferred reconnect priority.
 Successful connection notices dismiss themselves after a short confirmation so
 the Connections view does not retain stale network status.
 

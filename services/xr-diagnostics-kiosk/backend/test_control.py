@@ -162,6 +162,39 @@ class ControlAgentValidationTests(unittest.TestCase):
         self.assertIn("connection.autoconnect-priority", modification)
         self.assertIn("100", modification)
 
+    def test_wifi_connect_can_use_an_in_memory_profile_without_saving_the_password(self):
+        responses = [
+            Mock(returncode=0, stdout="Connection added\n", stderr=""),
+            Mock(returncode=0, stdout="Connection successfully activated\n", stderr=""),
+        ]
+        with patch("control_agent._run", side_effect=responses) as run:
+            result = wifi_connect({
+                "ssid": "Visitor WiFi",
+                "password": "session-passphrase",
+                "remember": False,
+            })
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["saved"])
+        creation = run.call_args_list[0].args[0]
+        self.assertEqual(creation[:6], ["nmcli", "connection", "add", "save", "no", "type"])
+        self.assertIn("connection.autoconnect", creation)
+        self.assertIn("no", creation)
+        self.assertIn("802-11-wireless-security.psk", creation)
+        self.assertEqual(run.call_args_list[1].args[0][-2], "up")
+
+    def test_temporary_wifi_profile_is_removed_when_activation_fails(self):
+        responses = [
+            Mock(returncode=0, stdout="Connection added\n", stderr=""),
+            Mock(returncode=4, stdout="", stderr="Activation failed"),
+            Mock(returncode=0, stdout="Connection deleted\n", stderr=""),
+        ]
+        with patch("control_agent._run", side_effect=responses) as run:
+            result = wifi_connect({"ssid": "Visitor WiFi", "remember": False})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(run.call_args_list[2].args[0][1:3], ["connection", "delete"])
+
     def test_wifi_profile_lookup_matches_ssid_not_connection_name(self):
         responses = [
             Mock(returncode=0, stdout="netplan-wlan0\\:Hangar:wifi\n", stderr=""),

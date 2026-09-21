@@ -797,9 +797,13 @@ $('wifiForm').addEventListener('submit', async (event) => {
       ssid: $('wifiSsid').value,
       password: $('wifiPassword').value,
       hidden: $('wifiHidden').checked,
+      remember: $('wifiRemember').checked,
     });
     $('wifiPassword').value = '';
-    setControlNotice(`${result.ssid} connected · saved for automatic reconnect`, 'success', 5000);
+    const connectionNote = result.saved
+      ? 'password saved for automatic reconnect'
+      : 'password kept for this session only';
+    setControlNotice(`${result.ssid} connected · ${connectionNote}`, 'success', 5000);
     logEvent('info', 'wifi', 'Wi-Fi connection activated', { ssid: result.ssid });
     window.setTimeout(scanWifi, 1200);
   } catch (error) {

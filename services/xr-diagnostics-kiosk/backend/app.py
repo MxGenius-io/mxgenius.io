@@ -400,6 +400,7 @@ async def control_wifi_connect(request: Request) -> dict[str, Any]:
         ssid=str(payload.get("ssid") or ""),
         password=str(payload.get("password") or ""),
         hidden=payload.get("hidden") is True,
+        remember=payload.get("remember") is not False,
     )
 
 

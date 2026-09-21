@@ -159,10 +159,13 @@ def wifi_scan() -> dict[str, Any]:
 def wifi_connect(payload: dict[str, Any]) -> dict[str, Any]:
     ssid = str(payload.get("ssid") or "").strip()
     password = str(payload.get("password") or "")
+    remember = payload.get("remember") is not False
     if not ssid or len(ssid.encode("utf-8")) > 32:
         return {"ok": False, "error": "A valid Wi-Fi network name is required"}
     if len(password) > 256:
         return {"ok": False, "error": "Wi-Fi credential is too long"}
+    if not remember:
+        return _connect_wifi_session_only(ssid, password, payload.get("hidden") is True)
     command = ["nmcli", "--wait", "35", "device", "wifi", "connect", ssid]
     if password:
         command.extend(["password", password])
@@ -217,6 +220,35 @@ def _find_wifi_profile(ssid: str) -> str:
         if not observed.returncode and observed.stdout.strip() == ssid:
             return candidate
     return ""
+
+
+def _connect_wifi_session_only(ssid: str, password: str, hidden: bool) -> dict[str, Any]:
+    profile_name = f"mxg-session-{hashlib.sha256(ssid.encode('utf-8')).hexdigest()[:10]}-{uuid.uuid4().hex[:8]}"
+    create = [
+        "nmcli", "connection", "add", "save", "no", "type", "wifi", "ifname", "*",
+        "con-name", profile_name, "ssid", ssid, "connection.autoconnect", "no",
+    ]
+    if password:
+        create.extend([
+            "802-11-wireless-security.key-mgmt", "wpa-psk",
+            "802-11-wireless-security.psk", password,
+        ])
+    if hidden:
+        create.extend(["802-11-wireless.hidden", "yes"])
+    created = _run(create, timeout=15)
+    if created.returncode:
+        return {"ok": False, "error": created.stderr.strip() or "Temporary Wi-Fi profile could not be created"}
+
+    activated = _run(["nmcli", "--wait", "35", "connection", "up", profile_name], timeout=45)
+    if activated.returncode:
+        _run(["nmcli", "connection", "delete", profile_name], timeout=10)
+        return {"ok": False, "error": activated.stderr.strip() or "Wi-Fi connection failed"}
+    return {
+        "ok": True,
+        "ssid": ssid,
+        "saved": False,
+        "message": "Wi-Fi connected with an in-memory profile for this session only",
+    }
 
 
 def _repair_wifi_key_management(ssid: str, password: str, hidden: bool) -> dict[str, Any]:
