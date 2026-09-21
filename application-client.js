@@ -83,6 +83,17 @@ const MXApplicationClient = (() => {
     }).then(({ data }) => data);
   }
 
+  function liveTrafficTrack({ icao24, bearer } = {}) {
+    const normalizedIcao24 = String(icao24 || '').trim().toLowerCase();
+    if (!/^[0-9a-f]{6}$/.test(normalizedIcao24)) {
+      return Promise.reject(new Error('A valid ICAO24 address is required'));
+    }
+    return fleetRequestJson(`/api/live-traffic/track?icao24=${encodeURIComponent(normalizedIcao24)}`, {
+      method: 'GET',
+      headers: jetNetHeaders(bearer)
+    }).then(({ data }) => data);
+  }
+
   async function aircraftBundle({ id, token }) {
     const safeJson = async (promise) => {
       try { return await promise; } catch { return {}; }
@@ -1781,6 +1792,7 @@ const MXApplicationClient = (() => {
     aircraftList,
     flightData,
     liveTraffic,
+    liveTrafficTrack,
     aircraft: Object.freeze({
       lookup: lookupAircraft
     }),

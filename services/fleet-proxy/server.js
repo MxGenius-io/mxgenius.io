@@ -21,6 +21,7 @@ const openSkyTokenUrl = String(process.env.OPENSKY_TOKEN_URL
 const openSkyClientId = String(process.env.OPENSKY_CLIENT_ID || '');
 const openSkyClientSecret = String(process.env.OPENSKY_CLIENT_SECRET || '');
 const openSkyPollMs = Math.max(30, Number(process.env.OPENSKY_POLL_SECONDS || 30)) * 1000;
+const openSkyTrackCacheMs = Math.max(60, Number(process.env.OPENSKY_TRACK_CACHE_SECONDS || 120)) * 1000;
 const openSkyMaxAircraft = Math.max(100, Number(process.env.OPENSKY_MAX_AIRCRAFT || 3000));
 const allowedOrigins = new Set([
   'https://mxgenius.io',
@@ -43,6 +44,9 @@ const openSkyState = {
   tokenExpiresAt: 0,
   retryAfter: 0
 };
+const openSkyTrackStates = new Map();
+let openSkyTrackRetryAfter = 0;
+const maxOpenSkyTrackSnapshots = 100;
 
 function tenantKey(organizationId) {
   return organizationId || '__system__';
@@ -325,6 +329,142 @@ async function openSkyTrafficSnapshot() {
     })
     .finally(() => { openSkyState.inFlight = null; });
   return openSkyState.inFlight;
+}
+
+function normalizeOpenSkyTrack(payload, requestedIcao24, remainingCredits) {
+  const numberOrNull = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  const rawPath = Array.isArray(payload?.path) ? payload.path : [];
+  const path = rawPath
+    .map((waypoint) => {
+      const lat = Number(waypoint?.[1]);
+      const lng = Number(waypoint?.[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      return {
+        time: numberOrNull(waypoint?.[0]),
+        lat,
+        lng,
+        baroAltitudeMeters: numberOrNull(waypoint?.[3]),
+        trackDegrees: numberOrNull(waypoint?.[4]),
+        onGround: Boolean(waypoint?.[5])
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => (left.time || 0) - (right.time || 0));
+
+  const firstAirborneIndex = path.findIndex((point) => !point.onGround);
+  const startIndex = firstAirborneIndex > 0 ? firstAirborneIndex - 1 : Math.max(0, firstAirborneIndex);
+  const firstLandingIndex = firstAirborneIndex >= 0
+    ? path.findIndex((point, index) => index > firstAirborneIndex && point.onGround)
+    : -1;
+  const endIndex = firstLandingIndex >= 0 ? firstLandingIndex : path.length - 1;
+  const tripPath = path.length ? path.slice(startIndex, endIndex + 1) : [];
+  const boundedPath = tripPath.length <= 256
+    ? tripPath
+    : Array.from({ length: 256 }, (_, index) => tripPath[Math.round(index * (tripPath.length - 1) / 255)]);
+  const departureObserved = firstAirborneIndex > 0 && path[firstAirborneIndex - 1]?.onGround === true;
+  const arrivalObserved = firstLandingIndex >= 0;
+
+  return {
+    source: 'OpenSky Network',
+    icao24: String(payload?.icao24 || requestedIcao24).trim().toLowerCase(),
+    callsign: String(payload?.callsign || payload?.calllsign || '').trim(),
+    startTime: numberOrNull(payload?.startTime),
+    endTime: numberOrNull(payload?.endTime),
+    fetchedAt: new Date().toISOString(),
+    remainingCredits,
+    departureObserved,
+    arrivalObserved,
+    tripState: arrivalObserved ? 'landed' : (firstAirborneIndex >= 0 ? 'in_flight' : 'ground'),
+    path: boundedPath
+  };
+}
+
+async function requestOpenSkyTrack(icao24) {
+  const token = await openSkyAccessToken();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  let response;
+  try {
+    response = await fetch(`${openSkyApiUrl}/tracks/all?icao24=${encodeURIComponent(icao24)}&time=0`, {
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (response.status === 401 && token) {
+    openSkyState.token = '';
+    openSkyState.tokenExpiresAt = 0;
+  }
+  if (response.status === 404) {
+    return normalizeOpenSkyTrack({ icao24, path: [] }, icao24, null);
+  }
+  if (response.status === 429) {
+    const retrySeconds = Math.max(60, Number(response.headers.get('x-rate-limit-retry-after-seconds')
+      || response.headers.get('retry-after') || 120));
+    openSkyTrackRetryAfter = Date.now() + retrySeconds * 1000;
+    throw new HttpError(429, 'OpenSky track allowance is temporarily exhausted');
+  }
+  if (!response.ok) throw new Error(`OpenSky track request failed (${response.status})`);
+
+  const payload = await response.json();
+  const remainingHeader = response.headers.get('x-rate-limit-remaining');
+  const remainingCredits = remainingHeader !== null && Number.isFinite(Number(remainingHeader))
+    ? Number(remainingHeader)
+    : null;
+  return normalizeOpenSkyTrack(payload, icao24, remainingCredits);
+}
+
+function pruneOpenSkyTrackSnapshots() {
+  if (openSkyTrackStates.size < maxOpenSkyTrackSnapshots) return;
+  const oldest = [...openSkyTrackStates.entries()]
+    .filter(([, state]) => !state.inFlight)
+    .sort((left, right) => left[1].loadedAt - right[1].loadedAt)
+    .slice(0, Math.max(1, openSkyTrackStates.size - maxOpenSkyTrackSnapshots + 1));
+  oldest.forEach(([icao24]) => openSkyTrackStates.delete(icao24));
+}
+
+async function openSkyTrackSnapshot(icao24) {
+  const normalizedIcao24 = String(icao24 || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(normalizedIcao24)) {
+    throw new HttpError(400, 'A valid six-character ICAO24 address is required');
+  }
+  pruneOpenSkyTrackSnapshots();
+  if (!openSkyTrackStates.has(normalizedIcao24)) {
+    openSkyTrackStates.set(normalizedIcao24, { result: null, loadedAt: 0, inFlight: null });
+  }
+  const state = openSkyTrackStates.get(normalizedIcao24);
+  const age = Date.now() - state.loadedAt;
+  if (state.result && age < openSkyTrackCacheMs) return state.result;
+  if (openSkyTrackRetryAfter > Date.now()) {
+    if (state.result) return { ...state.result, stale: true };
+    throw new HttpError(429, 'OpenSky tracks are waiting for their provider retry window');
+  }
+  if (state.inFlight) return state.inFlight;
+
+  state.inFlight = requestOpenSkyTrack(normalizedIcao24)
+    .then((result) => {
+      state.result = result;
+      state.loadedAt = Date.now();
+      openSkyTrackRetryAfter = 0;
+      return result;
+    })
+    .catch((error) => {
+      if (state.result) {
+        console.warn('OpenSky track refresh failed; serving the last track:', error.message);
+        return { ...state.result, stale: true };
+      }
+      throw error;
+    })
+    .finally(() => { state.inFlight = null; });
+  return state.inFlight;
 }
 
 async function organizationProviderAccount(organizationId) {
@@ -667,6 +807,16 @@ const server = http.createServer(async (request, response) => {
       .catch((error) => {
         console.error('OpenSky traffic request failed:', error.message);
         respond(response, error.status || 502, { error: error.message || 'Live traffic is temporarily unavailable' }, origin);
+      });
+  }
+
+  if (request.url?.startsWith('/api/live-traffic/track?') && request.method === 'GET') {
+    const requestUrl = new URL(request.url, 'http://fleet-proxy.local');
+    return openSkyTrackSnapshot(requestUrl.searchParams.get('icao24'))
+      .then((payload) => respond(response, 200, payload, origin))
+      .catch((error) => {
+        console.error('OpenSky track request failed:', error.message);
+        respond(response, error.status || 502, { error: error.message || 'Live flight track is temporarily unavailable' }, origin);
       });
   }
 

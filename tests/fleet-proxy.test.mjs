@@ -35,6 +35,15 @@ test('OpenSky traffic uses one server-wide snapshot with a two-per-minute upstre
   assert.match(fleetProxySource, /x-rate-limit-retry-after-seconds/);
 });
 
+test('OpenSky selected tracks are validated, normalized, and cached independently', () => {
+  assert.match(fleetProxySource, /OPENSKY_TRACK_CACHE_SECONDS \|\| 120/);
+  assert.match(fleetProxySource, /const openSkyTrackStates = new Map\(\)/);
+  assert.match(fleetProxySource, /\/tracks\/all\?icao24=\$\{encodeURIComponent\(icao24\)\}&time=0/);
+  assert.match(fleetProxySource, /departureObserved/);
+  assert.match(fleetProxySource, /arrivalObserved/);
+  assert.match(fleetProxySource, /request\.url\?\.startsWith\('\/api\/live-traffic\/track\?'\)/);
+});
+
 test('organization-owned JetNet credentials are brokered server-side and tenant-scoped', () => {
   assert.match(fleetProxySource, /MXGENIUS_PROVIDER_CREDENTIALS_URL/);
   assert.match(fleetProxySource, /'X-MXG-Organization-ID': organizationId/);
@@ -87,7 +96,29 @@ test('fleet proxy requires MXGenius identity while preserving its internal servi
   t.after(() => authz.close());
 
   let openSkyRequests = 0;
+  let openSkyTrackRequests = 0;
   const openSky = http.createServer((request, response) => {
+    if ((request.url || '').startsWith('/tracks/all?')) {
+      openSkyTrackRequests += 1;
+      assert.equal(request.url, '/tracks/all?icao24=abc123&time=0');
+      response.writeHead(200, {
+        'Content-Type': 'application/json',
+        'X-Rate-Limit-Remaining': '3988'
+      });
+      response.end(JSON.stringify({
+        icao24: 'abc123',
+        callsign: 'MXG123',
+        startTime: 1_800_000_000,
+        endTime: 1_800_000_600,
+        path: [
+          [1_800_000_000, 26.00, -80.00, 0, 45, true],
+          [1_800_000_100, 26.05, -79.95, 1200, 45, false],
+          [1_800_000_500, 27.00, -79.00, 1200, 45, false],
+          [1_800_000_600, 27.05, -78.95, 0, 45, true]
+        ]
+      }));
+      return;
+    }
     openSkyRequests += 1;
     assert.match(request.url || '', /^\/states\/all\?extended=1$/);
     response.writeHead(200, {
@@ -172,6 +203,23 @@ test('fleet proxy requires MXGenius identity while preserving its internal servi
   const secondLive = await fetch(`${base}/api/live-traffic`, { headers: liveHeaders });
   assert.equal(secondLive.status, 200);
   assert.equal(openSkyRequests, 1, 'all viewers should share one 30-second OpenSky snapshot');
+
+  const firstTrack = await fetch(`${base}/api/live-traffic/track?icao24=abc123`, { headers: liveHeaders });
+  const firstTrackPayload = await firstTrack.json();
+  assert.equal(firstTrack.status, 200);
+  assert.equal(firstTrackPayload.icao24, 'abc123');
+  assert.equal(firstTrackPayload.departureObserved, true);
+  assert.equal(firstTrackPayload.arrivalObserved, true);
+  assert.equal(firstTrackPayload.tripState, 'landed');
+  assert.equal(firstTrackPayload.path.length, 4);
+  assert.equal(firstTrackPayload.remainingCredits, 3988);
+
+  const secondTrack = await fetch(`${base}/api/live-traffic/track?icao24=abc123`, { headers: liveHeaders });
+  assert.equal(secondTrack.status, 200);
+  assert.equal(openSkyTrackRequests, 1, 'selected tracks should share one bounded server cache');
+
+  const invalidTrack = await fetch(`${base}/api/live-traffic/track?icao24=not-valid`, { headers: liveHeaders });
+  assert.equal(invalidTrack.status, 400);
 
   const preflight = await fetch(`${base}/api/Model/example`, {
     method: 'OPTIONS',

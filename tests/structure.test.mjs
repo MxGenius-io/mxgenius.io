@@ -1428,7 +1428,10 @@ test('fleet globe maps one selected live flight without altitude pegs or duplica
   assert.match(application, /function selectLiveTrafficAircraft\(/);
   assert.match(application, /\.pointsData\(displayClusters\)/);
   assert.match(application, /\.htmlElementsData\(selectedFlight \? \[\.\.\.displayClusters, selectedFlight\] : displayClusters\)/);
-  assert.match(application, /\.arcsData\(selectedFlight \? \[liveTrafficCourseRibbon\(selectedFlight\)\] : \[\]\)/);
+  assert.match(application, /\.arcsData\(selectedFlight \? liveTrafficRibbons\(selectedFlight\) : \[\]\)/);
+  assert.match(application, /function liveTrafficRibbons\(aircraft\)/);
+  assert.match(application, /departureObserved \? 'observed takeoff' : 'first observed position'/);
+  assert.match(application, /arrivalObserved \? 'observed landing' : 'live position'/);
   assert.match(application, /\.arcDashAnimateTime\(2400\)/);
   assert.doesNotMatch(application, /\.pointsData\(liveTrafficEnabled \? \[\.\.\.displayClusters, \.\.\.liveTrafficAircraft\]/);
   assert.match(applicationStyles, /\.live-flight-marker/);
@@ -1441,6 +1444,7 @@ test('fleet globe starts deterministic OpenSky polling only from its live-traffi
   assert.match(dashboard, /<span>Feed<\/span><span>Select<\/span><span>Track<\/span>/);
   assert.match(application, /const LIVE_TRAFFIC_POLL_MS = 30000/);
   assert.match(application, /MXApplicationClient\.liveTraffic/);
+  assert.match(application, /MXApplicationClient\.liveTrafficTrack/);
   assert.match(application, /document\.visibilityState !== 'hidden'/);
   assert.match(application, /document\.getElementById\('tab-dashboard'\)\?\.classList\.contains\('active'\)/);
   assert.match(application, /scheduleLiveTrafficRefresh\(LIVE_TRAFFIC_POLL_MS - age\)/);

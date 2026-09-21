@@ -4982,6 +4982,7 @@ let globeZoomFrame = null;
 let globeRenderedGridSize = null;
 let activeUrgencyFilter = null;
 const LIVE_TRAFFIC_POLL_MS = 30000;
+const LIVE_TRAFFIC_TRACK_REFRESH_MS = 120000;
 let liveTrafficEnabled = false;
 let liveTrafficAircraft = [];
 let liveTrafficSelectedId = null;
@@ -4989,6 +4990,11 @@ let liveTrafficTimer = null;
 let liveTrafficRequest = null;
 let liveTrafficLoadedAt = 0;
 let liveTrafficListedCount = 0;
+let liveTrafficTrack = null;
+let liveTrafficTrackLoadedAt = 0;
+let liveTrafficTrackRequest = null;
+let liveTrafficTrackRequestId = null;
+let liveTrafficTrackRequestSequence = 0;
 
 // ICAO airport coordinates for plotting aircraft base locations on globe
 // Covers major business aviation airports worldwide [lat, lng]
@@ -5223,7 +5229,7 @@ function renderGlobeClusters(clusters = filteredGlobeClusters, force = true) {
     .pointsData(displayClusters)
     .htmlElementsData(selectedFlight ? [...displayClusters, selectedFlight] : displayClusters)
     .ringsData(attentionClusters(displayClusters))
-    .arcsData(selectedFlight ? [liveTrafficCourseRibbon(selectedFlight)] : []);
+    .arcsData(selectedFlight ? liveTrafficRibbons(selectedFlight) : []);
 }
 
 function handleGlobeZoom(view) {
@@ -5290,6 +5296,42 @@ function liveTrafficCourseRibbon(aircraft) {
   };
 }
 
+function normalizedLiveTrafficTrack(payload) {
+  const path = (Array.isArray(payload?.path) ? payload.path : [])
+    .map((point) => {
+      const lat = Number(point?.lat);
+      const lng = Number(point?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      return { ...point, lat, lng, onGround: Boolean(point?.onGround) };
+    })
+    .filter(Boolean);
+  return {
+    ...payload,
+    icao24: String(payload?.icao24 || '').trim().toLowerCase(),
+    path
+  };
+}
+
+function liveTrafficRibbons(aircraft) {
+  const track = liveTrafficTrack?.icao24 === aircraft?.icao24 ? liveTrafficTrack : null;
+  if (!track || track.path.length < 2) return [liveTrafficCourseRibbon(aircraft)];
+  const startLabel = track.departureObserved ? 'observed takeoff' : 'first observed position';
+  const endLabel = track.arrivalObserved ? 'observed landing' : 'live position';
+  const start = track.path[0];
+  const end = track.path.at(-1);
+  return [{
+    _kind: 'live-track',
+    startLat: start.lat,
+    startLng: start.lng,
+    endLat: end.lat,
+    endLng: end.lng,
+    identity: liveTrafficIdentity(aircraft),
+    startLabel,
+    endLabel,
+    source: track.source || 'OpenSky Network'
+  }];
+}
+
 function liveTrafficAltitude(aircraft) {
   const altitudeMeters = Number(aircraft?.geoAltitudeMeters ?? aircraft?.baroAltitudeMeters);
   return Number.isFinite(altitudeMeters) ? `${Math.round(altitudeMeters * 3.28084).toLocaleString()} ft` : 'Altitude unavailable';
@@ -5301,6 +5343,9 @@ function liveTrafficSpeed(aircraft) {
 }
 
 function liveTrafficCourseLabel(route) {
+  if (route?._kind === 'live-track') {
+    return `<strong>${escapeMarkup(route.identity)}</strong><br>${escapeMarkup(route.startLabel)} → ${escapeMarkup(route.endLabel)} · ${escapeMarkup(route.source)}`;
+  }
   return `<strong>${escapeMarkup(route.identity)}</strong><br>Live course · ${Math.round(route.track)}° · ${escapeMarkup(route.source)}`;
 }
 
@@ -5347,7 +5392,12 @@ function renderLiveTrafficList({ loading = false, error = '' } = {}) {
 function selectLiveTrafficAircraft(icao24, { focus = false } = {}) {
   const selected = liveTrafficAircraft.find((aircraft) => aircraft.icao24 === icao24);
   if (!selected) return;
+  const selectionChanged = liveTrafficSelectedId !== selected.icao24;
   liveTrafficSelectedId = selected.icao24;
+  if (selectionChanged) {
+    liveTrafficTrack = null;
+    liveTrafficTrackLoadedAt = 0;
+  }
   renderGlobeClusters(filteredGlobeClusters);
   renderLiveTrafficList();
   const source = document.getElementById('globeLiveTrafficSource');
@@ -5355,6 +5405,52 @@ function selectLiveTrafficAircraft(icao24, { focus = false } = {}) {
   const state = document.getElementById('globeLiveTrafficButton')?.dataset.state || 'live';
   setLiveTrafficRibbonState(state, `${liveTrafficAltitude(selected)} · ${liveTrafficSpeed(selected)}`);
   if (focus) globeInstance?.pointOfView({ lat: selected.lat, lng: selected.lng, altitude: 0.72 }, 700);
+  void refreshLiveTrafficTrack(selected, { force: selectionChanged });
+}
+
+async function refreshLiveTrafficTrack(aircraft, { force = false } = {}) {
+  const icao24 = String(aircraft?.icao24 || '').trim().toLowerCase();
+  if (!liveTrafficEnabled || !/^[0-9a-f]{6}$/.test(icao24)) return null;
+  const age = Date.now() - liveTrafficTrackLoadedAt;
+  if (!force && liveTrafficTrack?.icao24 === icao24 && age < LIVE_TRAFFIC_TRACK_REFRESH_MS) {
+    return liveTrafficTrack;
+  }
+  if (liveTrafficTrackRequest && liveTrafficTrackRequestId === icao24) return liveTrafficTrackRequest;
+
+  const requestSequence = ++liveTrafficTrackRequestSequence;
+  const request = MXApplicationClient.liveTrafficTrack({ icao24, bearer: BEARER })
+    .then((payload) => {
+      if (!liveTrafficEnabled || liveTrafficSelectedId !== icao24 || requestSequence !== liveTrafficTrackRequestSequence) return null;
+      const track = normalizedLiveTrafficTrack(payload);
+      liveTrafficTrack = track.path.length >= 2 ? track : null;
+      liveTrafficTrackLoadedAt = Date.now();
+      renderGlobeClusters(filteredGlobeClusters);
+      const selected = selectedLiveTrafficAircraft();
+      if (selected && liveTrafficTrack) {
+        const start = liveTrafficTrack.departureObserved ? 'takeoff' : 'first observed position';
+        const end = liveTrafficTrack.arrivalObserved ? 'landing' : 'live position';
+        const state = document.getElementById('globeLiveTrafficButton')?.dataset.state || 'live';
+        setLiveTrafficRibbonState(state, `${liveTrafficAltitude(selected)} · ${liveTrafficSpeed(selected)} · ${start} → ${end}`);
+      }
+      return liveTrafficTrack;
+    })
+    .catch((error) => {
+      if (requestSequence !== liveTrafficTrackRequestSequence) return null;
+      console.warn('Observed OpenSky flight track is unavailable; retaining the live course fallback', error);
+      liveTrafficTrack = null;
+      liveTrafficTrackLoadedAt = Date.now();
+      renderGlobeClusters(filteredGlobeClusters);
+      return null;
+    })
+    .finally(() => {
+      if (requestSequence === liveTrafficTrackRequestSequence) {
+        liveTrafficTrackRequest = null;
+        liveTrafficTrackRequestId = null;
+      }
+    });
+  liveTrafficTrackRequest = request;
+  liveTrafficTrackRequestId = icao24;
+  return request;
 }
 
 function liveTrafficSurfaceIsOpen() {
@@ -5422,6 +5518,10 @@ async function refreshLiveTraffic() {
           || liveTrafficAircraft[0]?.icao24
           || null;
       }
+      if (liveTrafficTrack?.icao24 !== liveTrafficSelectedId) {
+        liveTrafficTrack = null;
+        liveTrafficTrackLoadedAt = 0;
+      }
       renderGlobeClusters(filteredGlobeClusters);
       renderLiveTrafficList();
       const ageSeconds = Math.max(0, Math.round((Date.now() - liveTrafficLoadedAt) / 1000));
@@ -5434,6 +5534,7 @@ async function refreshLiveTraffic() {
       const selectedSummary = selected
         ? `${liveTrafficAltitude(selected)} · ${liveTrafficSpeed(selected)}`
         : `${liveTrafficListedCount.toLocaleString()} aircraft available`;
+      if (selected) void refreshLiveTrafficTrack(selected, { force: selected.icao24 !== previousSelectedId });
       if (payload?.stale) {
         setLiveTrafficButtonState('stale', `Live flight data is showing the last shared snapshot (${ageSeconds}s old)`);
         setLiveTrafficRibbonState('stale', `${selectedSummary} · ${ageSeconds}s old`);
@@ -5480,6 +5581,11 @@ function toggleLiveTraffic() {
     liveTrafficSelectedId = null;
     liveTrafficLoadedAt = 0;
     liveTrafficListedCount = 0;
+    liveTrafficTrack = null;
+    liveTrafficTrackLoadedAt = 0;
+    liveTrafficTrackRequest = null;
+    liveTrafficTrackRequestId = null;
+    liveTrafficTrackRequestSequence += 1;
     setLiveTrafficButtonState('off');
     setLiveTrafficRibbonState('off');
     const results = document.getElementById('globeSheetResults');
@@ -6243,7 +6349,7 @@ async function loadGlobe() {
       .ringMaxRadius(clusterRingRadius)
       .ringPropagationSpeed(1.5)
       .ringRepeatPeriod(800)
-      .arcsData(selectedLiveTrafficAircraft() ? [liveTrafficCourseRibbon(selectedLiveTrafficAircraft())] : [])
+      .arcsData(selectedLiveTrafficAircraft() ? liveTrafficRibbons(selectedLiveTrafficAircraft()) : [])
       .arcStartLat(d => d.startLat)
       .arcStartLng(d => d.startLng)
       .arcEndLat(d => d.endLat)

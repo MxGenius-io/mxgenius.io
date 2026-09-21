@@ -331,6 +331,17 @@ test('live traffic uses the authenticated fleet proxy boundary', async () => {
   assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'fleet-org');
 });
 
+test('selected live flight track uses the authenticated bounded proxy route', async () => {
+  const { client, requests } = harness({});
+  await client.liveTrafficTrack({ icao24: 'ABC123' });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/live-traffic/track?icao24=abc123');
+  assert.equal(requests[0].options.method, 'GET');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer fleet-access-token');
+  assert.equal(requests[0].options.headers['X-MXG-Organization-ID'], 'fleet-org');
+});
+
 test('demo workspace loader uses the authenticated tenant endpoint and exact confirmation', async () => {
   const { client, requests } = harness({});
   await client.demoData.load({
