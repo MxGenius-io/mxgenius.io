@@ -429,7 +429,8 @@ def _slot_content_size(slot_root: Path) -> int:
 def _run_required(command: list[str], message: str, timeout: int = 300) -> None:
     result = _run(command, timeout=timeout)
     if result.returncode:
-        raise RuntimeError(message)
+        detail = " ".join((result.stderr or result.stdout or "").split())[:300]
+        raise RuntimeError(f"{message}: {detail}" if detail else message)
 
 
 def _build_usb_image(slot: str) -> Path:
@@ -452,7 +453,13 @@ def _build_usb_image(slot: str) -> Path:
             _run_required(["umount", str(mount_root)], "Could not clear the prior USB image mount", timeout=120)
         _run_required(["truncate", "-s", str(image_bytes), str(temporary)], "Could not allocate the USB image")
         _run_required(["mkfs.vfat", "-F", "32", "-n", "MXGENIUS", str(temporary)], "Could not format the USB image")
-        _run_required(["mount", "-o", "loop,rw", str(temporary), str(mount_root)], "Could not mount the USB image")
+        # The manual library uses UTF-8 filenames (for example U+2212 MINUS
+        # SIGN). Without this option, vfat's legacy default charset rejects
+        # those otherwise-valid names while the staged tree is copied.
+        _run_required(
+            ["mount", "-o", "loop,rw,utf8=1", str(temporary), str(mount_root)],
+            "Could not mount the USB image",
+        )
         mounted = True
         _run_required(
             ["cp", "-r", "--no-preserve=mode,ownership,timestamps", f"{slot_root}/.", str(mount_root)],

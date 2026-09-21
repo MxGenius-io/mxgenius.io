@@ -12,7 +12,9 @@ from app import app
 from control import ControlUnavailable, request_control
 from control_agent import (
     _bind_usb_image,
+    _build_usb_image,
     _find_wifi_profile,
+    _run_required,
     _split_escaped,
     bluetooth_action,
     handle_action,
@@ -60,6 +62,42 @@ class ControlApiTests(unittest.TestCase):
 
 
 class ControlAgentValidationTests(unittest.TestCase):
+    def test_required_command_includes_bounded_process_detail(self):
+        failure = Mock(returncode=1, stdout="", stderr="cp: invalid argument\nwhile copying")
+        with patch("control_agent._run", return_value=failure):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"Could not populate the USB image: cp: invalid argument while copying",
+            ):
+                _run_required(["cp", "source", "target"], "Could not populate the USB image")
+
+    def test_usb_image_mount_enables_utf8_filenames(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            responses = [Mock(returncode=1, stdout="", stderr="")]
+            responses.extend(Mock(returncode=0, stdout="", stderr="") for _ in range(7))
+            with (
+                patch("control_agent.STATE_ROOT", root),
+                patch("control_agent.SLOTS_ROOT", root / "slots"),
+                patch("control_agent.USB_IMAGES_ROOT", root / "images"),
+                patch("control_agent._slot_content_size", return_value=1024),
+                patch("control_agent._run", side_effect=responses) as run,
+                patch("control_agent.os.replace"),
+            ):
+                _build_usb_image("B")
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertIn(
+            [
+                "mount",
+                "-o",
+                "loop,rw,utf8=1",
+                str(root / "images" / "slot-B.img.part"),
+                str(root / "usb-mount"),
+            ],
+            commands,
+        )
+
     def test_nmcli_escaped_fields_are_split_without_losing_colons(self):
         self.assertEqual(_split_escaped(r"*:Hangar\: West:88:WPA2"), ["*", "Hangar: West", "88", "WPA2"])
 
