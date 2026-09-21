@@ -8402,10 +8402,11 @@ async fn seed_beta_access_rules(
     Ok(())
 }
 
-const BASELINE_BETA_ACCESS_RULES: [(&str, &str, &str); 5] = [
+const BASELINE_BETA_ACCESS_RULES: [(&str, &str, &str); 6] = [
     ("@advancedaog.com", "domain", "viewer"),
     ("@mxgenius.io", "domain", "viewer"),
     ("hagy2392@gmail.com", "email", "administrator"),
+    ("josh.millard@advancedaog.com", "email", "administrator"),
     ("rocky@mxgenius.io", "email", "administrator"),
     ("dwaynetillman@7hermeticlabs.dev", "email", "administrator"),
 ];
@@ -8432,7 +8433,8 @@ async fn list_beta_access(State(state): State<AppState>, headers: HeaderMap) -> 
     match sqlx::query_as::<_, BetaAccessRuleRow>(
         r#"SELECT id,rule,rule_type,member_role,created_at,
                   rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
-                           'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked
+                           'josh.millard@advancedaog.com','rocky@mxgenius.io',
+                           'dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1
            ORDER BY rule_type DESC, rule ASC"#,
@@ -8533,7 +8535,8 @@ async fn add_beta_access(
     match sqlx::query_as::<_, BetaAccessRuleRow>(
         r#"SELECT id,rule,rule_type,member_role,created_at,
                   rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
-                           'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked
+                           'josh.millard@advancedaog.com','rocky@mxgenius.io',
+                           'dwaynetillman@7hermeticlabs.dev') AS locked
            FROM beta_access_rules
            WHERE organization_id=$1 AND rule=$2"#,
     )
@@ -8573,7 +8576,8 @@ async fn add_beta_access(
            VALUES ($1,$2,$3,$4,'viewer',$5,now())
            RETURNING id,rule,rule_type,member_role,created_at,
                      rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
-                              'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev') AS locked"#,
+                              'josh.millard@advancedaog.com','rocky@mxgenius.io',
+                              'dwaynetillman@7hermeticlabs.dev') AS locked"#,
     )
     .bind(Uuid::new_v4())
     .bind(context.organization_id.0)
@@ -8617,7 +8621,8 @@ async fn delete_beta_access(
              SELECT 1 FROM beta_access_rules
              WHERE id=$1 AND organization_id=$2
                AND rule IN ('@advancedaog.com','@mxgenius.io','hagy2392@gmail.com',
-                            'rocky@mxgenius.io','dwaynetillman@7hermeticlabs.dev')
+                            'josh.millard@advancedaog.com','rocky@mxgenius.io',
+                            'dwaynetillman@7hermeticlabs.dev')
            )"#,
     )
     .bind(rule_id)
@@ -13423,8 +13428,13 @@ mod structured_advisory_tests {
     }
 
     #[test]
-    fn every_protected_rocky_identity_is_an_administrator() {
-        for email in ["rocky@mxgenius.io", "hagy2392@gmail.com"] {
+    fn every_protected_team_identity_is_an_administrator() {
+        for email in [
+            "dwaynetillman@7hermeticlabs.dev",
+            "hagy2392@gmail.com",
+            "josh.millard@advancedaog.com",
+            "rocky@mxgenius.io",
+        ] {
             let seeded_role = BASELINE_BETA_ACCESS_RULES
                 .iter()
                 .find_map(|(rule, _, role)| (*rule == email).then_some(*role));
