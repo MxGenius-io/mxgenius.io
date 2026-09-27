@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { SpatialWindowManager } from '../spatial-window-manager.js';
 
 const source = await readFile(new URL('../spatial-context.js', import.meta.url), 'utf8');
-const [dashboard, application, viewer, globe, shell, witness, operations, sensors] = await Promise.all([
+const [dashboard, application, viewer, globe, shell, witness, operations, sensors, fleetDetails, fleetProvider, globeHud] = await Promise.all([
   readFile(new URL('../dashboard.html', import.meta.url), 'utf8'),
   readFile(new URL('../app.js', import.meta.url), 'utf8'),
   readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8'),
@@ -13,7 +13,10 @@ const [dashboard, application, viewer, globe, shell, witness, operations, sensor
   readFile(new URL('../xr-spatial-shell.js', import.meta.url), 'utf8'),
   readFile(new URL('../xr-remote-witness.js', import.meta.url), 'utf8'),
   readFile(new URL('../xr-operations-surface.js', import.meta.url), 'utf8'),
-  readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8')
+  readFile(new URL('../xr-sensor-orb.js', import.meta.url), 'utf8'),
+  readFile(new URL('../xr-fleet-details-panel.js', import.meta.url), 'utf8'),
+  readFile(new URL('../xr-fleet-data-provider.js', import.meta.url), 'utf8'),
+  readFile(new URL('../xr-globe-hud.js', import.meta.url), 'utf8')
 ]);
 
 function contextApi(seed = {}) {
@@ -129,7 +132,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=48/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=49/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
@@ -165,7 +168,7 @@ test('Remote Witness consent leaves WebXR deliberately and resumes through fresh
 });
 
 test('World and Focus share the canonical renderer, session, animation loop, and input paths', () => {
-  assert.match(viewer, /import \{ XROperationsSurface \} from '\.\.\/xr-operations-surface\.js\?v=1'/);
+  assert.match(viewer, /import \{ XROperationsSurface \} from '\.\.\/xr-operations-surface\.js\?v=2'/);
   assert.match(viewer, /xrOperations = new XROperationsSurface\(/);
   assert.match(viewer, /scene\.add\(xrOperations\.group\)/);
   assert.match(viewer, /xrOperations\?\.setPresenting\(presenting, camera\)/);
@@ -190,8 +193,29 @@ test('World and Focus share the canonical renderer, session, animation loop, and
   assert.match(operations, /this\.markerMeshes\.filter\(\(marker\) => marker\.visible\)/);
   assert.match(operations, /actionAtWorldPoint\(point\)/);
   assert.match(operations, /this\.onAction\('open-fleet-location'/);
+  assert.match(operations, /new XRFleetDataProvider/);
+  assert.match(operations, /new XRFleetDetailsPanel/);
+  assert.match(operations, /new THREE\.CatmullRomCurve3/);
+  assert.match(operations, /ObservedTakeoff/);
+  assert.match(operations, /ObservedLanding/);
   assert.match(viewer, /source: 'xr-world-marker'/);
   assert.match(viewer, /synchronizeWorkspaceContext\('xr-world-marker'\)/);
+  assert.match(viewer, /source: 'xr-world-aircraft'/);
+  assert.match(viewer, /synchronizeWorkspaceContext\('xr-world-aircraft'\)/);
+  assert.match(fleetDetails, /this\.group\.name = 'FleetAircraftDetails'/);
+  assert.match(fleetDetails, /this\.imageGrid\.name = 'JetNetImageGrid'/);
+  assert.match(fleetDetails, /this\.client\.aircraftBundle/);
+  assert.match(fleetDetails, /this\.client\?\.aircraftImageBlobUrl/);
+  assert.match(fleetDetails, /URL\.revokeObjectURL/);
+  assert.match(fleetDetails, /fleet-aircraft-selected/);
+  assert.match(fleetProvider, /liveObservation/);
+  assert.match(fleetProvider, /state === 'stale'/);
+  assert.match(globeHud, /setDataState\(state = 'ready'/);
+  assert.match(application, /version: 4/);
+  assert.match(application, /registry,/);
+  assert.match(application, /liveObservation: \{/);
+  assert.match(application, /track: liveFlightTrack/);
+  assert.doesNotMatch(application, /Fleet is still loading; try Operations again in a moment/);
   assert.match(viewer, /new XRSensorOrb\(/);
   assert.doesNotMatch(viewer, /openSensorDiagnostics/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
@@ -204,7 +228,7 @@ test('World and Focus share the canonical renderer, session, animation loop, and
   assert.match(globe, /MXApplicationClient\.aircraftBundle/);
   assert.match(globe, /MXApplicationClient\.aircraftImageBlobUrl/);
   assert.match(globe, /URL\.revokeObjectURL/);
-  assert.match(application, /liveFlight: selectedFlight \?/);
+  assert.match(application, /const liveFlight = selectedFlight \?/);
   assert.match(globe, /"three": "\.\/3d-viewer\/lib\/three\.module\.js"/);
 });
 

@@ -47,6 +47,8 @@ function clusterTone(cluster) {
 export class XRGlobeHUD {
   constructor({ fleet = {}, onAction = () => {} } = {}) {
     this.fleet = fleet;
+    this.dataState = fleet?.state || 'ready';
+    this.dataMessage = fleet?.message || '';
     this.onAction = onAction;
     this.filter = 'all';
     this.texture = 'blue';
@@ -104,6 +106,12 @@ export class XRGlobeHUD {
       .sort((a, b) => (Number(b.cluster.count) || 0) - (Number(a.cluster.count) || 0));
     const pageCount = Math.max(1, Math.ceil(this.filteredLocations.length / this.pageSize));
     this.page = THREE.MathUtils.clamp(this.page, 0, pageCount - 1);
+    this.draw();
+  }
+
+  setDataState(state = 'ready', message = '') {
+    this.dataState = state;
+    this.dataMessage = message;
     this.draw();
   }
 
@@ -230,10 +238,11 @@ export class XRGlobeHUD {
     ctx.fillStyle = '#67e8f9';
     ctx.font = '800 28px ui-monospace, monospace';
     ctx.fillText('FLEET CONTEXT', mainX, 59);
-    ctx.fillStyle = '#718da3';
+    const stateTone = this.dataState === 'error' ? '#fb7185' : this.dataState === 'stale' ? '#fbbf24' : '#718da3';
+    ctx.fillStyle = stateTone;
     ctx.font = '700 18px ui-monospace, monospace';
     ctx.textAlign = 'right';
-    ctx.fillText('SPATIAL COMMAND · LIVE CACHED CONTEXT', width - 38, 58);
+    ctx.fillText(`SPATIAL COMMAND · ${String(this.dataState || 'ready').toUpperCase()} REGISTRY`, width - 38, 58);
     ctx.textAlign = 'left';
 
     const countries = new Set((this.fleet.clusters || []).map((cluster) => clean(cluster.country, '')).filter(Boolean)).size;
@@ -314,10 +323,13 @@ export class XRGlobeHUD {
 
     if (!rows.length) {
       this.drawCard(mainX, 350, mainWidth, 168, { fill: 'rgba(8, 22, 38, 0.72)', stroke: '#1e374c' });
-      ctx.fillStyle = '#8fa8bc';
+      ctx.fillStyle = this.dataState === 'error' ? '#fb7185' : this.dataState === 'stale' ? '#fbbf24' : '#8fa8bc';
       ctx.font = '600 24px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('No fleet locations match this quick filter.', mainX + mainWidth / 2, 432);
+      const emptyMessage = this.dataMessage || (this.fleet?.clusters?.length
+        ? 'No fleet locations match this quick filter.'
+        : 'No mapped JetNet aircraft are available for this workspace.');
+      ctx.fillText(fit(emptyMessage, 74), mainX + mainWidth / 2, 432);
       ctx.textAlign = 'left';
     }
 

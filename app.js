@@ -969,13 +969,7 @@ function setupSpatialWorkspaceLauncher() {
       model: MX3DViewer.currentModel || MX3DViewer.context?.model || null,
       component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null)
     }) || MX3DViewer.context;
-    const fleetSnapshot = cacheFleetForSpatialWorkspace();
-    if (mode === 'operations') {
-      if (!fleetSnapshot?.clusters?.length) {
-        setSpatialWorkspaceButtonState('ready', 'Fleet is still loading; try Operations again in a moment');
-        return;
-      }
-    }
+    cacheFleetForSpatialWorkspace();
     setSpatialWorkspaceButtonState('connecting', mode === 'operations'
       ? 'Opening World in the VR workspace…'
       : 'Opening Focus in the VR workspace…');
@@ -4958,6 +4952,8 @@ async function loadContacts() {
 let globeInstance = null;
 let globeData = null;
 let allClusters = [];
+let globeRegistryState = 'loading';
+let globeRegistryMessage = 'Loading the JetNet fleet registry…';
 let filteredGlobeClusters = [];
 let globeZoomAltitude = 2.2;
 let globeZoomFrame = null;
@@ -5414,6 +5410,7 @@ async function refreshLiveTrafficTrack(aircraft, { force = false } = {}) {
         const state = document.getElementById('globeLiveTrafficButton')?.dataset.state || 'live';
         setLiveTrafficRibbonState(state, `${liveTrafficAltitude(selected)} · ${liveTrafficSpeed(selected)} · ${start} → ${end}`);
       }
+      cacheFleetForSpatialWorkspace();
       return liveTrafficTrack;
     })
     .catch((error) => {
@@ -5422,6 +5419,7 @@ async function refreshLiveTrafficTrack(aircraft, { force = false } = {}) {
       liveTrafficTrack = null;
       liveTrafficTrackLoadedAt = Date.now();
       renderGlobeClusters(filteredGlobeClusters);
+      cacheFleetForSpatialWorkspace();
       return null;
     })
     .finally(() => {
@@ -5528,6 +5526,7 @@ async function refreshLiveTraffic() {
         setLiveTrafficButtonState('live', `Hide live flight data · ${liveTrafficListedCount.toLocaleString()} aircraft${remaining}`);
         setLiveTrafficRibbonState('live', selectedSummary);
       }
+      cacheFleetForSpatialWorkspace();
     })
     .catch((error) => {
       console.warn('Live OpenSky traffic is unavailable', error);
@@ -5536,6 +5535,7 @@ async function refreshLiveTraffic() {
       setLiveTrafficRibbonState(liveTrafficAircraft.length ? 'stale' : 'error',
         liveTrafficAircraft.length ? 'Selected flight · snapshot stale' : 'Feed unavailable');
       renderLiveTrafficList({ error: liveTrafficAircraft.length ? 'Refresh failed; showing the last snapshot.' : 'Live feed unavailable. Select the map control to stop or retry.' });
+      cacheFleetForSpatialWorkspace();
     })
     .finally(() => {
       liveTrafficRequest = null;
@@ -6199,27 +6199,12 @@ async function configureNativeARGlobe() {
 }
 
 function cacheFleetForSpatialWorkspace() {
-  if (!allClusters.length) return null;
   const selectedFlight = selectedLiveTrafficAircraft();
-  const payload = {
-    version: 3,
-    createdAt: new Date().toISOString(),
+  const registry = {
+    state: globeRegistryState,
+    message: globeRegistryMessage,
     totalAircraft: globeData?.totalAircraft || 0,
     mappedAircraft: globeData?.mappedAircraft || 0,
-    liveFlight: selectedFlight ? {
-      icao24: selectedFlight.icao24 || '',
-      callsign: selectedFlight.callsign || '',
-      originCountry: selectedFlight.originCountry || '',
-      lat: selectedFlight.lat,
-      lng: selectedFlight.lng,
-      trackDegrees: Number(selectedFlight.trackDegrees) || 0,
-      velocityMps: Number(selectedFlight.velocityMps) || 0,
-      baroAltitudeMeters: Number(selectedFlight.baroAltitudeMeters) || null,
-      geoAltitudeMeters: Number(selectedFlight.geoAltitudeMeters) || null,
-      onGround: Boolean(selectedFlight.onGround),
-      lastContact: Number(selectedFlight.lastContact) || 0,
-      source: 'OpenSky Network'
-    } : null,
     clusters: allClusters.map((cluster) => ({
       icao: cluster.icao,
       lat: cluster.lat,
@@ -6244,6 +6229,52 @@ function cacheFleetForSpatialWorkspace() {
       hasHighTime: Boolean(cluster.hasHighTime)
     }))
   };
+  const liveFlight = selectedFlight ? {
+    icao24: selectedFlight.icao24 || '',
+    callsign: selectedFlight.callsign || '',
+    originCountry: selectedFlight.originCountry || '',
+    lat: selectedFlight.lat,
+    lng: selectedFlight.lng,
+    trackDegrees: Number(selectedFlight.trackDegrees) || 0,
+    velocityMps: Number(selectedFlight.velocityMps) || 0,
+    baroAltitudeMeters: Number(selectedFlight.baroAltitudeMeters) || null,
+    geoAltitudeMeters: Number(selectedFlight.geoAltitudeMeters) || null,
+    onGround: Boolean(selectedFlight.onGround),
+    lastContact: Number(selectedFlight.lastContact) || 0,
+    source: 'OpenSky Network'
+  } : null;
+  const liveFlightTrack = liveFlight && liveTrafficTrack?.icao24 === liveFlight.icao24
+    ? {
+        icao24: liveTrafficTrack.icao24,
+        departureObserved: Boolean(liveTrafficTrack.departureObserved),
+        arrivalObserved: Boolean(liveTrafficTrack.arrivalObserved),
+        source: liveTrafficTrack.source || 'OpenSky Network',
+        path: liveTrafficTrack.path.map((point) => ({
+          lat: point.lat,
+          lng: point.lng,
+          onGround: Boolean(point.onGround),
+          time: point.time || null
+        }))
+      }
+    : null;
+  const payload = {
+    version: 4,
+    createdAt: new Date().toISOString(),
+    registry,
+    liveObservation: {
+      state: document.getElementById('globeLiveTrafficButton')?.dataset.state || (liveFlight ? 'ready' : 'empty'),
+      source: 'OpenSky Network',
+      flight: liveFlight,
+      track: liveFlightTrack
+    },
+    // Compatibility fields keep the fenced legacy globe readable while the
+    // canonical World consumes the explicitly separated registry/observation layers.
+    totalAircraft: registry.totalAircraft,
+    mappedAircraft: registry.mappedAircraft,
+    clusters: registry.clusters,
+    liveFlight,
+    liveFlightTrack
+  };
   try {
     localStorage.setItem('mxg_globe_vr_data', JSON.stringify(payload));
   } catch (error) {
@@ -6262,7 +6293,6 @@ async function loadGlobe() {
   if (!globeInstance) container.innerHTML = '<div class="loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;">Loading globe...</div>';
 
   const body = {};
-  let registryUnavailable = false;
   try {
     const data = await MXApplicationClient.aircraftList({ token: TOKEN, bearer: BEARER, filters: body });
     if (data.responsestatus && !/^success\b/i.test(String(data.responsestatus).trim())) {
@@ -6276,9 +6306,12 @@ async function loadGlobe() {
     allClusters = clusters;
     filteredGlobeClusters = clusters;
     globeData = { totalAircraft: aircraft.length, mappedAircraft: clusters.reduce((s, c) => s + c.aircraft.length, 0), byCountry: {}, counts };
+    globeRegistryState = clusters.length ? 'ready' : 'empty';
+    globeRegistryMessage = clusters.length ? '' : 'JetNet returned no mapped aircraft for this workspace.';
     clusters.forEach(c => { if (c.country) globeData.byCountry[c.country] = true; });
   } catch (error) {
-    registryUnavailable = true;
+    globeRegistryState = 'error';
+    globeRegistryMessage = error?.message || 'The JetNet fleet registry is temporarily unavailable.';
     console.warn('Fleet registry unavailable; continuing with independent globe layers:', error);
     allClusters = [];
     filteredGlobeClusters = [];

@@ -1466,7 +1466,7 @@
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=15';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=9';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=14';
-        import { XROperationsSurface } from '../xr-operations-surface.js?v=1';
+        import { XROperationsSurface } from '../xr-operations-surface.js?v=2';
         import { XRSpatialShell } from '../xr-spatial-shell.js?v=11';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
@@ -2861,10 +2861,13 @@
                     ...spatialContext,
                     source: 'xr-world-marker',
                     mode: 'operations',
+                    aircraft: null,
                     location: {
                         icao: target.icao || null,
                         city: target.city || null,
-                        country: target.country || null
+                        country: target.country || null,
+                        latitude: target.latitude ?? null,
+                        longitude: target.longitude ?? null
                     }
                 }) || {
                     ...spatialContext,
@@ -2873,6 +2876,28 @@
                     location: target
                 };
                 synchronizeWorkspaceContext('xr-world-marker');
+                updateViewerContextFromSpatialContext();
+                postSpatialStatus('active');
+            }
+            if (action === 'fleet-aircraft-selected') {
+                spatialContext = globalThis.MXSpatialContext?.update?.({
+                    ...spatialContext,
+                    source: 'xr-world-aircraft',
+                    mode: 'operations',
+                    aircraft: {
+                        id: target.id || null,
+                        registration: target.registration || null,
+                        family: target.family || null
+                    },
+                    location: target.location || spatialContext.location || null
+                }) || {
+                    ...spatialContext,
+                    source: 'xr-world-aircraft',
+                    mode: 'operations',
+                    aircraft: target,
+                    location: target.location || spatialContext.location || null
+                };
+                synchronizeWorkspaceContext('xr-world-aircraft');
                 updateViewerContextFromSpatialContext();
                 postSpatialStatus('active');
             }

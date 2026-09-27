@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { XRGlobeHUD } from './xr-globe-hud.js';
+import { XRGlobeHUD } from './xr-globe-hud.js?v=2';
+import { XRFleetDataProvider } from './xr-fleet-data-provider.js?v=1';
+import { XRFleetDetailsPanel } from './xr-fleet-details-panel.js?v=1';
 
-const EMPTY_FLEET = Object.freeze({ totalAircraft: 0, mappedAircraft: 0, clusters: [] });
 const GLOBE_TEXTURES = Object.freeze({
   night: new URL('./earth-night.jpg', import.meta.url).href,
   blue: new URL('./earth-blue-marble.jpg', import.meta.url).href,
@@ -49,28 +50,15 @@ function destinationPoint(latitude, longitude, bearingDegrees, distanceKm) {
   };
 }
 
-function normalizeFleet(payload) {
-  if (!payload || !Array.isArray(payload.clusters)) return { ...EMPTY_FLEET };
-  return {
-    ...payload,
-    totalAircraft: Number(payload.totalAircraft) || 0,
-    mappedAircraft: Number(payload.mappedAircraft) || 0,
-    liveFlight: Number.isFinite(Number(payload.liveFlight?.lat)) && Number.isFinite(Number(payload.liveFlight?.lng))
-      ? { ...payload.liveFlight, lat: Number(payload.liveFlight.lat), lng: Number(payload.liveFlight.lng) }
-      : null,
-    clusters: payload.clusters
-      .filter((cluster) => Number.isFinite(Number(cluster?.lat)) && Number.isFinite(Number(cluster?.lng)))
-      .map((cluster) => ({
-        ...cluster,
-        count: Number(cluster.count) || (Array.isArray(cluster.aircraft) ? cluster.aircraft.length : 0)
-      }))
-  };
-}
-
 export class XROperationsSurface {
-  constructor({ storage = globalThis.localStorage, onAction = () => {} } = {}) {
+  constructor({ storage = globalThis.localStorage, applicationClient = globalThis.MXApplicationClient, onAction = () => {} } = {}) {
     this.storage = storage;
     this.onAction = onAction;
+    this.dataProvider = new XRFleetDataProvider({ storage });
+    this.handleStorage = (event) => {
+      if (!event || event.key === this.dataProvider.key) this.refresh();
+    };
+    globalThis.addEventListener?.('storage', this.handleStorage);
     this.presenting = false;
     this.visible = false;
     this.placementPending = true;
@@ -160,16 +148,23 @@ export class XROperationsSurface {
     this.hudMount.add(this.hud.group);
     this.group.add(this.hudMount);
 
+    this.details = new XRFleetDetailsPanel({
+      client: applicationClient,
+      onAction: (action, input, target) => this.onAction(action, input, target),
+      onVisibilityChange: (open) => {
+        this.hud.group.visible = !open;
+      }
+    });
+    this.details.group.position.set(0.49, -0.015, 0.035);
+    this.details.group.scale.setScalar(0.001);
+    this.group.add(this.details.group);
+
     this.applyGlobeTexture('blue', 'system');
     this.refresh();
   }
 
   readFleet() {
-    try {
-      return normalizeFleet(JSON.parse(this.storage?.getItem?.('mxg_globe_vr_data') || 'null'));
-    } catch {
-      return { ...EMPTY_FLEET };
-    }
+    return this.dataProvider.read();
   }
 
   clearMarkers() {
@@ -190,19 +185,36 @@ export class XROperationsSurface {
     this.liveAircraft = null;
   }
 
-  createSelectedLiveFlight(flight) {
+  createSelectedLiveFlight(observation) {
+    const flight = observation?.flight;
     if (!flight) return;
-    const track = Number(flight.trackDegrees) || 0;
-    const speedKph = Number.isFinite(Number(flight.velocityMps)) ? Number(flight.velocityMps) * 3.6 : 350;
-    const legKm = flight.onGround ? 8 : Math.max(35, Math.min(180, speedKph * 0.15));
-    const start = destinationPoint(flight.lat, flight.lng, track + 180, legKm);
-    const end = destinationPoint(flight.lat, flight.lng, track, legKm);
-    const startPoint = pointOnGlobe(start.lat, start.lng, 0.441);
-    const endPoint = pointOnGlobe(end.lat, end.lng, 0.441);
-    const midpoint = startPoint.clone().add(endPoint).multiplyScalar(0.5).normalize().multiplyScalar(0.463);
-    const ribbonCurve = new THREE.QuadraticBezierCurve3(startPoint, midpoint, endPoint);
+    const trackDegrees = Number(flight.trackDegrees) || 0;
+    const observedPath = observation?.track?.path || [];
+    let ribbonCurve;
+    let endpoints;
+    if (observedPath.length >= 2) {
+      const routePoints = observedPath.map((point, index) => {
+        const progress = observedPath.length > 1 ? index / (observedPath.length - 1) : 0;
+        return pointOnGlobe(point.lat, point.lng, 0.442 + Math.sin(progress * Math.PI) * 0.022);
+      });
+      ribbonCurve = new THREE.CatmullRomCurve3(routePoints, false, 'centripetal');
+      endpoints = [
+        { point: routePoints[0], name: observation.track.departureObserved ? 'ObservedTakeoff' : 'FirstObservedPosition' },
+        { point: routePoints.at(-1), name: observation.track.arrivalObserved ? 'ObservedLanding' : 'LivePosition' }
+      ];
+    } else {
+      const speedKph = Number.isFinite(Number(flight.velocityMps)) ? Number(flight.velocityMps) * 3.6 : 350;
+      const legKm = flight.onGround ? 8 : Math.max(35, Math.min(180, speedKph * 0.15));
+      const start = destinationPoint(flight.lat, flight.lng, trackDegrees + 180, legKm);
+      const end = destinationPoint(flight.lat, flight.lng, trackDegrees, legKm);
+      const startPoint = pointOnGlobe(start.lat, start.lng, 0.441);
+      const endPoint = pointOnGlobe(end.lat, end.lng, 0.441);
+      const midpoint = startPoint.clone().add(endPoint).multiplyScalar(0.5).normalize().multiplyScalar(0.463);
+      ribbonCurve = new THREE.QuadraticBezierCurve3(startPoint, midpoint, endPoint);
+      endpoints = [{ point: startPoint, name: 'CourseStart' }, { point: endPoint, name: 'CourseEnd' }];
+    }
     const ribbon = new THREE.Mesh(
-      new THREE.TubeGeometry(ribbonCurve, 28, 0.0026, 7, false),
+      new THREE.TubeGeometry(ribbonCurve, Math.max(28, observedPath.length * 2), 0.0026, 7, false),
       new THREE.MeshBasicMaterial({
         color: 0xa78bfa,
         transparent: true,
@@ -213,6 +225,16 @@ export class XROperationsSurface {
     );
     ribbon.name = 'MXGeniusLiveFlightRibbon';
     this.liveTrafficGroup.add(ribbon);
+    endpoints.forEach(({ point, name }) => {
+      const endpoint = new THREE.Mesh(
+        new THREE.RingGeometry(0.008, 0.013, 24),
+        new THREE.MeshBasicMaterial({ color: 0xc4b5fd, side: THREE.DoubleSide, depthWrite: false, toneMapped: false })
+      );
+      endpoint.position.copy(point).multiplyScalar(1.002);
+      endpoint.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), point.clone().normalize());
+      endpoint.name = `MXGeniusLiveFlight${name}`;
+      this.liveTrafficGroup.add(endpoint);
+    });
 
     const shape = new THREE.Shape();
     shape.moveTo(0, 0.022);
@@ -244,7 +266,7 @@ export class XROperationsSurface {
     const position = pointOnGlobe(flight.lat, flight.lng, 0.448);
     aircraft.position.copy(position);
     aircraft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), position.clone().normalize());
-    aircraft.rotateZ(THREE.MathUtils.degToRad(-track));
+    aircraft.rotateZ(THREE.MathUtils.degToRad(-trackDegrees));
     aircraft.name = `MXGeniusLiveAircraft-${clean(flight.callsign || flight.icao24, 'LIVE')}`;
     aircraft.userData.xrOperationsLiveFlight = true;
     this.liveTrafficGroup.add(aircraft);
@@ -297,15 +319,21 @@ export class XROperationsSurface {
   }
 
   refresh() {
+    const selectedIcao = this.selectedIndex >= 0 ? clean(this.payload?.clusters?.[this.selectedIndex]?.icao).toUpperCase() : '';
     this.payload = this.readFleet();
     this.selectedIndex = -1;
     this.clearMarkers();
     this.payload.clusters.forEach((cluster, index) => this.createMarker(cluster, index));
-    this.createSelectedLiveFlight(this.payload.liveFlight);
+    this.createSelectedLiveFlight(this.payload.liveObservation);
     this.hud.fleet = this.payload;
+    this.hud.setDataState(this.payload.state, this.payload.message);
     this.hud.setSelected(-1);
     this.hud.setLocations();
     this.syncMarkerVisibility();
+    if (selectedIcao) {
+      const nextIndex = this.payload.clusters.findIndex((cluster) => clean(cluster.icao).toUpperCase() === selectedIcao);
+      if (nextIndex >= 0) this.selectCluster(nextIndex, 'storage', { emit: false, openDetails: false });
+    }
   }
 
   setContext(context = {}) {
@@ -345,7 +373,7 @@ export class XROperationsSurface {
     });
   }
 
-  selectCluster(index, input = 'unknown', { emit = true } = {}) {
+  selectCluster(index, input = 'unknown', { emit = true, openDetails = emit } = {}) {
     const cluster = this.payload.clusters[index];
     if (!cluster) return false;
     this.selectedIndex = index;
@@ -355,12 +383,15 @@ export class XROperationsSurface {
       const emphasis = markerIndex === index ? 1.55 : 1;
       marker.scale.setScalar(marker.userData.baseScale * emphasis);
     });
+    if (openDetails) this.details.openLocation(cluster, index, input);
     if (emit) {
       this.onAction('open-fleet-location', input, {
         index,
         icao: clean(cluster.icao, 'UNKNOWN'),
         city: clean(cluster.city),
         country: clean(cluster.country),
+        latitude: Number(cluster.lat),
+        longitude: Number(cluster.lng),
         count: Number(cluster.count) || 0,
         hasActiveCase: Boolean(cluster.hasActiveCase),
         hasAog: Boolean(cluster.hasAog),
@@ -388,16 +419,23 @@ export class XROperationsSurface {
   interactiveObjects() {
     if (!this.group.visible) return [];
     return [
-      ...this.hud.interactiveObjects(),
+      ...this.hud.interactiveObjects().filter(() => this.hud.group.visible),
+      ...this.details.interactiveObjects(),
       ...this.markerMeshes.filter((marker) => marker.visible),
       ...(this.liveAircraft ? [this.liveAircraft] : [])
     ];
   }
 
   handleObject(object, uv, input = 'xr') {
+    if (this.details.handleObject(object, uv, input)) return true;
     if (this.hud.handleObject(object, uv, input)) return true;
     if (object?.userData?.xrOperationsLiveFlight) {
-      this.onAction('open-live-flight', input, { ...this.payload.liveFlight });
+      this.onAction('open-live-flight', input, {
+        ...this.payload.liveObservation.flight,
+        track: this.payload.liveObservation.track,
+        observationState: this.payload.liveObservation.state,
+        source: this.payload.liveObservation.source
+      });
       return true;
     }
     let node = object;
@@ -408,6 +446,8 @@ export class XROperationsSurface {
 
   fingerTargetAt(point) {
     if (!this.group.visible) return null;
+    const detailRegion = this.details.actionAtWorldPoint(point);
+    if (detailRegion) return { kind: 'details', key: `details:${detailRegion.key}`, action: detailRegion.action };
     const hudRegion = this.hud.actionAtWorldPoint(point);
     if (hudRegion) return { kind: 'hud', key: `hud:${hudRegion.key}`, action: hudRegion.action };
     let nearest = null;
@@ -434,6 +474,7 @@ export class XROperationsSurface {
       this.hud.activate(target.action, input);
       return true;
     }
+    if (target.kind === 'details') return this.details.activate(target.action, input);
     return target.kind === 'marker' ? this.selectCluster(target.index, input) : false;
   }
 
@@ -479,13 +520,16 @@ export class XROperationsSurface {
     this.placeForView(camera);
     if (this.rotationActive) this.globeRoot.rotation.y += Math.max(0, delta) * 0.055;
     this.hud.update(delta);
+    this.details.update(delta);
     const pulse = 1 + Math.sin(performance.now() * 0.0032) * 0.16;
     this.attentionRings.forEach((ring) => ring.scale.setScalar(pulse));
   }
 
   dispose() {
+    globalThis.removeEventListener?.('storage', this.handleStorage);
     this.clearMarkers();
     this.hud.dispose();
+    this.details.dispose();
     this.globeTexture?.dispose?.();
     this.earth.geometry.dispose();
     this.earth.material.dispose();
