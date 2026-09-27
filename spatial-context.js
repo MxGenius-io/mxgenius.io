@@ -55,6 +55,12 @@
       operationalStatus: source.modelOperationalStatus
     };
     const partSource = source.part || { id: source.partId, partNumber: source.partNumber, requestId: source.requestId };
+    const deviceSource = source.device || {
+      id: source.deviceId,
+      nodeName: source.deviceName,
+      kind: source.deviceKind,
+      state: source.deviceState
+    };
     const locationSource = source.location && typeof source.location === 'object'
       ? source.location
       : { id: source.locationId, icao: typeof source.location === 'string' ? source.location : source.icao };
@@ -84,6 +90,11 @@
         partNumber: text(partSource?.partNumber, 160),
         requestId: text(partSource?.requestId, 160)
       }),
+      device: identity(deviceSource, {
+        nodeName: text(deviceSource?.nodeName ?? deviceSource?.name, 200),
+        kind: text(deviceSource?.kind ?? deviceSource?.type, 100),
+        state: text(deviceSource?.state ?? deviceSource?.status, 100)
+      }),
       location: identity(locationSource, {
         icao: text(locationSource?.icao, 12)?.toUpperCase() || null,
         latitude: finite(locationSource?.latitude ?? locationSource?.lat),
@@ -108,7 +119,7 @@
     const left = normalize(current);
     const right = normalize({ ...left, ...update });
     assertTenantBoundary(left, right);
-    for (const key of ['aircraft', 'case', 'model', 'component', 'part', 'location']) {
+    for (const key of ['aircraft', 'case', 'model', 'component', 'part', 'device', 'location']) {
       if (Object.prototype.hasOwnProperty.call(update, key)) {
         const candidate = update[key] === null ? null : { ...(left[key] || {}), ...(update[key] || {}) };
         right[key] = candidate ? normalize({ [key]: candidate })[key] : null;

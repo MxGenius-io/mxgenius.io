@@ -967,7 +967,10 @@ function setupSpatialWorkspaceLauncher() {
       aircraft: MX3DViewer.context?.aircraft || (MX3DViewer.context?.aircraftId ? { id: MX3DViewer.context.aircraftId } : null),
       case: MX3DViewer.context?.case || (MX3DViewer.context?.caseId ? { id: MX3DViewer.context.caseId } : null),
       model: MX3DViewer.currentModel || MX3DViewer.context?.model || null,
-      component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null)
+      component: MX3DViewer.context?.component || (MX3DViewer.context?.componentId ? { id: MX3DViewer.context.componentId } : null),
+      part: MX3DViewer.context?.part || null,
+      device: MX3DViewer.context?.device || null,
+      location: MX3DViewer.context?.location || null
     }) || MX3DViewer.context;
     cacheFleetForSpatialWorkspace();
     setSpatialWorkspaceButtonState('connecting', mode === 'operations'

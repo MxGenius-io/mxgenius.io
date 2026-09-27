@@ -57,6 +57,26 @@ test('view and reality transitions preserve context and minimized windows', () =
   assert.equal(state.windows.find((entry) => entry.id === 'witness').state, 'minimized');
 });
 
+test('a World and Focus journey updates view and context atomically without touching the session', () => {
+  const events = [];
+  const workspace = controller({ onChange: (event) => events.push(event) });
+  workspace.activateSession('canonical-viewer');
+  const beforeOwner = workspace.snapshot().session.ownerId;
+  workspace.navigate(SPATIAL_WORKSPACE_VIEWS.WORLD, {
+    version: 2,
+    aircraft: { id: 'AIRCRAFT-9' },
+    device: { id: 'QUEST-1', kind: 'thermal-sensor' }
+  }, { source: 'test-journey' });
+
+  const state = workspace.snapshot();
+  assert.equal(state.view, SPATIAL_WORKSPACE_VIEWS.WORLD);
+  assert.equal(state.context.aircraft.id, 'AIRCRAFT-9');
+  assert.equal(state.context.device.id, 'QUEST-1');
+  assert.equal(state.session.ownerId, beforeOwner);
+  assert.equal(state.session.active, true);
+  assert.equal(events.at(-1).type, 'journey');
+});
+
 test('a competing renderer cannot take ownership of the immersive session', () => {
   const workspace = controller();
   workspace.activateSession('canonical-viewer');

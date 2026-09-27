@@ -77,8 +77,8 @@ test('globe and viewer share one world-anchored two-mode spatial tray', () => {
   assert.match(viewer, /import \{ XRSpatialShell \}/);
   assert.match(globe, /new XRSpatialShell\(/);
   assert.match(viewer, /new XRSpatialShell\(/);
-  assert.match(spatialShell, /operations: \{ label: 'OPERATIONS'/);
-  assert.match(spatialShell, /maintenance: \{ label: 'MAINTENANCE'/);
+  assert.match(spatialShell, /operations: \{ label: 'WORLD'/);
+  assert.match(spatialShell, /maintenance: \{ label: 'FOCUS'/);
   assert.match(spatialShell, /ACTIVE · TAP TO RECENTER/);
   assert.match(spatialShell, /this\.placementPending = true/);
   assert.match(spatialShell, /placeForView\(camera = null\)/);

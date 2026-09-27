@@ -39,6 +39,7 @@ test('spatial context v2 normalizes the shared workflow identities without secre
     aircraftId: 'aircraft-1', caseId: 'case-9', componentId: 'strobe',
     model: { id: 'cl350', name: 'Bombardier Challenger 350', provider: 'workspace', operationalStatus: 'demo_asset' },
     part: { partNumber: 'WHELEN-01', requestId: 'request-2' },
+    device: { id: 'quest-1', nodeName: 'Quest sensor bridge', kind: 'thermal-sensor', state: 'connected' },
     location: { icao: 'kpbi', lat: 26.68, lng: -80.09 },
     token: 'must-not-survive', media: new Blob(['no'])
   });
@@ -50,6 +51,8 @@ test('spatial context v2 normalizes the shared workflow identities without secre
   assert.equal(value.model.provider, 'workspace');
   assert.equal(value.component.id, 'strobe');
   assert.equal(value.part.partNumber, 'WHELEN-01');
+  assert.equal(value.device.id, 'quest-1');
+  assert.equal(value.device.state, 'connected');
   assert.equal(value.location.icao, 'KPBI');
   assert.equal('token' in value, false);
   assert.equal('media' in value, false);
@@ -85,6 +88,16 @@ test('spatial window manager keeps one active window and preserves minimized lif
   manager.close('thermal');
   assert.equal(manager.state('thermal').state, 'closed');
   assert.deepEqual(calls, ['witness:show', 'witness:hide:true', 'thermal:show', 'thermal:hide:false']);
+
+  manager.restoreSnapshot({
+    activeId: 'witness',
+    windows: [
+      { id: 'witness', state: 'open', active: true },
+      { id: 'thermal', state: 'minimized', active: false }
+    ]
+  }, { reason: 'reality-handoff' });
+  assert.equal(manager.state('witness').state, 'open');
+  assert.equal(manager.state('thermal').state, 'minimized');
 });
 
 test('the web application exposes one launcher and one canonical VR or AR session owner', () => {
@@ -119,20 +132,22 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
     viewer.indexOf('async function enterSpatialWorkspace')
   );
   assert.match(handoff, /pendingSpatialSessionMode = requestedMode/);
-  assert.match(handoff, /spatialHandoffWindowState = xrWindowManager\?\.snapshot\?\.\(\) \|\| null/);
+  assert.match(handoff, /spatialHandoffWorkspaceState = xrWorkspaceController\.snapshot\(\)/);
+  assert.match(handoff, /activeId: spatialHandoffWorkspaceState\.activeWindow/);
+  assert.match(handoff, /windows: spatialHandoffWorkspaceState\.windows/);
   assert.match(handoff, /await spatialSession\.end\(\)/);
   assert.doesNotMatch(handoff, /requestSession\(/);
   assert.match(viewer, /handoffContinue\?\.addEventListener\('click', async \(\) =>/);
-  assert.match(viewer, /context: spatialContext,[\s\S]*sessionMode: requestedSessionMode/);
+  assert.match(viewer, /context: preservedWorkspace\?\.context \|\| spatialContext,[\s\S]*sessionMode: requestedSessionMode/);
   assert.match(viewer, /if \(!pendingSpatialSessionMode\) \{[\s\S]*xrWindowManager\?\.minimizeAll/);
-  assert.match(viewer, /xrWindowManager\?\.open\(spatialHandoffWindowState\.activeId/);
+  assert.match(viewer, /xrWindowManager\?\.restoreSnapshot\(spatialHandoffWindowState/);
   assert.match(viewer, /if \(pendingSpatialSessionMode\) \{[\s\S]*xrVoice\.group\.visible = false/);
   assert.match(viewer, /sessionMode === 'immersive-ar'[\s\S]*scene\.background = null/);
   assert.match(viewer, /spatial-mode-handoff-message/);
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=49/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=50/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
@@ -168,11 +183,11 @@ test('Remote Witness consent leaves WebXR deliberately and resumes through fresh
 });
 
 test('World and Focus share the canonical renderer, session, animation loop, and input paths', () => {
-  assert.match(viewer, /import \{ XROperationsSurface \} from '\.\.\/xr-operations-surface\.js\?v=2'/);
+  assert.match(viewer, /import \{ XROperationsSurface \} from '\.\.\/xr-operations-surface\.js\?v=3'/);
   assert.match(viewer, /xrOperations = new XROperationsSurface\(/);
   assert.match(viewer, /scene\.add\(xrOperations\.group\)/);
   assert.match(viewer, /xrOperations\?\.setPresenting\(presenting, camera\)/);
-  assert.match(viewer, /xrOperations\?\.setVisible\(!maintenance, camera\)/);
+  assert.match(viewer, /xrOperations\?\.setView\(maintenance \? 'focus' : 'world', camera\)/);
   assert.match(viewer, /if \(currentModel\) currentModel\.visible = !presenting \|\| maintenance/);
   assert.match(viewer, /xrOperations\?\.update\(delta, \{ camera \}\)/);
   assert.match(viewer, /\.\.\.\(xrOperations\?\.interactiveObjects\(\) \|\| \[\]\)/);
@@ -199,9 +214,16 @@ test('World and Focus share the canonical renderer, session, animation loop, and
   assert.match(operations, /ObservedTakeoff/);
   assert.match(operations, /ObservedLanding/);
   assert.match(viewer, /source: 'xr-world-marker'/);
-  assert.match(viewer, /synchronizeWorkspaceContext\('xr-world-marker'\)/);
+  assert.match(viewer, /setSpatialMode\('maintenance', \{[\s\S]*source: 'xr-world-marker'/);
   assert.match(viewer, /source: 'xr-world-aircraft'/);
-  assert.match(viewer, /synchronizeWorkspaceContext\('xr-world-aircraft'\)/);
+  assert.match(viewer, /setSpatialMode\('maintenance', \{[\s\S]*source: 'xr-world-aircraft'/);
+  assert.match(viewer, /focus: \(context\) => setSpatialMode\('maintenance'/);
+  assert.match(viewer, /returnToWorld: \(\) => setSpatialMode\('operations'/);
+  assert.match(viewer, /xrWorkspaceController\.navigate\(/);
+  assert.match(viewer, /part: partContext/);
+  assert.match(viewer, /device: \{[\s\S]*nodeName: 'Quest sensor bridge'/);
+  assert.match(operations, /setView\(view, camera = null\)/);
+  assert.match(operations, /focusedDetails = this\.view === 'focus'/);
   assert.match(fleetDetails, /this\.group\.name = 'FleetAircraftDetails'/);
   assert.match(fleetDetails, /this\.imageGrid\.name = 'JetNetImageGrid'/);
   assert.match(fleetDetails, /this\.client\.aircraftBundle/);
@@ -234,9 +256,9 @@ test('World and Focus share the canonical renderer, session, animation loop, and
 
 test('maintenance stays in the canonical renderer and opens tools from one world anchor', () => {
   assert.match(globe, /xr-realtime-presence\.js\?v=15/);
-  assert.match(globe, /xr-spatial-shell\.js\?v=11/);
+  assert.match(globe, /xr-spatial-shell\.js\?v=12/);
   assert.match(viewer, /xr-realtime-presence\.js\?v=15/);
-  assert.match(viewer, /xr-spatial-shell\.js\?v=11/);
+  assert.match(viewer, /xr-spatial-shell\.js\?v=12/);
   assert.match(shell, /onActiveMode = \(\) => false/);
   assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
   assert.match(shell, /MXGeniusSpatialContentDock/);

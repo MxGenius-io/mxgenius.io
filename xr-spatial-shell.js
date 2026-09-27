@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 const MODES = Object.freeze({
-  operations: { label: 'OPERATIONS', color: '#38bdf8' },
-  maintenance: { label: 'MAINTENANCE', color: '#2dd4bf' }
+  operations: { label: 'WORLD', color: '#38bdf8' },
+  maintenance: { label: 'FOCUS', color: '#2dd4bf' }
 });
 
 const TOOL_DEFAULTS = Object.freeze([

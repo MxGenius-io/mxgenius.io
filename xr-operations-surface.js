@@ -61,6 +61,7 @@ export class XROperationsSurface {
     globalThis.addEventListener?.('storage', this.handleStorage);
     this.presenting = false;
     this.visible = false;
+    this.view = 'world';
     this.placementPending = true;
     this.rotationActive = true;
     this.selectedIndex = -1;
@@ -152,7 +153,8 @@ export class XROperationsSurface {
       client: applicationClient,
       onAction: (action, input, target) => this.onAction(action, input, target),
       onVisibilityChange: (open) => {
-        this.hud.group.visible = !open;
+        this.hud.group.visible = this.view === 'world' && !open;
+        this.syncVisibility();
       }
     });
     this.details.group.position.set(0.49, -0.015, 0.035);
@@ -499,8 +501,22 @@ export class XROperationsSurface {
     }
   }
 
+  setView(view, camera = null) {
+    this.view = view === 'focus' ? 'focus' : 'world';
+    this.visible = true;
+    this.globeRoot.visible = this.view === 'world';
+    this.hudMount.visible = this.view === 'world';
+    this.hud.group.visible = this.view === 'world' && !this.details.group.visible;
+    this.syncVisibility();
+    if (this.group.visible) {
+      this.placementPending = true;
+      this.placeForView(camera);
+    }
+  }
+
   syncVisibility() {
-    this.group.visible = this.presenting && this.visible;
+    const focusedDetails = this.view === 'focus' && this.details.group.visible;
+    this.group.visible = this.presenting && this.visible && (this.view === 'world' || focusedDetails);
   }
 
   placeForView(camera = null) {
@@ -521,6 +537,7 @@ export class XROperationsSurface {
     if (this.rotationActive) this.globeRoot.rotation.y += Math.max(0, delta) * 0.055;
     this.hud.update(delta);
     this.details.update(delta);
+    this.syncVisibility();
     const pulse = 1 + Math.sin(performance.now() * 0.0032) * 0.16;
     this.attentionRings.forEach((ring) => ring.scale.setScalar(pulse));
   }

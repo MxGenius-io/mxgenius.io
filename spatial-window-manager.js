@@ -79,6 +79,33 @@ export class SpatialWindowManager {
     for (const id of this.windows.keys()) this.minimize(id, detail);
   }
 
+  restoreSnapshot(snapshot = {}, detail = {}) {
+    const requested = new Map(
+      (Array.isArray(snapshot.windows) ? snapshot.windows : [])
+        .filter((entry) => entry?.id && this.windows.has(entry.id))
+        .map((entry) => [entry.id, entry.state])
+    );
+    const requestedActive = snapshot.activeId && requested.get(snapshot.activeId) === SPATIAL_WINDOW_STATES.OPEN
+      ? snapshot.activeId
+      : null;
+
+    for (const id of this.windows.keys()) {
+      if (id === requestedActive) continue;
+      const state = requested.get(id);
+      if (state === SPATIAL_WINDOW_STATES.MINIMIZED) {
+        const entry = this.windows.get(id);
+        entry.state = SPATIAL_WINDOW_STATES.MINIMIZED;
+        if (this.activeId === id) this.activeId = null;
+        entry.hide({ preserve: true, ...detail });
+        this.emit(id, detail);
+      } else if (state === SPATIAL_WINDOW_STATES.CLOSED || !state) {
+        this.close(id, detail);
+      }
+    }
+    if (requestedActive) this.open(requestedActive, detail);
+    return this.snapshot();
+  }
+
   emit(id, detail) {
     this.onChange({ ...this.state(id), detail, snapshot: this.snapshot() });
   }

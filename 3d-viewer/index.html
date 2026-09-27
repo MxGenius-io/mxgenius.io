@@ -1436,7 +1436,7 @@
     <script src="../xr-target-registry.js?v=1"></script>
     <script src="../xr-target-context.js?v=2"></script>
     <script src="../spatial-commands.js?v=1"></script>
-    <script src="../spatial-context.js?v=2"></script>
+    <script src="../spatial-context.js?v=3"></script>
     <script src="../realtime-client.js?v=3"></script>
     <script src="../guided-tooltip.js?v=12"></script>
     <script type="module">
@@ -1466,13 +1466,13 @@
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=15';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=9';
         import { XRSensorOrb } from '../xr-sensor-orb.js?v=14';
-        import { XROperationsSurface } from '../xr-operations-surface.js?v=2';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=11';
-        import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
+        import { XROperationsSurface } from '../xr-operations-surface.js?v=3';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=12';
+        import { SpatialWindowManager } from '../spatial-window-manager.js?v=2';
         import {
             SPATIAL_WORKSPACE_VIEWS,
             SpatialWorkspaceController
-        } from '../spatial-workspace-controller.js?v=1';
+        } from '../spatial-workspace-controller.js?v=2';
         import {
             applicationSession,
             resolveXRSensorRuntime,
@@ -1541,6 +1541,8 @@
             aircraftId: spatialContext.aircraft?.id || null,
             model: spatialContext.model || null,
             componentId: spatialContext.component?.id || spatialContext.component?.meshName || null,
+            part: spatialContext.part || null,
+            device: spatialContext.device || null,
             location: spatialContext.location || null,
             spatialSource: spatialContext.source || null
         };
@@ -1576,6 +1578,7 @@
         let activeSpatialSessionMode = null;
         let pendingSpatialSessionMode = null;
         let spatialHandoffWindowState = null;
+        let spatialHandoffWorkspaceState = null;
         let pendingExternalSpatialHandoff = null;
         let externalHandoffLeftPage = false;
         let externalHandoffFallbackTimer = 0;
@@ -1656,6 +1659,12 @@
                     aircraftId: activeCaseState.case?.aircraft_id,
                     count: activeCaseState.media.length
                 });
+                commitSpatialSelection({
+                    case: { id: caseId },
+                    aircraft: activeCaseState.case?.aircraft_id
+                        ? { id: activeCaseState.case.aircraft_id }
+                        : spatialContext.aircraft
+                }, { source: 'active-case-restored' });
                 xrWitness?.publishProjection();
                 return activeCaseState;
             } catch (error) {
@@ -1903,6 +1912,16 @@
                 bridgeHandoff: Boolean(sensorRuntime.handoff),
                 onAction: (action, input, target) => {
                     if (action === 'toggle-thermal-screen') {
+                        if (target?.active) {
+                            commitSpatialSelection({
+                                device: {
+                                    id: sensorRuntime.sessionId || 'quest-sensor-bridge',
+                                    nodeName: 'Quest sensor bridge',
+                                    kind: 'thermal-sensor',
+                                    state: target.state || 'active'
+                                }
+                            }, { source: 'xr-live-device' });
+                        }
                         const state = xrWindowManager?.state('thermal')?.state;
                         if (target?.active && state !== 'open') xrWindowManager?.open('thermal', { input, reason: 'sensor-control' });
                         else if (!target?.active && state === 'open') xrWindowManager?.minimize('thermal', { input, reason: 'sensor-control' });
@@ -1910,6 +1929,20 @@
                     emitXRAction(action, input, target);
                 },
                 onStatus: ({ thermalTransport, thermalSource }) => {
+                    const liveDeviceId = sensorRuntime.sessionId || 'quest-sensor-bridge';
+                    if (thermalTransport === 'connected'
+                        && (spatialContext.device?.id !== liveDeviceId
+                            || spatialContext.device?.state !== thermalTransport
+                            || spatialContext.device?.kind !== (thermalSource || 'thermal-sensor'))) {
+                        commitSpatialSelection({
+                            device: {
+                                id: liveDeviceId,
+                                nodeName: 'Quest sensor bridge',
+                                kind: thermalSource || 'thermal-sensor',
+                                state: thermalTransport
+                            }
+                        }, { source: 'xr-live-device-status' });
+                    }
                     xrSpatialShell?.setToolState('thermal', {
                         active: Boolean(xrSensors?.active),
                         status: `${thermalTransport || 'offline'}/${thermalSource || 'standby'}`
@@ -2843,6 +2876,8 @@
                 aircraftId: spatialContext.aircraft?.id || viewerContext.aircraftId || null,
                 model: spatialContext.model || viewerContext.model || null,
                 componentId: spatialContext.component?.id || spatialContext.component?.meshName || viewerContext.componentId || null,
+                part: spatialContext.part || viewerContext.part || null,
+                device: spatialContext.device || viewerContext.device || null,
                 location: spatialContext.location || viewerContext.location || null,
                 spatialSource: spatialContext.source || viewerContext.spatialSource || null
             };
@@ -2855,12 +2890,23 @@
             return spatialContext;
         }
 
+        function commitSpatialSelection(update = {}, { source = 'spatial-selection', mode = spatialMode } = {}) {
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                ...update,
+                source,
+                mode
+            }) || { ...spatialContext, ...update, source, mode };
+            synchronizeWorkspaceContext(source);
+            updateViewerContextFromSpatialContext();
+            postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
+            return spatialContext;
+        }
+
         function handleOperationsSurfaceAction(action, input = 'xr', target = {}) {
             if (action === 'open-fleet-location') {
-                spatialContext = globalThis.MXSpatialContext?.update?.({
-                    ...spatialContext,
+                setSpatialMode('maintenance', {
                     source: 'xr-world-marker',
-                    mode: 'operations',
+                    context: {
                     aircraft: null,
                     location: {
                         icao: target.icao || null,
@@ -2869,37 +2915,36 @@
                         latitude: target.latitude ?? null,
                         longitude: target.longitude ?? null
                     }
-                }) || {
-                    ...spatialContext,
-                    source: 'xr-world-marker',
-                    mode: 'operations',
-                    location: target
-                };
-                synchronizeWorkspaceContext('xr-world-marker');
-                updateViewerContextFromSpatialContext();
-                postSpatialStatus('active');
+                    }
+                });
             }
             if (action === 'fleet-aircraft-selected') {
-                spatialContext = globalThis.MXSpatialContext?.update?.({
-                    ...spatialContext,
+                setSpatialMode('maintenance', {
                     source: 'xr-world-aircraft',
-                    mode: 'operations',
-                    aircraft: {
-                        id: target.id || null,
-                        registration: target.registration || null,
-                        family: target.family || null
-                    },
-                    location: target.location || spatialContext.location || null
-                }) || {
-                    ...spatialContext,
-                    source: 'xr-world-aircraft',
-                    mode: 'operations',
-                    aircraft: target,
-                    location: target.location || spatialContext.location || null
-                };
-                synchronizeWorkspaceContext('xr-world-aircraft');
-                updateViewerContextFromSpatialContext();
-                postSpatialStatus('active');
+                    context: {
+                        aircraft: {
+                            id: target.id || null,
+                            registration: target.registration || null,
+                            family: target.family || null
+                        },
+                        location: target.location || spatialContext.location || null
+                    }
+                });
+            }
+            if (action === 'open-live-flight') {
+                setSpatialMode('maintenance', {
+                    source: 'xr-world-live-flight',
+                    context: {
+                        aircraft: {
+                            id: target.aircraftId || target.icao24 || target.registration || target.callsign || null,
+                            registration: target.registration || target.callsign || null,
+                            family: target.aircraftType || null
+                        },
+                        location: Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng))
+                            ? { latitude: Number(target.lat), longitude: Number(target.lng) }
+                            : spatialContext.location
+                    }
+                });
             }
             emitXRAction(action, input, target);
         }
@@ -2910,7 +2955,7 @@
             if (currentModel) currentModel.visible = !presenting || maintenance;
             if (inspectionGrid) inspectionGrid.visible = !presenting || maintenance;
             xrOperations?.setPresenting(presenting, camera);
-            xrOperations?.setVisible(!maintenance, camera);
+            xrOperations?.setView(maintenance ? 'focus' : 'world', camera);
             xrSpatialShell?.setMode(spatialMode);
             if (xrSensors?.group) xrSensors.group.visible = presenting && maintenance;
             if (xrVoice?.group) xrVoice.group.visible = presenting && maintenance;
@@ -2931,25 +2976,30 @@
 
         function setSpatialMode(mode, { source = 'spatial-workspace', context = null } = {}) {
             spatialMode = mode === 'operations' ? 'operations' : 'maintenance';
-            xrWorkspaceController.requestView(
-                spatialMode === 'operations' ? SPATIAL_WORKSPACE_VIEWS.WORLD : SPATIAL_WORKSPACE_VIEWS.FOCUS,
-                { source }
-            );
             const update = context && typeof context === 'object' ? context : {};
+            const has = (key) => Object.prototype.hasOwnProperty.call(update, key);
             spatialContext = globalThis.MXSpatialContext?.update?.({
                 ...update,
                 source,
                 mode: spatialMode,
-                aircraft: update.aircraft || spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
-                case: update.case || spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
-                model: update.model || spatialContext.model || viewerContext.model || modelContextForEntry(),
-                component: update.component || (selectedMesh ? {
+                aircraft: has('aircraft') ? update.aircraft : spatialContext.aircraft || (viewerContext.aircraftId ? { id: viewerContext.aircraftId } : null),
+                case: has('case') ? update.case : spatialContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
+                model: has('model') ? update.model : spatialContext.model || viewerContext.model || modelContextForEntry(),
+                component: has('component') ? update.component : (selectedMesh ? {
                     id: viewerContext.componentId || selectedMesh.name || null,
                     meshName: selectedMesh.name || null,
                     path: getObjectPath(selectedMesh)
-                } : spatialContext.component)
+                } : spatialContext.component),
+                part: has('part') ? update.part : spatialContext.part,
+                device: has('device') ? update.device : spatialContext.device,
+                location: has('location') ? update.location : spatialContext.location
             }) || { ...spatialContext, ...update, source, mode: spatialMode };
-            synchronizeWorkspaceContext(source);
+            xrWorkspaceController.navigate(
+                spatialMode === 'operations' ? SPATIAL_WORKSPACE_VIEWS.WORLD : SPATIAL_WORKSPACE_VIEWS.FOCUS,
+                spatialContext,
+                { source, sessionPreserved: Boolean(spatialSession) }
+            );
+            xrOperations?.setContext(spatialContext);
             updateViewerContextFromSpatialContext();
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
@@ -3059,7 +3109,11 @@
             }
             xrWorkspaceController.beginRealityHandoff(requestedMode, { input });
             pendingSpatialSessionMode = requestedMode;
-            spatialHandoffWindowState = xrWindowManager?.snapshot?.() || null;
+            spatialHandoffWorkspaceState = xrWorkspaceController.snapshot();
+            spatialHandoffWindowState = {
+                activeId: spatialHandoffWorkspaceState.activeWindow,
+                windows: spatialHandoffWorkspaceState.windows
+            };
             postSpatialStatus('handoff', { sessionMode: requestedMode });
             if (!spatialSession) {
                 showSpatialModeHandoff(requestedMode);
@@ -3075,6 +3129,7 @@
             } catch (error) {
                 pendingSpatialSessionMode = null;
                 spatialHandoffWindowState = null;
+                spatialHandoffWorkspaceState = null;
                 xrWorkspaceController.cancelRealityHandoff({ reason: 'session-end-failed' });
                 hideSpatialModeHandoff();
                 postSpatialStatus('active');
@@ -3133,6 +3188,8 @@
                 exit: () => spatialSession?.end?.(),
                 switchSessionMode: (sessionMode) => beginSpatialSessionModeHandoff(sessionMode, { input: 'workspace-api' }),
                 setMode: (mode, context) => setSpatialMode(mode, { source: 'workspace-api', context }),
+                focus: (context) => setSpatialMode('maintenance', { source: 'workspace-focus', context }),
+                returnToWorld: () => setSpatialMode('operations', { source: 'workspace-return' }),
                 status: () => ({
                     active: Boolean(spatialSession),
                     mode: spatialMode,
@@ -3158,13 +3215,14 @@
                 xrVoice?.setPresenting(true);
                 xrWitness?.setPresenting(true);
                 xrSpatialShell?.setPresenting(true, camera);
-                if (spatialHandoffWindowState?.activeId) {
-                    xrWindowManager?.open(spatialHandoffWindowState.activeId, {
+                if (spatialHandoffWindowState) {
+                    xrWindowManager?.restoreSnapshot(spatialHandoffWindowState, {
                         input: 'system',
                         reason: 'session-mode-handoff'
                     });
                 }
                 spatialHandoffWindowState = null;
+                spatialHandoffWorkspaceState = null;
                 applySpatialMode();
                 postSpatialStatus('active');
             });
@@ -3864,15 +3922,10 @@
         function syncActiveModelContext(entry = currentCatalogEntry()) {
             const model = modelContextForEntry(entry);
             if (!model) return null;
-            spatialContext = globalThis.MXSpatialContext?.update?.({
+            setSpatialMode('maintenance', {
                 source: '3d-model-selection',
-                mode: spatialMode,
-                model,
-                component: null
-            }) || { ...spatialContext, model, component: null };
-            synchronizeWorkspaceContext('3d-model-selection');
-            viewerContext = { ...viewerContext, model, componentId: null };
-            xrMaintenanceHUD?.setContext(viewerContext);
+                context: { model, component: null, part: null }
+            });
             void xrVoice?.refreshContext();
             if (window.parent !== window) {
                 window.parent.postMessage({
@@ -3929,10 +3982,11 @@
                 spatialContext = globalThis.MXSpatialContext?.update?.({
                     source: '3d-mesh-cleared',
                     mode: spatialMode,
-                    component: null
-                }) || { ...spatialContext, component: null };
+                    component: null,
+                    part: null
+                }) || { ...spatialContext, component: null, part: null };
                 synchronizeWorkspaceContext('3d-mesh-cleared');
-                viewerContext = { ...viewerContext, componentId: null };
+                viewerContext = { ...viewerContext, componentId: null, part: null };
                 globalThis.MXTargetContext?.clear?.({
                     match: { kind: 'mesh' },
                     reason: 'viewer-mesh-cleared'
@@ -3974,17 +4028,24 @@
                 meshName: mesh.name || null,
                 path
             };
+            const partContext = mapping?.partNumber || mapping?.requestId ? {
+                id: mapping.partId || mapping.partNumber || mapping.requestId,
+                partNumber: mapping.partNumber || null,
+                requestId: mapping.requestId || null
+            } : null;
             spatialContext = globalThis.MXSpatialContext?.update?.({
                 source: '3d-mesh-raycast',
                 mode: spatialMode,
                 model: modelContext,
-                component: componentContext
-            }) || { ...spatialContext, model: modelContext, component: componentContext };
+                component: componentContext,
+                part: partContext
+            }) || { ...spatialContext, model: modelContext, component: componentContext, part: partContext };
             synchronizeWorkspaceContext('3d-mesh-raycast');
             viewerContext = {
                 ...viewerContext,
                 model: modelContext,
-                componentId: componentContext.id
+                componentId: componentContext.id,
+                part: partContext
             };
 
             const detail = {
@@ -4293,11 +4354,14 @@
                 const requestedSessionMode = pendingSpatialSessionMode
                     || document.getElementById('spatial-mode-handoff')?.dataset.sessionMode;
                 if (!requestedSessionMode) return;
+                const preservedWorkspace = spatialHandoffWorkspaceState;
                 showSpatialModeHandoff(requestedSessionMode, { state: 'connecting' });
                 try {
                     await enterSpatialWorkspace({
-                        mode: spatialMode,
-                        context: spatialContext,
+                        mode: preservedWorkspace
+                            ? preservedWorkspace.view === SPATIAL_WORKSPACE_VIEWS.WORLD ? 'operations' : 'maintenance'
+                            : spatialMode,
+                        context: preservedWorkspace?.context || spatialContext,
                         sessionMode: requestedSessionMode
                     });
                 } catch (error) {
@@ -4326,6 +4390,7 @@
                 clearTimeout(externalHandoffFallbackTimer);
                 pendingSpatialSessionMode = null;
                 spatialHandoffWindowState = null;
+                spatialHandoffWorkspaceState = null;
                 xrWorkspaceController.cancelRealityHandoff({ reason: 'user-cancelled' });
                 xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-mode-handoff-cancelled' });
                 xrVoice?.setPresenting(false);
@@ -4401,6 +4466,8 @@
                         case: viewerContext.case || (viewerContext.caseId ? { id: viewerContext.caseId } : null),
                         model: viewerContext.model || spatialContext.model || modelContextForEntry(),
                         component: viewerContext.component || (viewerContext.componentId ? { id: viewerContext.componentId } : null),
+                        part: viewerContext.part || null,
+                        device: viewerContext.device || null,
                         location: viewerContext.location || null
                     }) || spatialContext;
                     synchronizeWorkspaceContext('embedded-viewer');

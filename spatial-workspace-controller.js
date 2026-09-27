@@ -110,6 +110,15 @@ export class SpatialWorkspaceController {
     }, detail);
   }
 
+  navigate(view, context = this.state.context, detail = {}) {
+    required(view, VIEWS, 'view');
+    const normalized = copy(this.normalizeContext(copy(context))) || {};
+    return this.transition('journey', (state) => {
+      state.view = view;
+      state.context = normalized;
+    }, detail);
+  }
+
   setContext(context, detail = {}) {
     const normalized = copy(this.normalizeContext(copy(context))) || {};
     return this.transition('context', (state) => {
