@@ -5,7 +5,7 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
-  const BUILD_BOARD_SCHEMA_VERSION = 5;
+  const BUILD_BOARD_SCHEMA_VERSION = 6;
   const STATIC_CARD_ARTWORK = new Map([
     ['sprint-xr-spatial-workspace', {
       src: 'assets/xr-spatial-workspace-map.png',
@@ -23,11 +23,110 @@
       id: 'sprint-xr-spatial-workspace',
       lane: 'sprint',
       title: 'Consolidate XR into one spatial workspace',
-      message: 'Replace the separate Operations, Maintenance, sensor, and fallback scene choices with one spatial workspace: World and Focus preserve context, one control summons relevant actions, system controls stay tucked away, and the Quest companion surfaces only for consent or recovery.',
+      message: 'Architecture lock: replace the separate Operations, Maintenance, sensor, and fallback scene choices with one spatial workspace. Execute XR 01-09 below in order so World and Focus preserve context, one control summons relevant actions, system controls stay tucked away, and the Quest companion surfaces only for consent or recovery.',
       owner: 'Dwayne Tillman',
       author: 'September 27 XR architecture decision',
       created_at: '2026-09-27T11:30:00Z',
       updated_at: '2026-09-27T11:30:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-controller-contract',
+      lane: 'sprint',
+      title: 'XR 01 · Establish the workspace controller contract',
+      message: 'Create one SpatialWorkspaceController owned by the canonical 3D viewer. It must own view (World or Focus), reality mode (VR or AR), normalized spatial context, active window, system-menu state, and normal/degraded/recovery service state. Route existing shell, model-selection, recenter, session, and window events through it without changing visible behavior.\n\nAcceptance: controller state is inspectable and deterministic; only it may request view changes; context and minimized-window state survive controller updates; unit tests cover valid transitions and reject competing session owners.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:00:00Z',
+      updated_at: '2026-09-27T12:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-world-surface',
+      lane: 'sprint',
+      title: 'XR 02 · Mount World in the canonical renderer',
+      message: 'Import XROperationsSurface into the 3D viewer and mount it as the World scene group beside the existing Focus/model group. Share the current Three.js renderer, camera rig, input raycasters, session lifecycle, spatial context, and window manager—do not embed globe-vr or create a second WebXR renderer.\n\nAcceptance: entering the workspace can reveal World inside the existing XR session; globe markers accept controller and hand input; Focus remains loaded but hidden; there is one renderer, one animation loop, and one active XR session.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:01:00Z',
+      updated_at: '2026-09-27T12:01:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-jetnet-layer',
+      lane: 'sprint',
+      title: 'XR 03 · Port the mature JetNet globe layer',
+      message: 'Extract the production globe features still trapped in globe-vr into reusable World modules: fleet data provider, Blue Marble presentation, stable clusters, filters, aircraft selection, JetNet detail and image grid, live-flight ribbon, locations, nodes, loading, empty, stale, and error states. Keep JetNet registry data separate from throttled public flight observations.\n\nAcceptance: World matches the mature globe for aircraft discovery and imagery; selecting a marker publishes aircraft and location into MXSpatialContext; sparse or unavailable provider data degrades clearly without breaking the scene.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:02:00Z',
+      updated_at: '2026-09-27T12:02:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-world-focus-transition',
+      lane: 'sprint',
+      title: 'XR 04 · Make World and Focus one continuous journey',
+      message: 'Replace the Operations page-navigation handoff with controller-driven World and Focus transitions. Selecting an aircraft, model, case, component, part, location, or live device must update the shared context; the contextual action returns to World without losing that selection. Keep VR-to-AR as the separate fresh-gesture session handoff required by the browser.\n\nAcceptance: World to Focus to World never ends the XR session, navigates the page, flashes black, duplicates a scene, or discards context; VR-to-AR and AR-to-VR preserve the same workspace snapshot after the required user gesture.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:03:00Z',
+      updated_at: '2026-09-27T12:03:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-capability-registry',
+      lane: 'sprint',
+      title: 'XR 05 · Gate tools through a capability registry',
+      message: 'Create a registry that derives contextual actions from selection, case state, service readiness, permissions, and live connections. Route Ask AI, Capture, Thermal, and Witness through their existing engines and the one-window manager. Split thermal viewing from setup and diagnostics so service controls do not occupy the action surface.\n\nAcceptance: unavailable capabilities are absent or explicitly disabled with a reason; Capture requires an evidence target; Thermal appears only when a valid source is available; Witness follows its connection and consent state; opening one tool minimizes the previous window without ending its allowed background lifecycle.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:04:00Z',
+      updated_at: '2026-09-27T12:04:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-layout-interaction',
+      lane: 'sprint',
+      title: 'XR 06 · Replace the button wall with two controls',
+      message: 'Replace the permanent two-mode tray and tool row with one contextual action control and one compact system menu. The action control serves select, return, Ask AI, Capture, Thermal, and Witness according to context. The system menu owns VR/AR, recenter, sound, service/diagnostics, and exit. Both must rest quietly, share one stable world anchor, and remain recoverable after recenter.\n\nAcceptance: no duplicate or unintended head-attached panels; all controls are reachable by controller and hand dwell; panels remain separated and readable; the system menu cannot obscure the selected asset; every action has hover, active, disabled, loading, and failure feedback.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:05:00Z',
+      updated_at: '2026-09-27T12:05:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-native-boundary',
+      lane: 'sprint',
+      title: 'XR 07 · Reduce the Quest companion to service boundaries',
+      message: 'Keep SensorBridgeService as the normal thermal and witness bridge. Use the native activity only for MediaProjection consent, explicit diagnostics, or degraded/recovery operation; it must not become a competing everyday workspace. Preserve opaque session binding, secure local transport, bounded reconnects, deterministic teardown, and the browser resume handoff.\n\nAcceptance: normal Thermal and Witness return to the same WebXR workspace after consent; remote viewing recovers from a stalled or black frame within its bounded policy; revocation and exit release capture, peer, socket, and wake-lock resources; the native immersive panel is reachable only through Service/recovery.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:06:00Z',
+      updated_at: '2026-09-27T12:06:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-route-retirement',
+      lane: 'sprint',
+      title: 'XR 08 · Fence and retire the legacy scene routes',
+      message: 'Point the dashboard and all XR launchers at the canonical workspace. Remove Operations-to-globe navigation messages and stop offering separate bridge, sensor, bare-globe, and maintenance destinations. Temporarily retain old routes only behind an explicit service or rollback flag, then remove them after hardware acceptance and telemetry review.\n\nAcceptance: one public launcher reaches one session owner; normal use never loads globe-vr scene variants; deep links fail or redirect safely; existing bookmarks receive a clear transition; automated tests assert the unified contract instead of the legacy page handoff.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:07:00Z',
+      updated_at: '2026-09-27T12:07:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-operations-xr-acceptance',
+      lane: 'sprint',
+      title: 'XR 09 · Run unified workspace acceptance on Quest',
+      message: 'Run the final physical matrix in VR and AR: launch, World, fleet filters, JetNet images, marker selection, Focus, model raycast, contextual return, Ask AI, Capture, Thermal, Witness consent and recovery, one-window behavior, recenter, sound, diagnostics, VR/AR handoff, and exit. Include controller, hands, network loss, companion loss, stale flight data, denied permission, and interrupted consent.\n\nAcceptance: no session loss during World/Focus movement; no duplicate or head-locked clutter; context survives every supported handoff; Remote Witness shows advancing frames after recovery; all resources release on exit; automated XR suites and a recorded physical-device checklist pass before legacy routes are removed.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR stack audit',
+      created_at: '2026-09-27T12:08:00Z',
+      updated_at: '2026-09-27T12:08:00Z',
       updates: []
     },
     {
@@ -90,28 +189,6 @@
       lane: 'sprint',
       title: 'Run Remote Witness end-to-end acceptance',
       message: 'Prove PIN creation and exchange, wearer approval, Horizon capture consent, advancing video frames, customer microphone return, pause/resume with fresh consent, viewer count, expiry, and deterministic teardown without a frozen last frame or black view.',
-      owner: 'Dwayne Tillman',
-      author: 'September 27 readiness refresh',
-      created_at: '2026-09-27T00:00:00Z',
-      updated_at: '2026-09-27T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-operations-xr-acceptance',
-      lane: 'sprint',
-      title: 'Accept Operations VR and AR transitions',
-      message: 'On Quest, switch VR to AR and AR to VR through the fresh-gesture handoff, preserve the mature globe and active tool window, verify return from native consent, and confirm clean exit to the browser.',
-      owner: 'Dwayne Tillman',
-      author: 'September 27 readiness refresh',
-      created_at: '2026-09-27T00:00:00Z',
-      updated_at: '2026-09-27T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-xr-layout-interaction',
-      lane: 'sprint',
-      title: 'Complete the XR layout and interaction pass',
-      message: 'Verify controller and hand activation for every tray and panel control; remove duplicate or head-attached surfaces; keep Thermal, Witness, AI, globe HUD, and task windows separated, readable, and recoverable through recenter.',
       owner: 'Dwayne Tillman',
       author: 'September 27 readiness refresh',
       created_at: '2026-09-27T00:00:00Z',
@@ -251,9 +328,9 @@
       updates: []
     }
   ];
-  const BUILD_BOARD_V5_STARTER_IDS = new Set(starterCards.map((card) => card.id));
-  const BUILD_BOARD_V5_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
-  const BUILD_BOARD_V5_RETIRED_IDS = new Set([
+  const BUILD_BOARD_V6_STARTER_IDS = new Set(starterCards.map((card) => card.id));
+  const BUILD_BOARD_V6_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
+  const BUILD_BOARD_V6_RETIRED_IDS = new Set([
     'question-operations-connections',
     'question-structured-output-example',
     'question-demonstration-done',
@@ -267,7 +344,7 @@
     'sprint-flir-libssh2-disposition',
     'sprint-final-release-closeout'
   ]);
-  const BUILD_BOARD_V5_RETIRED_TITLES = new Set([
+  const BUILD_BOARD_V6_RETIRED_TITLES = new Set([
     'Can we provide a model structured-output example to mimic?',
     'Which POC devices and programs should run with the Pi?',
     'Prepare the final release and handoff report',
@@ -337,8 +414,8 @@
     let cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
     if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
       const retained = cards.filter((card) => (
-        !BUILD_BOARD_V5_RETIRED_IDS.has(card.id)
-        && !BUILD_BOARD_V5_RETIRED_TITLES.has(card.title)
+        !BUILD_BOARD_V6_RETIRED_IDS.has(card.id)
+        && !BUILD_BOARD_V6_RETIRED_TITLES.has(card.title)
       ));
       const existingById = new Map(retained.map((card) => [card.id, card]));
       const legacyByTitle = new Map(retained.map((card) => [card.title, card]));
@@ -352,8 +429,8 @@
         } : starter);
       });
       const teamCards = retained.filter((card) => (
-        !BUILD_BOARD_V5_STARTER_IDS.has(card.id)
-        && !BUILD_BOARD_V5_STARTER_TITLES.has(card.title)
+        !BUILD_BOARD_V6_STARTER_IDS.has(card.id)
+        && !BUILD_BOARD_V6_STARTER_TITLES.has(card.title)
       ));
       cards = [...refreshedStarters, ...teamCards];
     }

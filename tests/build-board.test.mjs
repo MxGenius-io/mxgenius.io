@@ -54,9 +54,9 @@ test('board lanes lead the composer and cards support private picture attachment
 });
 
 test('the starter build list reflects the current hardware and release work', () => {
-  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V5_STARTER_IDS'));
+  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V6_STARTER_IDS'));
   assert.equal((starterSource.match(/lane: 'question'/g) || []).length, 0);
-  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 11);
+  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 18);
   assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 10);
   assert.match(starterSource, /Publish and accept Quest Sensor Bridge alpha\.25/);
   assert.match(starterSource, /Run Rocky acceptance on Feedback and Parts/);
@@ -73,19 +73,26 @@ test('the starter build list reflects the current hardware and release work', ()
   assert.match(js, /Upload native spatial AR Build 33 to TestFlight/);
   for (const title of [
     'Run Remote Witness end-to-end acceptance',
-    'Accept Operations VR and AR transitions',
-    'Complete the XR layout and interaction pass',
+    'XR 01 · Establish the workspace controller contract',
+    'XR 02 · Mount World in the canonical renderer',
+    'XR 03 · Port the mature JetNet globe layer',
+    'XR 04 · Make World and Focus one continuous journey',
+    'XR 05 · Gate tools through a capability registry',
+    'XR 06 · Replace the button wall with two controls',
+    'XR 07 · Reduce the Quest companion to service boundaries',
+    'XR 08 · Fence and retire the legacy scene routes',
+    'XR 09 · Run unified workspace acceptance on Quest',
     'Accept Pi appliance 0.3.1-poc.29 on hardware',
     'Verify the complete Equipment Drive lifecycle',
     'Accept the USB mass-storage gadget workflow',
     'Field-test selected OpenSky trip paths',
     'Close the model response-loop regression'
   ]) assert.match(starterSource, new RegExp(title.replace(/[+/.]/g, '\\$&')));
-  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 5/);
-  assert.match(js, /BUILD_BOARD_V5_STARTER_IDS/);
-  assert.match(js, /BUILD_BOARD_V5_STARTER_TITLES/);
-  assert.match(js, /BUILD_BOARD_V5_RETIRED_IDS/);
-  assert.match(js, /BUILD_BOARD_V5_RETIRED_TITLES/);
+  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 6/);
+  assert.match(js, /BUILD_BOARD_V6_STARTER_IDS/);
+  assert.match(js, /BUILD_BOARD_V6_STARTER_TITLES/);
+  assert.match(js, /BUILD_BOARD_V6_RETIRED_IDS/);
+  assert.match(js, /BUILD_BOARD_V6_RETIRED_TITLES/);
   for (const id of ['question-demonstration-done', 'question-thermal-acceptance-duration', 'question-ios-build33-owner', 'sprint-quest-poc12-acceptance']) {
     assert.match(js, new RegExp(id));
   }
@@ -93,7 +100,7 @@ test('the starter build list reflects the current hardware and release work', ()
   assert.match(js, /created_at: existing\.created_at \|\| starter\.created_at/);
   assert.match(js, /image: existing\.image/);
   assert.match(js, /updates: existing\.updates/);
-  assert.match(html, /build-board\.js\?v=6/);
+  assert.match(html, /build-board\.js\?v=7/);
 });
 
 test('the locked lean spatial workspace direction is a Current sprint card', () => {
