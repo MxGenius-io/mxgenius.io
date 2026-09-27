@@ -74,23 +74,31 @@ test('starter software inventory includes known external, live-flight, model, an
 });
 
 test('starter hardware separates enclosure internals, power/data paths, and attached demo equipment', () => {
-  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'Enclosure cooling fan', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Demo drill / driver', 'Pressure gauge / transducer', '52Pi direct GPIO power path', 'USB-C mass-storage gadget and data path']) {
-    assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
+  const starterDevices = js.match(/const starterDevices = \[([\s\S]*?)\n  \];\n\n  const starterWorkflows/)[1];
+  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Pressure gauge / transducer', 'iPhone / iPad test device', '52Pi direct GPIO power path', 'USB-C mass-storage gadget and data path']) {
+    assert.match(starterDevices, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   }
+  assert.doesNotMatch(starterDevices, /Enclosure cooling fan|Demo drill \/ driver/);
+  assert.equal((starterDevices.match(/id: 'device-/g) || []).length, 10);
+  assert.equal((starterDevices.match(/status: 'ready_to_test'/g) || []).length, 10);
+  assert.doesNotMatch(starterDevices, /status: 'needs_input'/);
   assert.match(html, /Inside[\s\S]*Pi 5 · 16 GB[\s\S]*Outside/);
   assert.match(js, /calibration/);
   assert.match(js, /What the first demo must prove/);
 });
 
 test('structured output is explained in executive language with human authority intact', () => {
+  const starterWorkflows = js.match(/const starterWorkflows = \[([\s\S]*?)\n  \];\n\n  const starterMigrations/)[1];
   assert.match(html, /What “structured output” means/);
   for (const label of ['Observation', 'Evidence', 'Meaning', 'Next action', 'Human decision', 'Record']) assert.match(html, new RegExp(label));
   assert.match(html, /Use approved aircraft data/);
   assert.match(html, /Values and limits are never assumed/);
-  assert.equal((js.match(/id: 'workflow-/g) || []).length, 11);
+  assert.equal((starterWorkflows.match(/id: 'workflow-/g) || []).length, 6);
   for (const name of ['Commission, update, and recover the Pi appliance', 'Complete the Equipment Drive transfer lifecycle', 'Run a Remote Witness support session', 'Transition between VR and AR without losing work', 'Stop and recover a model response loop', 'Select and follow a live flight trip']) {
-    assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
+    assert.match(starterWorkflows, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   }
+  assert.doesNotMatch(starterWorkflows, /status: 'needs_input'/);
+  assert.doesNotMatch(starterWorkflows, /Troubleshoot a maintenance discrepancy|Interpret a connected tool or sensor reading|Identify, source, and request a part|Review an FAA or OEM requirement|Create a shift, escalation, or remote-support handoff/);
   assert.match(js, /Gold-standard example for MXGenius to mimic/);
 });
 
@@ -103,11 +111,25 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /element\.textContent = text/);
   assert.doesNotMatch(js, /innerHTML/);
   assert.match(js, /beforeunload/);
-  assert.match(js, /READINESS_SCHEMA_VERSION = 3/);
+  assert.match(js, /READINESS_SCHEMA_VERSION = 4/);
   assert.match(js, /READINESS_V3_IDS/);
+  assert.match(js, /READINESS_V4_REMOVED_DEVICE_IDS/);
+  assert.match(js, /READINESS_V4_REMOVED_DEVICE_NAMES/);
+  assert.match(js, /inputSchemaVersion < 3/);
+  assert.match(js, /inputSchemaVersion < 4\) applyReadinessV4\(document\)/);
   assert.match(js, /mergeStarterUpgrade/);
   assert.match(js, /needsSchemaSave/);
   assert.match(js, /save to publish it/);
+});
+
+test('readiness v4 clears retired and yellow work while leaving migrations outside the v4 transform', () => {
+  const migration = js.match(/function applyReadinessV4\(document\) \{([\s\S]*?)\n  \}/)[1];
+  assert.match(migration, /READINESS_V4_REMOVED_DEVICE_IDS/);
+  assert.match(migration, /READINESS_V4_REMOVED_DEVICE_NAMES/);
+  assert.match(migration, /status: 'ready_to_test'/);
+  assert.match(migration, /item\.status !== 'needs_input'/);
+  assert.doesNotMatch(migration, /migrations/);
+  assert.match(html, /integration-readiness\.js\?v=4/);
 });
 
 test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {
