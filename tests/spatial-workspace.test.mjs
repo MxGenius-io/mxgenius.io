@@ -93,6 +93,11 @@ test('the web application exposes one launcher and one canonical VR or AR sessio
   assert.match(viewer, /\['immersive-vr', 'immersive-ar'\]/);
   assert.match(viewer, /sessionMode === 'immersive-ar'[\s\S]*'hit-test'/);
   assert.match(viewer, /await renderer\.xr\.setSession\(session\)/);
+  assert.match(viewer, /SpatialWorkspaceController/);
+  assert.match(viewer, /SPATIAL_SESSION_OWNER = 'canonical-3d-viewer'/);
+  assert.match(viewer, /xrWorkspaceController\.activateSession\(SPATIAL_SESSION_OWNER/);
+  assert.match(viewer, /xrWorkspaceController\.releaseSession\(SPATIAL_SESSION_OWNER/);
+  assert.match(viewer, /workspace: xrWorkspaceController\.snapshot\(\)/);
   assert.doesNotMatch(viewer, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(application, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
@@ -124,7 +129,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=46/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=47/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);

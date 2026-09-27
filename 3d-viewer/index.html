@@ -1469,6 +1469,10 @@
         import { XRSpatialShell } from '../xr-spatial-shell.js?v=11';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=1';
         import {
+            SPATIAL_WORKSPACE_VIEWS,
+            SpatialWorkspaceController
+        } from '../spatial-workspace-controller.js?v=1';
+        import {
             applicationSession,
             resolveXRSensorRuntime,
             snapshotFile,
@@ -1546,6 +1550,18 @@
             location: spatialContext.location || null,
             spatialSource: spatialContext.source || null
         };
+        const SPATIAL_SESSION_OWNER = 'canonical-3d-viewer';
+        const xrWorkspaceController = new SpatialWorkspaceController({
+            view: SPATIAL_WORKSPACE_VIEWS.FOCUS,
+            realityMode: 'immersive-vr',
+            context: spatialContext,
+            normalizeContext: (value) => globalThis.MXSpatialContext?.normalize?.(value) || value,
+            onChange: ({ type, detail, state }) => {
+                window.dispatchEvent(new CustomEvent('mxgenius:spatial-workspace-state', {
+                    detail: { type, detail, state }
+                }));
+            }
+        });
         let xrMediaPanel = null;
         let xrAnimationScrubber = null;
         let xrMaintenanceHUD = null;
@@ -1556,7 +1572,9 @@
         let xrSpatialShell = null;
         let xrSpatialCommands = null;
         let xrWindowManager = null;
-        let spatialMode = 'maintenance';
+        let spatialMode = xrWorkspaceController.snapshot().view === SPATIAL_WORKSPACE_VIEWS.WORLD
+            ? 'operations'
+            : 'maintenance';
         let spatialSession = null;
         let activeSpatialSessionMode = null;
         let pendingSpatialSessionMode = null;
@@ -1980,6 +1998,12 @@
             scene.add(xrWitness.group);
             xrWindowManager = new SpatialWindowManager({
                 onChange: ({ id, state, active, snapshot }) => {
+                    xrWorkspaceController.updateWindowSnapshot(snapshot, {
+                        source: 'spatial-window-manager',
+                        id,
+                        state,
+                        active
+                    });
                     xrSpatialShell?.setToolState(id, {
                         active: Boolean(active),
                         windowState: state
@@ -2811,6 +2835,7 @@
                 ready,
                 mode: spatialMode,
                 sessionMode,
+                workspace: xrWorkspaceController.snapshot(),
                 availableSessionModes: Object.entries(spatialSessionSupport)
                     .filter(([, available]) => available === true)
                     .map(([name]) => name)
@@ -2828,6 +2853,11 @@
                 spatialSource: spatialContext.source || viewerContext.spatialSource || null
             };
             xrMaintenanceHUD?.setContext(viewerContext);
+        }
+
+        function synchronizeWorkspaceContext(source = 'spatial-workspace') {
+            xrWorkspaceController.setContext(spatialContext, { source });
+            return spatialContext;
         }
 
         function applySpatialMode() {
@@ -2855,6 +2885,10 @@
 
         function setSpatialMode(mode, { source = 'spatial-workspace', context = null } = {}) {
             spatialMode = mode === 'operations' ? 'operations' : 'maintenance';
+            xrWorkspaceController.requestView(
+                spatialMode === 'operations' ? SPATIAL_WORKSPACE_VIEWS.WORLD : SPATIAL_WORKSPACE_VIEWS.FOCUS,
+                { source }
+            );
             const update = context && typeof context === 'object' ? context : {};
             spatialContext = globalThis.MXSpatialContext?.update?.({
                 ...update,
@@ -2869,6 +2903,7 @@
                     path: getObjectPath(selectedMesh)
                 } : spatialContext.component)
             }) || { ...spatialContext, ...update, source, mode: spatialMode };
+            synchronizeWorkspaceContext(source);
             updateViewerContextFromSpatialContext();
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
@@ -2886,6 +2921,8 @@
                 source: 'mature-globe-handoff',
                 mode: 'operations'
             }) || { ...spatialContext, ...update, source: 'mature-globe-handoff', mode: 'operations' };
+            xrWorkspaceController.requestView(SPATIAL_WORKSPACE_VIEWS.WORLD, { source: 'mature-globe-handoff' });
+            synchronizeWorkspaceContext('mature-globe-handoff');
             updateViewerContextFromSpatialContext();
             emitXRAction('mature-globe-handoff', input, { destination: 'globe-vr.html', sensorBridge: true });
             const session = renderer?.xr?.getSession?.() || spatialSession;
@@ -3008,6 +3045,7 @@
                 emitXRAction('spatial-session-mode-unavailable', input, { sessionMode: requestedMode });
                 return { active: Boolean(spatialSession), unavailable: true, sessionMode: requestedMode };
             }
+            xrWorkspaceController.beginRealityHandoff(requestedMode, { input });
             pendingSpatialSessionMode = requestedMode;
             spatialHandoffWindowState = xrWindowManager?.snapshot?.() || null;
             postSpatialStatus('handoff', { sessionMode: requestedMode });
@@ -3025,6 +3063,7 @@
             } catch (error) {
                 pendingSpatialSessionMode = null;
                 spatialHandoffWindowState = null;
+                xrWorkspaceController.cancelRealityHandoff({ reason: 'session-end-failed' });
                 hideSpatialModeHandoff();
                 postSpatialStatus('active');
                 console.warn('Unable to end the current immersive session', error);
@@ -3070,6 +3109,11 @@
             } catch (error) {
                 if (spatialSession === session) spatialSession = null;
                 activeSpatialSessionMode = null;
+                if (xrWorkspaceController.snapshot().session.ownerId === SPATIAL_SESSION_OWNER) {
+                    xrWorkspaceController.releaseSession(SPATIAL_SESSION_OWNER, { reason: 'workspace-entry-failed' });
+                } else {
+                    xrWorkspaceController.cancelRealityHandoff({ reason: 'workspace-entry-failed' });
+                }
                 if (session) await session.end().catch(() => {});
                 throw error;
             }
@@ -3088,6 +3132,7 @@
                     mode: spatialMode,
                     sessionMode: activeSpatialSessionMode,
                     pendingSessionMode: pendingSpatialSessionMode,
+                    workspace: xrWorkspaceController.snapshot(),
                     availableSessionModes: Object.entries(spatialSessionSupport)
                         .filter(([, supported]) => supported === true)
                         .map(([name]) => name)
@@ -3095,6 +3140,10 @@
             });
 
             renderer.xr.addEventListener('sessionstart', () => {
+                xrWorkspaceController.activateSession(SPATIAL_SESSION_OWNER, {
+                    realityMode: activeSpatialSessionMode || pendingSpatialSessionMode || 'immersive-vr',
+                    source: 'renderer-sessionstart'
+                });
                 void xrUIAudio?.unlock();
                 xrSpatialShell?.setSessionMode(activeSpatialSessionMode);
                 stageSceneForXR('local-floor', { sessionMode: activeSpatialSessionMode });
@@ -3114,6 +3163,12 @@
             });
             renderer.xr.addEventListener('sessionend', () => {
                 spatialSession = null;
+                if (xrWorkspaceController.snapshot().session.ownerId === SPATIAL_SESSION_OWNER) {
+                    xrWorkspaceController.releaseSession(SPATIAL_SESSION_OWNER, {
+                        preserveHandoff: Boolean(pendingSpatialSessionMode || pendingExternalSpatialHandoff),
+                        source: 'renderer-sessionend'
+                    });
+                }
                 if (!pendingSpatialSessionMode) {
                     xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-end' });
                 }
@@ -3230,6 +3285,10 @@
                 resumeMode,
                 phase: 'ending'
             };
+            xrWorkspaceController.beginRealityHandoff(resumeMode, {
+                input: 'xr',
+                reason: 'witness-consent'
+            });
             pendingSpatialSessionMode = resumeMode;
             spatialHandoffWindowState = xrWindowManager?.snapshot?.() || null;
             postSpatialStatus('handoff', { sessionMode: resumeMode });
@@ -3241,6 +3300,7 @@
                 pendingExternalSpatialHandoff = null;
                 pendingSpatialSessionMode = null;
                 spatialHandoffWindowState = null;
+                xrWorkspaceController.cancelRealityHandoff({ reason: 'witness-consent-end-failed' });
                 hideSpatialModeHandoff();
                 postSpatialStatus('active', { sessionMode: activeSpatialSessionMode });
                 throw error;
@@ -3791,6 +3851,7 @@
                 model,
                 component: null
             }) || { ...spatialContext, model, component: null };
+            synchronizeWorkspaceContext('3d-model-selection');
             viewerContext = { ...viewerContext, model, componentId: null };
             xrMaintenanceHUD?.setContext(viewerContext);
             void xrVoice?.refreshContext();
@@ -3851,6 +3912,7 @@
                     mode: spatialMode,
                     component: null
                 }) || { ...spatialContext, component: null };
+                synchronizeWorkspaceContext('3d-mesh-cleared');
                 viewerContext = { ...viewerContext, componentId: null };
                 globalThis.MXTargetContext?.clear?.({
                     match: { kind: 'mesh' },
@@ -3899,6 +3961,7 @@
                 model: modelContext,
                 component: componentContext
             }) || { ...spatialContext, model: modelContext, component: componentContext };
+            synchronizeWorkspaceContext('3d-mesh-raycast');
             viewerContext = {
                 ...viewerContext,
                 model: modelContext,
@@ -4244,6 +4307,7 @@
                 clearTimeout(externalHandoffFallbackTimer);
                 pendingSpatialSessionMode = null;
                 spatialHandoffWindowState = null;
+                xrWorkspaceController.cancelRealityHandoff({ reason: 'user-cancelled' });
                 xrWindowManager?.minimizeAll({ input: 'system', reason: 'session-mode-handoff-cancelled' });
                 xrVoice?.setPresenting(false);
                 hideSpatialModeHandoff();
@@ -4320,6 +4384,7 @@
                         component: viewerContext.component || (viewerContext.componentId ? { id: viewerContext.componentId } : null),
                         location: viewerContext.location || null
                     }) || spatialContext;
+                    synchronizeWorkspaceContext('embedded-viewer');
                     xrMaintenanceHUD?.setContext(viewerContext);
                     if (viewerContext.tutorial) configureProcedureMedia(viewerContext.tutorial);
                     void restoreViewerCaseEvidence().then((current) => {
