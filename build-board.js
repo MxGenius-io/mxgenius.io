@@ -5,7 +5,7 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
-  const BUILD_BOARD_SCHEMA_VERSION = 3;
+  const BUILD_BOARD_SCHEMA_VERSION = 4;
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -157,17 +157,6 @@
       updates: []
     },
     {
-      id: 'sprint-final-release-closeout',
-      lane: 'sprint',
-      title: 'Prepare the final release and handoff report',
-      message: 'Record deployed revisions, APK and Pi versions, checksums, live-site results, hardware acceptance evidence, open external gates, ownership, rollback instructions, and the remaining work that should survive the contract handoff.',
-      owner: 'Dwayne Tillman',
-      author: 'September 27 readiness refresh',
-      created_at: '2026-09-27T00:00:00Z',
-      updated_at: '2026-09-27T00:00:00Z',
-      updates: []
-    },
-    {
       id: 'complete-sensor-bridge',
       lane: 'complete',
       title: 'Establish the Quest Sensor Bridge Alpha lane',
@@ -245,8 +234,9 @@
       updates: []
     }
   ];
-  const BUILD_BOARD_V3_STARTER_IDS = new Set(starterCards.map((card) => card.id));
-  const BUILD_BOARD_V3_RETIRED_IDS = new Set([
+  const BUILD_BOARD_V4_STARTER_IDS = new Set(starterCards.map((card) => card.id));
+  const BUILD_BOARD_V4_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
+  const BUILD_BOARD_V4_RETIRED_IDS = new Set([
     'question-operations-connections',
     'question-structured-output-example',
     'question-demonstration-done',
@@ -257,7 +247,24 @@
     'sprint-manual-image-smoke',
     'sprint-quest-poc12-acceptance',
     'sprint-ios-build33-acceptance',
-    'sprint-flir-libssh2-disposition'
+    'sprint-flir-libssh2-disposition',
+    'sprint-final-release-closeout'
+  ]);
+  const BUILD_BOARD_V4_RETIRED_TITLES = new Set([
+    'Can we provide a model structured-output example to mimic?',
+    'Which POC devices and programs should run with the Pi?',
+    'Prepare the final release and handoff report',
+    'What third-party connections does Operations need?',
+    'What must the demonstration prove to count as done?',
+    'What qualifies poc.12 as thermally stable?',
+    'Who signs off TestFlight Build 33?',
+    'Smoke-check the recovered manual image path',
+    'Verify the registered manual image path',
+    'Accept Quest Sensor Bridge poc.12 on hardware',
+    'Complete TestFlight Build 33 device acceptance',
+    'Disposition the FLIR libssh2 advisory',
+    'Refine the apparatus mount and cable routing',
+    'Run the integrated headset apparatus test'
   ]);
 
   const state = {
@@ -312,10 +319,14 @@
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     let cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
     if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
-      const retained = cards.filter((card) => !BUILD_BOARD_V3_RETIRED_IDS.has(card.id));
+      const retained = cards.filter((card) => (
+        !BUILD_BOARD_V4_RETIRED_IDS.has(card.id)
+        && !BUILD_BOARD_V4_RETIRED_TITLES.has(card.title)
+      ));
       const existingById = new Map(retained.map((card) => [card.id, card]));
+      const legacyByTitle = new Map(retained.map((card) => [card.title, card]));
       const refreshedStarters = starterCards.map((starter) => {
-        const existing = existingById.get(starter.id);
+        const existing = existingById.get(starter.id) || legacyByTitle.get(starter.title);
         return normalizeCard(existing ? {
           ...starter,
           created_at: existing.created_at || starter.created_at,
@@ -323,7 +334,10 @@
           updates: existing.updates
         } : starter);
       });
-      const teamCards = retained.filter((card) => !BUILD_BOARD_V3_STARTER_IDS.has(card.id));
+      const teamCards = retained.filter((card) => (
+        !BUILD_BOARD_V4_STARTER_IDS.has(card.id)
+        && !BUILD_BOARD_V4_STARTER_TITLES.has(card.title)
+      ));
       cards = [...refreshedStarters, ...teamCards];
     }
     return { schema_version: BUILD_BOARD_SCHEMA_VERSION, cards };
