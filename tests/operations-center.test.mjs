@@ -24,6 +24,10 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
   assert.match(css, /\.operations-tabs \.operations-tab--deprecated\[aria-selected="true"\]/);
   assert.match(css, /#panel-reports, #reportsFrame \{ background: #0f172a; \}/);
   assert.match(js, /frame\.id === 'reportsFrame' \? '#0f172a' : 'transparent'/);
+  assert.match(js, /frame\.id === 'readinessFrame'/);
+  assert.match(js, /\.workspace-header \.header-actions > a \{ display: none !important; \}/);
+  assert.match(js, /\.workspace-header \.header-actions \{[\s\S]*justify-content: flex-end !important/);
+  assert.match(html, /src="operations-center\.js\?v=7"/);
   assert.match(js, /activate\(requestedTab \|\| 'highlights'/);
 });
 

@@ -22,6 +22,20 @@
 
   function embeddedStyle(frame) {
     const canvas = frame.id === 'reportsFrame' ? '#0f172a' : 'transparent';
+    const readinessControls = frame.id === 'readinessFrame' ? `
+      .workspace-header {
+        display: flex !important;
+        min-height: 52px !important;
+        justify-content: flex-end !important;
+        padding: 8px 20px !important;
+      }
+      .workspace-header .brand,
+      .workspace-header .header-actions > a { display: none !important; }
+      .workspace-header .header-actions {
+        width: 100% !important;
+        justify-content: flex-end !important;
+      }
+    ` : '';
     return `
       body > header,
       body > .container > header,
@@ -36,6 +50,7 @@
       .workspace-shell,
       .catalog-shell,
       .feedback-page__shell { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20px !important; }
+      ${readinessControls}
     `;
   }
 
