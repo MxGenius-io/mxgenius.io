@@ -7,6 +7,7 @@ const js = await readFile(new URL('../integration-readiness.js', import.meta.url
 const css = await readFile(new URL('../integration-readiness.css', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
+const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 
 test('Integration Readiness stays authenticated behind the consolidated Operations Center', () => {
   assert.doesNotMatch(dashboard, /value="integration-readiness\.html">Integration Readiness/);
@@ -130,6 +131,7 @@ test('readiness v4 clears retired and yellow work while leaving migrations outsi
   assert.match(migration, /item\.status !== 'needs_input'/);
   assert.doesNotMatch(migration, /migrations/);
   assert.match(html, /integration-readiness\.js\?v=4/);
+  assert.match(operationsCenter, /integration-readiness\.html\?embed=1&amp;release=readiness-v4/);
 });
 
 test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {
