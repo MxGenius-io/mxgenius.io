@@ -101,8 +101,8 @@ test('the web application exposes one launcher and one canonical VR or AR sessio
   assert.doesNotMatch(viewer, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(application, /mxgenius\.viewer\.sensor-scene-request/);
   assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
-  assert.match(viewer, /type: 'mxgenius\.viewer\.operations-request'/);
-  assert.match(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr&v=20/);
+  assert.doesNotMatch(viewer, /mxgenius\.viewer\.operations-request/);
+  assert.doesNotMatch(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr/);
 });
 
 test('VR and AR switch through a bounded user-gesture handoff while preserving workspace state', () => {
@@ -129,7 +129,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=47/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=48/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
@@ -164,17 +164,34 @@ test('Remote Witness consent leaves WebXR deliberately and resumes through fresh
   assert.match(globe, /handoff\.phase = 'resume'/);
 });
 
-test('operations hands off to the mature JetNet globe while maintenance keeps its live tools', () => {
-  assert.match(application, /if \(mode === 'operations'\) \{[\s\S]*window\.location\.assign\('globe-vr\.html\?scene=bridge&v=20'\)/);
-  assert.match(viewer, /if \(mode === 'operations'\) \{[\s\S]*openMatureOperationsGlobe\(input\)/);
-  assert.match(viewer, /async function openMatureOperationsGlobe\(input = 'xr', context = null\)/);
-  assert.match(viewer, /await session\.end\(\)/);
-  assert.match(viewer, /type: 'mxgenius\.viewer\.operations-request'/);
-  assert.match(application, /message\.type === 'mxgenius\.viewer\.operations-request'/);
-  assert.match(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr&v=20/);
-  assert.match(viewer, /if \(spatialContext\.mode === 'operations'\) \{[\s\S]*source: 'viewer-maintenance-normalize',[\s\S]*mode: 'maintenance'/);
-  assert.match(viewer, /if \(mode === 'operations'\) \{[\s\S]*await openMatureOperationsGlobe\('workspace-api', context\)/);
-  assert.match(viewer, /message\.type === 'mxgenius\.viewer\.operations-unavailable'[\s\S]*setSpatialMode\('maintenance'/);
+test('World and Focus share the canonical renderer, session, animation loop, and input paths', () => {
+  assert.match(viewer, /import \{ XROperationsSurface \} from '\.\.\/xr-operations-surface\.js\?v=1'/);
+  assert.match(viewer, /xrOperations = new XROperationsSurface\(/);
+  assert.match(viewer, /scene\.add\(xrOperations\.group\)/);
+  assert.match(viewer, /xrOperations\?\.setPresenting\(presenting, camera\)/);
+  assert.match(viewer, /xrOperations\?\.setVisible\(!maintenance, camera\)/);
+  assert.match(viewer, /if \(currentModel\) currentModel\.visible = !presenting \|\| maintenance/);
+  assert.match(viewer, /xrOperations\?\.update\(delta, \{ camera \}\)/);
+  assert.match(viewer, /\.\.\.\(xrOperations\?\.interactiveObjects\(\) \|\| \[\]\)/);
+  assert.match(viewer, /xrOperations\?\.handleObject\(hit\.object, hit\.uv, input\)/);
+  assert.match(viewer, /xrOperations\?\.fingerTargetAt\(xrFingerPoint\)/);
+  assert.match(viewer, /xrOperations\.activateFingerTarget\(operationsTarget, `finger-\$\{index\}`\)/);
+  assert.match(viewer, /setSpatialMode\(mode, \{ source: 'dashboard-header', context \}\)/);
+  assert.match(viewer, /setMode: \(mode, context\) => setSpatialMode\(mode, \{ source: 'workspace-api', context \}\)/);
+  assert.doesNotMatch(viewer, /openMatureOperationsGlobe/);
+  assert.doesNotMatch(viewer, /mxgenius\.viewer\.operations-request/);
+  assert.doesNotMatch(application, /window\.location\.assign\('globe-vr\.html\?scene=bridge/);
+  assert.match(application, /await MX3DViewer\.requestSpatialSession\(\{ mode, context: current \}\)/);
+  assert.equal((viewer.match(/new THREE\.WebGLRenderer\(/g) || []).length, 1);
+  assert.equal((viewer.match(/renderer\.setAnimationLoop\(animate\)/g) || []).length, 1);
+  assert.equal((viewer.match(/navigator\.xr\.requestSession\(requestedSessionMode/g) || []).length, 1);
+  assert.match(operations, /this\.group\.name = 'MXGeniusOperationsSurface'/);
+  assert.match(operations, /this\.hud = new XRGlobeHUD/);
+  assert.match(operations, /this\.markerMeshes\.filter\(\(marker\) => marker\.visible\)/);
+  assert.match(operations, /actionAtWorldPoint\(point\)/);
+  assert.match(operations, /this\.onAction\('open-fleet-location'/);
+  assert.match(viewer, /source: 'xr-world-marker'/);
+  assert.match(viewer, /synchronizeWorkspaceContext\('xr-world-marker'\)/);
   assert.match(viewer, /new XRSensorOrb\(/);
   assert.doesNotMatch(viewer, /openSensorDiagnostics/);
   assert.match(viewer, /xrVoice\.group\.visible = presenting && maintenance/);
@@ -214,8 +231,8 @@ test('maintenance stays in the canonical renderer and opens tools from one world
   assert.match(viewer, /\{ id: 'voice', label: 'AI' \}/);
   assert.match(viewer, /syncMaintenanceSurfaces\(snapshot\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);
-  assert.match(viewer, /openMatureOperationsGlobe/);
-  assert.match(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr&v=20/);
+  assert.match(viewer, /new XROperationsSurface\(/);
+  assert.doesNotMatch(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
 });
 

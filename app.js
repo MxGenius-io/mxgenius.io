@@ -446,23 +446,6 @@ window.addEventListener('message', (event) => {
     globalThis.MXTargetContext?.ingestXRAction(message.detail, { reason: `viewer:${message.detail?.action || 'xr-action'}` });
     window.dispatchEvent(new CustomEvent('mxgenius:xr-action', { detail: message.detail }));
   }
-  if (message.type === 'mxgenius.viewer.operations-request') {
-    const snapshot = cacheFleetForSpatialWorkspace();
-    if (!snapshot?.clusters?.length) {
-      setSpatialWorkspaceButtonState('ready', 'Fleet is still loading; try Operations again in a moment');
-      MX3DViewer.post({
-        type: 'mxgenius.viewer.operations-unavailable',
-        message: 'Fleet is still loading. Return to the dashboard and try Operations again in a moment.'
-      });
-      return;
-    }
-    globalThis.MXSpatialContext?.update?.({
-      ...(message.context && typeof message.context === 'object' ? message.context : {}),
-      source: 'mature-globe-handoff',
-      mode: 'operations'
-    });
-    window.location.assign('globe-vr.html?scene=bridge&return=vr&v=20');
-  }
   if (message.type === 'mxgenius.viewer.ar-request') {
     openViewerInAR(message.scene || {});
   }
@@ -992,11 +975,10 @@ function setupSpatialWorkspaceLauncher() {
         setSpatialWorkspaceButtonState('ready', 'Fleet is still loading; try Operations again in a moment');
         return;
       }
-      setSpatialWorkspaceButtonState('connecting', 'Opening the JetNet fleet globe…');
-      window.location.assign('globe-vr.html?scene=bridge&v=20');
-      return;
     }
-    setSpatialWorkspaceButtonState('connecting', 'Opening VR workspace…');
+    setSpatialWorkspaceButtonState('connecting', mode === 'operations'
+      ? 'Opening World in the VR workspace…'
+      : 'Opening Focus in the VR workspace…');
     try {
       await MX3DViewer.requestSpatialSession({ mode, context: current });
     } catch (error) {

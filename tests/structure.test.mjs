@@ -551,7 +551,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=47/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=48/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -735,7 +735,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=47/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=48/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);
@@ -853,7 +853,7 @@ test('viewer quick access is limited to the curated local model folder set', asy
   assert.match(viewer, /<option value="workspace">Workspace models<\/option>/);
 });
 
-test('one header launcher opens the cached fleet in the mature JetNet spatial globe', () => {
+test('one header launcher opens cached fleet World inside the canonical spatial renderer', () => {
   assert.match(dashboard, /id="spatialWorkspaceBtn"/);
   assert.doesNotMatch(dashboard, /id="globeVrButton"/);
   assert.match(application, /function clusterAltitude\(\) \{ return 0\.0015; \}/);
@@ -863,10 +863,12 @@ test('one header launcher opens the cached fleet in the mature JetNet spatial gl
   assert.match(application, /function cacheFleetForSpatialWorkspace\(\)/);
   assert.match(application, /mxg_globe_vr_data/);
   assert.match(application, /aircraft: cluster\.aircraft\.map/);
-  assert.match(application, /if \(mode === 'operations'\) \{[\s\S]*globe-vr\.html\?scene=bridge&v=20/);
-  assert.match(viewer, /openMatureOperationsGlobe/);
-  assert.match(viewer, /type: 'mxgenius\.viewer\.operations-request'/);
-  assert.match(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr&v=20/);
+  assert.match(application, /await MX3DViewer\.requestSpatialSession\(\{ mode, context: current \}\)/);
+  assert.doesNotMatch(application, /window\.location\.assign\('globe-vr\.html\?scene=bridge/);
+  assert.match(viewer, /new XROperationsSurface\(/);
+  assert.match(viewer, /scene\.add\(xrOperations\.group\)/);
+  assert.doesNotMatch(viewer, /openMatureOperationsGlobe/);
+  assert.doesNotMatch(viewer, /mxgenius\.viewer\.operations-request/);
   assert.match(globeVr, /VRButton\.createButton\(renderer,/);
   assert.match(globeVr, /three\/addons\/webxr\/VRButton\.js/);
   assert.match(globeVr, /alpha: true/);
