@@ -120,6 +120,9 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /inputSchemaVersion < 4\) applyReadinessV4\(document\)/);
   assert.match(js, /mergeStarterUpgrade/);
   assert.match(js, /needsSchemaSave/);
+  assert.match(js, /needsInitialSave = !workspace/);
+  assert.match(js, /state\.dirty = needsInitialSave \|\| needsSchemaSave/);
+  assert.match(js, /elements\.save\.disabled = !state\.dirty/);
   assert.match(js, /save to publish it/);
 });
 
@@ -130,8 +133,8 @@ test('readiness v4 clears retired and yellow work while leaving migrations outsi
   assert.match(migration, /status: 'ready_to_test'/);
   assert.match(migration, /item\.status !== 'needs_input'/);
   assert.doesNotMatch(migration, /migrations/);
-  assert.match(html, /integration-readiness\.js\?v=4/);
-  assert.match(operationsCenter, /integration-readiness\.html\?embed=1&amp;release=readiness-v4/);
+  assert.match(html, /integration-readiness\.js\?v=5/);
+  assert.match(operationsCenter, /integration-readiness\.html\?embed=1&amp;release=readiness-v5/);
 });
 
 test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {

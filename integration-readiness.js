@@ -594,16 +594,17 @@
   }
   function applyPayload(payload) {
     const workspace = payload?.workspace;
+    const needsInitialSave = !workspace;
     const needsSchemaSave = Boolean(workspace) && Number(workspace?.document?.schema_version || 0) < READINESS_SCHEMA_VERSION;
     state.version = Number(workspace?.version || 0);
     state.document = normalizeDocument(workspace?.document);
-    state.dirty = needsSchemaSave;
-    elements.save.disabled = !needsSchemaSave;
+    state.dirty = needsInitialSave || needsSchemaSave;
+    elements.save.disabled = !state.dirty;
     setSaveState(
       needsSchemaSave
         ? `Readiness refresh applied to shared checklist v${state.version} · save to publish it`
         : state.version ? `Shared checklist v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter checklist · save to create the team version',
-      needsSchemaSave ? 'dirty' : state.version ? 'saved' : ''
+      state.dirty ? 'dirty' : 'saved'
     );
     renderAll();
   }
