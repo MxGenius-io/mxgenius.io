@@ -1970,44 +1970,6 @@
             // Update velocity text
             document.getElementById('velocityText').textContent = `${percentComplete}% Complete`;
 
-            // Update countdown
-            updateCountdown(percentComplete);
-        }
-
-        function updateCountdown(percentComplete) {
-            const now = new Date();
-            const timeRemaining = launchDate - now;
-
-            if (timeRemaining <= 0 || percentComplete >= 100) {
-                document.getElementById('countdown').textContent = "LAUNCHED!";
-                document.getElementById('countdown').classList.add('adjusted');
-                document.getElementById('days').textContent = "000";
-                document.getElementById('hours').textContent = "00";
-                document.getElementById('minutes').textContent = "00";
-                document.getElementById('seconds').textContent = "00";
-                return;
-            }
-
-            // Calculate days, hours, minutes, seconds
-            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
-
-            document.getElementById('days').textContent = String(days).padStart(3, '0');
-            document.getElementById('hours').textContent = String(hours).padStart(2, '0');
-            document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
-            document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
-
-            // Adjust weeks based on progress
-            const weeksRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24 * 7));
-            const adjustedWeeks = Math.max(1, Math.round(weeksRemaining * (1 - (percentComplete / 200))));
-
-            document.getElementById('countdown').textContent = `${adjustedWeeks} WEEKS`;
-
-            if (percentComplete > 10) {
-                document.getElementById('countdown').classList.add('adjusted');
-            }
         }
 
         // Render phases and tasks
@@ -2183,10 +2145,8 @@ josh`);
         renderPhases();
         updateProgress();
 
-        // Update countdown every second
-        setInterval(() => updateProgress(), 1000);
     </script>
-    <script src="runtime-config.js?v=3"></script>
+    <script src="runtime-config.js?v=5"></script>
     <script src="auth.js"></script>
 </body>
 </html>

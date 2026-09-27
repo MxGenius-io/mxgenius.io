@@ -3,6 +3,7 @@
 
   const WORKSPACE_KEY = 'integration-readiness';
   const WORKSPACE_TITLE = 'MXGenius Integration Readiness';
+  const READINESS_SCHEMA_VERSION = 3;
   const STATUS_OPTIONS = [
     ['needs_input', 'Needs team input'],
     ['scoped', 'Scope agreed'],
@@ -95,6 +96,22 @@
       dataOut: 'Draft findings, linked evidence, completed steps, disposition, and approved record updates.',
       experience: 'MXGenius assists inside the existing maintenance process; it does not create a second competing record.',
       notes: 'Name the exact internal product, URL, data owner, write boundary, test environment, and required first-demo action.'
+    },
+    {
+      id: 'software-opensky', name: 'OpenSky Network live traffic', url: 'https://opensky-network.org/', category: 'Live flight tracking', need: 'demo', status: 'ready_to_test', owner: 'Unassigned',
+      purpose: 'Provide public live-flight positions for the map while JetNet remains the subscribed source for aircraft and fleet intelligence.',
+      dataIn: 'Rate-limited public aircraft state vectors plus the selected aircraft, map bounds, and last successful sample.',
+      dataOut: 'Cached route samples, takeoff and landing endpoints when they can be established, freshness, provider, and degraded-state labels.',
+      experience: 'A selected live flight draws one coherent trip ribbon; throttling or stale data is visible and never presented as JetNet live tracking.',
+      notes: 'Prove request throttling, cache reuse, no-result behavior, stale fallback, endpoint accuracy, and provider attribution on the live site.'
+    },
+    {
+      id: 'software-model-runtime', name: 'AI model runtime and response reliability', url: '', category: 'AI operations', need: 'demo', status: 'ready_to_test', owner: 'Unassigned',
+      purpose: 'Keep grounded maintenance assistance responsive and prevent a tool or response path from entering an unbounded loop.',
+      dataIn: 'User request, case context, retrieved evidence, tool results, cancellation state, and bounded retry counters.',
+      dataOut: 'A cited answer, a clear abstention, or a recoverable error with correlation details; never an endless response cycle.',
+      experience: 'The operator gets a timely answer or an actionable stop state, can cancel, clear, and retry without clipping or losing the case context.',
+      notes: 'Add a regression for the known death-loop trigger and verify cycle limits, deadlines, cancellation, invalid-citation handling, and recovery telemetry.'
     }
   ];
 
@@ -108,7 +125,9 @@
     { id: 'device-quest', name: 'Meta Quest headset', location: 'External display / operator interface', interface: 'Wi-Fi/WebXR plus the native sensor companion', power: 'Headset battery or approved external power', reading: 'Head pose, controller/hand input, spatial panel state, and relayed sensor context.', demo: 'Open the apparatus workspace, view FLIR/Pi status, manipulate panels, and capture evidence.', safety: 'Confirm safe demo area, guardian/passthrough behavior, hygiene, battery state, and exit path.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Private Alpha path is mounted; complete the current on-hardware acceptance checklist.' },
     { id: 'device-drill', name: 'Demo drill / driver', location: 'External tool', interface: 'Unknown — select exact tool and available USB, Bluetooth, Wi-Fi, CAN, serial, or added sensor path', power: 'Name exact battery/tool model and whether the box powers it or only reads it', reading: 'Team must choose the useful signals: RPM, torque, trigger, battery, vibration, run time, or task result.', demo: 'Define the exact maintenance action the drill represents and what MXGenius must recognize or record.', safety: 'Specify guarding, operator qualification, limits, calibration needs, and a no-command / read-only boundary.', owner: 'Unassigned', need: 'demo', status: 'needs_input', notes: 'Placeholder for the exact drill. Add manufacturer, model, interface, expected measurement, and success evidence.' },
     { id: 'device-pressure', name: 'Pressure gauge / transducer', location: 'External sensor', interface: 'Unknown — analog, USB, Bluetooth, Wi-Fi, serial, or an acquisition module', power: 'Specify sensor excitation, range, connector, and whether isolation is required', reading: 'Pressure value, unit, range, sample rate, timestamp, calibration identity, and quality/fault state.', demo: 'Read a stable value, preserve its provenance, compare only against approved aircraft data, and record the human disposition.', safety: 'Exact medium, pressure range, accuracy, fittings, overpressure protection, calibration, and aircraft interface are required.', owner: 'Unassigned', need: 'demo', status: 'needs_input', notes: 'Placeholder for the exact gauge/transducer and aircraft-safe test setup.' },
-    { id: 'device-ios', name: 'iPhone / iPad test device', location: 'External display / AR interface', interface: 'Secure network plus the MXGenius iOS wrapper', power: 'Device battery or approved charger', reading: 'Camera/AR pose, selected aircraft/model context, microphone state, and spatial UI events.', demo: 'Prove the agreed native AR and voice path on a named supported device.', safety: 'Record supported hardware/OS, permissions, test account, network, and device acceptance owner.', owner: 'Unassigned', need: 'review', status: 'ready_to_test', notes: 'Native AR path is mounted; decide whether it is part of the first black-box demo or a separate lane.' }
+    { id: 'device-ios', name: 'iPhone / iPad test device', location: 'External display / AR interface', interface: 'Secure network plus the MXGenius iOS wrapper', power: 'Device battery or approved charger', reading: 'Camera/AR pose, selected aircraft/model context, microphone state, and spatial UI events.', demo: 'Prove the agreed native AR and voice path on a named supported device.', safety: 'Record supported hardware/OS, permissions, test account, network, and device acceptance owner.', owner: 'Unassigned', need: 'review', status: 'ready_to_test', notes: 'Native AR path is mounted; decide whether it is part of the first black-box demo or a separate lane.' },
+    { id: 'device-52pi-gpio-power', name: '52Pi direct GPIO power path', location: 'Inside enclosure', interface: '52Pi power board wired directly to the Raspberry Pi power pins, leaving USB-C available for data gadget mode', power: 'DeWalt battery through the protected and regulated 52Pi path; validate voltage, current, fuse, polarity, and shutdown behavior', reading: 'Input and rail health where available, Pi undervoltage state, temperature, and orderly-shutdown evidence.', demo: 'Run the Pi under representative service and transfer load without undervoltage, thermal fault, or USB-C contention.', safety: 'Record the exact pins, wire gauge, connector retention, fuse/protection, enclosure strain relief, and safe disconnect sequence.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Physical wiring is complete; finish sustained-load, battery-runtime, thermal, and transport acceptance before sealing the enclosure.' },
+    { id: 'device-usb-c-gadget', name: 'USB-C mass-storage gadget and data path', location: 'External host connection', interface: 'Pi USB-C data connection presented to a host computer as the approved mass-storage gadget and service channel', power: 'Pi remains powered through the direct GPIO path so the USB-C port is dedicated to data', reading: 'Host enumeration, mounted volume identity, transfer progress, checksums, eject state, health, and update status.', demo: 'Connect to a clean host, enumerate once, transfer a representative package end to end, verify it, safely eject, and reconnect without repair.', safety: 'Prevent host/Pi concurrent writes, protect credentials and system partitions, define cable and port requirements, and make interrupted-transfer recovery explicit.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Validate the complete file lifecycle: stage, copy, checksum, ingest, acknowledge, archive or purge, interruption recovery, and update rollback.' }
   ];
 
   const starterWorkflows = [
@@ -116,7 +135,13 @@
     { id: 'workflow-device-reading', name: 'Interpret a connected tool or sensor reading', trigger: 'A supported device sends a measurement or the technician requests a live reading.', inputs: 'Device identity, calibration, value/unit/time, quality/fault state, aircraft/task context, and approved limit.', response: 'Observation → device provenance → approved comparison → meaning/uncertainty → next action → confirmation → trace record.', approval: 'The technician confirms the device and setup; authorized maintenance personnel own interpretation and disposition.', success: 'The reading and its provenance remain attached to the case, with no invented limit and a clear fail-closed state.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Use the selected pressure gauge or drill signal once the exact device and maintenance scenario are locked.' },
     { id: 'workflow-part', name: 'Identify, source, and request a part', trigger: 'A task or finding creates a part requirement.', inputs: 'Aircraft/task applicability, part number, alternates, stock, condition, trace, seller results, lead time, and urgency.', response: 'Requirement → identity/applicability evidence → internal stock → external options → risk/gaps → recommended shortlist → buyer/quality approval.', approval: 'Quality confirms acceptable identity/trace/condition and an authorized buyer approves any transaction.', success: 'The team can explain why an option was shown, preserve source evidence, and create a controlled request without autonomous purchasing.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Add one real or representative part requirement, acceptable alternates, evidence standard, and sourcing system.' },
     { id: 'workflow-regulatory', name: 'Review an FAA or OEM requirement', trigger: 'A user asks whether a regulatory or technical document may affect an aircraft, part, or task.', inputs: 'Aircraft serial/configuration, current FAA/OEM sources, revision/effective dates, applicability language, and maintenance records.', response: 'Question → authoritative candidates → applicability facts → conflicts/missing data → required review actions → owner → cited record.', approval: 'Authorized maintenance/compliance personnel make and record the applicability or compliance determination.', success: 'Every conclusion is traceable to a current source and MXGenius abstains when identity, currency, entitlement, or applicability is uncertain.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Choose one familiar FAA or OEM applicability review and provide the expected section order and decision language.' },
-    { id: 'workflow-handoff', name: 'Create a shift, escalation, or remote-support handoff', trigger: 'Work changes owner, needs expert help, or reaches a stop condition.', inputs: 'Case status, completed checks, evidence, unresolved questions, risk, next action, owner, and communication destination.', response: 'Situation → aircraft/task context → work completed → evidence → open risk/question → exact ask → owner/time → linked case record.', approval: 'The receiving person acknowledges ownership; required maintenance approvals remain in the system of record.', success: 'The next person can resume without repeating work, while Teams or another channel contains only the concise approved handoff and secure link.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Add the team’s preferred handoff format and a representative escalation that should appear in Teams.' }
+    { id: 'workflow-handoff', name: 'Create a shift, escalation, or remote-support handoff', trigger: 'Work changes owner, needs expert help, or reaches a stop condition.', inputs: 'Case status, completed checks, evidence, unresolved questions, risk, next action, owner, and communication destination.', response: 'Situation → aircraft/task context → work completed → evidence → open risk/question → exact ask → owner/time → linked case record.', approval: 'The receiving person acknowledges ownership; required maintenance approvals remain in the system of record.', success: 'The next person can resume without repeating work, while Teams or another channel contains only the concise approved handoff and secure link.', owner: 'Unassigned', need: 'demo', status: 'needs_input', example: 'Add the team’s preferred handoff format and a representative escalation that should appear in Teams.' },
+    { id: 'workflow-pi-appliance', name: 'Commission, update, and recover the Pi appliance', trigger: 'A fresh or reimaged Pi is connected, or an approved edge release is ready to install.', inputs: 'Known image, device identity, power and data health, network credentials with explicit remember-password consent, signed release, checksum, and rollback package.', response: 'Detect → health baseline → configure approved Wi-Fi → stage release → verify → apply → restart services → acceptance checks → retain rollback evidence.', approval: 'The device owner approves stored network credentials and the release operator approves promotion or rollback.', success: 'A clean Pi reaches known-good health, survives reboot, reports its version, and can roll back without exposing credentials or requiring an undocumented manual fix.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Reflash a clean image, opt in to remembering Wi-Fi, install one release, verify health and version, then exercise a safe rollback.' },
+    { id: 'workflow-equipment-drive', name: 'Complete the Equipment Drive transfer lifecycle', trigger: 'The Pi is connected to a host through the USB-C gadget data path.', inputs: 'Device identity, mounted-volume state, transfer manifest, source and destination checksums, free space, update status, and eject signal.', response: 'Enumerate → stage → copy → verify → ingest → acknowledge → archive or purge → safe eject; recover cleanly from interruption at every stage.', approval: 'The operator confirms the intended package and destination; the Pi service owns ingest only after checksum verification.', success: 'A representative transfer is traceable from source to accepted payload, concurrent writes are prevented, and disconnect/reconnect requires no filesystem repair.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Copy a release and a field-data package from a clean Windows host, interrupt one transfer, recover, verify checksums, ingest, and safely eject.' },
+    { id: 'workflow-remote-witness', name: 'Run a Remote Witness support session', trigger: 'A field operator requests remote visual help from browser, VR, or AR.', inputs: 'Authenticated participants, explicit native device approval, live video or approved last-good frame, voice/chat state, case context, and connection health.', response: 'Request → approve → connect → show live/degraded status → collaborate → capture approved evidence → disconnect → clear transient media and record the handoff.', approval: 'The local operator controls camera/sensor sharing and evidence capture; a remote participant cannot silently reactivate a device.', success: 'The session connects from a fresh gesture, returns from native consent without freezing black, makes degraded state obvious, and disconnects cleanly.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Start on Quest hardware, approve the native bridge, background and resume once, verify live frames and controls, then end and reconnect.' },
+    { id: 'workflow-xr-transition', name: 'Transition between VR and AR without losing work', trigger: 'An operator changes immersive mode while an apparatus or Operations workspace is active.', inputs: 'Current case, selected aircraft, active panels, sensor state, spatial transforms, remote-session state, and a fresh user gesture for the destination mode.', response: 'Snapshot active workspace → end current XR session → request destination mode → restore supported panels and context → explain any capability difference.', approval: 'The operator explicitly initiates each mode change and can always exit to the browser view.', success: 'VR→AR and AR→VR preserve context, avoid duplicate head-locked panels, keep controls interactable, and maintain comfortable spacing on target hardware.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Open the mature globe and thermal panel in VR, move and resize them, switch to AR and back, and confirm one restored copy with usable controls.' },
+    { id: 'workflow-model-loop-recovery', name: 'Stop and recover a model response loop', trigger: 'A prompt, tool result, or invalid evidence response repeats without converging or exceeds its deadline.', inputs: 'Turn and tool-cycle counters, elapsed time, cancellation state, citation validation, correlation ID, and last safe conversation state.', response: 'Stop bounded work → cancel pending operations → preserve a concise diagnostic → show a recoverable error → allow clear, edit, or retry without duplicating the turn.', approval: 'No autonomous retry exceeds the configured budget; an operator chooses whether to retry or start a new conversation.', success: 'The known loop-triggering request terminates within the budget, the UI remains responsive and unclipped, and a subsequent valid request succeeds.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Run the known failure prompt, verify bounded termination and telemetry, clear or retry, then receive one normal grounded response.' },
+    { id: 'workflow-live-flight', name: 'Select and follow a live flight trip', trigger: 'An operator selects a public live-flight result on the operations globe.', inputs: 'OpenSky state vectors, aircraft identity, sampled positions, cache and throttle state, airport/location evidence, and last-known freshness.', response: 'Select → resolve available trip context → draw a single route ribbon from takeoff to landing when supported → update at the safe cadence → expose stale or partial data.', approval: 'The operator treats the ribbon as operational context, not certified navigation or maintenance evidence.', success: 'The correct aircraft stays selected, requests remain within provider limits, endpoints are supported by evidence, and partial/no-data behavior never invents a trip.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', example: 'Follow one active flight from a known departure toward its destination, verify cadence and cache behavior, then simulate throttling and stale data.' }
   ];
 
   const starterMigrations = [
@@ -215,8 +240,39 @@
       success: 'Every paid or privileged external dependency is either company-owned, explicitly retired, or documented as non-transferable with a replacement plan.',
       helpUrl: '',
       notes: 'This is the completeness sweep for accounts not yet named. It should disappear once every provider has its own row.'
+    },
+    {
+      id: 'migration-edge-release-custody', name: 'Edge release artifacts, checksums + retention custody', platform: 'Pi appliance release pipeline', timing: 'before_release', status: 'scoped',
+      currentOwner: 'Current local build and image archive — inventory exact locations and operators', targetOwner: 'MXGenius-controlled artifact storage and release process', handoffOwner: 'Edge release owner and backup — assign',
+      scope: 'Pi images, application bundles, manifests, checksums, signing or provenance evidence, install scripts, rollback packages, release notes, retention policy, and device-version inventory.',
+      platformRequirement: 'The release path must preserve integrity, version identity, recoverability, and enough history to support deployed devices without publishing local scratch or oversized image archives to the website.',
+      companyControl: 'Keep approved releases in company storage with least-privilege write access, immutable or recoverable history, documented retention, and a second operator able to reproduce and restore a release.',
+      dependency: 'Name the authoritative image and bundle locations, distinguish build inputs from generated artifacts, and finish the USB transfer plus appliance update lifecycle acceptance.',
+      nextStep: 'Create a manifest for the transport image and current Pi release, record checksums and source commit, choose company artifact storage, and prove download, install, and rollback from it.',
+      success: 'A second operator can identify, verify, install, retain, and roll back every supported edge release without Dwayne’s machine or an undocumented file copy.',
+      helpUrl: '',
+      notes: 'The large local image archive remains outside the public Pages artifact; do not delete it until its authoritative copy and retention owner are confirmed.'
+    },
+    {
+      id: 'migration-opensky-provider', name: 'OpenSky/API quota, credentials + provider ownership', platform: 'OpenSky Network and live-flight services', timing: 'before_release', status: 'needs_input',
+      currentOwner: 'Current implementation and environment configuration — confirm account, limits, and operator', targetOwner: 'MXGenius company-managed provider account and runtime configuration', handoffOwner: 'Live-flight integration owner and backup — assign',
+      scope: 'Provider account, terms, credentials if used, quota and throttling policy, cache behavior, attribution, monitoring, incident contact, billing if applicable, and fallback expectations.',
+      platformRequirement: 'Public flight data is rate-limited and incomplete by nature. The product must obey current provider terms, identify the source, cache responsibly, and show stale, partial, or unavailable state.',
+      companyControl: 'Keep any credential server-side, rotate it through the approved secret path, monitor quota and failures, and document that JetNet intelligence is separate from public live tracking.',
+      dependency: 'Complete the live-flight ribbon acceptance and measure real request volume before choosing the final account or service tier.',
+      nextStep: 'Record the exact endpoint and limits, name the company owner, test anonymous and credentialed behavior as applicable, and add quota/freshness telemetry plus a degraded-state drill.',
+      success: 'Two authorized operators can maintain the provider configuration, the live site stays within limits, and users always see accurate source and freshness state.',
+      helpUrl: 'https://openskynetwork.github.io/opensky-api/',
+      notes: 'Do not place a provider secret in client code or reproduce environment values in the readiness document.'
     }
   ];
+
+  const READINESS_V3_IDS = {
+    software: new Set(['software-opensky', 'software-model-runtime']),
+    devices: new Set(['device-52pi-gpio-power', 'device-usb-c-gadget']),
+    workflows: new Set(['workflow-pi-appliance', 'workflow-equipment-drive', 'workflow-remote-witness', 'workflow-xr-transition', 'workflow-model-loop-recovery', 'workflow-live-flight']),
+    migrations: new Set(['migration-edge-release-custody', 'migration-opensky-provider'])
+  };
 
   const state = { version: 0, document: null, dirty: false, saving: false, openItemId: null };
   const elements = {};
@@ -225,7 +281,7 @@
   function newId(prefix) { return globalThis.crypto?.randomUUID?.() || `${prefix}-${Date.now()}`; }
   function clean(value, length = 4000) { return String(value ?? '').slice(0, length); }
   function allowed(value, options, fallback) { return options.some(([key]) => key === value) ? value : fallback; }
-  function defaultDocument() { return { schema_version: 2, software: clone(starterSoftware), devices: clone(starterDevices), workflows: clone(starterWorkflows), migrations: clone(starterMigrations) }; }
+  function defaultDocument() { return { schema_version: READINESS_SCHEMA_VERSION, software: clone(starterSoftware), devices: clone(starterDevices), workflows: clone(starterWorkflows), migrations: clone(starterMigrations) }; }
 
   function normalizeSoftware(value) {
     const item = value && typeof value === 'object' ? value : {};
@@ -243,15 +299,30 @@
     const item = value && typeof value === 'object' ? value : {};
     return { id: clean(item.id || newId('migration'), 100), name: clean(item.name || 'New account or service migration', 180), platform: clean(item.platform, 160), timing: allowed(item.timing, MIGRATION_TIMING_OPTIONS, 'review'), status: allowed(item.status, MIGRATION_STATUS_OPTIONS, 'needs_input'), currentOwner: clean(item.currentOwner), targetOwner: clean(item.targetOwner), handoffOwner: clean(item.handoffOwner || 'Unassigned', 180), scope: clean(item.scope), platformRequirement: clean(item.platformRequirement), companyControl: clean(item.companyControl), dependency: clean(item.dependency), nextStep: clean(item.nextStep), success: clean(item.success), helpUrl: clean(item.helpUrl, 500), notes: clean(item.notes) };
   }
+  function mergeStarterUpgrade(items, starters, ids, normalize) {
+    const merged = [...items];
+    const existingIds = new Set(merged.map((item) => item.id));
+    for (const starter of starters) {
+      if (ids.has(starter.id) && !existingIds.has(starter.id)) merged.push(normalize(starter));
+    }
+    return merged;
+  }
   function normalizeDocument(value) {
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    return {
-      schema_version: 2,
+    const document = {
+      schema_version: READINESS_SCHEMA_VERSION,
       software: Array.isArray(input.software) ? input.software.map(normalizeSoftware) : clone(starterSoftware),
       devices: Array.isArray(input.devices) ? input.devices.map(normalizeDevice) : clone(starterDevices),
       workflows: Array.isArray(input.workflows) ? input.workflows.map(normalizeWorkflow) : clone(starterWorkflows),
       migrations: Array.isArray(input.migrations) ? input.migrations.map(normalizeMigration) : clone(starterMigrations)
     };
+    if (Number(input.schema_version || 0) < READINESS_SCHEMA_VERSION) {
+      document.software = mergeStarterUpgrade(document.software, starterSoftware, READINESS_V3_IDS.software, normalizeSoftware);
+      document.devices = mergeStarterUpgrade(document.devices, starterDevices, READINESS_V3_IDS.devices, normalizeDevice);
+      document.workflows = mergeStarterUpgrade(document.workflows, starterWorkflows, READINESS_V3_IDS.workflows, normalizeWorkflow);
+      document.migrations = mergeStarterUpgrade(document.migrations, starterMigrations, READINESS_V3_IDS.migrations, normalizeMigration);
+    }
+    return document;
   }
 
   function currentSession() {
@@ -519,13 +590,16 @@
   }
   function applyPayload(payload) {
     const workspace = payload?.workspace;
+    const needsSchemaSave = Boolean(workspace) && Number(workspace?.document?.schema_version || 0) < READINESS_SCHEMA_VERSION;
     state.version = Number(workspace?.version || 0);
     state.document = normalizeDocument(workspace?.document);
-    state.dirty = false;
-    elements.save.disabled = true;
+    state.dirty = needsSchemaSave;
+    elements.save.disabled = !needsSchemaSave;
     setSaveState(
-      state.version ? `Shared checklist v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter checklist · save to create the team version',
-      state.version ? 'saved' : ''
+      needsSchemaSave
+        ? `Readiness refresh applied to shared checklist v${state.version} · save to publish it`
+        : state.version ? `Shared checklist v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter checklist · save to create the team version',
+      needsSchemaSave ? 'dirty' : state.version ? 'saved' : ''
     );
     renderAll();
   }

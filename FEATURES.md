@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-18
+Last updated: 2026-09-27
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -24,7 +24,7 @@ This is the canonical product inventory. It records what the current repository 
 | Customer operations and edge devices | `[~]` | A tenant-scoped customer directory combines multi-device ownership, payment history, deployment telemetry, and Equipment Drive controls in Operations Center; migration deployment and live acceptance remain. |
 | Integration readiness | `[x]` | An organization-shared checklist captures required software connections, first-demo enclosure and peripheral hardware, aviation-authored response processes, and entity migration of accounts, servers, data, builds, authentication, and release ownership with dependency order, official help, readiness, and versioned saves. |
 | 3D inspection and digital-twin bridge | `[~]` | Model navigation, mesh selection, HUD, XR, animation, and media are mounted; validated aircraft mappings remain limited. |
-| Fleet globe XR | `[~]` | Standalone globe, spatial HUD, point selection, audio, and voice are mounted; live headset acceptance remains. |
+| Fleet globe XR | `[~]` | Standalone globe, selected-flight path, spatial HUD, point selection, audio, voice, and bounded VR/AR handoff are mounted; live headset acceptance remains. |
 | Sensor bridge and diagnostics | `[~]` | Quest companion, FLIR transport, optional Pi diagnostics, trace, and spatial panel are mounted; hardware acceptance remains. |
 | Native iOS AR | `[~]` | Fleet-globe parity bridge is mounted and strictly iOS-gated; native device acceptance remains. |
 | Onboarding and contextual guidance | `[~]` | First-run onboarding, question-mark help, and autoplay voice guidance are mounted; eleven guides pair video with voiceover and static guidance, while the remaining guides continue to work as audio-first help. |
@@ -57,7 +57,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Aircraft records preserving the application aircraft-list contract.
 - `[x]` Fleet globe with mapped geographic points and zoom-aware aviation clusters.
 - `[x]` On-demand recent-flight route overlay backed by tenant-scoped, server-cached JetNet flight records, kept visually distinct from live positions.
-- `[~]` User-started OpenSky live-position overlay with a shared 30-second server snapshot, Pull/List/Render status ribbon, stale-data fallback, and polling suspended away from the visible globe; mocked end-to-end coverage passes, while production API credentials and a live-provider field check remain pending.
+- `[~]` User-started OpenSky live-position overlay with a shared 30-second server snapshot, Pull/List/Render status ribbon, stale-data fallback, and polling suspended away from the visible globe; selecting a live aircraft requests a separately cached, rate-limited path bounded to observed takeoff and landing endpoints. Automated coverage passes; live-provider field acceptance remains pending.
 - `[x]` Fleet totals, mapped-aircraft counts, and country counts.
 - `[x]` Search by tail, operator, and model.
 - `[x]` Aircraft-type filters for business jets, turboprops, airliners, and piston aircraft.
@@ -254,6 +254,8 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Selected JetNet location carried into spatial model context.
 - `[x]` Realtime voice presence with microphone control.
 - `[x]` Shared globe-specific spatial audio cues.
+- `[x]` Operations VR and AR switch through an explicit fresh-gesture handoff that preserves the globe and active task-window state.
+- `[x]` Operations Remote Witness wearer approval hands the bootstrapped room to the Quest companion, exits WebXR deliberately for Horizon capture consent, and resumes only from a fresh wearer gesture.
 - `[~]` Shared VR browser launcher and animated quick-access panel are mounted for controller and fingertip input; PartsBase and other approved aircraft-resource destinations remain intentionally unconfigured.
 - `[x]` Contextual help entry point using the same guide as the browser globe.
 - `[x]` Fleet route excludes FLIR and Pi initialization.
@@ -275,6 +277,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Compatibility trace with failure reason and credential-shape redaction.
 - `[x]` Retry/backoff behavior for unavailable local thermal transport.
 - `[x]` Canonical Pi schema driving deterministic XR diagnostic rows.
+- `[x]` Pi appliance `0.3.1-poc.29` exact release archive, checksum, staged health/version/schema/WebSocket/scanner/thermal validation, optional Wi-Fi credential persistence, and UTF-8-safe Equipment Drive activation.
 - `[x]` Full-state and sequenced-delta rebuilds of diagnostic state.
 - `[x]` Head-following spatial sensor panel.
 - `[x]` Thermal panel show/pin/scale controls.
@@ -294,7 +297,8 @@ This is the canonical product inventory. It records what the current repository 
 - `[~]` MP4/WebM evidence storage, authenticated gallery playback, and byte-range delivery are ready; native Quest passthrough recording and headset acceptance remain.
 - `[x]` Anonymous Remote Witness guest room with wearer-generated 7-digit service PIN, single-use exchange, memory-only viewer credential, approval, pause, layer controls, presence count, expiry, and revoke.
 - `[x]` Public guest witness page with no account or contact-data collection, peer-to-peer WebRTC, shared target/case projection, existing case-gallery media, sourced proposed observations, and separate recording consent.
-- `[!]` Known Alpha 22 issue: the guest can enable browser microphone access and the room reports the microphone track active, but customer-to-technician audio was not confirmed in the live device test. Treat guest voice as unavailable until end-to-end audio negotiation and playback pass on the physical Quest.
+- `[~]` Quest companion alpha.25 adds full-display capture and bounded frame/RTP recovery for consent-handoff continuity; its release APK is verified locally, while the Meta Alpha channel and public runtime label remain on alpha.23 pending publication and physical acceptance.
+- `[!]` Customer-to-technician audio remains unconfirmed on the physical Quest. Treat guest voice as unavailable until end-to-end microphone negotiation, native playout, and inbound RTP acceptance pass on the release-channel build.
 - `[ ]` Authenticated ACS employee rooms for private-company technician-to-HQ communications remain a separate transport and identity path.
 - `[~]` Physical Quest composite/passthrough capture and production TURN fallback need a headset/network acceptance pass; no continuous video traverses or persists in MCP.
 - `[x]` Contextual sensor-bridge guide.
@@ -397,6 +401,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Live field probe for frontend, core, memory, MCP, and manual assets.
 - `[x]` Structure and contract tests for core browser, backend-boundary, parts, feedback, Realtime, and XR behavior.
 - `[x]` GitHub Pages deployment is gated by the frontend suite and pinned Rust formatting, test, and lint checks.
+- `[x]` Pages assembly excludes local preview surfaces, scratch imagery, the research training payload, and non-rendered delivery-draft source files from the public artifact.
 - `[~]` Hardware-dependent and external-adapter gates remain separate from repository verification.
 - `[ ]` Separate versioned backend build/deploy workflow with non-production smoke and rollback evidence.
 - `[ ]` Deployed full-stack accessibility, responsive, degraded-state, and recovery acceptance pass.

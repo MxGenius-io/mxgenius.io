@@ -125,6 +125,11 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
   assert.match(dashboard, /3d-viewer\/index\.html\?v=46/);
+  assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
+  assert.match(globe, /async function beginSpatialSessionModeHandoff/);
+  assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
+  assert.match(globe, /await navigator\.xr\.requestSession\(requestedMode, spatialSessionOptions\(requestedMode\)\)/);
+  assert.match(globe, /spatialHandoffContinue\.addEventListener\('click', async \(\) =>/);
 });
 
 test('Remote Witness consent leaves WebXR deliberately and resumes through fresh gestures', () => {
@@ -147,6 +152,11 @@ test('Remote Witness consent leaves WebXR deliberately and resumes through fresh
   assert.match(viewer, /externalHandoff\?\.phase === 'resume'[\s\S]*xrWitness\?\.pause\?\.\('browser'\)/);
   assert.match(viewer, /state === 'resume' \? 'Pause live view' : 'Stay in 3D viewer'/);
   assert.doesNotMatch(approval, /localStorage|sessionStorage|producerCredential/);
+  assert.match(globe, /nativeApprovalProvider: launchQuestWitnessApproval/);
+  assert.match(globe, /async function launchQuestWitnessApproval/);
+  assert.match(globe, /intent:\/\/witness-consent/);
+  assert.match(globe, /document\.addEventListener\('visibilitychange'/);
+  assert.match(globe, /handoff\.phase = 'resume'/);
 });
 
 test('operations hands off to the mature JetNet globe while maintenance keeps its live tools', () => {

@@ -5,6 +5,7 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
+  const BUILD_BOARD_SCHEMA_VERSION = 2;
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -14,13 +15,13 @@
   const starterCards = [
     {
       id: 'question-sprint-configuration',
-      lane: 'sprint',
-      title: 'Which physical configuration is the sprint target?',
-      message: 'Lock the casing/model, thermal-camera position, Pi placement, battery representation, and cable route that the next integrated apparatus should prove.',
+      lane: 'complete',
+      title: 'Lock the Pi power and data configuration',
+      message: 'The 52Pi power path is wired directly to the Pi header, freeing USB-C for the mass-storage gadget. The remaining mechanics and runtime measurements are tracked as separate acceptance work.',
       owner: 'Joshua Millard + Thomas Hagy',
-      author: 'Team board starter',
+      author: 'September 27 readiness refresh',
       created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
       updates: []
     },
     {
@@ -36,13 +37,13 @@
     },
     {
       id: 'question-pi-poc-stack',
-      lane: 'question',
-      title: 'Which POC devices and programs should run with the Pi?',
-      message: 'Name the hardware and software we want to prove with the Raspberry Pi, including sensors, scanners, cameras, microphones, radios, local services or models, protocols, power and data requirements, intended workflow, priority, and the evidence that would count as a successful POC.',
-      owner: 'Unassigned',
-      author: 'Week 23 closeout',
+      lane: 'complete',
+      title: 'Define the Pi POC stack',
+      message: 'The appliance stack now owns kiosk diagnostics, Wi-Fi and Bluetooth control, scanner and thermal relay health, Equipment Drive delivery, and USB mass-storage transport. New sensors and robotics embodiments remain separate expansion work.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
       created_at: '2026-08-24T10:30:00Z',
-      updated_at: '2026-08-24T10:30:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
       updates: []
     },
     {
@@ -92,12 +93,12 @@
     {
       id: 'sprint-quest-poc12-acceptance',
       lane: 'sprint',
-      title: 'Accept Quest Sensor Bridge poc.12 on hardware',
-      message: 'Repeat the full FLIR commissioning run, require U01 enumeration, U02 authorization, U04 grant, and W14 PASS, then pin and reconnect the thermal panel without flicker, panic, or an orphaned camera session.',
+      title: 'Publish and accept Quest Sensor Bridge alpha.25',
+      message: 'Publish the verified alpha.25 APK to the private Meta Alpha lane, confirm the runtime label, then prove FLIR, full-display Remote Witness capture, guest audio, bounded recovery, pause/resume, and teardown on the physical Quest.',
       owner: 'Dwayne Tillman',
-      author: 'Week 23 closeout',
+      author: 'September 27 readiness refresh',
       created_at: '2026-08-24T09:48:00Z',
-      updated_at: '2026-08-24T09:48:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
       updates: []
     },
     {
@@ -134,10 +135,109 @@
       updates: []
     },
     {
+      id: 'sprint-remote-witness-acceptance',
+      lane: 'sprint',
+      title: 'Run Remote Witness end-to-end acceptance',
+      message: 'Prove PIN creation and exchange, wearer approval, Horizon capture consent, advancing video frames, customer microphone return, pause/resume with fresh consent, viewer count, expiry, and deterministic teardown without a frozen last frame or black view.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-operations-xr-acceptance',
+      lane: 'sprint',
+      title: 'Accept Operations VR and AR transitions',
+      message: 'On Quest, switch VR to AR and AR to VR through the fresh-gesture handoff, preserve the mature globe and active tool window, verify return from native consent, and confirm clean exit to the browser.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-xr-layout-interaction',
+      lane: 'sprint',
+      title: 'Complete the XR layout and interaction pass',
+      message: 'Verify controller and hand activation for every tray and panel control; remove duplicate or head-attached surfaces; keep Thermal, Witness, AI, globe HUD, and task windows separated, readable, and recoverable through recenter.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-pi-poc29-acceptance',
+      lane: 'sprint',
+      title: 'Accept Pi appliance 0.3.1-poc.29 on hardware',
+      message: 'Boot the exact checksummed image from the direct GPIO power path, verify health/version/schema, Wi-Fi password persistence, Bluetooth, scanner, thermal relay, USB data, safe shutdown, and recovery after battery loss.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-equipment-drive-lifecycle',
+      lane: 'sprint',
+      title: 'Verify the complete Equipment Drive lifecycle',
+      message: 'Publish, assign, download, resume, verify, activate, reboot, inspect health, roll back, and recover from interrupted transfer using a real customer-scoped Pi without bypassing approval or version checks.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-usb-gadget-acceptance',
+      lane: 'sprint',
+      title: 'Accept the USB mass-storage gadget workflow',
+      message: 'Connect to representative Windows hosts, transfer a bounded file set, verify the complete handoff, safely eject, reconnect, and recover from cable removal or battery loss without corrupting the exposed volume.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-opensky-trip-acceptance',
+      lane: 'sprint',
+      title: 'Field-test selected OpenSky trip paths',
+      message: 'Select live aircraft on the production globe and verify observed takeoff and landing bounds, sparse or empty tracks, cache reuse, provider throttling, stale fallback, and clear separation from JetNet registry and recent-flight layers.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-model-response-loop',
+      lane: 'sprint',
+      title: 'Close the model response-loop regression',
+      message: 'Reproduce the function path that repeatedly asks the model for another response, enforce a bounded response/tool cycle, preserve the useful failure reason, and add a regression test covering cancellation, timeout, and recovery.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'sprint-final-release-closeout',
+      lane: 'sprint',
+      title: 'Prepare the final release and handoff report',
+      message: 'Record deployed revisions, APK and Pi versions, checksums, live-site results, hardware acceptance evidence, open external gates, ownership, rollback instructions, and the remaining work that should survive the contract handoff.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 readiness refresh',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
+      updates: []
+    },
+    {
       id: 'complete-sensor-bridge',
       lane: 'complete',
-      title: 'Quest Sensor Bridge accepted in Alpha',
-      message: 'The Quest build was accepted, the launcher/banner packaging was corrected, and the landscape cover was visually confirmed in Meta Quest Developer Hub.',
+      title: 'Establish the Quest Sensor Bridge Alpha lane',
+      message: 'The private Alpha entitlement, launcher/banner packaging, landscape cover, and native companion delivery path were accepted. Current alpha.25 publication and hardware behavior are tracked separately.',
       owner: 'Team',
       author: 'Team board starter',
       created_at: '2026-08-17T00:00:00Z',
@@ -202,8 +302,8 @@
     {
       id: 'complete-map-xr-refinement',
       lane: 'complete',
-      title: 'Refine the fleet map and XR sensor workspace',
-      message: 'Higher-quality map textures, stable zoom clusters, panel-safe marker layering, denser AI particles, managed mic lifecycle, snapshots, and the head-follow/world-pin thermal screen are integrated.',
+      title: 'Ship the fleet map and XR software refinement',
+      message: 'Higher-quality map textures, stable zoom clusters, panel-safe marker layering, denser AI particles, managed mic lifecycle, snapshots, and world-pinned sensor surfaces are integrated. Physical layout and interaction acceptance remain a separate sprint gate.',
       owner: 'Dwayne Tillman',
       author: 'Week 23 closeout',
       created_at: '2026-08-24T09:48:00Z',
@@ -211,6 +311,22 @@
       updates: []
     }
   ];
+  const BUILD_BOARD_V2_STARTER_IDS = new Set([
+    'question-sprint-configuration',
+    'question-pi-poc-stack',
+    'sprint-quest-poc12-acceptance',
+    'sprint-remote-witness-acceptance',
+    'sprint-operations-xr-acceptance',
+    'sprint-xr-layout-interaction',
+    'sprint-pi-poc29-acceptance',
+    'sprint-equipment-drive-lifecycle',
+    'sprint-usb-gadget-acceptance',
+    'sprint-opensky-trip-acceptance',
+    'sprint-model-response-loop',
+    'sprint-final-release-closeout',
+    'complete-sensor-bridge',
+    'complete-map-xr-refinement'
+  ]);
 
   const state = {
     version: 0,
@@ -227,7 +343,7 @@
   }
 
   function defaultDocument() {
-    return { schema_version: 1, cards: clone(starterCards) };
+    return { schema_version: BUILD_BOARD_SCHEMA_VERSION, cards: clone(starterCards) };
   }
 
   function normalizeCard(value) {
@@ -263,7 +379,23 @@
   function normalizeDocument(value) {
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
-    return { schema_version: 1, cards };
+    if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
+      for (const starter of starterCards.filter((card) => BUILD_BOARD_V2_STARTER_IDS.has(card.id))) {
+        const index = cards.findIndex((card) => card.id === starter.id);
+        if (index < 0) {
+          cards.unshift(normalizeCard(starter));
+          continue;
+        }
+        const existing = cards[index];
+        cards[index] = normalizeCard({
+          ...starter,
+          created_at: existing.created_at || starter.created_at,
+          image: existing.image,
+          updates: existing.updates
+        });
+      }
+    }
+    return { schema_version: BUILD_BOARD_SCHEMA_VERSION, cards };
   }
 
   function currentSession() {
@@ -504,13 +636,17 @@
 
   function applyPayload(payload) {
     const workspace = payload?.workspace;
+    const needsSchemaSave = Boolean(workspace)
+      && Number(workspace?.document?.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION;
     state.version = Number(workspace?.version || 0);
     state.document = normalizeDocument(workspace?.document);
-    state.dirty = false;
-    elements.save.disabled = true;
+    state.dirty = needsSchemaSave;
+    elements.save.disabled = !needsSchemaSave;
     setSaveState(
-      state.version ? `Team board v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter board · saves with the first post',
-      state.version ? 'saved' : ''
+      needsSchemaSave
+        ? `Readiness refresh applied to team board v${state.version} · save to publish it`
+        : state.version ? `Team board v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter board · saves with the first post',
+      needsSchemaSave ? 'dirty' : state.version ? 'saved' : ''
     );
     renderBoard();
   }

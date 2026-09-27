@@ -70,7 +70,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
     <article class="article" id="guide">
 <h1>MXGenius aviation demo field guide</h1>
 <p>This guide lets a software developer explain and demonstrate MXGenius in credible aviation-maintenance language. It separates what is live, what is mounted but blocked, and what is a typed contract awaiting a data source.</p>
-<p>Status snapshot: <strong>2026-07-19</strong>. Re-run the preflight checks before every external demo because source configuration can change independently of the static site.</p>
+<p>Status snapshot: <strong>2026-09-27</strong>. Re-run the preflight checks before every external demo because source configuration can change independently of the static site.</p>
 <h2>The 30-second explanation</h2>
 <blockquote>
 <p>MXGenius is an evidence-backed maintenance operations workspace. An observed aircraft discrepancy becomes a persistent Maintenance Case. The case gathers aircraft identity, technical documents, regulatory candidates, weather, parts, facility options, schedule constraints, observations, approvals, and a complete evidence trail. Chat, voice, the globe, and the 3D viewer are interfaces to that same case state. MXGenius helps qualified people find and organize the evidence; it does not diagnose by itself or authorize return to service.</p>
@@ -487,7 +487,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 <thead>
 <tr>
 <th>Check</th>
-<th>Result on 2026-07-19</th>
+<th>Result on 2026-09-27</th>
 </tr>
 </thead>
 <tbody><tr>
@@ -500,11 +500,11 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 </tr>
 <tr>
 <td>MCP catalog</td>
-<td>46 tools returned from deployed <code>tools/list</code></td>
+<td>49 active typed tools in the current service contract</td>
 </tr>
 <tr>
 <td>Fleet proxy</td>
-<td>Healthy; JetNet-backed dashboard/globe path live</td>
+<td>Healthy; tenant-scoped JetNet context and throttled OpenSky live-overlay paths mounted</td>
 </tr>
 <tr>
 <td>OpenAI text chat</td>
@@ -520,7 +520,7 @@ footer{max-width:1120px;margin:0 auto 50px;padding:24px;border-top:1px solid var
 </tr>
 <tr>
 <td>Canonical aircraft lookup</td>
-<td>Currently fails while writing against the placeholder pilot organization; do not demo the first case slice yet</td>
+<td>Tenant-scoped case lookup, creation, and authenticated media recall are mounted; use approved demo or customer data only</td>
 </tr>
 <tr>
 <td>3D/XR frontend</td>

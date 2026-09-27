@@ -2,7 +2,7 @@
 
 This guide lets a software developer explain and demonstrate MXGenius in credible aviation-maintenance language. It separates what is live, what is mounted but blocked, and what is a typed contract awaiting a data source.
 
-Status snapshot: **2026-07-19**. Re-run the preflight checks before every external demo because source configuration can change independently of the static site.
+Status snapshot: **2026-09-27**. Re-run the preflight checks before every external demo because source configuration can change independently of the static site.
 
 ## The 30-second explanation
 
@@ -248,16 +248,16 @@ Say:
 
 ## Current live truth table
 
-| Check | Result on 2026-07-19 |
+| Check | Result on 2026-09-27 |
 | --- | --- |
 | Rust core health | `200 OK` |
 | Rust readiness | Production mode, Postgres ready |
-| MCP catalog | 46 tools returned from deployed `tools/list` |
-| Fleet proxy | Healthy; JetNet-backed dashboard/globe path live |
+| MCP catalog | 49 active typed tools in the current service contract |
+| Fleet proxy | Healthy; tenant-scoped JetNet context and throttled OpenSky live-overlay paths mounted |
 | OpenAI text chat | `200 OK`, model `gpt-5.6-sol` |
 | FAA DRS SAIB query | `ok`, evidence-backed result returned |
 | Weather query | `partial`, `NOT_CONFIGURED` as designed |
-| Canonical aircraft lookup | Currently fails while writing against the placeholder pilot organization; do not demo the first case slice yet |
+| Canonical aircraft lookup | Tenant-scoped case lookup, creation, and authenticated media recall are mounted; use approved demo or customer data only |
 | 3D/XR frontend | Live compatibility interaction; canonical digital-twin adapter not configured |
 | Realtime voice | Implemented; browser/device smoke required immediately before demo |
 

@@ -56,11 +56,12 @@ test('the starter build list reflects the known apparatus work without live-test
   assert.match(js, /Refine the apparatus mount and cable routing/);
   assert.match(js, /Run the integrated headset apparatus test/);
   assert.match(js, /Verify the registered manual image path/);
-  assert.match(js, /Accept Quest Sensor Bridge poc\.12 on hardware/);
+  assert.match(js, /Publish and accept Quest Sensor Bridge alpha\.25/);
   assert.match(js, /Complete TestFlight Build 33 device acceptance/);
   assert.match(js, /Run Rocky acceptance on Feedback and Parts/);
   assert.match(js, /What third-party connections does Operations need\?/);
-  assert.match(js, /Which POC devices and programs should run with the Pi\?/);
+  assert.match(js, /Lock the Pi power and data configuration/);
+  assert.match(js, /Define the Pi POC stack/);
   assert.match(js, /Can we provide a model structured-output example to mimic\?/);
   assert.doesNotMatch(js, /What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?/);
   assert.match(js, /Disposition the FLIR libssh2 advisory/);
@@ -69,6 +70,23 @@ test('the starter build list reflects the known apparatus work without live-test
   assert.match(js, /Publish the investor-deck landing page/);
   assert.match(js, /Promote Feedback and Parts expansion to Azure/);
   assert.match(js, /Upload native spatial AR Build 33 to TestFlight/);
+  for (const title of [
+    'Run Remote Witness end-to-end acceptance',
+    'Accept Operations VR and AR transitions',
+    'Complete the XR layout and interaction pass',
+    'Accept Pi appliance 0.3.1-poc.29 on hardware',
+    'Verify the complete Equipment Drive lifecycle',
+    'Accept the USB mass-storage gadget workflow',
+    'Field-test selected OpenSky trip paths',
+    'Close the model response-loop regression',
+    'Prepare the final release and handoff report'
+  ]) assert.match(js, new RegExp(title.replace(/[+/.]/g, '\\$&')));
+  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 2/);
+  assert.match(js, /BUILD_BOARD_V2_STARTER_IDS/);
+  assert.match(js, /needsSchemaSave/);
+  assert.match(js, /created_at: existing\.created_at \|\| starter\.created_at/);
+  assert.match(js, /image: existing\.image/);
+  assert.match(js, /updates: existing\.updates/);
 });
 
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {

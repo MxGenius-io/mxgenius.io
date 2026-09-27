@@ -8,6 +8,7 @@ const js = await readFile(new URL('../operations-center.js', import.meta.url), '
 const application = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const progress = await readFile(new URL('../progress.html', import.meta.url), 'utf8');
+const customerOperations = await readFile(new URL('../customer-operations.js', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
 test('Operations Center is the one Settings workspace destination and R&D Highlights opens first', () => {
@@ -102,4 +103,12 @@ test('the retired weekly tracker ends with the open-ended extension draft', () =
   assert.match(progress, /Sep 14, 2026 - Open ended/);
   assert.match(progress, /delivery-extension-2026-09-14\/delivery-extension-draft\.html/);
   assert.match(progress, /<details class="legacy-plan">/);
+  assert.doesNotMatch(progress, /updateCountdown|getElementById\('countdown'\)/);
+});
+
+test('customer operations accepts both RFC 3339 and OffsetDateTime tuple timestamps', () => {
+  assert.match(customerOperations, /Array\.isArray\(value\)/);
+  assert.match(customerOperations, /Date\.UTC\(year, 0, 1/);
+  assert.match(customerOperations, /offsetMilliseconds/);
+  assert.match(customerOperations, /date = new Date\(value\)/);
 });

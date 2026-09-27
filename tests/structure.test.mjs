@@ -135,6 +135,10 @@ test('Pages release retains generated report content', () => {
     /cp -R --[^\n]*"Generated Reports"[^\n]*_site\//,
     'the Pages artifact must include the report scripts, images, and media referenced by report-display.html'
   );
+  assert.doesNotMatch(pagesWorkflow, /cp -R --[^\n]*"Training Data"/);
+  assert.match(pagesWorkflow, /rm -f -- _site\/_local-preview\.html[\s\S]*_site\/tmp_demo_guide\.png/);
+  assert.match(pagesWorkflow, /find "_site\/Generated Reports\/drafts" -type f ! -name '\*\.html' -delete/);
+  assert.doesNotMatch(pagesWorkflow, /\*\.md CNAME _site/);
 });
 
 test('Pages validation uses supported and reproducible toolchains', () => {
@@ -666,8 +670,8 @@ test('WebXR maintenance audio maps every delivered cue and completes the live fr
 test('shared XR audio covers the viewer, sensor bridge, and globe scene', () => {
   assert.match(viewer, /from '\.\.\/xr-ui-audio\.js\?v=3'/);
   assert.match(globeVr, /from '\.\/xr-ui-audio\.js\?v=3'/);
-  assert.match(viewer, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
-  assert.match(globeVr, /application-client\.js\?v=43[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
+  assert.match(viewer, /application-client\.js\?v=50[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
+  assert.match(globeVr, /application-client\.js\?v=50[\s\S]*sound-storage\.js\?v=2[\s\S]*xr-ui-audio\.js\?v=3/);
   assert.match(xrUiAudio, /mxgenius:ui-sounds-updated/);
   assert.match(xrUiAudio, /invalidateCues/);
   assert.match(globeVr, /id="sceneSoundButton"/);
@@ -765,9 +769,9 @@ test('3D viewer header remains reachable in narrow embedded layouts', () => {
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
 });
 
-test('feature catalog records the Alpha 22 guest microphone field failure', () => {
-  assert.match(featureCatalog, /Known Alpha 22 issue:[\s\S]*customer-to-technician audio was not confirmed/);
-  assert.match(featureCatalog, /Treat guest voice as unavailable until end-to-end audio negotiation and playback pass/);
+test('feature catalog keeps unverified Quest guest audio behind a physical acceptance gate', () => {
+  assert.match(featureCatalog, /Customer-to-technician audio remains unconfirmed on the physical Quest/);
+  assert.match(featureCatalog, /Treat guest voice as unavailable until end-to-end microphone negotiation/);
 });
 
 test('XR animation scrubber drives authored clips from controller or fingertip position', () => {
@@ -1472,7 +1476,7 @@ test('live traffic remains available when the optional fleet registry is degrade
 });
 
 test('public runtime configuration mounts the live core without embedding credentials', () => {
-  assert.match(dashboard, /src="runtime-config\.js\?v=4"/);
+  assert.match(dashboard, /src="runtime-config\.js\?v=5"/);
   assert.match(runtimeConfig, /https:\/\/mxg-core\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /https:\/\/mxg-fleet\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io/);
   assert.match(runtimeConfig, /allowInsecurePilot: false/);

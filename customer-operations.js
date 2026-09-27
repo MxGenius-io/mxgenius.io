@@ -77,7 +77,18 @@
 
   function formatDate(value, fallback = 'Never') {
     if (!value) return fallback;
-    const date = new Date(value);
+    let date;
+    if (Array.isArray(value) && value.length >= 5) {
+      const [year, ordinal = 1, hour = 0, minute = 0, second = 0, nanosecond = 0,
+        offsetHour = 0, offsetMinute = 0, offsetSecond = 0] = value.map(Number);
+      const offsetMilliseconds = ((offsetHour * 60 * 60) + (offsetMinute * 60) + offsetSecond) * 1000;
+      const utcMilliseconds = Date.UTC(year, 0, 1, hour, minute, second, Math.floor(nanosecond / 1_000_000))
+        + ((ordinal - 1) * 24 * 60 * 60 * 1000)
+        - offsetMilliseconds;
+      date = new Date(utcMilliseconds);
+    } else {
+      date = new Date(value);
+    }
     return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString();
   }
 

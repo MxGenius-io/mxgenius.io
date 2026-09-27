@@ -94,8 +94,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir _site
-          cp -- *.html *.js *.css *.jpg *.png *.json *.md CNAME _site/ 2>/dev/null || true
-          cp -R -- 3d-viewer assets icons media "Training Data" "Generated Reports" docs _site/ 2>/dev/null || true
+          cp -- *.html *.js *.css *.jpg *.png *.json README.md CHANGELOG.md FEATURES.md CNAME _site/ 2>/dev/null || true
+          cp -R -- 3d-viewer assets icons media "Generated Reports" docs _site/ 2>/dev/null || true
+          rm -f -- _site/_local-preview.html _site/_local-preview-admin.html _site/_local-preview-parts.html _site/tmp_demo_guide.png
+          find "_site/Generated Reports/drafts" -type f ! -name '*.html' -delete 2>/dev/null || true
           mkdir -p _site/services/mcp/config
           cp -- services/mcp/config/environment-manifest.json _site/services/mcp/config/environment-manifest.json
           mkdir -p _site/schemas

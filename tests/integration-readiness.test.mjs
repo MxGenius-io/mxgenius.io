@@ -44,7 +44,9 @@ test('migration separates entity ownership, access, and service cutover', () => 
     'GitHub organization + release ownership',
     'Domain, DNS + company email administration',
     'Meta Horizon developer team + Quest builds',
-    'Vendor, API + data subscription ownership'
+    'Vendor, API + data subscription ownership',
+    'Edge release artifacts, checksums + retention custody',
+    'OpenSky/API quota, credentials + provider ownership'
   ]) assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   assert.match(js, /Josh — confirm developer account; Rock — proposed setup lead \(confirm\)/);
   assert.match(js, /self-imposed, not represented as a Microsoft requirement/i);
@@ -62,8 +64,8 @@ test('migration provides current official help paths without crowding the first 
   assert.match(html, /Access first\.[\s\S]*Then transfer\.[\s\S]*Prove the handoff\./);
 });
 
-test('starter software inventory includes known external and internal boundaries', () => {
-  for (const name of ['Microsoft Teams', 'ADP', 'PartSpace', 'FAA Dynamic Regulatory System', 'Boeing technical data', 'JetNet', 'Microsoft Entra ID', 'Internal maintenance / MRO record system']) {
+test('starter software inventory includes known external, live-flight, model, and internal boundaries', () => {
+  for (const name of ['Microsoft Teams', 'ADP', 'PartSpace', 'FAA Dynamic Regulatory System', 'Boeing technical data', 'JetNet', 'Microsoft Entra ID', 'Internal maintenance / MRO record system', 'OpenSky Network live traffic', 'AI model runtime and response reliability']) {
     assert.match(js, new RegExp(name.replace(/[/.]/g, '\\$&')));
   }
   assert.match(js, /no autonomous purchase/i);
@@ -71,8 +73,8 @@ test('starter software inventory includes known external and internal boundaries
   assert.match(js, /licensing limits/);
 });
 
-test('starter hardware separates enclosure internals from attached demo equipment', () => {
-  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'Enclosure cooling fan', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Demo drill / driver', 'Pressure gauge / transducer']) {
+test('starter hardware separates enclosure internals, power/data paths, and attached demo equipment', () => {
+  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'Enclosure cooling fan', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Demo drill / driver', 'Pressure gauge / transducer', '52Pi direct GPIO power path', 'USB-C mass-storage gadget and data path']) {
     assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   }
   assert.match(html, /Inside[\s\S]*Pi 5 · 16 GB[\s\S]*Outside/);
@@ -85,7 +87,10 @@ test('structured output is explained in executive language with human authority 
   for (const label of ['Observation', 'Evidence', 'Meaning', 'Next action', 'Human decision', 'Record']) assert.match(html, new RegExp(label));
   assert.match(html, /Use approved aircraft data/);
   assert.match(html, /Values and limits are never assumed/);
-  assert.equal((js.match(/id: 'workflow-/g) || []).length, 5);
+  assert.equal((js.match(/id: 'workflow-/g) || []).length, 11);
+  for (const name of ['Commission, update, and recover the Pi appliance', 'Complete the Equipment Drive transfer lifecycle', 'Run a Remote Witness support session', 'Transition between VR and AR without losing work', 'Stop and recover a model response loop', 'Select and follow a live flight trip']) {
+    assert.match(js, new RegExp(name.replace(/[+/.]/g, '\\$&')));
+  }
   assert.match(js, /Gold-standard example for MXGenius to mimic/);
 });
 
@@ -98,6 +103,11 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /element\.textContent = text/);
   assert.doesNotMatch(js, /innerHTML/);
   assert.match(js, /beforeunload/);
+  assert.match(js, /READINESS_SCHEMA_VERSION = 3/);
+  assert.match(js, /READINESS_V3_IDS/);
+  assert.match(js, /mergeStarterUpgrade/);
+  assert.match(js, /needsSchemaSave/);
+  assert.match(js, /save to publish it/);
 });
 
 test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {
