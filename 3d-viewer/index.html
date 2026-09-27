@@ -1465,9 +1465,10 @@
         import { XRUIAudio, cueForXRAction } from '../xr-ui-audio.js?v=3';
         import { XRRealtimePresence } from '../xr-realtime-presence.js?v=15';
         import { XRRemoteWitnessPanel } from '../xr-remote-witness.js?v=9';
-        import { XRSensorOrb } from '../xr-sensor-orb.js?v=15';
+        import { XRSensorOrb } from '../xr-sensor-orb.js?v=16';
         import { XROperationsSurface } from '../xr-operations-surface.js?v=3';
-        import { XRSpatialShell } from '../xr-spatial-shell.js?v=13';
+        import { XRSpatialShell } from '../xr-spatial-shell.js?v=14';
+        import { XRInputDwellGate } from '../xr-input-dwell.js?v=1';
         import { SpatialWindowManager } from '../spatial-window-manager.js?v=2';
         import { XRCapabilityRegistry } from '../xr-capability-registry.js?v=1';
         import {
@@ -1594,6 +1595,7 @@
         const xrControllers = [];
         const xrHands = [];
         const xrFingerTargets = new Map();
+        const xrShellFingerDwell = new XRInputDwellGate({ dwellMs: 180 });
         const xrControllerMatrix = new THREE.Matrix4();
         const xrFingerPoint = new THREE.Vector3();
         const xrFingerBounds = new THREE.Box3();
@@ -2072,10 +2074,11 @@
                         state,
                         active
                     });
-                    xrSpatialShell?.setToolState(id, {
-                        active: Boolean(active),
-                        windowState: state
-                    });
+                    if (id === 'service') {
+                        xrSpatialShell?.setSystemState('service', { active: Boolean(active), windowState: state });
+                    } else {
+                        xrSpatialShell?.setToolState(id, { active: Boolean(active), windowState: state });
+                    }
                     syncMaintenanceSurfaces(snapshot);
                 }
             });
@@ -2101,6 +2104,19 @@
                 show: () => xrVoice?.setSurfaceOpen(true),
                 hide: () => xrVoice?.setSurfaceOpen(false)
             });
+            xrWindowManager.register('service', {
+                show: ({ input = 'xr' } = {}) => {
+                    const dock = xrSpatialShell?.contentAnchor?.();
+                    if (dock && xrSensors?.group) {
+                        dock.updateMatrixWorld(true);
+                        dock.getWorldPosition(xrSensors.group.position);
+                        dock.getWorldQuaternion(xrSensors.group.quaternion);
+                        xrSensors.setScreenPinned(true, input);
+                    }
+                    xrSensors?.setDiagnosticsVisible(true, input);
+                },
+                hide: ({ input = 'xr' } = {}) => xrSensors?.setDiagnosticsVisible(false, input)
+            });
             xrCapabilityRegistry.registerAction('thermal', ({ input = 'xr' } = {}) => (
                 xrWindowManager?.toggle('thermal', { input, reason: 'capability-registry' })
             ));
@@ -2121,15 +2137,33 @@
             });
             xrSpatialShell = new XRSpatialShell({
                 mode: spatialMode,
+                context: spatialContext,
                 sessionMode: activeSpatialSessionMode || 'immersive-vr',
                 sessionModeSupport: spatialSessionSupport,
+                systemMenuOpen: xrWorkspaceController.snapshot().systemMenuOpen,
                 tools: [...xrCapabilityRegistry.snapshot()],
                 onModeChange: (mode, { input = 'xr' } = {}) => {
                     setSpatialMode(mode, { source: `spatial-tray:${input}` });
                 },
-                onActiveMode: () => false,
                 onSessionModeChange: (sessionMode, { input = 'xr' } = {}) => {
                     void beginSpatialSessionModeHandoff(sessionMode, { input });
+                },
+                onSystemMenuChange: (open, { input = 'xr' } = {}) => {
+                    xrWorkspaceController.setSystemMenuOpen(open, { source: `spatial-shell:${input}` });
+                },
+                onSystemAction: async (systemId, { input = 'xr' } = {}) => {
+                    if (systemId === 'sound') {
+                        xrUIAudio?.setMuted(!xrUIAudio.muted);
+                        if (!xrUIAudio?.muted) await xrUIAudio?.unlock();
+                        return { ok: true, muted: Boolean(xrUIAudio?.muted) };
+                    }
+                    if (systemId === 'service') {
+                        if (spatialMode !== 'maintenance') {
+                            setSpatialMode('maintenance', { source: `spatial-service:${input}` });
+                        }
+                        return { ok: Boolean(xrWindowManager?.toggle('service', { input, reason: 'system-menu' })) };
+                    }
+                    return { ok: false, reason: 'System action unavailable' };
                 },
                 onRecenter: () => {
                     xrVoice?.requestPlacement('spatial-shell');
@@ -2951,6 +2985,7 @@
         function synchronizeWorkspaceContext(source = 'spatial-workspace') {
             xrWorkspaceController.setContext(spatialContext, { source });
             xrOperations?.setContext(spatialContext);
+            xrSpatialShell?.setContext(spatialContext);
             refreshSpatialCapabilities(source);
             return spatialContext;
         }
@@ -3066,6 +3101,7 @@
             );
             xrOperations?.setContext(spatialContext);
             updateViewerContextFromSpatialContext();
+            xrSpatialShell?.setContext(spatialContext);
             applySpatialMode();
             postSpatialStatus(renderer?.xr?.isPresenting ? 'active' : 'ready');
             emitXRAction('spatial-mode-ready', 'system', { mode: spatialMode });
@@ -3553,6 +3589,8 @@
 
         function updateXRControllerLasers() {
             const presenting = Boolean(renderer.xr.isPresenting);
+            let shellHover = null;
+            let hasVisibleController = false;
             for (const controller of xrControllers) {
                 const laser = controller.userData.widgetLaser;
                 if (!laser) continue;
@@ -3562,6 +3600,7 @@
                     laser.reticle.visible = false;
                     continue;
                 }
+                hasVisibleController = true;
                 xrControllerMatrix.identity().extractRotation(controller.matrixWorld);
                 raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
                 raycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrControllerMatrix);
@@ -3572,6 +3611,7 @@
                 ], true).find((item) => item.object?.isMesh);
                 const distance = Math.min(5, Math.max(0.08, Number(hit?.distance) || 5));
                 const widgetHit = Boolean(hit && belongsToXRTarget(hit.object, widgetTargets));
+                if (!shellHover && hit && xrSpatialShell?.owns(hit.object)) shellHover = hit.object;
                 const color = widgetHit ? 0x22d3ee : hit ? 0x818cf8 : 0x67e8f9;
                 laser.line.scale.z = distance;
                 laser.line.material.color.setHex(color);
@@ -3581,6 +3621,7 @@
                 laser.reticle.material.color.setHex(color);
                 laser.reticle.scale.setScalar(widgetHit ? 1.25 : 1);
             }
+            if (hasVisibleController) xrSpatialShell?.setHoveredObject(shellHover);
         }
 
         function selectFromXRController(controller, index) {
@@ -3787,19 +3828,29 @@
         }
 
         function updateXRFingerInteractions(time) {
-            if (!renderer.xr.isPresenting || time - xrLastFingerCheck < 100) return;
+            if (!renderer.xr.isPresenting) {
+                xrShellFingerDwell.clear();
+                return;
+            }
+            if (time - xrLastFingerCheck < 100) return;
             xrLastFingerCheck = time;
             xrHands.forEach((hand, index) => {
                 const tip = hand.joints?.['index-finger-tip'];
-                if (!tip?.visible) return;
+                if (!tip?.visible) {
+                    xrShellFingerDwell.update(index, null, time);
+                    return;
+                }
                 tip.getWorldPosition(xrFingerPoint);
                 const shellTarget = xrSpatialShell?.fingerTargetAt(xrFingerPoint);
+                const shellInput = `finger-${index}`;
                 if (shellTarget) {
-                    const previousShell = xrFingerTargets.get(index) || null;
-                    if (shellTarget !== previousShell) xrSpatialShell.handleObject(shellTarget, `finger-${index}`);
+                    if (xrShellFingerDwell.update(index, shellTarget, time)) {
+                        xrSpatialShell.handleObject(shellTarget, shellInput);
+                    }
                     xrFingerTargets.set(index, shellTarget);
                     return;
                 }
+                xrShellFingerDwell.update(index, null, time);
                 const operationsTarget = xrOperations?.fingerTargetAt(xrFingerPoint);
                 if (operationsTarget) {
                     const previousOperations = xrFingerTargets.get(index) || null;
@@ -4230,6 +4281,7 @@
                 ? 'Spatial interface sound muted'
                 : `Spatial interface sound ${stateLabel}`;
             document.body.dataset.xrAudio = muted ? 'muted' : String(detail.state || 'locked');
+            xrSpatialShell?.setSoundState({ muted, status: stateLabel });
         }
 
         function handlePartPick(event) {

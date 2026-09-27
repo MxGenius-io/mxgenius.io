@@ -27,6 +27,7 @@ test('stable fingertip contact fires once and requires release or a new target',
 
 test('WebXR routes controller and hand input through the bounded spatial controls', async () => {
   const scene = await readFile(new URL('../globe-vr.html', import.meta.url), 'utf8');
+  const viewer = await readFile(new URL('../3d-viewer/index.html', import.meta.url), 'utf8');
   const hud = await readFile(new URL('../xr-spatial-target-hud.js', import.meta.url), 'utf8');
   const controllerTargets = scene.slice(
     scene.indexOf('function xrWidgetInteractionTargets()'),
@@ -46,7 +47,11 @@ test('WebXR routes controller and hand input through the bounded spatial control
   assert.match(scene, /controller\.addEventListener\('select', \(\) => selectFromXRController/);
   assert.match(scene, /new XRInputDwellGate\(\{ dwellMs: 180 \}\)/);
   assert.match(scene, /spatialFingerDwell\.update\(handIndex, spatialTarget, time\)/);
+  assert.match(scene, /spatialFingerDwell\.update\(handIndex, shellTarget, time\)/);
   assert.match(scene, /spatialFingerDwell\.clear\(\)/);
+  assert.match(viewer, /new XRInputDwellGate\(\{ dwellMs: 180 \}\)/);
+  assert.match(viewer, /xrShellFingerDwell\.update\(index, shellTarget, time\)/);
+  assert.match(viewer, /xrShellFingerDwell\.clear\(\)/);
   assert.match(hud, /const x = bounds\.x \* CANVAS_WIDTH/);
   assert.match(hud, /const y = bounds\.y \* CANVAS_HEIGHT/);
   assert.match(hud, /const width = bounds\.width \* CANVAS_WIDTH/);

@@ -125,7 +125,7 @@
     import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=15';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=9';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=13';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=14';
     import { SpatialWindowManager } from './spatial-window-manager.js?v=2';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
@@ -195,7 +195,7 @@
       : sensorBridgeScene ? 'fleet-globe-sensor-bridge' : 'fleet-globe';
     sensorSetup.hidden = !sensorBridgeScene;
     let SensorOrbClass = null;
-    if (sensorBridgeScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=15'));
+    if (sensorBridgeScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=16'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene
       ? 'MXGenius Sensor Diagnostics'
@@ -1825,15 +1825,16 @@
       globeGroup.updateMatrixWorld(true);
       xrHands.forEach((hand, handIndex) => {
         const tip = hand.joints?.['index-finger-tip'];
-        if (!tip?.visible) return;
+        if (!tip?.visible) {
+          spatialFingerDwell.update(handIndex, null, time);
+          return;
+        }
         tip.getWorldPosition(fingerPoint);
 
         const shellTarget = xrSpatialShell.fingerTargetAt(fingerPoint);
-        const previousShellTarget = hand.userData.shellFingerTarget || null;
-        if (shellTarget && shellTarget !== previousShellTarget) {
+        if (spatialFingerDwell.update(handIndex, shellTarget, time)) {
           xrSpatialShell.handleObject(shellTarget, `finger-${handIndex}`);
         }
-        hand.userData.shellFingerTarget = shellTarget;
         if (shellTarget) return;
 
         const witnessTarget = xrWitness?.fingerTargetAt(fingerPoint) || null;

@@ -77,9 +77,9 @@ test('globe and viewer share one world-anchored two-mode spatial tray', () => {
   assert.match(viewer, /import \{ XRSpatialShell \}/);
   assert.match(globe, /new XRSpatialShell\(/);
   assert.match(viewer, /new XRSpatialShell\(/);
-  assert.match(spatialShell, /operations: \{ label: 'WORLD'/);
-  assert.match(spatialShell, /maintenance: \{ label: 'FOCUS'/);
-  assert.match(spatialShell, /ACTIVE · TAP TO RECENTER/);
+  assert.match(spatialShell, /MXGeniusContextualAction/);
+  assert.match(spatialShell, /MXGeniusSystemMenu/);
+  assert.match(spatialShell, /this\.buttons = \[this\.actionButton, this\.systemButton\]/);
   assert.match(spatialShell, /this\.placementPending = true/);
   assert.match(spatialShell, /placeForView\(camera = null\)/);
   assert.match(spatialShell, /if \(!this\.placementPending \|\| !camera\) return/);
@@ -219,7 +219,7 @@ test('dashboard opens Sensor Bridge on the mature JetNet fleet globe', () => {
 });
 
 test('sensor scene cache-busts the commissioning browser client', () => {
-  assert.match(globe, /xr-sensor-orb\.js\?v=15/);
+  assert.match(globe, /xr-sensor-orb\.js\?v=16/);
   assert.match(sensors, /commissioning\.browser_ack/);
   assert.match(sensors, /W14 PASS/);
 });
@@ -232,7 +232,7 @@ test('maintenance viewer reuses the sensor, witness, voice, and evidence cores b
   assert.match(viewer, /onSnapshotCaptured: saveViewerSnapshot/);
   assert.match(viewer, /nativeBootstrapProvider: \(invitation, projection\) => xrSensors\.sendWitnessBootstrap/);
   assert.match(spatialShell, /TOOL_DEFAULTS/);
-  assert.match(spatialShell, /spatial-tool-/);
+  assert.match(spatialShell, /this\.onToolAction\(toolId/);
   assert.match(maintenanceRuntime, /resolveXRSensorRuntime/);
   assert.match(globe, /const sensorRuntime = resolveXRSensorRuntime\(\)/);
 });

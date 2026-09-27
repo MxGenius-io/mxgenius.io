@@ -130,6 +130,7 @@ export class XRSensorOrb {
     this.active = initialActive === null ? this.presentation === 'head-screen' : Boolean(initialActive);
     this.showControls = Boolean(showControls);
     this.showDiagnostics = Boolean(showDiagnostics);
+    this.diagnosticsVisible = Boolean(showDiagnostics);
     this.screenReveal = this.active ? 1 : 0;
     this.screenPinned = false;
     this.state = 'unconfigured';
@@ -435,6 +436,13 @@ export class XRSensorOrb {
       this.onAction('toggle-sensor-orb', input, { active: this.active, state: this.state, frames: this.frames });
     }
     this.drawPanel();
+  }
+
+  setDiagnosticsVisible(visible, input = 'system') {
+    this.diagnosticsVisible = Boolean(visible);
+    this.panel.material.visible = this.diagnosticsVisible;
+    this.onAction('sensor-diagnostics-visibility', input, { visible: this.diagnosticsVisible });
+    return this.diagnosticsVisible;
   }
 
   sendThermalControl(input, enabled = this.active) {
@@ -1105,7 +1113,7 @@ export class XRSensorOrb {
         this.group.position.lerp(this.headTargetPosition, 1 - Math.exp(-delta * 18));
         this.group.quaternion.slerp(this.cameraQuaternion, 1 - Math.exp(-delta * 18));
       }
-      const diagnosticsTarget = this.active && this.showDiagnostics ? 0.78 : 0.001;
+      const diagnosticsTarget = this.diagnosticsVisible ? 0.78 : 0.001;
       const diagnosticsScale = THREE.MathUtils.lerp(this.panel.scale.x, diagnosticsTarget, 1 - Math.exp(-delta * 11));
       this.panel.scale.setScalar(Math.max(0.001, diagnosticsScale));
       this.screenReveal = THREE.MathUtils.lerp(this.screenReveal, this.active ? 1 : 0, 1 - Math.exp(-delta * 12));

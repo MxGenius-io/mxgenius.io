@@ -122,10 +122,10 @@ test('the web application exposes one launcher and one canonical VR or AR sessio
 });
 
 test('VR and AR switch through a bounded user-gesture handoff while preserving workspace state', () => {
-  assert.match(shell, /MXGeniusSwitchToAR/);
-  assert.match(shell, /MXGeniusSwitchToVR/);
-  assert.match(shell, /xrShellAction = 'switch-session-mode'/);
-  assert.match(shell, /this\.onSessionModeChange\?\.\(nextSessionMode, \{ input \}\)/);
+  assert.match(shell, /id: 'reality', label: 'VR \/ AR'/);
+  assert.match(shell, /action: 'system-action'/);
+  assert.match(shell, /button\.userData\.xrShellSessionMode = targetMode/);
+  assert.match(shell, /this\.onSessionModeChange\?\.\(nextMode, \{ input \}\)/);
   assert.match(viewer, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   const handoff = viewer.slice(
     viewer.indexOf('async function beginSpatialSessionModeHandoff'),
@@ -147,7 +147,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=51/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=52/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
@@ -256,23 +256,36 @@ test('World and Focus share the canonical renderer, session, animation loop, and
 
 test('maintenance stays in the canonical renderer and opens tools from one world anchor', () => {
   assert.match(globe, /xr-realtime-presence\.js\?v=15/);
-  assert.match(globe, /xr-spatial-shell\.js\?v=13/);
+  assert.match(globe, /xr-spatial-shell\.js\?v=14/);
   assert.match(viewer, /xr-realtime-presence\.js\?v=15/);
-  assert.match(viewer, /xr-spatial-shell\.js\?v=13/);
-  assert.match(shell, /onActiveMode = \(\) => false/);
-  assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
+  assert.match(viewer, /xr-spatial-shell\.js\?v=14/);
+  assert.match(shell, /this\.buttons = \[this\.actionButton, this\.systemButton\]/);
+  assert.match(shell, /MXGeniusContextualAction/);
+  assert.match(shell, /MXGeniusSystemMenu/);
+  assert.match(shell, /MXGeniusContextualActionMenu/);
+  assert.match(shell, /MXGeniusCompactSystemMenu/);
   assert.match(shell, /MXGeniusSpatialContentDock/);
   assert.match(shell, /contentAnchor\(\)/);
-  assert.match(shell, /this\.contentDock\.position\.set\(0\.96, 0\.02, 0\.02\)/);
-  assert.match(shell, /Number\.isFinite\(placement\?\.y\) \? placement\.y : -0\.30/);
-  assert.match(shell, /button\.visible = visible && this\.toolModes\.has\(this\.mode\)/);
-  assert.match(shell, /return this\.toolModes\.has\(this\.mode\)/);
+  assert.match(shell, /this\.contentDock\.position\.set\(0\.92, 0\.18, -0\.02\)/);
+  assert.match(shell, /Number\.isFinite\(placement\?\.y\) \? placement\.y : -0\.34/);
+  assert.match(shell, /this\.actionMenu\.visible = this\.actionMenuOpen/);
+  assert.match(shell, /this\.systemMenu\.visible = this\.systemMenuOpen/);
+  assert.match(shell, /this\.systemMenu\.position\.set\(-0\.49, 0\.16, 0\.006\)/);
+  assert.match(shell, /this\.setSystemMenuOpen\(false, \{ notify: true \}\)/);
+  assert.match(shell, /setHoveredObject\(object = null\)/);
+  assert.match(shell, /loading: true, failure: ''/);
+  assert.match(shell, /loading: false, failure: failed/);
+  assert.match(shell, /\.\.\.\(this\.actionMenuOpen \? \[/);
+  assert.match(shell, /\.\.\.\(this\.systemMenuOpen \? this\.systemButtons : \[\]\)/);
   assert.match(sensors, /this\.panel\.position\.set\(0, -0\.5 \* this\.screenScale - 0\.26, -0\.03\)/);
-  assert.match(sensors, /const diagnosticsTarget = this\.active && this\.showDiagnostics \? 0\.78 : 0\.001/);
+  assert.match(sensors, /const diagnosticsTarget = this\.diagnosticsVisible \? 0\.78 : 0\.001/);
   assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);
   assert.match(viewer, /xrWindowManager\.register\('voice'/);
+  assert.match(viewer, /xrWindowManager\.register\('service'/);
+  assert.match(viewer, /setSpatialMode\('maintenance', \{ source: `spatial-service:\$\{input\}` \}\)/);
+  assert.match(viewer, /xrSpatialShell\?\.setHoveredObject\(shellHover\)/);
   assert.match(viewer, /new XRCapabilityRegistry\(/);
   assert.match(viewer, /xrCapabilityRegistry\.registerAction\('thermal'/);
   assert.match(viewer, /xrCapabilityRegistry\.registerAction\('witness'/);
@@ -289,8 +302,8 @@ test('maintenance stays in the canonical renderer and opens tools from one world
 });
 
 test('the spatial tray communicates minimized windows without ending Remote Witness', () => {
-  assert.match(shell, /tool\.windowState === 'minimized'/);
-  assert.match(shell, /context\.arc\(128, 174, 7/);
+  assert.match(shell, /tool\?\.windowState === 'minimized'/);
+  assert.match(shell, /MINIMIZED · TAP TO RESTORE/);
   assert.match(witness, /MXGeniusWitnessMinimize/);
   assert.match(witness, /MXGeniusWitnessMaximize/);
   assert.match(witness, /witness-window-close/);
@@ -300,9 +313,9 @@ test('the spatial tray communicates minimized windows without ending Remote Witn
 });
 
 test('the shared spatial tray always exposes a session exit control', () => {
-  assert.match(shell, /MXGeniusExitVR/);
-  assert.match(shell, /MXGeniusExitAR/);
-  assert.match(shell, /xrShellAction = 'exit-vr'/);
+  assert.match(shell, /id: 'exit', label: 'EXIT'/);
+  assert.match(shell, /label = this\.sessionMode === 'immersive-ar' \? 'EXIT AR' : 'EXIT VR'/);
+  assert.match(shell, /systemId === 'exit'/);
   assert.match(shell, /this\.onExit\(\{ input \}\)/);
   assert.match(viewer, /onExit: \(\) => spatialSession\?\.end\?\.\(\)/);
   assert.match(globe, /onExit: \(\{ input = 'xr' \} = \{\}\) => void returnToScene\(input\)/);
