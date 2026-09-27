@@ -5,7 +5,7 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
-  const BUILD_BOARD_SCHEMA_VERSION = 2;
+  const BUILD_BOARD_SCHEMA_VERSION = 3;
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -16,23 +16,12 @@
     {
       id: 'question-sprint-configuration',
       lane: 'complete',
-      title: 'Lock the Pi power and data configuration',
-      message: 'The 52Pi power path is wired directly to the Pi header, freeing USB-C for the mass-storage gadget. The remaining mechanics and runtime measurements are tracked as separate acceptance work.',
+      title: 'Wire the Pi power and data paths',
+      message: 'The 52Pi supply is wired directly to the Pi header, freeing USB-C for the mass-storage gadget and separating sustained power from host data transfer.',
       owner: 'Joshua Millard + Thomas Hagy',
       author: 'September 27 readiness refresh',
       created_at: '2026-08-17T00:00:00Z',
       updated_at: '2026-09-27T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'question-operations-connections',
-      lane: 'question',
-      title: 'What third-party connections does Operations need?',
-      message: 'List every external system or provider required for daily operations across parts and procurement, fleet data, manuals and maintenance records, communications, accounting, identity, storage, and remote support. For each connection, name the owner, access or credential status, sandbox and production availability, priority, and any blocking dependency.',
-      owner: 'Unassigned',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T10:30:00Z',
-      updated_at: '2026-08-24T10:30:00Z',
       updates: []
     },
     {
@@ -47,51 +36,18 @@
       updates: []
     },
     {
-      id: 'question-structured-output-example',
-      lane: 'question',
-      title: 'Can we provide a model structured-output example to mimic?',
-      message: 'Attach one real or representative example of the exact structured output expected from the model: schema, field names, section order, labels, actions, evidence or citations, and empty or error states. A screenshot, annotated picture, or card image is preferred when available.',
-      owner: 'Unassigned',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T10:30:00Z',
-      updated_at: '2026-08-24T10:30:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-mount-refinement',
-      lane: 'sprint',
-      title: 'Refine the apparatus mount and cable routing',
-      message: 'Tighten the thermal-sensor mounting, reduce clunky interactions, protect connectors, and make the Pi/battery arrangement easier to assemble and handle.',
-      owner: 'Unassigned',
-      author: 'Team board starter',
-      created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-live-apparatus-test',
-      lane: 'sprint',
-      title: 'Run the integrated headset apparatus test',
-      message: 'With the device connected, verify FLIR pixels in the XR floating panel, independent Pi diagnostics, the VR exit path, and headset performance with the high-detail apparatus model.',
-      owner: 'Dwayne Tillman',
-      author: 'Team board starter',
-      created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-08-17T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-manual-image-smoke',
+      id: 'complete-dewalt-runtime',
       lane: 'complete',
-      title: 'Verify the registered manual image path',
-      message: 'The signed-in production copilot resolved CL350 AMM Task 31-31-01-000-801 through the deterministic image register, rendered the hash-verified flight data recorder figure from page 165, and returned one bounded manual record without model tool calls.',
+      title: 'Prove 18-hour DeWalt battery runtime',
+      message: 'The current Raspberry Pi and 52Pi brain configuration ran for 18 hours on a single DeWalt battery charge. This establishes the mobile compute power baseline; future actuator power remains a separate robotics requirement.',
       owner: 'Dwayne Tillman',
-      author: 'September 15 release closeout',
-      created_at: '2026-08-17T00:00:00Z',
-      updated_at: '2026-09-15T11:33:00Z',
+      author: 'September 27 hardware closeout',
+      created_at: '2026-09-27T00:00:00Z',
+      updated_at: '2026-09-27T00:00:00Z',
       updates: []
     },
     {
-      id: 'sprint-quest-poc12-acceptance',
+      id: 'sprint-quest-alpha25-acceptance',
       lane: 'sprint',
       title: 'Publish and accept Quest Sensor Bridge alpha.25',
       message: 'Publish the verified alpha.25 APK to the private Meta Alpha lane, confirm the runtime label, then prove FLIR, full-display Remote Witness capture, guest audio, bounded recovery, pause/resume, and teardown on the physical Quest.',
@@ -99,17 +55,6 @@
       author: 'September 27 readiness refresh',
       created_at: '2026-08-24T09:48:00Z',
       updated_at: '2026-09-27T00:00:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-ios-build33-acceptance',
-      lane: 'sprint',
-      title: 'Complete TestFlight Build 33 device acceptance',
-      message: 'After Apple processing, validate portrait and landscape launch, AR globe placement, independent anchors, CAM-follow and world lock, panel navigation, Realtime microphone control, and spatial audio on a physical device.',
-      owner: 'Unassigned',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T09:48:00Z',
-      updated_at: '2026-08-24T09:48:00Z',
       updates: []
     },
     {
@@ -121,17 +66,6 @@
       author: 'Week 23 closeout',
       created_at: '2026-08-24T09:48:00Z',
       updated_at: '2026-08-24T09:48:00Z',
-      updates: []
-    },
-    {
-      id: 'sprint-flir-libssh2-disposition',
-      lane: 'sprint',
-      title: 'Disposition the FLIR libssh2 advisory',
-      message: 'Resolve, mitigate, or formally accept the vendor-library advisory before public Meta submission; keep the current Quest release in the private Alpha lane until the decision is recorded.',
-      owner: 'Dwayne Tillman',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T10:18:00Z',
-      updated_at: '2026-08-24T10:18:00Z',
       updates: []
     },
     {
@@ -311,21 +245,19 @@
       updates: []
     }
   ];
-  const BUILD_BOARD_V2_STARTER_IDS = new Set([
-    'question-sprint-configuration',
-    'question-pi-poc-stack',
+  const BUILD_BOARD_V3_STARTER_IDS = new Set(starterCards.map((card) => card.id));
+  const BUILD_BOARD_V3_RETIRED_IDS = new Set([
+    'question-operations-connections',
+    'question-structured-output-example',
+    'question-demonstration-done',
+    'question-thermal-acceptance-duration',
+    'question-ios-build33-owner',
+    'sprint-mount-refinement',
+    'sprint-live-apparatus-test',
+    'sprint-manual-image-smoke',
     'sprint-quest-poc12-acceptance',
-    'sprint-remote-witness-acceptance',
-    'sprint-operations-xr-acceptance',
-    'sprint-xr-layout-interaction',
-    'sprint-pi-poc29-acceptance',
-    'sprint-equipment-drive-lifecycle',
-    'sprint-usb-gadget-acceptance',
-    'sprint-opensky-trip-acceptance',
-    'sprint-model-response-loop',
-    'sprint-final-release-closeout',
-    'complete-sensor-bridge',
-    'complete-map-xr-refinement'
+    'sprint-ios-build33-acceptance',
+    'sprint-flir-libssh2-disposition'
   ]);
 
   const state = {
@@ -378,22 +310,21 @@
 
   function normalizeDocument(value) {
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
+    let cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
     if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
-      for (const starter of starterCards.filter((card) => BUILD_BOARD_V2_STARTER_IDS.has(card.id))) {
-        const index = cards.findIndex((card) => card.id === starter.id);
-        if (index < 0) {
-          cards.unshift(normalizeCard(starter));
-          continue;
-        }
-        const existing = cards[index];
-        cards[index] = normalizeCard({
+      const retained = cards.filter((card) => !BUILD_BOARD_V3_RETIRED_IDS.has(card.id));
+      const existingById = new Map(retained.map((card) => [card.id, card]));
+      const refreshedStarters = starterCards.map((starter) => {
+        const existing = existingById.get(starter.id);
+        return normalizeCard(existing ? {
           ...starter,
           created_at: existing.created_at || starter.created_at,
           image: existing.image,
           updates: existing.updates
-        });
-      }
+        } : starter);
+      });
+      const teamCards = retained.filter((card) => !BUILD_BOARD_V3_STARTER_IDS.has(card.id));
+      cards = [...refreshedStarters, ...teamCards];
     }
     return { schema_version: BUILD_BOARD_SCHEMA_VERSION, cards };
   }
@@ -644,7 +575,7 @@
     elements.save.disabled = !needsSchemaSave;
     setSaveState(
       needsSchemaSave
-        ? `Readiness refresh applied to team board v${state.version} · save to publish it`
+        ? `Build refresh applied to team board v${state.version} · save to publish it`
         : state.version ? `Team board v${state.version} · saved ${formatDate(workspace.updated_at)}` : 'Starter board · saves with the first post',
       needsSchemaSave ? 'dirty' : state.version ? 'saved' : ''
     );

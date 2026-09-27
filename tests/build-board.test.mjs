@@ -52,19 +52,17 @@ test('board lanes lead the composer and cards support private picture attachment
   assert.match(css, /\.card-image/);
 });
 
-test('the starter build list reflects the known apparatus work without live-test plumbing blockers', () => {
-  assert.match(js, /Refine the apparatus mount and cable routing/);
-  assert.match(js, /Run the integrated headset apparatus test/);
-  assert.match(js, /Verify the registered manual image path/);
+test('the starter build list reflects the current hardware and release work', () => {
+  assert.equal((js.match(/lane: 'question'/g) || []).length, 0);
+  assert.equal((js.match(/lane: 'sprint'/g) || []).length, 11);
+  assert.equal((js.match(/lane: 'complete'/g) || []).length, 10);
   assert.match(js, /Publish and accept Quest Sensor Bridge alpha\.25/);
-  assert.match(js, /Complete TestFlight Build 33 device acceptance/);
   assert.match(js, /Run Rocky acceptance on Feedback and Parts/);
-  assert.match(js, /What third-party connections does Operations need\?/);
-  assert.match(js, /Lock the Pi power and data configuration/);
+  assert.match(js, /Wire the Pi power and data paths/);
   assert.match(js, /Define the Pi POC stack/);
-  assert.match(js, /Can we provide a model structured-output example to mimic\?/);
-  assert.doesNotMatch(js, /What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?/);
-  assert.match(js, /Disposition the FLIR libssh2 advisory/);
+  assert.match(js, /Prove 18-hour DeWalt battery runtime/);
+  assert.match(js, /ran for 18 hours on a single DeWalt battery charge/);
+  assert.doesNotMatch(js, /What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?|Which POC devices and programs should run with the Pi\?|Smoke-check the recovered manual image path/);
   assert.match(js, /Separate thermal and Pi transport paths/);
   assert.match(js, /Publish the shared provisional-patent workspace/);
   assert.match(js, /Publish the investor-deck landing page/);
@@ -81,12 +79,17 @@ test('the starter build list reflects the known apparatus work without live-test
     'Close the model response-loop regression',
     'Prepare the final release and handoff report'
   ]) assert.match(js, new RegExp(title.replace(/[+/.]/g, '\\$&')));
-  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 2/);
-  assert.match(js, /BUILD_BOARD_V2_STARTER_IDS/);
+  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 3/);
+  assert.match(js, /BUILD_BOARD_V3_STARTER_IDS/);
+  assert.match(js, /BUILD_BOARD_V3_RETIRED_IDS/);
+  for (const id of ['question-demonstration-done', 'question-thermal-acceptance-duration', 'question-ios-build33-owner', 'sprint-quest-poc12-acceptance']) {
+    assert.match(js, new RegExp(id));
+  }
   assert.match(js, /needsSchemaSave/);
   assert.match(js, /created_at: existing\.created_at \|\| starter\.created_at/);
   assert.match(js, /image: existing\.image/);
   assert.match(js, /updates: existing\.updates/);
+  assert.match(html, /build-board\.js\?v=4/);
 });
 
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {
