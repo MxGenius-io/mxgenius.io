@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
   <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, provider settings, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=6">
+  <link rel="stylesheet" href="operations-center.css?v=7">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -37,7 +37,6 @@
 
     <nav class="operations-tabs" role="tablist" aria-label="Operations Center views">
       <button type="button" role="tab" id="tab-highlights" aria-controls="panel-highlights" aria-selected="true" data-tab="highlights">R&amp;D Highlights</button>
-      <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false" data-tab="reports">Reports</button>
       <button type="button" role="tab" id="tab-customers" aria-controls="panel-customers" aria-selected="false" data-tab="customers">Customers</button>
       <button type="button" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" data-tab="build">Build</button>
       <button type="button" role="tab" id="tab-readiness" aria-controls="panel-readiness" aria-selected="false" data-tab="readiness">Readiness</button>
@@ -46,6 +45,7 @@
       <button type="button" role="tab" id="tab-feedback" aria-controls="panel-feedback" aria-selected="false" data-tab="feedback">Feedback</button>
       <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-tab="settings">Settings</button>
       <button type="button" role="tab" id="tab-access" aria-controls="panel-access" aria-selected="false" data-tab="access">Access</button>
+      <button class="operations-tab--deprecated" type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false" data-tab="reports"><span>Reports</span><span class="operations-tab__status">Deprecated</span></button>
     </nav>
 
     <section class="operations-panel highlights-panel" id="panel-highlights" role="tabpanel" aria-labelledby="tab-highlights" data-panel="highlights">
@@ -453,6 +453,6 @@
   <script src="guided-tooltip.js?v=12"></script>
   <script src="equipment-pack-workspace.js?v=12"></script>
   <script src="customer-operations.js?v=2"></script>
-  <script src="operations-center.js?v=5"></script>
+  <script src="operations-center.js?v=6"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
   const validTabs = new Set(tabs.map((tab) => tab.dataset.tab));
   const labels = {
     highlights: 'R&D highlights ready',
-    reports: 'Reports centered',
+    reports: 'Deprecated reports archive open',
     customers: 'Customer operations active',
     build: 'Build board active',
     readiness: 'Readiness record active',
@@ -20,7 +20,8 @@
   let customersLoaded = false;
   let settingsLoaded = false;
 
-  function embeddedStyle() {
+  function embeddedStyle(frame) {
+    const canvas = frame.id === 'reportsFrame' ? '#0f172a' : 'transparent';
     return `
       body > header,
       body > .container > header,
@@ -29,7 +30,7 @@
       .catalog-header,
       .patent-header,
       .feedback-page__header { display: none !important; }
-      html, body { min-height: auto !important; background: transparent !important; }
+      html, body { min-height: auto !important; background: ${canvas} !important; }
       body > .container,
       .board-shell,
       .workspace-shell,
@@ -45,7 +46,7 @@
       if (!documentRef.getElementById('operations-center-embed-style')) {
         const style = documentRef.createElement('style');
         style.id = 'operations-center-embed-style';
-        style.textContent = embeddedStyle();
+        style.textContent = embeddedStyle(frame);
         documentRef.head.appendChild(style);
       }
     } catch {

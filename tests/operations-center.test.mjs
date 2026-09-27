@@ -18,7 +18,12 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
   assert.doesNotMatch(dashboard, /<option value="(?:build-board|integration-readiness|feature-catalog|progress|feedback|feedback-admin)\.html">/);
   assert.match(html, /id="tab-highlights"[\s\S]*aria-selected="true"/);
   assert.ok(html.indexOf('id="tab-highlights"') < html.indexOf('id="tab-reports"'));
+  assert.ok(html.indexOf('id="tab-access"') < html.indexOf('id="tab-reports"'));
   assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1"/);
+  assert.match(html, /class="operations-tab--deprecated"[^>]+id="tab-reports"[\s\S]*?<span class="operations-tab__status">Deprecated<\/span>/);
+  assert.match(css, /\.operations-tabs \.operations-tab--deprecated\[aria-selected="true"\]/);
+  assert.match(css, /#panel-reports, #reportsFrame \{ background: #0f172a; \}/);
+  assert.match(js, /frame\.id === 'reportsFrame' \? '#0f172a' : 'transparent'/);
   assert.match(js, /activate\(requestedTab \|\| 'highlights'/);
 });
 

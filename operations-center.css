@@ -78,6 +78,9 @@ button, input, select, textarea { font: inherit; }
   backdrop-filter: blur(16px);
 }
 .operations-tabs button, .subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   min-height: 38px;
   padding: 8px 15px;
   white-space: nowrap;
@@ -89,6 +92,10 @@ button, input, select, textarea { font: inherit; }
 }
 .operations-tabs button:hover, .operations-tabs button:focus-visible, .subtab:hover, .subtab:focus-visible { color: var(--text); outline: none; }
 .operations-tabs button[aria-selected="true"], .subtab.is-active { border-color: var(--border-bright); background: rgba(34, 211, 238, 0.1); color: var(--text); }
+.operations-tabs .operations-tab--deprecated { border-color: rgba(251, 191, 36, 0.34); color: #fbbf24; }
+.operations-tabs .operations-tab--deprecated:hover, .operations-tabs .operations-tab--deprecated:focus-visible { border-color: rgba(251, 191, 36, 0.72); color: #fde68a; }
+.operations-tabs .operations-tab--deprecated[aria-selected="true"] { border-color: rgba(251, 191, 36, 0.72); background: rgba(251, 191, 36, 0.13); color: #fde68a; }
+.operations-tab__status { padding: 3px 6px; border-radius: 999px; background: rgba(251, 191, 36, 0.16); font-size: 0.58rem; font-weight: 850; letter-spacing: 0.07em; line-height: 1; text-transform: uppercase; }
 
 .operations-panel {
   width: 100%;
@@ -100,6 +107,7 @@ button, input, select, textarea { font: inherit; }
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
 }
 .operations-panel iframe { display: block; width: 100%; height: max(720px, calc(100vh - 210px)); border: 0; background: transparent; }
+#panel-reports, #reportsFrame { background: #0f172a; }
 .panel-toolbar { display: flex; gap: 6px; padding: 12px 14px 0; }
 .panel-toolbar + iframe { height: max(670px, calc(100vh - 260px)); }
 
