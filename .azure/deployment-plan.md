@@ -1,5 +1,85 @@
 # MXGenius Azure Deployment Plan
 
+## Protected Josh baseline rule — 2026-09-27
+
+> **Status:** Deployed and live-verified
+> **Recipe:** AZCLI (existing ACR + Container Apps release path)
+
+### Objective and approved scope
+
+Promote the already-committed `mxg-core` access-rule fix that makes
+`josh.millard@advancedaog.com` a protected baseline administrator. The live
+core revision predates commit `7108ffd`, so the Access UI currently receives
+`locked: false` and exposes a Remove action even though current source seeds the
+identity as an administrator and rejects its deletion.
+
+This release changes one existing Rust source file. It introduces no database
+migration, Azure resource, secret, identity, role assignment, network path,
+SKU, frontend asset, or customer-data rewrite. Existing revision
+`mxg-core--f615227` remains the rollback target.
+
+### All validation checks pass
+
+- [x] The user confirmed existing subscription `Azure subscription 1`
+  (`d1a68ed7-2983-4a86-ab0e-e56df9e2e325`) and Central US.
+- [x] `mxg-core` and its current revision are healthy before promotion.
+- [x] The source delta from deployed commit `f615227` is limited to
+  `services/mcp/server/src/transport/http.rs`; no migration or infrastructure
+  file differs.
+- [x] Rust formatting, locked workspace tests, warnings-denied Clippy, and the
+  locked optimized `mxgenius-mcp` build pass.
+- [x] Static role review confirms this application-only release adds no data
+  operation or RBAC requirement.
+
+### Validation proof
+
+- `az account show` confirmed the approved default subscription and interactive
+  user deployment identity.
+- `az containerapp show` reported `mxg-core` in Central US as `Succeeded` and
+  `Running`, with healthy/latest-ready revision `mxg-core--f615227` using image
+  `mxgacr50106.azurecr.io/mxg-core:f615227` in single-revision mode.
+- `git diff f615227..HEAD -- services/mcp` returned only the protected Josh
+  baseline seed, locked-list projections, delete guard, and administrator
+  regression test in `server/src/transport/http.rs`.
+- `cargo fmt --all -- --check` passed.
+- `cargo test --locked --workspace` passed 327 executable checks with the one
+  live Azure credential-gated corpus test intentionally ignored.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings` passed.
+- `cargo build --locked --release -p mxgenius-mcp` passed.
+
+### Promotion and acceptance
+
+- [x] Build the exact `services/mcp` source in ACR with an immutable source tag.
+- [x] Promote one new `mxg-core` revision while retaining `mxg-core--f615227`
+  for rollback.
+- [x] Confirm revision health, image digest, replica state, 100% traffic, and
+  post-deployment health/readiness/adapter probes.
+- [x] Verify the authenticated Access registry reports Josh as a baseline rule
+  without a Remove control.
+
+### Deployment proof
+
+- ACR run `cj40` built and pushed
+  `mxgacr50106.azurecr.io/mxg-core:josh-baseline-f1c54c2-20260927` with digest
+  `sha256:d7b36a815a07737c1cecee653a9273182c880376def487a5b2642aa5ce0afd1a`.
+- Revision `mxg-core--jshf1c54c2` is active, `Healthy`,
+  `RunningAtMaxScale`, provisioned with one replica, and receives 100% traffic.
+- Production `/healthz`, `/readyz`, and `/adapterz` each returned HTTP 200.
+  Readiness reported the database and manual library ready; adapter health
+  remained unchanged.
+- Live role verification confirmed the existing Core identity retains only its
+  required `Storage Blob Data Contributor` role on the private `documents`
+  container and `Cognitive Services User` on the existing Document
+  Intelligence account. This release added no role or scope.
+- Authenticated live acceptance returned six access rules with
+  `josh.millard@advancedaog.com` displayed as `Baseline rule`. No access row
+  exposed a Remove control.
+
+### Rollback
+
+Shift traffic back to `mxg-core--f615227`. The baseline seed is idempotent and
+additive; rollback deletes no access rule, membership, tenant, or customer data.
+
 ## Expanded Fictional Parts Demo — 2026-09-18
 
 > **Status:** Deployed and live-verified; authenticated tenant demo activation remains user-triggered
