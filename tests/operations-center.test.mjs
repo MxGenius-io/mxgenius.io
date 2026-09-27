@@ -19,7 +19,7 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
   assert.match(html, /id="tab-highlights"[\s\S]*aria-selected="true"/);
   assert.ok(html.indexOf('id="tab-highlights"') < html.indexOf('id="tab-reports"'));
   assert.ok(html.indexOf('id="tab-access"') < html.indexOf('id="tab-reports"'));
-  assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1"/);
+  assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1&amp;release=tracker-transition"/);
   assert.match(html, /class="operations-tab--deprecated"[^>]+id="tab-reports"[\s\S]*?<span class="operations-tab__status">Deprecated<\/span>/);
   assert.match(css, /\.operations-tabs \.operations-tab--deprecated\[aria-selected="true"\]/);
   assert.match(css, /#panel-reports, #reportsFrame \{ background: #0f172a; \}/);
@@ -101,8 +101,11 @@ test('Operations Center participates in the authenticated return boundary', () =
   assert.match(html, /src="application-client\.js\?v=\d+"/);
 });
 
-test('the retired weekly tracker ends with the open-ended extension draft', () => {
-  assert.match(progress, /Weekly tracker retired · extension continues/);
+test('the retired weekly tracker points to the active scaled workspaces', () => {
+  assert.match(progress, /Progress tracking has matured\./);
+  assert.match(progress, /active work now lives in Build, Readiness, and R&amp;D Highlights/);
+  assert.match(progress, /This tracker remains available as the historical record\./);
+  assert.doesNotMatch(progress, /Weekly tracker retired · extension continues/);
   assert.match(progress, /class="weekly-report-section expanded"/);
   assert.match(progress, /<span class="timeline-week">Extension<\/span>/);
   assert.match(progress, /Sep 14, 2026 - Open ended/);

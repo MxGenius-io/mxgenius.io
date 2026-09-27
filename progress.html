@@ -729,7 +729,21 @@
         }
 
         .container > header { order: 0; }
-        .tracker-banner { order: 1; }
+        .tracker-transition {
+            order: 1;
+            margin: 0 0 1.5rem;
+            padding: 1rem 1.25rem;
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            border-radius: 0.75rem;
+            background: rgba(245, 158, 11, 0.08);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.55;
+        }
+
+        .tracker-transition strong {
+            color: var(--accent-amber);
+        }
         #weeklyReport { order: 2; margin-top: 0; }
 
         .legacy-plan {
@@ -1080,14 +1094,7 @@
         </header>
 
 
-        <!-- Report tracker status -->
-        <div class="tracker-banner" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
-            <i class="fas fa-check-circle" style="color: var(--accent-green); font-size: 1.25rem;"></i>
-            <div>
-                <div style="color: var(--accent-green); font-family: 'Rajdhani', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem;">Weekly tracker retired · extension continues</div>
-                <div style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.2rem;">The final entry carries the work forward without implying a fixed end date.</div>
-            </div>
-        </div>
+        <p class="tracker-transition"><strong>Progress tracking has matured.</strong> As MXGenius scales, active work now lives in Build, Readiness, and R&amp;D Highlights. This tracker remains available as the historical record.</p>
 
         <details class="legacy-plan">
         <summary>Legacy delivery plan and phase detail</summary>

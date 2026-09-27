@@ -178,8 +178,10 @@ test('report display preserves external image schemes and constrains report medi
   assert.match(reportDisplay, /\.report-image\s*\{[\s\S]*max-height:\s*72vh/);
 });
 
-test('progress tracker retires cleanly after the open-ended extension entry', () => {
-  assert.match(progress, /Weekly tracker retired · extension continues/);
+test('progress tracker retires cleanly into the scaled operations workspaces', () => {
+  assert.match(progress, /Progress tracking has matured\./);
+  assert.match(progress, /active work now lives in Build, Readiness, and R&amp;D Highlights/);
+  assert.doesNotMatch(progress, /Weekly tracker retired · extension continues/);
   assert.match(progress, /Workflow Hardening &amp; Parts/);
   assert.match(progress, /Fleet, Market &amp; Demo Integration/);
   assert.doesNotMatch(progress, /viewReport\(20\)|viewReport\(21\)/);
