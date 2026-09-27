@@ -155,7 +155,7 @@ test('Sensor Bridge docks thermal, witness, and AI behind one world-anchored tas
   assert.match(sensors, /bridge\.hello/);
   assert.match(sensors, /connection error · verify bridge is installed and running/);
   assert.match(globe, /BROWSER COMPATIBILITY TRACE · NATIVE TRACE IS RENDERED IN VR/);
-  assert.match(globe, /Open native thermal workspace/);
+  assert.match(globe, /Connect thermal bridge/);
   assert.match(globe, /Quest Library → Not installed/);
   assert.match(sensors, /this\.thermalTexture\.magFilter = THREE\.NearestFilter/);
   assert.match(sensors, /timestamp !== this\.latestFrameTimestamp/);

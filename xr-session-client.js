@@ -1,6 +1,7 @@
 const SESSION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 const LOCAL_TOKEN = /^[A-Za-z0-9_-]{32,128}$/;
 const LOCAL_THERMAL_PORT = 4109;
+const COMPANION_PURPOSES = new Set(['bridge', 'service', 'recovery']);
 
 function normalizedBase(value) {
   const parsed = new URL(String(value || ''));
@@ -77,8 +78,16 @@ export function deriveSensorSourceState({
   };
 }
 
-function companionQuery({ sessionId, bridgeUrl = '', localToken = '', allowInsecurePilot = false }) {
+function validCompanionPurpose(value = 'bridge') {
+  const purpose = String(value || 'bridge');
+  if (!COMPANION_PURPOSES.has(purpose)) throw new Error('Invalid sensor companion purpose');
+  return purpose;
+}
+
+function companionQuery({ sessionId, bridgeUrl = '', localToken = '', purpose = 'bridge', allowInsecurePilot = false }) {
   const query = new URLSearchParams({ sessionId: validSessionId(sessionId) });
+  const normalizedPurpose = validCompanionPurpose(purpose);
+  if (normalizedPurpose !== 'bridge') query.set('purpose', normalizedPurpose);
   if (localToken) query.set('localToken', validLocalToken(localToken));
   if (bridgeUrl) {
     const normalized = validBridgeUrl(bridgeUrl, { allowInsecurePilot });
@@ -94,13 +103,14 @@ export function buildSensorCompanionLaunchUrl({
   sessionId,
   bridgeUrl = '',
   localToken = '',
+  purpose = 'bridge',
   allowInsecurePilot = false
 }) {
   const parsed = new URL(String(base || ''));
   if (parsed.protocol !== 'mxgenius:' || parsed.hostname !== 'sensor-bridge') {
     throw new Error('Unsupported sensor companion launch target');
   }
-  const query = companionQuery({ sessionId, bridgeUrl, localToken, allowInsecurePilot });
+  const query = companionQuery({ sessionId, bridgeUrl, localToken, purpose, allowInsecurePilot });
   return `${base}?${query}`;
 }
 
@@ -110,13 +120,14 @@ export function buildSensorCompanionIntentUrl({
   bridgeUrl = '',
   localToken = '',
   fallbackUrl = '',
+  purpose = 'bridge',
   allowInsecurePilot = false
 }) {
   const applicationId = String(packageName || '');
   if (!/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(applicationId)) {
     throw new Error('Invalid Android companion package');
   }
-  const query = companionQuery({ sessionId, bridgeUrl, localToken, allowInsecurePilot });
+  const query = companionQuery({ sessionId, bridgeUrl, localToken, purpose, allowInsecurePilot });
   let fallback = '';
   if (fallbackUrl) {
     const parsed = new URL(String(fallbackUrl));

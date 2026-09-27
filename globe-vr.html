@@ -91,7 +91,7 @@
       <li id="sensorCameraStep" data-state="blocked">3 · FLIR ONE</li>
     </ol>
     <div class="sensor-actions">
-      <a id="openSensorCompanion" href="#">Open native thermal workspace</a>
+      <a id="openSensorCompanion" href="#">Connect thermal bridge</a>
       <a id="sensorCompanionEntitlement" href="#" hidden>Check Meta Alpha access</a>
       <button id="dismissSensorSetup" type="button">Hide</button>
     </div>
@@ -141,7 +141,7 @@
       buildSensorCompanionLaunchUrl,
       deriveSensorActivationState,
       deriveSensorSourceState
-    } from './xr-session-client.js?v=4';
+    } from './xr-session-client.js?v=5';
     import {
       applicationSession as sharedApplicationSession,
       createOpaqueXrId,
@@ -271,7 +271,7 @@
         ? 'Thermal connected'
         : activation.state === 'relay-required'
           ? 'Thermal link required'
-          : companionActivationPending ? 'Opening native workspace…' : 'Open native thermal workspace';
+          : companionActivationPending ? 'Opening thermal bridge…' : 'Connect thermal bridge';
     }
     openSensorCompanion.addEventListener('click', (event) => {
       void xrAudio?.unlock();
@@ -279,7 +279,7 @@
         event.preventDefault();
         return;
       }
-      xrSensors?.trace('LAUNCH', `opening native thermal workspace ${companionPackage}`, 'info');
+      xrSensors?.trace('LAUNCH', `opening thermal bridge ${companionPackage}`, 'info');
       companionActivationPending = true;
       companionLaunchAt = Date.now();
       renderSensorSetup();

@@ -114,7 +114,7 @@ test('Quest companion config matches the published Alpha build', () => {
 
 test('Quest FLIR companion is standalone and has no Pi runtime dependency', () => {
   assert.doesNotMatch(companionManifest, /BLUETOOTH_CONNECT|hardware\.bluetooth/);
-  assert.match(companionActivity, /Spatial · native panel/);
+  assert.match(companionActivity, /Spatial · service bridge/);
   assert.match(companionActivity, /startForegroundService\(serviceIntent\)/);
   assert.match(companionActivity, /service\.connectCamera\(this\)/);
   assert.match(companionActivity, /new Intent\(this, ThermalImmersiveActivity\.class\)/);
@@ -143,6 +143,11 @@ test('Quest FLIR companion is standalone and has no Pi runtime dependency', () =
   assert.match(companionLayout, /android:id="@\+id\/power_guidance"/);
   assert.match(companionActivity, /R\.id\.enter_immersive/);
   assert.match(companionActivity, /requestImmersiveEntry/);
+  assert.match(companionActivity, /activation\.allowsNativeImmersive\(\)/);
+  assert.match(companionActivity, /RETURN TO WEBXR · THERMAL READY/);
+  assert.match(companionManifest, /android:name="\.ThermalImmersiveActivity"[\s\S]*?android:exported="false"/);
+  assert.match(companionManifest, /android:name="\.WitnessConsentActivity"[\s\S]*?android:host="witness-consent"/);
+  assert.doesNotMatch(companionManifest, /android:name="\.ThermalImmersiveActivity"[\s\S]*?<action android:name="android\.intent\.action\.MAIN"/);
   assert.match(companionActivity, /operator requested native immersive mode after the first decoded frame/);
   assert.doesNotMatch(companionActivity, /postDelayed\(this::openImmersiveScene/);
   assert.doesNotMatch(companionActivity, /startActivity\(immersive\);\s*finish\(\)/);

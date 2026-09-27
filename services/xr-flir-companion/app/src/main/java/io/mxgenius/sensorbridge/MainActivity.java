@@ -68,7 +68,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         armSnapshot = findViewById(R.id.arm_snapshot);
         armSnapshot.setOnClickListener(view -> requestHeadsetCameraPermissionsIfNeeded());
         openImmersive = findViewById(R.id.enter_immersive);
-        openImmersive.setOnClickListener(view -> requestImmersiveEntry());
+        openImmersive.setOnClickListener(view -> handlePrimaryAction());
         findViewById(R.id.stop_bridge).setOnClickListener(this::stopBridge);
         activate(getIntent());
     }
@@ -123,7 +123,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     @Override public void onStatus(String bridge, String relay, String camera) {
         runOnUiThread(() -> {
             bridgeStatus.setText("Bridge · " + bridge);
-            relayStatus.setText("Spatial · native panel · optional transport " + relay);
+            relayStatus.setText("Spatial · service bridge · optional transport " + relay);
             cameraStatus.setText("FLIR ONE · " + camera);
             boolean cameraIdle = !"streaming".equals(camera)
                     && !"connecting".equals(camera)
@@ -138,14 +138,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
                     : "ARM RGB SNAPSHOT");
             armSnapshot.setEnabled(service == null || !service.headsetCameraArmed());
             boolean managedLaunch = activation != null;
-            openImmersive.setEnabled(firstFrameReceived && !immersiveLaunchInFlight);
-            openImmersive.setText(immersiveLaunchInFlight
-                    ? "OPENING NATIVE VR…"
-                    : firstFrameReceived
-                            ? "ENTER VR · LIVE THERMAL READY"
-                            : "streaming".equals(camera)
-                                    ? "ENTER VR · WAITING FOR FIRST FRAME"
-                                    : "ENTER VR · WAITING FOR FLIR STREAM");
+            renderPrimaryAction(camera);
             if (managedLaunch
                     && !cameraConnectRequested
                     && bridge.startsWith("ready")
@@ -165,8 +158,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             thermalPreview.setImageBitmap(bitmap);
             firstFrameReceived = true;
             immersiveLaunchInFlight = false;
-            openImmersive.setEnabled(true);
-            openImmersive.setText("ENTER VR · LIVE THERMAL READY");
+            renderPrimaryAction("streaming");
         });
     }
 
@@ -191,15 +183,15 @@ public final class MainActivity extends Activity implements SensorBridgeService.
 
         if (activation != null) {
             sessionStatus.setText("Session · " + shortSession(activation.sessionId));
-            relayStatus.setText("Spatial · native panel · optional transport " + activation.relayLabel());
-            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
+            relayStatus.setText("Spatial · service bridge · optional transport " + activation.relayLabel());
+            renderPrimaryAction("standby");
             openImmersive.setEnabled(false);
         } else {
             sessionStatus.setText(activationMessage == null
                     ? "Standalone · local thermal preview"
                     : "Standalone · " + activationMessage);
-            relayStatus.setText("Spatial · native panel ready");
-            openImmersive.setText("ENTER VR · WAITING FOR FLIR STREAM");
+            relayStatus.setText("Spatial · explicit service console");
+            renderPrimaryAction("standby");
             openImmersive.setEnabled(false);
         }
         bridgeStatus.setText("Bridge · starting · foreground-active");
@@ -213,7 +205,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
         sessionStatus.setText(sessionId == null
                 ? "Standalone · local thermal preview"
                 : "Session · " + shortSession(sessionId));
-        relayStatus.setText("Spatial · native panel · optional transport " + service.relayLabel());
+        relayStatus.setText("Spatial · service bridge · optional transport " + service.relayLabel());
     }
 
     private void stopBridge(View ignored) {
@@ -242,7 +234,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     }
 
     private void requestImmersiveEntry() {
-        if (!firstFrameReceived || immersiveLaunchInFlight) return;
+        if (!nativeImmersiveAllowed() || !firstFrameReceived || immersiveLaunchInFlight) return;
         immersiveLaunchInFlight = true;
         openImmersive.setEnabled(false);
         openImmersive.setText("OPENING NATIVE VR…");
@@ -256,6 +248,7 @@ public final class MainActivity extends Activity implements SensorBridgeService.
     }
 
     private void openImmersiveScene() {
+        if (!nativeImmersiveAllowed()) return;
         try {
             if (service != null) service.recordTrace(
                     "N15", "SPATIAL", "launching", "opening the native MxGenius immersive thermal panel", "info");
@@ -269,6 +262,52 @@ public final class MainActivity extends Activity implements SensorBridgeService.
             immersiveLaunchInFlight = false;
             bridgeStatus.setText("Bridge · streaming · native spatial launch failed");
             openImmersive.setEnabled(true);
+        }
+    }
+
+    private void handlePrimaryAction() {
+        if (nativeImmersiveAllowed()) {
+            requestImmersiveEntry();
+            return;
+        }
+        returnToBrowser();
+    }
+
+    private boolean nativeImmersiveAllowed() {
+        return activation == null || activation.allowsNativeImmersive();
+    }
+
+    private void renderPrimaryAction(String camera) {
+        if (nativeImmersiveAllowed()) {
+            openImmersive.setEnabled(firstFrameReceived && !immersiveLaunchInFlight);
+            openImmersive.setText(immersiveLaunchInFlight
+                    ? "OPENING SERVICE VR…"
+                    : firstFrameReceived
+                            ? "ENTER SERVICE VR · LIVE THERMAL READY"
+                            : "streaming".equals(camera)
+                                    ? "ENTER SERVICE VR · WAITING FOR FIRST FRAME"
+                                    : "ENTER SERVICE VR · WAITING FOR FLIR STREAM");
+            return;
+        }
+        boolean canReturn = activation != null && activation.canHandoffToBrowser();
+        openImmersive.setEnabled(firstFrameReceived && canReturn);
+        openImmersive.setText(firstFrameReceived
+                ? canReturn ? "RETURN TO WEBXR · THERMAL READY" : "WEBXR RETURN UNAVAILABLE"
+                : "streaming".equals(camera)
+                        ? "RETURN TO WEBXR · WAITING FOR FIRST FRAME"
+                        : "RETURN TO WEBXR · WAITING FOR FLIR STREAM");
+    }
+
+    private void returnToBrowser() {
+        if (activation == null || !activation.canHandoffToBrowser() || !firstFrameReceived) return;
+        try {
+            if (service != null) service.recordTrace(
+                    "N15", "SPATIAL", "browser-return", "returning thermal control to the active WebXR workspace", "success");
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(activation.browserHandoffUrl())));
+            finish();
+        } catch (RuntimeException error) {
+            bridgeStatus.setText("Bridge · streaming · WebXR return failed");
+            renderPrimaryAction("streaming");
         }
     }
 

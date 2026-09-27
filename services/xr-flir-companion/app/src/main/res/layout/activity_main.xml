@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Native thermal workspace"
+            android:text="Thermal service bridge"
             android:textColor="#F4FBFF"
             android:textSize="28sp"
             android:textStyle="bold" />
@@ -100,7 +100,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="This app owns FLIR permission, decoding, and the immersive thermal panel in one process. After the first native frame, press ENTER VR; PIN HERE freezes the screen in the world and FOLLOW HEAD restores head-relative placement."
+            android:text="Normal thermal work returns to the same WebXR workspace after the first frame. Native immersive controls are reserved for explicit service and recovery sessions."
             android:textColor="#718DA3"
             android:textSize="13sp" />
     </LinearLayout>

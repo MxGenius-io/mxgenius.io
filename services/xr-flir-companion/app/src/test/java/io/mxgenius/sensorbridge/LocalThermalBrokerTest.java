@@ -37,10 +37,12 @@ public final class LocalThermalBrokerTest {
         assertTrue(broker.awaitStarted(3, TimeUnit.SECONDS));
 
         CountDownLatch binaryReceived = new CountDownLatch(1);
+        CountDownLatch sessionReady = new CountDownLatch(1);
         AtomicReference<byte[]> received = new AtomicReference<>();
-        WebSocketClient client = client(port, "https://mxgenius.io", TOKEN, binaryReceived, received);
+        WebSocketClient client = client(port, "https://mxgenius.io", TOKEN, sessionReady, binaryReceived, received);
         try {
             assertTrue(client.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(sessionReady.await(3, TimeUnit.SECONDS));
             byte[] frame = syntheticMxgsFrame();
             broker.publishFrame(frame);
             assertTrue(binaryReceived.await(3, TimeUnit.SECONDS));
@@ -369,11 +371,15 @@ public final class LocalThermalBrokerTest {
             int port,
             String origin,
             String token,
+            CountDownLatch sessionReady,
             CountDownLatch binaryReceived,
             AtomicReference<byte[]> received) {
         return new WebSocketClient(uri(port, token), new Draft_6455(), Map.of("Origin", origin), 0) {
             @Override public void onOpen(ServerHandshake handshake) {}
-            @Override public void onMessage(String message) {}
+            @Override public void onMessage(String message) {
+                if (message.contains("\"type\":\"node.status\"")
+                        && message.contains("\"status\":\"connected\"")) sessionReady.countDown();
+            }
             @Override public void onMessage(ByteBuffer bytes) {
                 byte[] payload = new byte[bytes.remaining()];
                 bytes.get(payload);

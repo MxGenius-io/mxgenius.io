@@ -83,6 +83,22 @@ test('companion launch binds an opaque session and negotiated relay URL', () => 
   );
 });
 
+test('native immersive access is explicit and normal bridge launches stay browser-bound', () => {
+  const localToken = 'c'.repeat(64);
+  assert.equal(
+    buildSensorCompanionLaunchUrl({ sessionId: 'case-42', localToken, purpose: 'service' }),
+    `mxgenius://sensor-bridge?sessionId=case-42&purpose=service&localToken=${localToken}`
+  );
+  assert.match(
+    buildSensorCompanionIntentUrl({ sessionId: 'case-42', localToken, purpose: 'recovery' }),
+    /^intent:\/\/sensor-bridge\?sessionId=case-42&purpose=recovery&localToken=/
+  );
+  assert.throws(
+    () => buildSensorCompanionLaunchUrl({ sessionId: 'case-42', localToken, purpose: 'workspace' }),
+    /Invalid sensor companion purpose/
+  );
+});
+
 test('Quest intent targets the native package and carries an optional install fallback', () => {
   assert.equal(
     buildSensorCompanionIntentUrl({

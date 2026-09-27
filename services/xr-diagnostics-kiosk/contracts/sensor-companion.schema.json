@@ -48,6 +48,7 @@
       "properties": {
         "version": { "const": 1 },
         "sessionId": { "$ref": "#/$defs/sessionId" },
+        "purpose": { "enum": ["bridge", "service", "recovery"], "default": "bridge" },
         "localToken": { "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" },
         "bridgeUrl": { "type": "string", "pattern": "^wss?://" },
         "pilot": { "type": "boolean", "default": false }

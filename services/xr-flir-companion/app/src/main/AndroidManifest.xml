@@ -63,21 +63,26 @@
             android:name=".ThermalImmersiveActivity"
             android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"
             android:excludeFromRecents="false"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
+                <action android:name="io.mxgenius.sensorbridge.action.SERVICE_IMMERSIVE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="com.oculus.intent.category.VR" />
             </intent-filter>
+        </activity>
+        <activity-alias
+            android:name=".WitnessConsentActivity"
+            android:exported="true"
+            android:targetActivity=".ThermalImmersiveActivity">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mxgenius" android:host="witness-consent" />
             </intent-filter>
-        </activity>
+        </activity-alias>
         <service
             android:name=".SensorBridgeService"
             android:exported="false"

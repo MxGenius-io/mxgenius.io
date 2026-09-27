@@ -16,11 +16,24 @@ public final class BridgeActivationTest {
         assertEquals("case-42", activation.sessionId);
         assertEquals(LOCAL_TOKEN, activation.localToken);
         assertNull(activation.bridgeUrl);
+        assertEquals(BridgeActivation.PURPOSE_BRIDGE, activation.purpose);
+        assertFalse(activation.allowsNativeImmersive());
         assertTrue(activation.canHandoffToBrowser());
         assertEquals(
                 "https://mxgenius.io/3d-viewer/index.html?spatialMode=maintenance&bridgeManaged=1"
                         + "#sensorHandoff=1&sessionId=case-42&localToken=" + LOCAL_TOKEN,
                 activation.browserHandoffUrl());
+    }
+
+    @Test public void nativeImmersiveRequiresExplicitServiceOrRecoveryPurpose() {
+        BridgeActivation service = BridgeActivation.validated(
+                "case-42", null, LOCAL_TOKEN, false, BridgeActivation.PURPOSE_SERVICE, false);
+        BridgeActivation recovery = BridgeActivation.validated(
+                "case-42", null, LOCAL_TOKEN, false, BridgeActivation.PURPOSE_RECOVERY, false);
+        assertTrue(service.allowsNativeImmersive());
+        assertTrue(recovery.allowsNativeImmersive());
+        assertThrows(IllegalArgumentException.class,
+                () -> BridgeActivation.validated("case-42", null, LOCAL_TOKEN, false, "workspace", false));
     }
 
     @Test public void remoteRelayRemainsAnOptionalSecureAdapter() {

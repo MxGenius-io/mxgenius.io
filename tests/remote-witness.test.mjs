@@ -146,6 +146,9 @@ test('guest view behaves like a live viewport and does not report live before a 
   assert.doesNotMatch(viewerSource, /video\.addEventListener\(eventName, markLiveFrame\)/);
   assert.match(viewerSource, /decodedFrames <= fallbackDecodedFrames/);
   assert.match(mediaHealthSource, /'frame-stalled'/);
+  assert.match(viewerSource, /mediaHealth\.interrupt\('black-frame'\)/);
+  assert.match(viewerSource, /blackFrameSamples >= 3/);
+  assert.match(viewerSource, /average <= 8 && peak <= 16/);
   assert.match(viewerHtml, /id="witnessLastFrame"/);
   assert.match(viewerHtml, /witness-media-health\.js\?v=1/);
   assert.match(viewerSource, /requestVideoFrameCallback/);
@@ -252,6 +255,8 @@ test('wearer approval gates media and recording remains consent-only', () => {
   assert.match(maintenanceViewerSource, /launchQuestWitnessApproval/);
   assert.match(maintenanceViewerSource, /mxgenius;package=io\.mxgenius\.sensorbridge/);
   assert.match(nativeManifestSource, /android:scheme="mxgenius" android:host="witness-consent"/);
+  assert.match(nativeManifestSource, /android:name="\.WitnessConsentActivity"/);
+  assert.match(nativeManifestSource, /android:name="\.ThermalImmersiveActivity"[\s\S]*?android:exported="false"/);
   assert.match(nativeActivitySource, /launchRequestedWitnessConsentIfReady/);
   assert.match(nativeActivitySource, /requestWitnessProjection\(witnessConsentResume\)/);
 });
@@ -358,4 +363,8 @@ test('native witness reports live only from advancing media and bounds peer reco
   assert.match(nativeMediaProgressSource, /enum State \{ WARMING, LIVE, STABLE, CAPTURE_STALLED, TRANSPORT_STALLED \}/);
   assert.match(nativeCaptureSource, /currentCapturer\.stopCapture\(\)/);
   assert.match(nativeServiceSource, /activeSocket != null && witnessRoomLive/);
+  assert.match(nativePeerSource, /capture\.close\(\)/);
+  assert.match(nativePeerSource, /statsWorker\.shutdownNow\(\)/);
+  assert.match(nativeWitnessSource, /reconnectWorker\.shutdownNow\(\)/);
+  assert.doesNotMatch(nativeManifestSource, /android\.permission\.WAKE_LOCK/);
 });

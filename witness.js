@@ -50,6 +50,13 @@
   let frameCallbackGeneration = 0;
   let lastFrameSnapshotAt = 0;
   let fallbackDecodedFrames = -1;
+  const blackProbe = document.createElement('canvas');
+  blackProbe.width = 16;
+  blackProbe.height = 9;
+  const blackProbeContext = blackProbe.getContext('2d', { willReadFrequently: true });
+  let blackProbeAt = 0;
+  let blackFrameSamples = 0;
+  let blackRecoverySignaled = false;
 
   const mediaHealth = new globalThis.MXWitnessMediaHealth({
     stallMs: 4_500,
@@ -115,8 +122,43 @@
     lastFrameSnapshotAt = 0;
   }
 
+  function probeFrameQuality() {
+    const now = Date.now();
+    if (now - blackProbeAt < 750) return blackFrameSamples > 0 ? 'black-pending' : 'visible';
+    blackProbeAt = now;
+    try {
+      blackProbeContext.drawImage(video, 0, 0, blackProbe.width, blackProbe.height);
+      const pixels = blackProbeContext.getImageData(0, 0, blackProbe.width, blackProbe.height).data;
+      let total = 0;
+      let peak = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const luminance = (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722);
+        total += luminance;
+        peak = Math.max(peak, luminance);
+      }
+      const average = total / (pixels.length / 4);
+      if (average <= 8 && peak <= 16) {
+        blackFrameSamples += 1;
+        return blackFrameSamples >= 3 ? 'black' : 'black-pending';
+      }
+    } catch (_) {
+      // If sampling is unavailable, decoded-frame progress remains the health signal.
+    }
+    blackFrameSamples = 0;
+    blackRecoverySignaled = false;
+    return 'visible';
+  }
+
   function markLiveFrame() {
     if (!video.srcObject || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+    const frameQuality = probeFrameQuality();
+    if (frameQuality !== 'visible') {
+      if (frameQuality === 'black' && !blackRecoverySignaled) {
+        blackRecoverySignaled = true;
+        mediaHealth.interrupt('black-frame');
+      }
+      return;
+    }
     const wasLive = liveFrameReceived;
     captureLastFrame();
     playbackBlocked = false;
@@ -484,6 +526,9 @@
     connection.addEventListener('track', (event) => {
       liveFrameReceived = false;
       playbackBlocked = false;
+      blackProbeAt = 0;
+      blackFrameSamples = 0;
+      blackRecoverySignaled = false;
       video.srcObject = event.streams[0] || new MediaStream([event.track]);
       mediaHealth.start();
       event.track.addEventListener('mute', () => {
@@ -529,6 +574,9 @@
     peerConnected = false;
     liveFrameReceived = false;
     playbackBlocked = false;
+    blackProbeAt = 0;
+    blackFrameSamples = 0;
+    blackRecoverySignaled = false;
     video.srcObject = null;
     mediaHealth.stop();
     closingPeer?.close();
