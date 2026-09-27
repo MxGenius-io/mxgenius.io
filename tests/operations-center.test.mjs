@@ -19,7 +19,7 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
   assert.match(html, /id="tab-highlights"[\s\S]*aria-selected="true"/);
   assert.ok(html.indexOf('id="tab-highlights"') < html.indexOf('id="tab-reports"'));
   assert.ok(html.indexOf('id="tab-access"') < html.indexOf('id="tab-reports"'));
-  assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1&amp;release=tracker-transition"/);
+  assert.match(html, /id="reportsFrame"[^>]+src="progress\.html\?embed=1&amp;release=tracker-eol"/);
   assert.match(html, /class="operations-tab--deprecated"[^>]+id="tab-reports"[\s\S]*?<span class="operations-tab__status">Deprecated<\/span>/);
   assert.match(css, /\.operations-tabs \.operations-tab--deprecated\[aria-selected="true"\]/);
   assert.match(css, /#panel-reports, #reportsFrame \{ background: #0f172a; \}/);
@@ -108,8 +108,10 @@ test('the retired weekly tracker points to the active scaled workspaces', () => 
   assert.doesNotMatch(progress, /Weekly tracker retired · extension continues/);
   assert.match(progress, /class="weekly-report-section expanded"/);
   assert.match(progress, /<span class="timeline-week">Extension<\/span>/);
-  assert.match(progress, /Sep 14, 2026 - Open ended/);
-  assert.match(progress, /delivery-extension-2026-09-14\/delivery-extension-draft\.html/);
+  assert.match(progress, /Sep 14 - Sep 16, 2026/);
+  assert.match(progress, /<span class="week-status eol">EOL<\/span>/);
+  assert.match(progress, /reached end of life on September 16/);
+  assert.doesNotMatch(progress, /Draft Update|delivery-extension-2026-09-14\/delivery-extension-draft\.html|Open ended/);
   assert.match(progress, /<details class="legacy-plan">/);
   assert.doesNotMatch(progress, /updateCountdown|getElementById\('countdown'\)/);
 });

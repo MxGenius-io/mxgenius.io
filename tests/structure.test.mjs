@@ -187,7 +187,9 @@ test('progress tracker retires cleanly into the scaled operations workspaces', (
   assert.doesNotMatch(progress, /viewReport\(20\)|viewReport\(21\)/);
   assert.match(progress, /viewReport\(22\)/);
   assert.match(progress, /viewReport\(23\)/);
-  assert.match(progress, /delivery-extension-2026-09-14\/delivery-extension-draft\.html/);
+  assert.match(progress, /Sep 14 - Sep 16, 2026/);
+  assert.match(progress, /<span class="week-status eol">EOL<\/span>/);
+  assert.doesNotMatch(progress, /Draft Update|delivery-extension-2026-09-14\/delivery-extension-draft\.html|Open ended/);
 });
 
 test('week 23 report credits the team and stays focused on completed weekly work', () => {
