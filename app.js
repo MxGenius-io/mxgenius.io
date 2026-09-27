@@ -878,7 +878,6 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreAppearance();   // Apply saved theme/colors immediately
   setupNavigation();     // Nav + chat panel + LLM init (all independent of API)
   setupSpatialWorkspaceLauncher();
-  setupSensorSceneTab();
   const spatialReturnMode = new URLSearchParams(window.location.search).get('spatialReturn');
   if (spatialReturnMode === 'maintenance' || spatialReturnMode === 'operations') {
     globalThis.MXSpatialContext?.update?.({
@@ -911,29 +910,6 @@ function setSpatialWorkspaceButtonState(state, message) {
   button.disabled = state === 'unavailable' || state === 'preparing';
   button.title = message;
   button.setAttribute('aria-label', message);
-}
-
-function setupSensorSceneTab() {
-  const tab = document.getElementById('sensorSceneTab');
-  const status = document.getElementById('sensorSceneStatus');
-  if (!tab || tab.dataset.bound === 'true') return;
-  tab.dataset.bound = 'true';
-  let statusTimer = 0;
-  tab.addEventListener('click', (event) => {
-    const snapshot = cacheFleetForSpatialWorkspace();
-    if (snapshot?.clusters?.length) {
-      if (status) status.hidden = true;
-      return;
-    }
-    event.preventDefault();
-    tab.title = 'Fleet is still loading; try Sensor Bridge again in a moment';
-    tab.setAttribute('aria-label', tab.title);
-    if (status) {
-      status.hidden = false;
-      window.clearTimeout(statusTimer);
-      statusTimer = window.setTimeout(() => { status.hidden = true; }, 3200);
-    }
-  });
 }
 
 function setupSpatialWorkspaceLauncher() {

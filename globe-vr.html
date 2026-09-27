@@ -4,6 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXGenius XR Scene</title>
+  <script>
+    (() => {
+      const query = new URLSearchParams(window.location.search);
+      const legacyAccess = query.get('legacy');
+      if (legacyAccess === 'service' || legacyAccess === 'rollback') {
+        document.documentElement.dataset.legacyRoute = legacyAccess;
+        return;
+      }
+
+      document.documentElement.hidden = true;
+      const scene = query.get('scene');
+      const target = new URL('3d-viewer/index.html', window.location.href);
+      target.searchParams.set('legacyTransition', scene === 'sensor' ? 'sensor' : scene === 'bridge' ? 'bridge' : 'globe');
+      target.searchParams.set('spatialMode', scene === 'sensor' ? 'maintenance' : 'operations');
+      window.location.replace(target.href);
+    })();
+  </script>
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050914; color: #eaf7ff; font-family: system-ui, sans-serif; }
@@ -54,6 +71,8 @@
     .spatial-handoff__actions button { min-height: 38px; padding: 0 16px; border: 1px solid #31566c; border-radius: 7px; background: #0a2333; color: #dffaff; cursor: pointer; }
     .spatial-handoff__actions button:last-child { border-color: rgba(34,211,238,.7); background: rgba(8,91,111,.74); color: #cffafe; }
     .spatial-handoff__actions button:disabled { cursor: wait; opacity: .62; }
+    .legacy-route-banner { display: none; position: fixed; top: 14px; left: 50%; z-index: 6; transform: translateX(-50%); padding: 8px 12px; border: 1px solid rgba(245,158,11,.58); border-radius: 999px; background: rgba(69,38,5,.94); color: #fde68a; font: 700 10px/1.2 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    html[data-legacy-route] .legacy-route-banner { display: block; }
   </style>
   <script type="importmap">
   {
@@ -75,6 +94,7 @@
   <script src="spatial-context.js?v=3"></script>
 </head>
 <body>
+  <div class="legacy-route-banner" role="status">Legacy service scene · temporary rollback path</div>
   <div class="hud">
     <strong id="sceneTitle">MXGenius Fleet Globe</strong>
     <span id="fleetStatus">Preparing mapped fleet…</span>

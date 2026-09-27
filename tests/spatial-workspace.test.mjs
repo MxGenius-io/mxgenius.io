@@ -103,6 +103,8 @@ test('spatial window manager keeps one active window and preserves minimized lif
 test('the web application exposes one launcher and one canonical VR or AR session owner', () => {
   assert.equal((dashboard.match(/id="spatialWorkspaceBtn"/g) || []).length, 1);
   assert.doesNotMatch(dashboard, /id="globeVrButton"/);
+  assert.doesNotMatch(dashboard, /id="sensorSceneTab"|globe-vr\.html/);
+  assert.doesNotMatch(application, /setupSensorSceneTab/);
   assert.doesNotMatch(viewer, /id="enter-vr-button"|VRButton\.createButton/);
   assert.match(application, /MX3DViewer\.requestSpatialSession/);
   assert.match(viewer, /navigator\.xr\.requestSession\(requestedSessionMode/);
@@ -119,6 +121,10 @@ test('the web application exposes one launcher and one canonical VR or AR sessio
   assert.doesNotMatch(viewer, /window\.top\.location\.assign/);
   assert.doesNotMatch(viewer, /mxgenius\.viewer\.operations-request/);
   assert.doesNotMatch(viewer, /\.\.\/globe-vr\.html\?scene=bridge&return=vr/);
+  assert.match(globe, /legacyAccess === 'service' \|\| legacyAccess === 'rollback'/);
+  assert.match(globe, /window\.location\.replace\(target\.href\)/);
+  assert.match(viewer, /id="legacy-transition-notice"/);
+  assert.match(viewer, /Your bookmark moved to the unified spatial workspace/);
 });
 
 test('VR and AR switch through a bounded user-gesture handoff while preserving workspace state', () => {
@@ -147,7 +153,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=52/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=53/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);

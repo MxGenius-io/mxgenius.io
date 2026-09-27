@@ -124,8 +124,8 @@
       "label": "Fleet Globe",
       "kind": "experience",
       "parent_id": "dashboard",
-      "route": "globe-vr.html",
-      "purpose": "Explore fleet locations and aircraft context in browser, WebXR, or capability-gated native AR views. One user-started live-flight control opens a provider-neutral aircraft list and maps only the selected flight over the unchanged fleet-location layer.",
+      "route": "3d-viewer/index.html",
+      "purpose": "Explore fleet locations and aircraft context inside the canonical spatial workspace, with capability-gated native AR available from the browser globe. One user-started live-flight control opens a provider-neutral aircraft list and maps only the selected flight over the unchanged fleet-location layer.",
       "capabilities": [
         {"id": "location-exploration", "description": "Filter and select mapped fleet locations and inspect their aircraft."},
         {"id": "live-flight-positions", "description": "Start or stop the shared live-flight feed, browse aircraft in the details panel, and map one selected airplane with a short course ribbon. It refreshes at most twice per minute only while the Fleet Globe is visible."},

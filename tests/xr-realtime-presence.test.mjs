@@ -190,13 +190,17 @@ test('XR trace keeps native failure reasons while redacting actual credential sh
   assert.equal(traceSafe(`digest ${'a'.repeat(64)}`), 'digest [redacted]');
 });
 
-test('dashboard opens Sensor Bridge on the mature JetNet fleet globe', () => {
-  assert.match(dashboard, /id="sensorSceneTab"/);
-  assert.match(dashboard, /href="globe-vr\.html\?scene=bridge&amp;v=20"/);
-  assert.match(dashboard, /aria-label="Open Sensor Bridge on the JetNet fleet globe"/);
-  assert.match(dashboard, /assets\/thermal-sensor-scene-square\.png/);
-  assert.match(dashboard, /id="sensorSceneStatus"[\s\S]*Fleet is still loading/);
-  assert.match(app, /setupSensorSceneTab\(\)[\s\S]*status\.hidden = false/);
+test('legacy Sensor Bridge is fenced behind explicit service access while the unified viewer owns the public route', () => {
+  assert.doesNotMatch(dashboard, /id="sensorSceneTab"|globe-vr\.html\?scene=bridge/);
+  assert.doesNotMatch(app, /setupSensorSceneTab/);
+  assert.match(dashboard, /id="spatialWorkspaceBtn"/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=53/);
+  assert.match(globe, /const legacyAccess = query\.get\('legacy'\)/);
+  assert.match(globe, /legacyAccess === 'service' \|\| legacyAccess === 'rollback'/);
+  assert.match(globe, /target\.searchParams\.set\('legacyTransition'/);
+  assert.match(globe, /window\.location\.replace\(target\.href\)/);
+  assert.match(viewer, /id="legacy-transition-notice"/);
+  assert.match(viewer, /source: viewerQuery\.has\('legacyTransition'\) \? 'legacy-route-transition'/);
   assert.match(globe, /const sensorOnlyScene = pageQuery\.get\('scene'\) === 'sensor'/);
   assert.match(globe, /const sensorBridgeScene = sensorOnlyScene[\s\S]*pageQuery\.get\('scene'\) === 'bridge'/);
   assert.match(globe, /if \(sensorOnlyScene\) return emptyFleet/);

@@ -58,6 +58,38 @@
             flex-direction: column;
         }
 
+        .legacy-transition-notice {
+            position: fixed;
+            top: 84px;
+            left: 50%;
+            z-index: 180;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: min(680px, calc(100vw - 32px));
+            padding: 12px 14px;
+            transform: translateX(-50%);
+            border: 1px solid rgba(88, 166, 255, 0.55);
+            border-radius: 8px;
+            background: rgba(13, 25, 43, 0.97);
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .legacy-transition-notice[hidden] { display: none; }
+        .legacy-transition-notice strong { color: var(--text-primary); }
+        .legacy-transition-notice button {
+            flex: 0 0 auto;
+            padding: 7px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
         /* ============================================
            Classification Banner
            ============================================ */
@@ -1201,6 +1233,11 @@
 
     <!-- Classification Banner (Top) Removed -->
 
+    <aside class="legacy-transition-notice" id="legacy-transition-notice" hidden role="status" aria-live="polite">
+        <span><strong>Your bookmark moved to the unified spatial workspace.</strong> World, Focus, Thermal, and Witness now stay inside one XR session.</span>
+        <button id="legacy-transition-dismiss" type="button">Got it</button>
+    </aside>
+
     <!-- ============================================
          Header
          ============================================ -->
@@ -1439,6 +1476,22 @@
     <script src="../spatial-context.js?v=3"></script>
     <script src="../realtime-client.js?v=3"></script>
     <script src="../guided-tooltip.js?v=12"></script>
+    <script>
+        (() => {
+            const query = new URLSearchParams(window.location.search);
+            if (!['globe', 'bridge', 'sensor'].includes(query.get('legacyTransition'))) return;
+            const notice = document.getElementById('legacy-transition-notice');
+            const dismiss = document.getElementById('legacy-transition-dismiss');
+            if (!notice || !dismiss) return;
+            notice.hidden = false;
+            dismiss.addEventListener('click', () => {
+                notice.hidden = true;
+                query.delete('legacyTransition');
+                const clean = `${window.location.pathname}${query.size ? `?${query}` : ''}${window.location.hash}`;
+                window.history.replaceState(null, '', clean);
+            });
+        })();
+    </script>
     <script type="module">
         window.addEventListener('error', function(e) {
             console.error('[3D Viewer]', e.message, e.filename, e.lineno);
@@ -1537,7 +1590,17 @@
         let selectedHighlightMaterial = null;
         let pendingRemoteSelector = null;
         let pointerDownPosition = null;
+        const viewerQuery = new URLSearchParams(window.location.search);
+        const requestedSpatialMode = ['operations', 'maintenance'].includes(viewerQuery.get('spatialMode'))
+            ? viewerQuery.get('spatialMode')
+            : null;
         let spatialContext = globalThis.MXSpatialContext?.read?.() || { version: 2, mode: 'maintenance' };
+        if (requestedSpatialMode) {
+            spatialContext = globalThis.MXSpatialContext?.update?.({
+                source: viewerQuery.has('legacyTransition') ? 'legacy-route-transition' : 'workspace-deep-link',
+                mode: requestedSpatialMode
+            }) || { ...spatialContext, mode: requestedSpatialMode };
+        }
         let viewerContext = {
             caseId: spatialContext.case?.id || null,
             aircraftId: spatialContext.aircraft?.id || null,
@@ -4812,8 +4875,7 @@
                     if (window.parent && typeof window.parent.switchTab === 'function') {
                         window.parent.switchTab('dashboard');
                     } else {
-                        // Fallback
-                        console.log('Cannot find parent window to switch tab.');
+                        window.location.assign('../dashboard.html#dashboard');
                     }
                 });
             }
