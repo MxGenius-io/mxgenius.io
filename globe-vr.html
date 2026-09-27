@@ -125,7 +125,7 @@
     import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRRealtimePresence } from './xr-realtime-presence.js?v=15';
     import { XRRemoteWitnessPanel } from './xr-remote-witness.js?v=9';
-    import { XRSpatialShell } from './xr-spatial-shell.js?v=12';
+    import { XRSpatialShell } from './xr-spatial-shell.js?v=13';
     import { SpatialWindowManager } from './spatial-window-manager.js?v=2';
     import { XRUIAudio } from './xr-ui-audio.js?v=3';
     import { XRGlobeHUD } from './xr-globe-hud.js?v=1';
@@ -195,7 +195,7 @@
       : sensorBridgeScene ? 'fleet-globe-sensor-bridge' : 'fleet-globe';
     sensorSetup.hidden = !sensorBridgeScene;
     let SensorOrbClass = null;
-    if (sensorBridgeScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=13'));
+    if (sensorBridgeScene) ({ XRSensorOrb: SensorOrbClass } = await import('./xr-sensor-orb.js?v=15'));
     document.body.classList.toggle('sensor-scene', sensorOnlyScene);
     document.title = sensorOnlyScene
       ? 'MXGenius Sensor Diagnostics'

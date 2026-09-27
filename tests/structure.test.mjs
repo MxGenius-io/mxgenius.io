@@ -551,7 +551,7 @@ test('3D viewer uses an immersive HDRI workspace during XR presentation', () => 
 });
 
 test('3D viewer no-HDRI mode uses a lit inspection grid without changing HDRI choices', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=50/);
+    assert.match(dashboard, /3d-viewer\/index\.html\?v=51/);
   assert.match(viewer, /<option value="">No HDRI · Grid<\/option>/);
   assert.match(viewer, /new THREE\.GridHelper\(10, 50, 0x38bdf8, 0x1e3a5f\)/);
   assert.match(viewer, /inspectionGrid\.position\.y = bounds\.min\.y - 0\.035/);
@@ -651,9 +651,9 @@ test('WebXR controllers expose a visible widget laser and use the same targets f
 test('WebXR maintenance audio maps every delivered cue and completes the live frontend actions', async () => {
   assert.match(viewer, /id="hud-sound-button"/);
   assert.match(viewer, /new XRUIAudio\(\{ camera, onStateChange: updateXRAudioStatus \}\)/);
-  assert.match(viewer, /xrWindowManager\?\.open\('voice', \{ input \}\)/);
+  assert.match(viewer, /xrWindowManager\?\.open\('voice', \{ input, reason: 'capability-registry' \}\)/);
   assert.match(viewer, /await xrVoice\?\.connect\(input\)/);
-  assert.match(viewer, /xrVoice\?\.captureSnapshot\(input\)/);
+  assert.match(viewer, /return xrVoice\?\.captureSnapshot\(input\)/);
   assert.match(viewer, /onSnapshotRequest: requestMaintenanceSnapshot/);
   assert.match(viewer, /xrSensors\?\.state === 'connected'/);
   assert.match(viewer, /return requestViewerSnapshot\(options\)/);
@@ -735,7 +735,7 @@ test('mobile globe panels keep controls reachable and avoid overlapping drawers'
 });
 
 test('XR procedure media uses direct video assets with optional timed mesh pairing', () => {
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=50/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=51/);
   assert.match(viewer, /id="procedure-media-video"/);
   assert.match(viewer, /id="procedure-media-button"/);
   assert.match(viewer, /import \{ XRMediaPanel \}/);

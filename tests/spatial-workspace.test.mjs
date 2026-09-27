@@ -147,7 +147,7 @@ test('VR and AR switch through a bounded user-gesture handoff while preserving w
   assert.match(application, /message\.sessionMode === 'immersive-ar' \? 'AR' : 'VR'/);
   assert.match(application, /message\.state === 'handoff'/);
   assert.match(application, /Continue the switch to \$\{sessionLabel\} in the 3D viewer/);
-  assert.match(dashboard, /3d-viewer\/index\.html\?v=50/);
+  assert.match(dashboard, /3d-viewer\/index\.html\?v=51/);
   assert.match(globe, /onSessionModeChange: \(sessionMode, \{ input = 'xr' \} = \{\}\) =>/);
   assert.match(globe, /async function beginSpatialSessionModeHandoff/);
   assert.match(globe, /pendingSpatialHandoff = \{[\s\S]*type: 'session-mode'/);
@@ -256,25 +256,31 @@ test('World and Focus share the canonical renderer, session, animation loop, and
 
 test('maintenance stays in the canonical renderer and opens tools from one world anchor', () => {
   assert.match(globe, /xr-realtime-presence\.js\?v=15/);
-  assert.match(globe, /xr-spatial-shell\.js\?v=12/);
+  assert.match(globe, /xr-spatial-shell\.js\?v=13/);
   assert.match(viewer, /xr-realtime-presence\.js\?v=15/);
-  assert.match(viewer, /xr-spatial-shell\.js\?v=12/);
+  assert.match(viewer, /xr-spatial-shell\.js\?v=13/);
   assert.match(shell, /onActiveMode = \(\) => false/);
   assert.match(shell, /this\.onActiveMode\(nextMode, \{ input \}\) === true/);
   assert.match(shell, /MXGeniusSpatialContentDock/);
   assert.match(shell, /contentAnchor\(\)/);
   assert.match(shell, /this\.contentDock\.position\.set\(0\.96, 0\.02, 0\.02\)/);
   assert.match(shell, /Number\.isFinite\(placement\?\.y\) \? placement\.y : -0\.30/);
-  assert.match(shell, /button\.visible = this\.toolModes\.has\(this\.mode\)/);
+  assert.match(shell, /button\.visible = visible && this\.toolModes\.has\(this\.mode\)/);
   assert.match(shell, /return this\.toolModes\.has\(this\.mode\)/);
   assert.match(sensors, /this\.panel\.position\.set\(0, -0\.5 \* this\.screenScale - 0\.26, -0\.03\)/);
-  assert.match(sensors, /const diagnosticsTarget = this\.active \? 0\.78 : 0\.001/);
+  assert.match(sensors, /const diagnosticsTarget = this\.active && this\.showDiagnostics \? 0\.78 : 0\.001/);
   assert.match(viewer, /dockProvider: \(\) => xrSpatialShell\?\.contentAnchor\?\.\(\) \|\| null/);
   assert.match(viewer, /xrVoice\.setDockTarget\(xrSpatialShell\.contentAnchor\(\)\)/);
   assert.match(viewer, /xrWindowManager\.register\('thermal'/);
   assert.match(viewer, /xrWindowManager\.register\('voice'/);
+  assert.match(viewer, /new XRCapabilityRegistry\(/);
+  assert.match(viewer, /xrCapabilityRegistry\.registerAction\('thermal'/);
+  assert.match(viewer, /xrCapabilityRegistry\.registerAction\('witness'/);
+  assert.match(viewer, /xrCapabilityRegistry\.registerAction\('voice'/);
+  assert.match(viewer, /xrCapabilityRegistry\.registerAction\('capture'/);
+  assert.match(viewer, /showDiagnostics: false/);
   assert.match(viewer, /new XRRealtimePresence\(\{[\s\S]*pointCount: 1800,[\s\S]*pointSize: 0\.0007,[\s\S]*launcherVisible: false,[\s\S]*presenceVisible: true/);
-  assert.match(viewer, /\{ id: 'voice', label: 'AI' \}/);
+  assert.match(viewer, /tools: \[\.\.\.xrCapabilityRegistry\.snapshot\(\)\]/);
   assert.match(viewer, /syncMaintenanceSurfaces\(snapshot\)/);
   assert.match(viewer, /xrMaintenanceHUD\?\.setPresenting\(showContext && Boolean\(selectedMesh\), camera\)/);
   assert.match(viewer, /new XROperationsSurface\(/);

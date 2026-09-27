@@ -219,7 +219,7 @@ test('dashboard opens Sensor Bridge on the mature JetNet fleet globe', () => {
 });
 
 test('sensor scene cache-busts the commissioning browser client', () => {
-  assert.match(globe, /xr-sensor-orb\.js\?v=13/);
+  assert.match(globe, /xr-sensor-orb\.js\?v=15/);
   assert.match(sensors, /commissioning\.browser_ack/);
   assert.match(sensors, /W14 PASS/);
 });
@@ -227,7 +227,7 @@ test('sensor scene cache-busts the commissioning browser client', () => {
 test('maintenance viewer reuses the sensor, witness, voice, and evidence cores behind one familiar tray', () => {
   assert.match(viewer, /new XRSensorOrb\(/);
   assert.match(viewer, /new XRRemoteWitnessPanel\(/);
-  assert.match(viewer, /tools: \[[\s\S]*id: 'thermal'[\s\S]*id: 'witness'[\s\S]*id: 'voice'[\s\S]*id: 'capture'/);
+  assert.match(viewer, /tools: \[\.\.\.xrCapabilityRegistry\.snapshot\(\)\]/);
   assert.match(viewer, /launcherVisible: false/);
   assert.match(viewer, /onSnapshotCaptured: saveViewerSnapshot/);
   assert.match(viewer, /nativeBootstrapProvider: \(invitation, projection\) => xrSensors\.sendWitnessBootstrap/);

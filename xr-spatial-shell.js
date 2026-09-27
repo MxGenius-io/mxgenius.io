@@ -340,6 +340,7 @@ export class XRSpatialShell {
       const tool = this.toolStates.get(button.userData.xrShellTool);
       const active = Boolean(tool?.active);
       const enabled = tool?.enabled !== false;
+      const visible = tool?.visible !== false;
       const context = button.userData.context;
       context.clearRect(0, 0, 256, 192);
       rounded(context, 8, 8, 240, 176, 26);
@@ -350,9 +351,18 @@ export class XRSpatialShell {
       context.stroke();
       this.drawToolIcon(context, tool.icon, 128, 70, enabled ? tool.color : '#64748b');
       context.fillStyle = enabled ? '#e4f5ff' : '#64748b';
-      context.font = '700 24px ui-monospace, monospace';
+      context.font = '700 22px ui-monospace, monospace';
       context.textAlign = 'center';
-      context.fillText(tool.label, 128, 151);
+      context.fillText(tool.label, 128, 143);
+      const feedback = String(enabled ? tool.status || '' : tool.reason || tool.status || 'UNAVAILABLE')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 28);
+      if (feedback) {
+        context.fillStyle = enabled ? '#7dd3fc' : '#94a3b8';
+        context.font = '600 14px system-ui, sans-serif';
+        context.fillText(feedback, 128, 169);
+      }
       if (tool.windowState === 'minimized') {
         context.fillStyle = '#38bdf8';
         context.shadowColor = '#38bdf8';
@@ -362,7 +372,7 @@ export class XRSpatialShell {
         context.fill();
         context.shadowBlur = 0;
       }
-      button.visible = this.toolModes.has(this.mode);
+      button.visible = visible && this.toolModes.has(this.mode);
       button.userData.texture.needsUpdate = true;
     }
     this.drawSessionModeButton();
@@ -375,7 +385,7 @@ export class XRSpatialShell {
       ? [this.sessionModeButton, this.exitButton]
       : [this.exitButton];
     return this.toolModes.has(this.mode)
-      ? [...this.buttons, ...this.toolButtons, ...sessionControls]
+      ? [...this.buttons, ...this.toolButtons.filter((button) => this.toolStates.get(button.userData.xrShellTool)?.visible !== false), ...sessionControls]
       : [...this.buttons, ...sessionControls];
   }
 
