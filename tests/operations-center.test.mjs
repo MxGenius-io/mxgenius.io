@@ -45,6 +45,13 @@ test('the consolidated tabs preserve every existing operational workspace', () =
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
+test('embedded Build keeps its save controls visible for persistent checklist updates', () => {
+  assert.match(js, /frame\.id === 'buildFrame'/);
+  assert.match(js, /\.board-header \{/);
+  assert.match(js, /\.board-header \.header-actions/);
+  assert.match(js, /\$\{buildControls\}/);
+});
+
 test('provider settings own the server-managed JetNet connection', () => {
   assert.doesNotMatch(dashboard, /id="settingsJetNetCard"/);
   assert.match(html, /id="tab-settings"[\s\S]*id="panel-settings"/);

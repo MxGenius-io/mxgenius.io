@@ -36,6 +36,20 @@
         justify-content: flex-end !important;
       }
     ` : '';
+    const buildControls = frame.id === 'buildFrame' ? `
+      .board-header {
+        display: flex !important;
+        min-height: 52px !important;
+        justify-content: flex-end !important;
+        padding: 8px 20px !important;
+      }
+      .board-header .brand,
+      .board-header .header-actions > a { display: none !important; }
+      .board-header .header-actions {
+        width: 100% !important;
+        justify-content: flex-end !important;
+      }
+    ` : '';
     return `
       body > header,
       body > .container > header,
@@ -51,6 +65,7 @@
       .catalog-shell,
       .feedback-page__shell { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 20px !important; }
       ${readinessControls}
+      ${buildControls}
     `;
   }
 
