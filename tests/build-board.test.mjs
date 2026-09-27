@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const html = await readFile(new URL('../build-board.html', import.meta.url), 'utf8');
 const js = await readFile(new URL('../build-board.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../build-board.css', import.meta.url), 'utf8');
+const xrMap = await readFile(new URL('../docs/design/xr-spatial-workspace-map.md', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
 const auth = await readFile(new URL('../auth.js', import.meta.url), 'utf8');
 
@@ -53,15 +54,16 @@ test('board lanes lead the composer and cards support private picture attachment
 });
 
 test('the starter build list reflects the current hardware and release work', () => {
-  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V4_STARTER_IDS'));
+  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V5_STARTER_IDS'));
   assert.equal((starterSource.match(/lane: 'question'/g) || []).length, 0);
-  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 10);
+  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 11);
   assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 10);
   assert.match(starterSource, /Publish and accept Quest Sensor Bridge alpha\.25/);
   assert.match(starterSource, /Run Rocky acceptance on Feedback and Parts/);
   assert.match(starterSource, /Wire the Pi power and data paths/);
   assert.match(starterSource, /Define the Pi POC stack/);
   assert.match(starterSource, /Prove 18-hour DeWalt battery runtime/);
+  assert.match(starterSource, /Consolidate XR into one spatial workspace/);
   assert.match(starterSource, /ran for 18 hours on a single DeWalt battery charge/);
   assert.doesNotMatch(starterSource, /Can we provide a model structured-output example to mimic\?|Prepare the final release and handoff report|What qualifies poc\.12 as thermally stable\?|Who signs off TestFlight Build 33\?|What must the demonstration prove to count as done\?|Which POC devices and programs should run with the Pi\?|Smoke-check the recovered manual image path/);
   assert.match(js, /Separate thermal and Pi transport paths/);
@@ -79,11 +81,11 @@ test('the starter build list reflects the current hardware and release work', ()
     'Field-test selected OpenSky trip paths',
     'Close the model response-loop regression'
   ]) assert.match(starterSource, new RegExp(title.replace(/[+/.]/g, '\\$&')));
-  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 4/);
-  assert.match(js, /BUILD_BOARD_V4_STARTER_IDS/);
-  assert.match(js, /BUILD_BOARD_V4_STARTER_TITLES/);
-  assert.match(js, /BUILD_BOARD_V4_RETIRED_IDS/);
-  assert.match(js, /BUILD_BOARD_V4_RETIRED_TITLES/);
+  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 5/);
+  assert.match(js, /BUILD_BOARD_V5_STARTER_IDS/);
+  assert.match(js, /BUILD_BOARD_V5_STARTER_TITLES/);
+  assert.match(js, /BUILD_BOARD_V5_RETIRED_IDS/);
+  assert.match(js, /BUILD_BOARD_V5_RETIRED_TITLES/);
   for (const id of ['question-demonstration-done', 'question-thermal-acceptance-duration', 'question-ios-build33-owner', 'sprint-quest-poc12-acceptance']) {
     assert.match(js, new RegExp(id));
   }
@@ -91,7 +93,19 @@ test('the starter build list reflects the current hardware and release work', ()
   assert.match(js, /created_at: existing\.created_at \|\| starter\.created_at/);
   assert.match(js, /image: existing\.image/);
   assert.match(js, /updates: existing\.updates/);
-  assert.match(html, /build-board\.js\?v=5/);
+  assert.match(html, /build-board\.js\?v=6/);
+});
+
+test('the locked lean spatial workspace direction is a Current sprint card', () => {
+  assert.doesNotMatch(html, /class="xr-direction"/);
+  assert.match(js, /id: 'sprint-xr-spatial-workspace'/);
+  assert.match(js, /Consolidate XR into one spatial workspace/);
+  assert.match(js, /assets\/xr-spatial-workspace-map\.png/);
+  assert.match(js, /STATIC_CARD_ARTWORK/);
+  assert.match(css, /\.card-image--diagram/);
+  assert.match(xrMap, /```mermaid/);
+  assert.match(xrMap, /Enter Spatial Workspace/);
+  assert.match(xrMap, /Tools are capabilities, not destinations/);
 });
 
 test('user-authored board text is rendered with DOM text content and the board is responsive', () => {

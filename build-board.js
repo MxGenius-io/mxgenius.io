@@ -5,7 +5,13 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
-  const BUILD_BOARD_SCHEMA_VERSION = 4;
+  const BUILD_BOARD_SCHEMA_VERSION = 5;
+  const STATIC_CARD_ARTWORK = new Map([
+    ['sprint-xr-spatial-workspace', {
+      src: 'assets/xr-spatial-workspace-map.png',
+      alt: 'Lean XR spatial workspace Mermaid flowchart'
+    }]
+  ]);
   const LANES = [
     ['question', 'Open question'],
     ['sprint', 'Current sprint'],
@@ -13,6 +19,17 @@
   ];
 
   const starterCards = [
+    {
+      id: 'sprint-xr-spatial-workspace',
+      lane: 'sprint',
+      title: 'Consolidate XR into one spatial workspace',
+      message: 'Replace the separate Operations, Maintenance, sensor, and fallback scene choices with one spatial workspace: World and Focus preserve context, one control summons relevant actions, system controls stay tucked away, and the Quest companion surfaces only for consent or recovery.',
+      owner: 'Dwayne Tillman',
+      author: 'September 27 XR architecture decision',
+      created_at: '2026-09-27T11:30:00Z',
+      updated_at: '2026-09-27T11:30:00Z',
+      updates: []
+    },
     {
       id: 'question-sprint-configuration',
       lane: 'complete',
@@ -234,9 +251,9 @@
       updates: []
     }
   ];
-  const BUILD_BOARD_V4_STARTER_IDS = new Set(starterCards.map((card) => card.id));
-  const BUILD_BOARD_V4_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
-  const BUILD_BOARD_V4_RETIRED_IDS = new Set([
+  const BUILD_BOARD_V5_STARTER_IDS = new Set(starterCards.map((card) => card.id));
+  const BUILD_BOARD_V5_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
+  const BUILD_BOARD_V5_RETIRED_IDS = new Set([
     'question-operations-connections',
     'question-structured-output-example',
     'question-demonstration-done',
@@ -250,7 +267,7 @@
     'sprint-flir-libssh2-disposition',
     'sprint-final-release-closeout'
   ]);
-  const BUILD_BOARD_V4_RETIRED_TITLES = new Set([
+  const BUILD_BOARD_V5_RETIRED_TITLES = new Set([
     'Can we provide a model structured-output example to mimic?',
     'Which POC devices and programs should run with the Pi?',
     'Prepare the final release and handoff report',
@@ -320,8 +337,8 @@
     let cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
     if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
       const retained = cards.filter((card) => (
-        !BUILD_BOARD_V4_RETIRED_IDS.has(card.id)
-        && !BUILD_BOARD_V4_RETIRED_TITLES.has(card.title)
+        !BUILD_BOARD_V5_RETIRED_IDS.has(card.id)
+        && !BUILD_BOARD_V5_RETIRED_TITLES.has(card.title)
       ));
       const existingById = new Map(retained.map((card) => [card.id, card]));
       const legacyByTitle = new Map(retained.map((card) => [card.title, card]));
@@ -335,8 +352,8 @@
         } : starter);
       });
       const teamCards = retained.filter((card) => (
-        !BUILD_BOARD_V4_STARTER_IDS.has(card.id)
-        && !BUILD_BOARD_V4_STARTER_TITLES.has(card.title)
+        !BUILD_BOARD_V5_STARTER_IDS.has(card.id)
+        && !BUILD_BOARD_V5_STARTER_TITLES.has(card.title)
       ));
       cards = [...refreshedStarters, ...teamCards];
     }
@@ -503,7 +520,15 @@
     );
     topline.append(heading);
     article.append(topline);
-    if (card.image?.asset_id) {
+    const staticArtwork = STATIC_CARD_ARTWORK.get(card.id);
+    if (staticArtwork) {
+      const image = document.createElement('img');
+      image.className = 'card-image card-image--diagram';
+      image.src = staticArtwork.src;
+      image.alt = staticArtwork.alt;
+      image.loading = 'lazy';
+      article.append(image);
+    } else if (card.image?.asset_id) {
       const image = document.createElement('img');
       image.className = 'card-image';
       image.alt = card.image.name || `${card.title} card picture`;
