@@ -130,6 +130,23 @@ foreach ($requiredSpatialToken in @('AppSystemActivity', 'LayoutXMLPanelRegistra
 foreach ($requiredCommissioningToken in @('ThermalCommissioningRun', 'commissioning.browser_ack', 'RUN FULL DIAGNOSTIC', 'C05')) {
     Assert-ReleaseRequirement ($companionSources.Contains($requiredCommissioningToken)) "deterministic commissioning path is missing $requiredCommissioningToken"
 }
+
+function Get-ReleaseSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $sha.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
 foreach ($requiredWitnessBootstrapToken in @(
     'RemoteWitnessBootstrap',
     'RemoteWitnessSocket',
@@ -248,13 +265,13 @@ $storeManifestPath = Join-Path (Split-Path $releaseMetadataPath -Parent) $releas
 Assert-ReleaseRequirement (Test-Path -LiteralPath $storeManifestPath -PathType Leaf) "missing Meta store asset manifest $storeManifestPath"
 $storeManifest = Get-Content -Raw -LiteralPath $storeManifestPath | ConvertFrom-Json
 $storeRoot = Split-Path $storeManifestPath -Parent
-Assert-ReleaseRequirement (($storeManifest.assets | Where-Object { $_.canonicalUpload -and $_.requiredForRelease }).Count -eq 1) 'store asset manifest must identify exactly one required canonical upload'
+Assert-ReleaseRequirement (@($storeManifest.assets | Where-Object { $_.canonicalUpload -and $_.requiredForRelease }).Count -eq 1) 'store asset manifest must identify exactly one required canonical upload'
 Add-Type -AssemblyName System.Drawing
 foreach ($asset in $storeManifest.assets) {
     Assert-ReleaseRequirement (-not [string]::IsNullOrWhiteSpace($asset.metaDashboardField)) "store asset $($asset.file) has no Meta dashboard field mapping"
     $assetPath = Join-Path $storeRoot $asset.file
     Assert-ReleaseRequirement (Test-Path -LiteralPath $assetPath -PathType Leaf) "missing Meta store asset $assetPath"
-    $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $assetPath).Hash.ToLowerInvariant()
+    $actualHash = Get-ReleaseSha256 -Path $assetPath
     Assert-ReleaseRequirement ($actualHash -eq $asset.sha256.ToLowerInvariant()) "checksum mismatch for Meta store asset $($asset.file)"
     $image = [System.Drawing.Image]::FromFile($assetPath)
     try {
@@ -352,7 +369,7 @@ try {
     Assert-ReleaseRequirement ($nativeEntries.Count -gt 0) 'APK contains no native libraries'
     $abis = @($nativeEntries | ForEach-Object { [regex]::Match($_.FullName, '^lib/([^/]+)/').Groups[1].Value } | Sort-Object -Unique)
     Assert-ReleaseRequirement ($abis.Count -eq 1 -and $abis[0] -eq 'arm64-v8a') "APK must contain only ARM64 native libraries; found: $($abis -join ', ')"
-    Assert-ReleaseRequirement (($nativeEntries | Where-Object { $_.FullName -eq 'lib/arm64-v8a/libjingle_peerconnection_so.so' }).Count -eq 1) 'APK is missing the pinned ARM64 libwebrtc runtime'
+    Assert-ReleaseRequirement (@($nativeEntries | Where-Object { $_.FullName -eq 'lib/arm64-v8a/libjingle_peerconnection_so.so' }).Count -eq 1) 'APK is missing the pinned ARM64 libwebrtc runtime'
 }
 finally {
     $archive.Dispose()
@@ -367,7 +384,7 @@ Assert-ReleaseRequirement ($signatureOutput -match 'Verified using v2 scheme \(A
 if ($Configuration -eq 'Release') {
     Assert-ReleaseRequirement ($null -ne $releaseMetadata.build.artifact) 'release metadata has no artifact record'
     $artifactSize = (Get-Item -LiteralPath $resolvedApk).Length
-    $artifactHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedApk).Hash.ToLowerInvariant()
+    $artifactHash = Get-ReleaseSha256 -Path $resolvedApk
     Assert-ReleaseRequirement ($artifactSize -eq $releaseMetadata.build.artifact.sizeBytes) 'release APK size does not match artifact metadata'
     Assert-ReleaseRequirement ($artifactHash -eq $releaseMetadata.build.artifact.sha256.ToLowerInvariant()) 'release APK checksum does not match artifact metadata'
     $expectedCertificate = $releaseMetadata.signing.certificateSha256.ToLowerInvariant()

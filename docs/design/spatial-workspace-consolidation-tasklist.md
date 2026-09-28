@@ -196,6 +196,11 @@ cross-tenant leakage, duplicate records, or optimistic completion claims.
 
 ### Wave 7 — acceptance and cutover
 
+The executable preflight and physical-device evidence record live in
+[`docs/acceptance/xr-unified-workspace-quest-checklist.md`](../acceptance/xr-unified-workspace-quest-checklist.md).
+The checklist stays pending until the exact alpha.25 candidate is exercised on a
+physical Quest; automated evidence cannot close the physical rows.
+
 - [x] `SWC-070` Add contract tests for mode ownership, shared context, one-active-
   panel behavior, Service-mode isolation, and the FLIR-only follow exception.
 - [ ] `SWC-071` Run desktop and narrow-viewport interaction checks with keyboard,
