@@ -167,7 +167,24 @@
   const jetNetBadge = document.getElementById('settingsJetNetBadge');
   const jetNetConnect = document.getElementById('settingsJetNetConnect');
   const jetNetDisconnect = document.getElementById('settingsJetNetDisconnect');
+  const modelKnowledgeFilesChoose = document.getElementById('settingsModelKnowledgeFilesChoose');
+  const modelKnowledgeFolderChoose = document.getElementById('settingsModelKnowledgeFolderChoose');
+  const modelKnowledgeFiles = document.getElementById('settingsModelKnowledgeFiles');
+  const modelKnowledgeFolder = document.getElementById('settingsModelKnowledgeFolder');
+  const modelKnowledgeClear = document.getElementById('settingsModelKnowledgeClear');
+  const modelKnowledgePublish = document.getElementById('settingsModelKnowledgePublish');
+  const modelKnowledgeList = document.getElementById('settingsModelKnowledgeList');
+  const modelKnowledgeSummary = document.getElementById('settingsModelKnowledgeSummary');
+  const modelKnowledgeStatus = document.getElementById('settingsModelKnowledgeStatus');
+  const modelKnowledgeBadge = document.getElementById('settingsModelKnowledgeBadge');
   let accessRules = [];
+  let modelKnowledgeQueue = [];
+  let modelKnowledgePublishing = false;
+
+  const MODEL_KNOWLEDGE_MAX_BYTES = 50 * 1024 * 1024;
+  const MODEL_KNOWLEDGE_EXTENSIONS = new Set([
+    'pdf', 'docx', 'txt', 'md', 'csv', 'json', 'html', 'htm', 'jpg', 'jpeg', 'png'
+  ]);
 
   function setAccessStatus(message, state = '') {
     accessStatus.textContent = message;
@@ -199,6 +216,167 @@
       return operation(session);
     }
   }
+
+  function formatBytes(value) {
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+  }
+
+  function modelKnowledgePath(file) {
+    return String(file.webkitRelativePath || file.name || 'unnamed-file');
+  }
+
+  function modelKnowledgeExtension(file) {
+    const name = String(file.name || '');
+    const separator = name.lastIndexOf('.');
+    return separator >= 0 ? name.slice(separator + 1).toLowerCase() : '';
+  }
+
+  function modelKnowledgeStateLabel(item) {
+    if (item.state === 'uploading') return 'Publishing';
+    if (item.state === 'ready') return 'Ready';
+    if (item.state === 'error') return 'Retry';
+    return 'Staged';
+  }
+
+  function renderModelKnowledgeQueue() {
+    modelKnowledgeList.replaceChildren();
+    const totalBytes = modelKnowledgeQueue.reduce((sum, item) => sum + item.file.size, 0);
+    const publishable = modelKnowledgeQueue.filter((item) => item.state === 'pending' || item.state === 'error').length;
+
+    if (modelKnowledgeQueue.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'model-knowledge-empty';
+      empty.textContent = 'Add individual files or choose a folder to begin.';
+      modelKnowledgeList.appendChild(empty);
+      modelKnowledgeSummary.textContent = 'No files staged';
+    } else {
+      modelKnowledgeSummary.textContent = `${modelKnowledgeQueue.length} ${modelKnowledgeQueue.length === 1 ? 'file' : 'files'} · ${formatBytes(totalBytes)}`;
+      modelKnowledgeQueue.forEach((item) => {
+        const row = document.createElement('div');
+        const path = document.createElement('span');
+        const size = document.createElement('span');
+        const state = document.createElement('span');
+        row.className = 'model-knowledge-item';
+        row.dataset.state = item.state;
+        path.className = 'model-knowledge-item__path';
+        path.textContent = item.path;
+        path.title = item.path;
+        size.className = 'model-knowledge-item__size';
+        size.textContent = item.message || formatBytes(item.file.size);
+        state.className = 'model-knowledge-item__state';
+        state.textContent = modelKnowledgeStateLabel(item);
+        row.append(path, size, state);
+        modelKnowledgeList.appendChild(row);
+      });
+    }
+
+    modelKnowledgeFilesChoose.disabled = modelKnowledgePublishing;
+    modelKnowledgeFolderChoose.disabled = modelKnowledgePublishing;
+    modelKnowledgeClear.disabled = modelKnowledgePublishing || modelKnowledgeQueue.length === 0;
+    modelKnowledgePublish.disabled = modelKnowledgePublishing || publishable === 0;
+  }
+
+  function stageModelKnowledgeFiles(fileList) {
+    const incoming = [...(fileList || [])];
+    let unsupported = 0;
+    let oversized = 0;
+    let empty = 0;
+    let duplicates = 0;
+    let added = 0;
+    const known = new Set(modelKnowledgeQueue.map((item) => item.key));
+
+    incoming.forEach((file) => {
+      const path = modelKnowledgePath(file);
+      const key = `${path.toLowerCase()}::${file.size}::${file.lastModified || 0}`;
+      if (!MODEL_KNOWLEDGE_EXTENSIONS.has(modelKnowledgeExtension(file))) {
+        unsupported += 1;
+      } else if (file.size === 0) {
+        empty += 1;
+      } else if (file.size > MODEL_KNOWLEDGE_MAX_BYTES) {
+        oversized += 1;
+      } else if (known.has(key)) {
+        duplicates += 1;
+      } else {
+        known.add(key);
+        modelKnowledgeQueue.push({ key, file, path, state: 'pending', message: '' });
+        added += 1;
+      }
+    });
+
+    const skipped = [];
+    if (unsupported) skipped.push(`${unsupported} unsupported`);
+    if (oversized) skipped.push(`${oversized} over 50 MiB`);
+    if (empty) skipped.push(`${empty} empty`);
+    if (duplicates) skipped.push(`${duplicates} duplicate`);
+    modelKnowledgeStatus.textContent = added
+      ? `${added} ${added === 1 ? 'file' : 'files'} staged${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Review the queue, then publish.`
+      : `No files added${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}.`;
+    modelKnowledgeBadge.dataset.state = modelKnowledgeQueue.length ? 'checking' : 'live';
+    modelKnowledgeBadge.textContent = modelKnowledgeQueue.length ? 'Staged' : 'Ready';
+    renderModelKnowledgeQueue();
+  }
+
+  async function publishModelKnowledge() {
+    const publishable = modelKnowledgeQueue.filter((item) => item.state === 'pending' || item.state === 'error');
+    if (publishable.length === 0 || modelKnowledgePublishing) return;
+
+    modelKnowledgePublishing = true;
+    modelKnowledgeBadge.dataset.state = 'checking';
+    modelKnowledgeBadge.textContent = 'Publishing';
+    renderModelKnowledgeQueue();
+    let completed = 0;
+    let failed = 0;
+
+    for (const item of publishable) {
+      item.state = 'uploading';
+      item.message = formatBytes(item.file.size);
+      modelKnowledgeStatus.textContent = `Publishing ${completed + failed + 1} of ${publishable.length}: ${item.path}`;
+      renderModelKnowledgeQueue();
+      try {
+        const result = await withSession((session) => MXApplicationClient.content.upload(item.file, session));
+        if (result.status !== 'available_in_model_context' || !(Number(result.indexed_chunks) > 0)) {
+          throw new Error('The source was stored but the model-context index did not confirm it.');
+        }
+        item.state = 'ready';
+        item.message = `${result.indexed_chunks} ${result.indexed_chunks === 1 ? 'chunk' : 'chunks'} · available to the model`;
+        completed += 1;
+      } catch (error) {
+        item.state = 'error';
+        item.message = error.message || 'Publication failed';
+        failed += 1;
+      }
+    }
+
+    modelKnowledgePublishing = false;
+    modelKnowledgeBadge.dataset.state = failed ? 'degraded' : 'live';
+    modelKnowledgeBadge.textContent = failed ? 'Needs attention' : 'Published';
+    modelKnowledgeStatus.textContent = failed
+      ? `${completed} published; ${failed} failed. Fix the failed items, then publish again to retry them.`
+      : `${completed} ${completed === 1 ? 'source is' : 'sources are'} available in model context.`;
+    renderModelKnowledgeQueue();
+  }
+
+  modelKnowledgeFilesChoose.addEventListener('click', () => modelKnowledgeFiles.click());
+  modelKnowledgeFolderChoose.addEventListener('click', () => modelKnowledgeFolder.click());
+  modelKnowledgeFiles.addEventListener('change', () => {
+    stageModelKnowledgeFiles(modelKnowledgeFiles.files);
+    modelKnowledgeFiles.value = '';
+  });
+  modelKnowledgeFolder.addEventListener('change', () => {
+    stageModelKnowledgeFiles(modelKnowledgeFolder.files);
+    modelKnowledgeFolder.value = '';
+  });
+  modelKnowledgeClear.addEventListener('click', () => {
+    if (modelKnowledgePublishing) return;
+    modelKnowledgeQueue = [];
+    modelKnowledgeStatus.textContent = 'Queue cleared. Nothing has been uploaded.';
+    modelKnowledgeBadge.dataset.state = 'live';
+    modelKnowledgeBadge.textContent = 'Ready';
+    renderModelKnowledgeQueue();
+  });
+  modelKnowledgePublish.addEventListener('click', () => void publishModelKnowledge());
 
   function renderJetNetConnection(payload, message = '') {
     const configured = payload?.configured === true;

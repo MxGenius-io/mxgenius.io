@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const client = await readFile(new URL('../application-client.js', import.meta.url), 'utf8');
 const dashboard = await readFile(new URL('../dashboard.html', import.meta.url), 'utf8');
+const operationsCenter = await readFile(new URL('../operations-center.html', import.meta.url), 'utf8');
 const productionStyles = await readFile(new URL('../production-ui.css', import.meta.url), 'utf8');
 const backend = await readFile(new URL('../services/mcp/server/src/transport/http.rs', import.meta.url), 'utf8');
 const manualAdapter = await readFile(new URL('../services/mcp/server/src/adapters/manual.rs', import.meta.url), 'utf8');
@@ -135,7 +136,14 @@ test('structured output remains enabled with persisted memory and multimodal inp
   assert.match(backend, /"type": "input_image"/);
   assert.match(backend, /chat_response_schema\(\)/);
   assert.match(dashboard, /id="chatAttachBtn"/);
-  assert.match(dashboard, /id="settingsContentUploadChoose"/);
+  assert.doesNotMatch(dashboard, /id="settingsContentUploadChoose"/);
+  assert.match(operationsCenter, /id="settingsModelKnowledgeFilesChoose"/);
+  assert.match(operationsCenter, /id="settingsModelKnowledgeFolderChoose"/);
+  assert.match(backend, /publish_model_context\(/);
+  assert.match(backend, /search_model_context\(/);
+  assert.match(backend, /"organization_model_context_records": organization_model_context/);
+  assert.match(backend, /CHAT_ORGANIZATION_CONTEXT_INSTRUCTIONS/);
+  assert.match(backend, /"status": "available_in_model_context"/);
 });
 
 test('text model selection preserves orchestration and realtime exchanges persist to threads', () => {

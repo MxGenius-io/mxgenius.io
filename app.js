@@ -3410,9 +3410,6 @@ function initSettings() {
   const profileImageChoose = document.getElementById('settingsProfileImageChoose');
   const profileImageRemove = document.getElementById('settingsProfileImageRemove');
   const profileImageStatus = document.getElementById('settingsProfileImageStatus');
-  const contentUploadInput = document.getElementById('settingsContentUploadInput');
-  const contentUploadChoose = document.getElementById('settingsContentUploadChoose');
-  const contentUploadStatus = document.getElementById('settingsContentUploadStatus');
   const loadDemoDataButton = document.getElementById('settingsLoadDemoData');
   const demoDataStatus = document.getElementById('settingsDemoDataStatus');
   const demoPresentation = window.MXDemoVisualRegistry?.presentation;
@@ -3597,30 +3594,6 @@ function initSettings() {
       if (profileImageStatus) profileImageStatus.textContent = error.message;
     }
   });
-  contentUploadChoose?.addEventListener('click', () => contentUploadInput?.click());
-  contentUploadInput?.addEventListener('change', async () => {
-    const file = contentUploadInput.files?.[0];
-    if (!file) return;
-    if (file.size > 50 * 1024 * 1024) {
-      if (contentUploadStatus) contentUploadStatus.textContent = 'Content must be no larger than 50 MiB';
-      contentUploadInput.value = '';
-      return;
-    }
-    contentUploadChoose.disabled = true;
-    if (contentUploadStatus) contentUploadStatus.textContent = `Uploading ${file.name}...`;
-    try {
-      const result = await withSettingsSession((requestSession) => MXApplicationClient.content.upload(file, requestSession));
-      if (contentUploadStatus) {
-        contentUploadStatus.textContent = `${result.filename} normalized and ready for model-context indexing`;
-      }
-    } catch (error) {
-      if (contentUploadStatus) contentUploadStatus.textContent = error.message;
-    } finally {
-      contentUploadChoose.disabled = false;
-      contentUploadInput.value = '';
-    }
-  });
-
   let profileSaveTimer = null;
   const scheduleServerProfileSave = (event) => {
     if (!acct && !window.MXGENIUS_CONFIG?.allowInsecurePilot) return;

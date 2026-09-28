@@ -215,6 +215,27 @@ button, input, select, textarea { font: inherit; }
 .provider-connection__actions { justify-content: flex-end; }
 .provider-connection__actions .button { min-width: 145px; }
 .settings-action-button--danger { border-color: rgba(248, 113, 113, 0.4); background: rgba(239, 68, 68, 0.13); color: #fecaca; }
+.model-knowledge-card { display: grid; gap: 18px; }
+.model-knowledge-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.model-knowledge-actions .button { min-width: 112px; }
+.model-knowledge-actions #settingsModelKnowledgeClear { margin-left: auto; }
+.model-knowledge-queue { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: rgba(6, 13, 28, 0.55); }
+.model-knowledge-queue__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.model-knowledge-queue__heading strong { font-size: 0.82rem; }
+.model-knowledge-queue__heading span { color: var(--muted); font-size: 0.72rem; }
+.model-knowledge-list { display: grid; max-height: 280px; overflow-y: auto; }
+.model-knowledge-empty { margin: 0; padding: 24px 14px; color: var(--muted); font-size: 0.78rem; text-align: center; }
+.model-knowledge-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 14px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.model-knowledge-item:last-child { border-bottom: 0; }
+.model-knowledge-item__path { overflow: hidden; font-size: 0.78rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.model-knowledge-item__size { grid-column: 1; color: var(--muted); font-size: 0.68rem; }
+.model-knowledge-item__state { grid-row: 1 / span 2; grid-column: 2; align-self: center; color: var(--muted); font-size: 0.7rem; font-weight: 800; }
+.model-knowledge-item[data-state="uploading"] .model-knowledge-item__state { color: var(--cyan); }
+.model-knowledge-item[data-state="ready"] .model-knowledge-item__state { color: var(--green); }
+.model-knowledge-item[data-state="error"] .model-knowledge-item__state { color: #fca5a5; }
+.model-knowledge-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.model-knowledge-footer p { margin: 0; }
+.model-knowledge-footer .button { flex: 0 0 auto; min-width: 205px; }
 
 .customer-panel { min-height: 0; padding: clamp(18px, 3vw, 34px); }
 .customer-panel__heading, .customer-detail__heading, .customer-module__heading, .customer-directory__heading, .customer-title-line {
@@ -355,6 +376,9 @@ button, input, select, textarea { font: inherit; }
   .provider-connection__intro { align-items: flex-start; }
   .provider-connection__fields { grid-template-columns: 1fr; }
   .provider-connection__actions .button { flex: 1 1 0; min-width: 0; }
+  .model-knowledge-actions #settingsModelKnowledgeClear { margin-left: 0; }
+  .model-knowledge-footer { align-items: stretch; flex-direction: column; }
+  .model-knowledge-footer .button { width: 100%; min-width: 0; }
   .customer-panel { padding: 14px; }
   .customer-panel__heading, .customer-detail__heading { align-items: start; flex-direction: column; }
   .customer-metrics, .customer-detail__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

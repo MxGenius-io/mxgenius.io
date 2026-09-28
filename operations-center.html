@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
   <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, provider settings, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=7">
+  <link rel="stylesheet" href="operations-center.css?v=8">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -411,6 +411,38 @@
           </div>
         </form>
       </article>
+
+      <article class="settings-provider-card model-knowledge-card" id="settingsModelKnowledgeCard">
+        <div class="provider-connection__intro">
+          <div>
+            <span class="provider-connection__kicker">AI knowledge</span>
+            <h3>Model Knowledge</h3>
+            <span class="settings-hint">Stage approved files or a folder, then publish them as versioned model-context sources.</span>
+          </div>
+          <span id="settingsModelKnowledgeBadge" class="source-readiness" data-state="live">Ready</span>
+        </div>
+        <div class="model-knowledge-actions" role="group" aria-label="Add model knowledge">
+          <button id="settingsModelKnowledgeFilesChoose" class="button button--quiet" type="button">Add files</button>
+          <button id="settingsModelKnowledgeFolderChoose" class="button button--quiet" type="button">Add folder</button>
+          <button id="settingsModelKnowledgeClear" class="button button--quiet" type="button" disabled>Clear queue</button>
+          <input id="settingsModelKnowledgeFiles" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.jpg,.jpeg,.png" multiple hidden>
+          <input id="settingsModelKnowledgeFolder" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.jpg,.jpeg,.png" webkitdirectory multiple hidden>
+        </div>
+        <div class="model-knowledge-queue" aria-labelledby="settingsModelKnowledgeQueueTitle">
+          <div class="model-knowledge-queue__heading">
+            <strong id="settingsModelKnowledgeQueueTitle">Publication queue</strong>
+            <span id="settingsModelKnowledgeSummary">No files staged</span>
+          </div>
+          <div id="settingsModelKnowledgeList" class="model-knowledge-list" aria-live="polite">
+            <p class="model-knowledge-empty">Add individual files or choose a folder to begin.</p>
+          </div>
+        </div>
+        <p class="provider-connection__note">Supported: PDF, DOCX, text, Markdown, CSV, JSON, HTML, JPEG, and PNG. Each file must be 50 MiB or smaller.</p>
+        <div class="model-knowledge-footer">
+          <p id="settingsModelKnowledgeStatus" class="settings-hint" role="status" aria-live="polite">Nothing has been uploaded.</p>
+          <button id="settingsModelKnowledgePublish" class="button button--primary" type="button" disabled>Publish to model context</button>
+        </div>
+      </article>
     </section>
     <section class="operations-panel access-panel" id="panel-access" role="tabpanel" aria-labelledby="tab-access" data-panel="access" hidden>
       <div class="access-heading">
@@ -453,6 +485,6 @@
   <script src="guided-tooltip.js?v=12"></script>
   <script src="equipment-pack-workspace.js?v=12"></script>
   <script src="customer-operations.js?v=2"></script>
-  <script src="operations-center.js?v=7"></script>
+  <script src="operations-center.js?v=8"></script>
 </body>
 </html>

@@ -27,7 +27,7 @@ test('Operations Center is the one Settings workspace destination and R&D Highli
   assert.match(js, /frame\.id === 'readinessFrame'/);
   assert.match(js, /\.workspace-header \.header-actions > a \{ display: none !important; \}/);
   assert.match(js, /\.workspace-header \.header-actions \{[\s\S]*justify-content: flex-end !important/);
-  assert.match(html, /src="operations-center\.js\?v=7"/);
+  assert.match(html, /src="operations-center\.js\?v=8"/);
   assert.match(js, /activate\(requestedTab \|\| 'highlights'/);
 });
 
@@ -61,6 +61,20 @@ test('provider settings own the server-managed JetNet connection', () => {
   assert.match(js, /MXApplicationClient\.jetnetConnection\.delete/);
   assert.match(js, /authenticatedSession\(\{ forceRefresh: true \}\)/);
   assert.doesNotMatch(js, /localStorage|sessionStorage/);
+});
+
+test('provider settings own one staged model-context uploader for files and folders', () => {
+  assert.doesNotMatch(dashboard, /settingsContentUploadInput|settingsContentUploadChoose|Content Expansion/);
+  assert.match(html, /id="settingsModelKnowledgeCard"[\s\S]*Model Knowledge/);
+  assert.match(html, /id="settingsModelKnowledgeFiles"[^>]+multiple/);
+  assert.match(html, /id="settingsModelKnowledgeFolder"[^>]+webkitdirectory[^>]+multiple/);
+  assert.match(html, /id="settingsModelKnowledgePublish"[\s\S]*Publish to model context/);
+  assert.match(js, /MXApplicationClient\.content\.upload/);
+  assert.match(js, /result\.status !== 'available_in_model_context'/);
+  assert.match(js, /Number\(result\.indexed_chunks\) > 0/);
+  assert.match(js, /webkitRelativePath/);
+  assert.match(js, /50 \* 1024 \* 1024/);
+  assert.match(css, /\.model-knowledge-list/);
 });
 
 test('R&D Highlights contains every and only report-referenced video on the canonical media route', async () => {
