@@ -842,6 +842,16 @@ struct ModelContextPublication {
     truncated: bool,
 }
 
+struct ModelContextSource<'a> {
+    organization_id: Uuid,
+    release_id: Uuid,
+    filename: &'a str,
+    media_type: &'a str,
+    source_reference: &'a str,
+    body: &'a Bytes,
+    content_hash: &'a str,
+}
+
 fn model_context_search_settings() -> Result<(String, String, String, usize), String> {
     let endpoint = std::env::var("AZURE_SEARCH_ENDPOINT")
         .map_err(|_| "AZURE_SEARCH_ENDPOINT is not configured".to_string())?;
@@ -1148,16 +1158,10 @@ async fn ensure_model_context_index(
 
 async fn publish_model_context(
     client: &reqwest::Client,
-    organization_id: Uuid,
-    release_id: Uuid,
-    filename: &str,
-    media_type: &str,
-    source_reference: &str,
-    body: &Bytes,
-    content_hash: &str,
+    source: ModelContextSource<'_>,
 ) -> Result<ModelContextPublication, String> {
     let (endpoint, key, index_name, dimensions) = model_context_search_settings()?;
-    let content = extract_model_context_text(client, media_type, body).await?;
+    let content = extract_model_context_text(client, source.media_type, source.body).await?;
     let (chunks, truncated) = model_context_chunks(&content);
     if chunks.is_empty() {
         return Err("uploaded source did not contain indexable text".into());
@@ -1177,19 +1181,20 @@ async fn publish_model_context(
         .enumerate()
         .map(|(index, (content, vector))| {
             let id = hex::encode(sha2::Sha256::digest(format!(
-                "{organization_id}:{release_id}:{index}"
+                "{}:{}:{index}",
+                source.organization_id, source.release_id
             )));
             json!({
                 "@search.action": "upload",
                 "id": id,
-                "organization_id": organization_id,
-                "release_id": release_id,
+                "organization_id": source.organization_id,
+                "release_id": source.release_id,
                 "chunk_index": index,
-                "filename": filename,
+                "filename": source.filename,
                 "content": content,
                 "content_vector": vector,
-                "source_reference": source_reference,
-                "content_hash": content_hash,
+                "source_reference": source.source_reference,
+                "content_hash": source.content_hash,
                 "indexed_at": indexed_at
             })
         })
@@ -1422,13 +1427,15 @@ async fn upload_content(
     let source_reference = format!("azure-blob://{blob_path}");
     let publication = match publish_model_context(
         &state.realtime_client,
-        context.organization_id.0,
-        upload_id,
-        &filename,
-        media_type,
-        &source_reference,
-        &body,
-        &content_hash,
+        ModelContextSource {
+            organization_id: context.organization_id.0,
+            release_id: upload_id,
+            filename: &filename,
+            media_type,
+            source_reference: &source_reference,
+            body: &body,
+            content_hash: &content_hash,
+        },
     )
     .await
     {
