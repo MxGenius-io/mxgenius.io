@@ -102,13 +102,15 @@ test('public landing offers the PIN-based live service entrance', () => {
 
 test('every navigation tab resolves to exactly one panel', () => {
   const tabs = matches(/\bdata-tab="([^"]+)"/g);
-  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'parts', 'settings']);
+  assert.deepEqual(tabs.sort(), ['3d-viewer', 'case', 'dashboard', 'settings']);
 
   for (const tab of tabs) {
     const escaped = tab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const panelCount = (dashboard.match(new RegExp(`id="tab-${escaped}"`, 'g')) || []).length;
     assert.equal(panelCount, 1, `tab-${tab} should exist exactly once`);
   }
+
+  assert.equal((dashboard.match(/id="tab-parts"/g) || []).length, 1, 'Parts panel stays dormant until phase two');
 });
 
 test('critical retained surfaces remain present', () => {
@@ -966,7 +968,7 @@ test('maintenance cases use a stable human-readable display name', () => {
 test('onboarding is mounted before application boot with restart and empty-state support', () => {
   const guidedTooltipIndex = dashboard.search(/<script src="guided-tooltip\.js\?v=\d+"><\/script>/);
   const splashIndex = dashboard.indexOf('<script src="dashboard-splash.js?v=4"></script>');
-  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=11"></script>');
+  const onboardingIndex = dashboard.indexOf('<script src="onboarding.js?v=12"></script>');
   const applicationIndex = dashboard.search(/<script src="app\.js\?v=\d+"><\/script>/);
   assert.ok(guidedTooltipIndex >= 0 && guidedTooltipIndex < onboardingIndex);
   assert.ok(guidedTooltipIndex < splashIndex && splashIndex < onboardingIndex);
@@ -981,14 +983,13 @@ test('onboarding is mounted before application boot with restart and empty-state
   assert.match(onboarding, /restart/);
   assert.match(onboarding, /injectEmptyCta/);
   assert.match(onboarding, /mxg_onboarding_complete_v3/);
-  assert.match(onboarding, /id: 'procurement'/);
-  assert.match(onboarding, /title: 'Parts & Procurement'/);
+  assert.doesNotMatch(onboarding, /id: 'procurement'/);
+  assert.doesNotMatch(onboarding, /title: 'Parts & Procurement'/);
   assert.match(onboarding, /target: '#signedInAs'/);
-  assert.match(onboarding, /target: '#partsNav'/);
-  assert.match(onboarding, /target: '#btnReceivePart'/);
-  assert.match(onboarding, /target: '#partsInventoryGrid'/);
-  assert.match(onboarding, /review OCR suggestions/);
-  assert.match(onboarding, /FAA references, and QR label/);
+  assert.doesNotMatch(onboarding, /target: '#partsNav'/);
+  assert.doesNotMatch(onboarding, /target: '#btnReceivePart'/);
+  assert.doesNotMatch(onboarding, /target: '#partsInventoryGrid'/);
+  assert.doesNotMatch(onboarding, /switchTabSafe\('parts'\)/);
   assert.doesNotMatch(onboarding, /data-tab="operations"/);
   assert.match(onboarding, /target: '#spatialWorkspaceBtn'/);
   assert.match(onboarding, /target: '\.nav-tab\[data-tab="3d-viewer"\]'/);

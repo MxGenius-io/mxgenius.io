@@ -254,12 +254,12 @@ if (through >= 7 && liveEnabled) {
     requireCondition(readyBody?.mode === 'production', `Core mode is ${readyBody?.mode || 'unknown'}`);
     return 'Production core is healthy, ready, and reports production mode.';
   });
-  await check(7, 'Production parts release markers', async () => {
+  await check(7, 'Production Parts tab retirement marker', async () => {
     const response = await request(`${SITE}/dashboard.html?rocky-probe=${Date.now()}`);
     const html = await response.text();
     requireCondition(response.ok, `Dashboard returned ${response.status}`);
-    requireMarkers(html, ['data-tab="parts"', 'parts-workspace.js'], 'Deployed dashboard');
-    return 'Production dashboard exposes the parts bundle.';
+    requireCondition(!html.includes('data-tab="parts"'), 'Deployed dashboard still exposes the Parts tab');
+    return 'Production dashboard no longer exposes the Parts tab.';
   });
   if (!TOKEN) {
     blocked(7, 'Rocky end-to-end acceptance', 'A live Rocky access token is required for tenant-owned mutations.');

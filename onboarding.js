@@ -15,7 +15,7 @@ const MXOnboarding = (() => {
     {
       id: 'maintenance',
       title: 'Maintenance Operator',
-      desc: 'Plan maintenance, manage cases, and source parts for the aircraft you support.',
+      desc: 'Plan maintenance, manage cases, and inspect the aircraft you support.',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`
     },
     {
@@ -29,12 +29,6 @@ const MXOnboarding = (() => {
       title: 'Aircraft Owner',
       desc: 'Look up your aircraft, ask maintenance questions, and review records.',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
-    },
-    {
-      id: 'procurement',
-      title: 'Parts & Procurement',
-      desc: 'Receive parts, review document scans, track inventory, and print QR labels.',
-      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9 5-9-5"/><path d="M3 8l9-5 9 5v8l-9 5-9-5V8z"/><path d="M12 13v8"/></svg>`
     }
   ];
 
@@ -51,7 +45,7 @@ const MXOnboarding = (() => {
       target: '#mainNav',
       title: 'Navigation',
       guideId: 'main-navigation',
-      body: 'Move between Dashboard, Case Workspace, Parts Management, 3D Inspection, and Settings. The workspaces shown here follow your assigned role.',
+      body: 'Move between Dashboard, Case Workspace, 3D Inspection, and Settings. The workspaces shown here follow your assigned role.',
       position: 'bottom'
     },
     {
@@ -88,14 +82,6 @@ const MXOnboarding = (() => {
         body: 'Your newest case appears here automatically with its aircraft, discrepancy, priority, and current status. Open it to review evidence, approvals, and 3D findings.',
         position: 'bottom',
         onEnter: () => switchTabSafe('dashboard')
-      },
-      {
-        target: '#partsNav',
-        title: 'Parts Management',
-        guideId: 'parts-management',
-        body: 'Use Parts Management when a maintenance event needs receiving evidence, serialized inventory, trace review, or a scannable unit label.',
-        position: 'bottom',
-        onEnter: () => switchTabSafe('parts')
       },
       {
         target: '.nav-tab[data-tab="3d-viewer"]',
@@ -148,32 +134,6 @@ const MXOnboarding = (() => {
         body: 'Type a question about your aircraft to get maintenance guidance, AD applicability, or general aviation knowledge. Try the suggestion pills for common queries.',
         position: 'bottom-left',
         onEnter: () => switchTabSafe('dashboard')
-      }
-    ],
-    procurement: [
-      {
-        target: '#partsNav',
-        title: 'Parts Management',
-        guideId: 'parts-management',
-        body: 'This is the working inventory. Search by part number, description, or serial number, then select a unit to open its complete record.',
-        position: 'bottom',
-        onEnter: () => switchTabSafe('parts')
-      },
-      {
-        target: '#btnReceivePart',
-        title: 'Receive a Part',
-        guideId: 'parts-receiving',
-        body: 'Receiving follows four steps: upload a document or photo, review OCR suggestions, complete the inventory details, and confirm the new unit. OCR never approves a part for you.',
-        position: 'bottom',
-        onEnter: () => switchTabSafe('parts')
-      },
-      {
-        target: '#partsInventoryGrid',
-        title: 'Open the Unit Record',
-        guideId: 'parts-inventory',
-        body: 'Select a unit to review its overview, documents, inventory history, FAA references, and QR label. The QR code returns to the same controlled record.',
-        position: 'top',
-        onEnter: () => switchTabSafe('parts')
       }
     ]
   };
@@ -496,7 +456,7 @@ const MXOnboarding = (() => {
   function endTour() {
     markComplete();
     clearPortal();
-    switchTabSafe(selectedRole === 'procurement' ? 'parts' : 'dashboard');
+    switchTabSafe('dashboard');
   }
 
   /* ── Empty State CTAs ─────────────────────────────────────────────── */

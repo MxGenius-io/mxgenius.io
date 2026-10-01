@@ -187,13 +187,13 @@ test('demo presentation scopes maintenance and parts without deleting operationa
 });
 
 test('Parts Frontend Shell requirements', async (t) => {
-  await t.test('dashboard.html contains parts navigation', () => {
-    assert.match(html, /data-tab="parts"/);
-    assert.match(html, /id="partsNav"/);
+  await t.test('dashboard.html hides the Parts navigation entrypoint', () => {
+    assert.doesNotMatch(html, /data-tab="parts"/);
+    assert.doesNotMatch(html, /id="partsNav"/);
     assert.match(html, /id="tab-parts"/);
   });
 
-  await t.test('dashboard.html includes parts CSS and JS', () => {
+  await t.test('dashboard.html retains the Parts bundle for the phase-two cleanup', () => {
     assert.match(html, /href="parts-workspace\.css\?v=\d+"/);
     assert.match(html, /src="parts-workspace\.js\?v=\d+"/);
     assert.match(html, /src="demo-visual-registry\.js\?v=\d+"/);
