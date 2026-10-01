@@ -8,7 +8,6 @@ pub mod digital_twin;
 pub mod faa;
 pub mod jetnet;
 pub mod manual;
-pub mod parts;
 pub mod repository;
 pub mod scheduling;
 pub mod source;

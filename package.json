@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Contract-independent characterization checks for the MXGenius web application.",
   "scripts": {
-    "test": "node --test tests/structure.test.mjs tests/ui-guide.test.mjs tests/sound-storage.test.mjs tests/auth.test.mjs tests/application-client.test.mjs tests/equipment-pack-workspace.test.mjs tests/customer-operations.test.mjs tests/capability-workbench.test.mjs tests/fleet-proxy.test.mjs tests/realtime-client.test.mjs tests/maintenance-advisory.test.mjs tests/manual-corpus-contract.test.mjs tests/xr-realtime-presence.test.mjs tests/xr-session-client.test.mjs tests/xr-diagnostics-layout.test.mjs tests/pivot-contract.test.mjs tests/spatial-target-contract.test.mjs tests/xr-target-registry.test.mjs tests/spatial-commands.test.mjs tests/xr-input-dwell.test.mjs tests/xr-headset-frame.test.mjs tests/spatial-scan-analyzer.test.mjs tests/spatial-workspace-controller.test.mjs tests/xr-fleet-data-provider.test.mjs tests/xr-capability-registry.test.mjs tests/spatial-workspace.test.mjs tests/remote-witness.test.mjs tests/xr-unified-acceptance.test.mjs tests/parts-workspace.test.mjs tests/patent-workspace.test.mjs tests/build-board.test.mjs tests/integration-readiness.test.mjs tests/operations-center.test.mjs tests/feedback.test.mjs tests/feedback-admin.test.mjs tests/nasa-3d-catalog.test.mjs",
+    "test": "node --test tests/structure.test.mjs tests/ui-guide.test.mjs tests/sound-storage.test.mjs tests/auth.test.mjs tests/application-client.test.mjs tests/equipment-pack-workspace.test.mjs tests/customer-operations.test.mjs tests/capability-workbench.test.mjs tests/fleet-proxy.test.mjs tests/realtime-client.test.mjs tests/maintenance-advisory.test.mjs tests/manual-corpus-contract.test.mjs tests/xr-realtime-presence.test.mjs tests/xr-session-client.test.mjs tests/xr-diagnostics-layout.test.mjs tests/pivot-contract.test.mjs tests/spatial-target-contract.test.mjs tests/xr-target-registry.test.mjs tests/spatial-commands.test.mjs tests/xr-input-dwell.test.mjs tests/xr-headset-frame.test.mjs tests/spatial-scan-analyzer.test.mjs tests/spatial-workspace-controller.test.mjs tests/xr-fleet-data-provider.test.mjs tests/xr-capability-registry.test.mjs tests/spatial-workspace.test.mjs tests/remote-witness.test.mjs tests/xr-unified-acceptance.test.mjs tests/patent-workspace.test.mjs tests/build-board.test.mjs tests/integration-readiness.test.mjs tests/operations-center.test.mjs tests/feedback.test.mjs tests/feedback-admin.test.mjs tests/nasa-3d-catalog.test.mjs",
     "test:structure": "node --test tests/structure.test.mjs",
     "test:live": "node --test tests/live-smoke.test.mjs",
     "test:xr:acceptance": "node --test tests/xr-unified-acceptance.test.mjs tests/spatial-workspace-controller.test.mjs tests/xr-input-dwell.test.mjs tests/xr-headset-frame.test.mjs tests/xr-fleet-data-provider.test.mjs tests/xr-capability-registry.test.mjs tests/spatial-workspace.test.mjs tests/remote-witness.test.mjs",
@@ -17,9 +17,6 @@
     "sync:3d:openvsp": "node scripts/sync_openvsp_airshow_catalog.mjs",
     "sync:3d:catalogs": "npm run sync:3d:nasa && npm run sync:3d:nasa-aeronautics && npm run sync:3d:smithsonian && npm run sync:3d:flightgear && npm run sync:3d:openvsp",
     "probe:live": "node scripts/live-field-probe.mjs",
-    "probe:rocky": "node scripts/rocky-gate-probe.mjs",
-    "probe:rocky:local": "node scripts/rocky-gate-probe.mjs --scope=local",
-    "probe:rocky:live": "node scripts/rocky-gate-probe.mjs --scope=live",
     "audit:manual-images": "node scripts/audit-manual-library-images.mjs"
   },
   "engines": {

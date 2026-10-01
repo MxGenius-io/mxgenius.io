@@ -96,13 +96,6 @@ MXGENIUS_DRS_SAIB_DOCUMENT_TYPE    # optional; default SAIB
 MXGENIUS_DRS_MAX_PAGES             # optional safety limit; default 20
 MXGENIUS_AVIATION_WEATHER_ENDPOINT # optional; default official Data API
 MXGENIUS_AVIATION_WEATHER_USER_AGENT # identify this application to the public service
-MXGENIUS_PARTSBASE_AUTH_MODE       # disabled (default), bearer, browser_broker, or oauth_password
-MXGENIUS_PARTSBASE_BEARER_TOKEN    # server-side short-lived token for bearer mode
-MXGENIUS_PARTSBASE_BEARER_FILE     # token file refreshed by a future server-side browser auth broker
-MXGENIUS_PARTSBASE_CLIENT_ID       # issued credential for oauth_password mode
-MXGENIUS_PARTSBASE_CLIENT_SECRET   # issued credential for oauth_password mode
-MXGENIUS_PARTSBASE_USERNAME        # issued/account credential for oauth_password mode
-MXGENIUS_PARTSBASE_PASSWORD        # issued/account credential for oauth_password mode
 MXGENIUS_SPATIAL_SCAN_ENABLED      # optional kill switch; false by default
 OPENAI_API_KEY                     # server-only provider credential used when spatial scan is enabled
 MXGENIUS_SPATIAL_SCAN_MODEL        # optional; default gpt-5.4-mini
@@ -127,11 +120,10 @@ Production startup:
 8. mounts JetNet through a tenant-scoped canonical aircraft catalog when its credentials are present;
 9. mounts FAA DRS AD/SAIB metadata through the official data-pull API when an issued key is present. Missing sources remain honestly unavailable;
 10. mounts public AviationWeather.gov METAR/TAF data for `mxg.weather.airport_now`. Maintenance-window, ramp-risk, ferry, and hazard derivations stay unavailable until their operational thresholds are accepted;
-11. prepares PartsBase market-pricing access behind server-only credential modes. It is not mounted as canonical supplier data until licensed live response mapping is validated;
-12. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images;
-13. mounts deliberate still-frame spatial analysis only when its kill switch and server-side provider credential are both configured. Frames are JPEG-only, bounded to 1280 pixels and 1 MiB, analyzed once per uncached scan, and never persisted or logged. `/adapterz` exposes the effective non-secret scan policy and aggregate request, provider-attempt, cache-hit, throttle, budget, and timeout counters.
-14. mounts Remote Witness on `/api/xr/witness/*`: authenticated wearer-created rooms, single-use 7-digit guest PINs, memory-only role-scoped WSS credentials, explicit approval/pause/layer/revoke controls, and read-only case-media delivery. The public guest never receives application access or a reconnectable account credential. The socket accepts only bounded JSON state/signaling, admits one producer at a time, and rejects binary media; the Quest companion can claim that producer role through its authenticated loopback bootstrap.
-15. mounts the Equipment Pack control plane only when `MXGENIUS_EQUIPMENT_PACKS_ENABLED=true`: tenant-scoped immutable package versions, bounded resumable Blob uploads, Pi-originated seven-digit claims approved through Entra, durable desired-state generations, authenticated ranged downloads, deployment receipts, credential revocation, and WebSocket change notifications. PostgreSQL polling and ETags remain authoritative if a notification is missed.
+11. mounts authenticated application APIs for case reads, chat threads/messages, profile settings, and profile images;
+12. mounts deliberate still-frame spatial analysis only when its kill switch and server-side provider credential are both configured. Frames are JPEG-only, bounded to 1280 pixels and 1 MiB, analyzed once per uncached scan, and never persisted or logged. `/adapterz` exposes the effective non-secret scan policy and aggregate request, provider-attempt, cache-hit, throttle, budget, and timeout counters.
+13. mounts Remote Witness on `/api/xr/witness/*`: authenticated wearer-created rooms, single-use 7-digit guest PINs, memory-only role-scoped WSS credentials, explicit approval/pause/layer/revoke controls, and read-only case-media delivery. The public guest never receives application access or a reconnectable account credential. The socket accepts only bounded JSON state/signaling, admits one producer at a time, and rejects binary media; the Quest companion can claim that producer role through its authenticated loopback bootstrap.
+14. mounts the Equipment Pack control plane only when `MXGENIUS_EQUIPMENT_PACKS_ENABLED=true`: tenant-scoped immutable package versions, bounded resumable Blob uploads, Pi-originated seven-digit claims approved through Entra, durable desired-state generations, authenticated ranged downloads, deployment receipts, credential revocation, and WebSocket change notifications. PostgreSQL polling and ETags remain authoritative if a notification is missed.
 
 ### Equipment Pack and edge-device API
 

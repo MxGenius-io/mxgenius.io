@@ -56,10 +56,9 @@ test('board lanes lead the composer and cards support private picture attachment
 test('the starter build list reflects the current hardware and release work', () => {
   const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V6_STARTER_IDS'));
   assert.equal((starterSource.match(/lane: 'question'/g) || []).length, 0);
-  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 18);
-  assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 10);
+  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 17);
+  assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 9);
   assert.match(starterSource, /Publish and accept Quest Sensor Bridge alpha\.25/);
-  assert.match(starterSource, /Run Rocky acceptance on Feedback and Parts/);
   assert.match(starterSource, /Wire the Pi power and data paths/);
   assert.match(starterSource, /Define the Pi POC stack/);
   assert.match(starterSource, /Prove 18-hour DeWalt battery runtime/);
@@ -69,7 +68,6 @@ test('the starter build list reflects the current hardware and release work', ()
   assert.match(js, /Separate thermal and Pi transport paths/);
   assert.match(js, /Publish the shared provisional-patent workspace/);
   assert.match(js, /Publish the investor-deck landing page/);
-  assert.match(js, /Promote Feedback and Parts expansion to Azure/);
   assert.match(js, /Upload native spatial AR Build 33 to TestFlight/);
   for (const title of [
     'Run Remote Witness end-to-end acceptance',

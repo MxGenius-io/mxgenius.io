@@ -107,7 +107,6 @@ pub fn register(
                 missing_evidence: vec![],
                 missing_signatures: vec![],
                 missing_approvals: vec![],
-                part_documentation_gaps: vec![],
                 unresolved_warnings: vec![],
                 completeness: "unknown".into(),
             },
@@ -504,16 +503,6 @@ impl Tool for RecordAuditTool {
         } else {
             Vec::new()
         };
-        // Part documentation gaps: certificate_records linked to this case
-        // that are not validated.
-        let part_gaps: Vec<String> = sqlx::query_scalar(
-            r#"SELECT certificate_type FROM certificate_records
-               WHERE case_id=$1 AND validated=false"#,
-        )
-        .bind(input.case_id.0)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|error| envelope_internal("certificate_records scan", error.to_string()))?;
         // Missing approvals: open approval rows that have not been decided.
         let missing_approvals: Vec<String> = sqlx::query_scalar(
             r#"SELECT action FROM approvals
@@ -547,13 +536,10 @@ impl Tool for RecordAuditTool {
         let completeness = match (
             missing_fields.is_empty(),
             missing_evidence.is_empty(),
-            part_gaps.is_empty(),
             missing_approvals.is_empty(),
         ) {
-            (true, true, true, true) => "complete".to_string(),
-            (false, _, _, _) | (_, false, _, _) | (_, _, false, _) | (_, _, _, false) => {
-                "incomplete".to_string()
-            }
+            (true, true, true) => "complete".to_string(),
+            (false, _, _) | (_, false, _) | (_, _, false) => "incomplete".to_string(),
         };
         let mut envelope = CapabilityEnvelope::new(
             ctx.request_id.0,
@@ -563,7 +549,6 @@ impl Tool for RecordAuditTool {
                 missing_evidence,
                 missing_signatures,
                 missing_approvals,
-                part_documentation_gaps: part_gaps,
                 unresolved_warnings,
                 completeness: completeness.clone(),
             },

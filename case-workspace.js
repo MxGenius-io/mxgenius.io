@@ -9,7 +9,6 @@ const MXCaseWorkspace = (() => {
     documents: true,
     compliance: true,
     weather: true,
-    parts: false,
     timeline: true
   });
   const byId = (id) => document.getElementById(id);

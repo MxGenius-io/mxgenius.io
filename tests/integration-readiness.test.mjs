@@ -66,10 +66,9 @@ test('migration provides current official help paths without crowding the first 
 });
 
 test('starter software inventory includes known external, live-flight, model, and internal boundaries', () => {
-  for (const name of ['Microsoft Teams', 'ADP', 'PartSpace', 'FAA Dynamic Regulatory System', 'Boeing technical data', 'JetNet', 'Microsoft Entra ID', 'Internal maintenance / MRO record system', 'OpenSky Network live traffic', 'AI model runtime and response reliability']) {
+  for (const name of ['Microsoft Teams', 'ADP', 'FAA Dynamic Regulatory System', 'Boeing technical data', 'JetNet', 'Microsoft Entra ID', 'Internal maintenance / MRO record system', 'OpenSky Network live traffic', 'AI model runtime and response reliability']) {
     assert.match(js, new RegExp(name.replace(/[/.]/g, '\\$&')));
   }
-  assert.match(js, /no autonomous purchase/i);
   assert.match(js, /never declares compliance/i);
   assert.match(js, /licensing limits/);
 });

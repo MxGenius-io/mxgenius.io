@@ -27,7 +27,7 @@ use mxgenius_shared::contracts::{
     MaintenanceCaseCreateResponse, MaintenanceCaseGetRequest, MaintenanceCaseGetResponse,
     MaintenanceCaseSimilarCasesRequest, MaintenanceCaseSimilarCasesResponse,
     MaintenanceCaseUpdateStatusRequest, MaintenanceCaseUpdateStatusResponse,
-    ManualRetrievalSummary, PartsSlice, PriorityDto, RegulatoryRef, TimelineEntry, WeatherSlice,
+    ManualRetrievalSummary, PriorityDto, RegulatoryRef, TimelineEntry, WeatherSlice,
 };
 use mxgenius_shared::domain::evidence::{Evidence, EvidenceKind, SourceType};
 use mxgenius_shared::domain::ids::{AircraftId, EvidenceId};
@@ -185,7 +185,7 @@ impl Tool for MaintenanceCaseBuildContextTool {
         spec::<Self::Request, Self::Response>(
             "mxg.maintenance_case.build_context",
             "Build Case Context",
-            "Compose aircraft, documents, compliance, weather, parts, and timeline.",
+            "Compose aircraft, documents, compliance, weather, and timeline.",
             Action::CaseRead,
             false,
         )
@@ -315,16 +315,6 @@ impl Tool for MaintenanceCaseBuildContextTool {
             None
         };
 
-        let parts_state: Option<PartsSlice> = if flags.parts {
-            Some(PartsSlice {
-                required: vec![],
-                readiness: "unknown".into(),
-                not_configured: true,
-            })
-        } else {
-            None
-        };
-
         let timeline: Vec<TimelineEntry> = if flags.timeline {
             self.service
                 .timeline(ctx.organization_id, input.case_id)
@@ -346,7 +336,6 @@ impl Tool for MaintenanceCaseBuildContextTool {
             documents,
             regulatory_items,
             weather,
-            parts_state,
             timeline,
             unresolved_conflicts: vec![],
             evidence_map,

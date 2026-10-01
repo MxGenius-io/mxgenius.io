@@ -4240,7 +4240,7 @@
                     : ['COMPONENT MAP', 'CASE HISTORY', 'MANUAL LOOKUP']
             });
             syncMaintenanceSurfaces(xrWindowManager?.snapshot());
-            const localTarget = globalThis.MXTargetContext?.fromPartSelection?.(detail);
+            const localTarget = globalThis.MXTargetContext?.fromComponentSelection?.(detail);
             if (localTarget) globalThis.MXTargetContext.set(localTarget, { reason: 'viewer-mesh-raycast' });
             void xrVoice?.refreshContext();
 

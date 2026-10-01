@@ -7,7 +7,7 @@ class IntegrationFixtureTests(unittest.TestCase):
     def test_low_hanging_provider_shapes_are_explicitly_synthetic(self):
         payload = simulated_integrations()
         rows = payload["integrations"]
-        self.assertEqual({row["provider"] for row in rows}, {"aviationweather", "partsbase", "honeywell-forge"})
+        self.assertEqual({row["provider"] for row in rows}, {"aviationweather", "honeywell-forge"})
         for row in rows:
             self.assertNotEqual(row["mode"], "live")
             self.assertEqual(row["sample"]["status"], "fixture")

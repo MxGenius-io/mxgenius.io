@@ -53,7 +53,6 @@ pub struct ContextIncludeFlags {
     pub documents: bool,
     pub compliance: bool,
     pub weather: bool,
-    pub parts: bool,
     pub timeline: bool,
 }
 

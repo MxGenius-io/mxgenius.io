@@ -114,9 +114,9 @@ impl InsecureLocalProvider {
     /// Verify real confirmation grants in local mode.
     ///
     /// Without this the provider leaves `confirmation` as `None`, so every
-    /// handler gated behind a signed grant rejects with 428 and the five
-    /// stock-mutating parts operations cannot be exercised on a developer
-    /// machine at all. Attaching the same verifier production uses means local
+    /// handler gated behind a signed grant rejects with 428 and protected
+    /// operations cannot be exercised on a developer machine at all. Attaching
+    /// the same verifier production uses means local
     /// dev walks the real issue-then-present path rather than a trusted
     /// shortcut, so a grant binding bug cannot hide here and appear in Azure.
     pub fn with_confirmation_verifier(
@@ -701,13 +701,12 @@ mod tests {
     }
 
     /// Local mode used to drop the presented grant on the floor, leaving
-    /// `confirmation` as `None`, so every grant-gated parts handler answered
-    /// 428 and no stock mutation could be exercised on a developer machine.
+    /// `confirmation` as `None`, so every grant-gated handler answered 428.
     #[tokio::test]
     async fn insecure_local_verifies_a_presented_confirmation_grant() {
         let provider = InsecureLocalProvider::new(Role::Administrator).with_confirmation_verifier(
             Arc::new(StubGrantVerifier {
-                confirmation: grant("mxg.parts.inspect"),
+                confirmation: grant("mxg.maintenance_case.update_status"),
             }),
         );
         let context = provider
@@ -717,7 +716,7 @@ mod tests {
         let confirmation = context
             .confirmation
             .expect("a presented grant reaches the execution context");
-        assert_eq!(confirmation.tool_name, "mxg.parts.inspect");
+        assert_eq!(confirmation.tool_name, "mxg.maintenance_case.update_status");
         assert_eq!(confirmation.object_id, "unit-1");
         assert_eq!(confirmation.object_version, Some(1));
     }
@@ -728,7 +727,7 @@ mod tests {
     async fn insecure_local_leaves_confirmation_unset_without_a_presented_grant() {
         let provider = InsecureLocalProvider::new(Role::Administrator).with_confirmation_verifier(
             Arc::new(StubGrantVerifier {
-                confirmation: grant("mxg.parts.inspect"),
+                confirmation: grant("mxg.maintenance_case.update_status"),
             }),
         );
         let context = provider

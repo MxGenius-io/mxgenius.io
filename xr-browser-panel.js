@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const DEFAULT_QUICK_LINKS = Object.freeze([
-  { id: 'parts', label: 'PARTS & SOURCING', detail: 'PartsBase and approved supplier portals', href: '' },
+  { id: 'maintenance', label: 'MAINTENANCE', detail: 'Cases, aircraft, and active work context', href: '' },
   { id: 'aircraft', label: 'AIRCRAFT RECORDS', detail: 'Registry, operator, and aircraft lookup', href: '' },
   { id: 'technical', label: 'TECHNICAL REFERENCES', detail: 'Manuals, service data, and approved sources', href: '' }
 ]);

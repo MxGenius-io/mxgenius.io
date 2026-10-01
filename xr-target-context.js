@@ -15,7 +15,7 @@
   const listeners = new Set();
   const legacyByTargetId = new Map();
   const registry = registryApi?.defaultRegistry || registryApi?.create?.({ root });
-  const targetKinds = new Set(['aircraft', 'case', 'fleet-location', 'mesh', 'part-unit', 'sensor', 'unknown']);
+  const targetKinds = new Set(['aircraft', 'case', 'fleet-location', 'mesh', 'sensor', 'unknown']);
   const targetStates = new Set(['active', 'candidate', 'confirmed', 'degraded', 'offline', 'ready', 'selected', 'streaming', 'unknown']);
   const contextFields = Object.freeze({
     aircraftId: ['aircraftId', 'aircraft_id'], caseId: ['caseId', 'case_id'], city: ['city'],
@@ -139,7 +139,7 @@
 
   function confidenceBasis(target) {
     if (target.kind === 'mesh') return 'mapped-geometry';
-    if (['aircraft', 'case', 'fleet-location', 'part-unit'].includes(target.kind)) return 'deterministic-lookup';
+    if (['aircraft', 'case', 'fleet-location'].includes(target.kind)) return 'deterministic-lookup';
     if (target.state === 'candidate') return 'detector';
     return 'user';
   }
@@ -255,7 +255,7 @@
     return () => listeners.delete(listener);
   }
 
-  function fromPartSelection(detail = {}) {
+  function fromComponentSelection(detail = {}) {
     const selection = detail.selection || {};
     const model = detail.model || {};
     const context = detail.context || {};
@@ -268,18 +268,6 @@
         componentId: selection.componentId, partNumber: selection.partNumber, meshName: selection.meshName, meshPath: selection.path },
       anchor: { type: 'object3d', objectName: selection.meshName },
       sources: ['MODEL GEOMETRY', selection.componentId ? 'COMPONENT MAP' : 'UNMAPPED SELECTION']
-    });
-  }
-
-  function fromPartUnit(detail = {}) {
-    const unit = detail.unit || detail;
-    return normalize({
-      kind: 'part-unit', id: unit.id,
-      label: [unit.partNumber, unit.serialNumber].filter(Boolean).join(' · ') || 'Controlled part unit',
-      state: unit.status === 'available' ? 'ready' : 'selected', surface: 'parts', source: 'controlled-inventory',
-      context: { partNumber: unit.partNumber, serialNumber: unit.serialNumber, manufacturer: unit.manufacturer,
-        location: unit.location, version: unit.version },
-      anchor: { type: 'dom', selector: '#partsDrawer' }, sources: ['CONTROLLED UNIT', 'INVENTORY LEDGER']
     });
   }
 
@@ -317,7 +305,6 @@
     if (!target) return 'model-context';
     if (target.kind === 'fleet-location' || target.kind === 'aircraft') return 'fleet-location-data';
     if (target.kind === 'mesh') return 'mesh-inspection';
-    if (target.kind === 'part-unit') return 'parts-management';
     if (target.kind === 'sensor') return target.state === 'streaming' ? 'sensor-diagnostics' : 'sensor-bridge-flow';
     if (target.kind === 'case') return 'maintenance-case';
     return 'model-context';
@@ -349,6 +336,6 @@
 
   return Object.freeze({
     STORAGE_KEY, TARGET_VERSION, registry, normalize, set, get, clear, matches, subscribe,
-    fromPartSelection, fromPartUnit, fromXRAction, ingestXRAction, guideId
+    fromComponentSelection, fromXRAction, ingestXRAction, guideId
   });
 });

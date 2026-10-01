@@ -58,30 +58,6 @@ pub struct AnalyticsRepeatDefectsResponse {
     pub defects: Vec<RepeatDefect>,
 }
 
-// 49. mxg.analytics.parts_risk -----------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AnalyticsPartsRiskRequest {
-    pub scope: Option<String>, // tenant | site | fleet
-    pub horizon_start: Option<IsoDate>,
-    pub horizon_end: Option<IsoDate>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct PartsRisk {
-    pub part_number: String,
-    pub kind: String, // shortage | lead_time | certificate | supplier
-    pub severity: String,
-    pub supporting_history: Vec<String>,
-    pub uncertainty: String,
-    pub blocking_case_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AnalyticsPartsRiskResponse {
-    pub risks: Vec<PartsRisk>,
-}
-
 // 50. mxg.analytics.exec_kpis -----------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -120,7 +120,6 @@ pub struct MaintenanceCaseBuildContextResponse {
     pub documents: Vec<DocumentRef>,
     pub regulatory_items: Vec<RegulatoryRef>,
     pub weather: Option<WeatherSlice>,
-    pub parts_state: Option<PartsSlice>,
     pub timeline: Vec<TimelineEntry>,
     pub unresolved_conflicts: Vec<ConflictRef>,
     pub evidence_map: Vec<EvidenceLink>,
@@ -346,13 +345,6 @@ pub struct WeatherSlice {
     pub observed_at: Option<UtcDateTime>,
     pub flight_category: Option<String>,
     pub source: Option<String>,
-    pub not_configured: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct PartsSlice {
-    pub required: Vec<String>,
-    pub readiness: String,
     pub not_configured: bool,
 }
 

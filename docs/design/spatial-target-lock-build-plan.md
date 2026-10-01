@@ -49,7 +49,7 @@ camera pose, intrinsics, depth, and anchor behavior pass on-device tests.
   diagnostic log to the model.
 - Unknown, expired, stale, or ambiguous targets fail closed and visibly clear.
 - Preserve the current `MXTargetContext.get/set/clear` interface while the
-  registry is introduced so existing case, aircraft, parts, and viewer flows do
+  registry is introduced so existing case, aircraft, maintenance, and viewer flows do
   not break.
 
 ## Canonical contracts
@@ -72,7 +72,7 @@ Required target fields:
 
 - `targetId`: stable and namespaced, for example `mesh:<uuid>:<node-id>` or
   `observation:<scan-id>:<candidate-id>`
-- `kind`: aircraft, case, component, mesh, part-unit, sensor, fleet-location,
+- `kind`: aircraft, case, component, mesh, sensor, fleet-location,
   or observed-object
 - `label`
 - `state`: candidate, locked, lost, or cleared

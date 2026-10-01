@@ -13,7 +13,6 @@
   </style>
   <link rel="stylesheet" href="app-styles.css?v=28">
   <link rel="stylesheet" href="case-workspace.css?v=13">
-  <link rel="stylesheet" href="parts-workspace.css?v=21">
   <link rel="stylesheet" href="realtime.css">
   <link rel="stylesheet" href="production-ui.css?v=14">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
@@ -414,13 +413,6 @@
       </div>
     </section>
 
-    <!-- Parts Tab -->
-    <section class="tab-content" id="tab-parts">
-      <div id="partsWorkspaceRoot"></div>
-    </section>
-
-
-
     <section id="tab-3d-viewer" class="tab-content" style="position:relative; padding:0; height:calc(100vh - 56px); overflow:hidden;">
       <iframe id="viewer-iframe" data-src="3d-viewer/index.html?v=53" allow="xr-spatial-tracking; fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
     </section>
@@ -491,7 +483,7 @@
           <div class="settings-row" style="flex-direction:column; align-items:stretch; gap:16px; padding: 16px; max-height: 400px; overflow-y: auto;">
             <div class="capability-toolbar">
               <div id="capabilityStatus" class="capability-status" role="status" aria-live="polite">Loading mounted capabilities…</div>
-              <label class="capability-search">Find an operation<input id="capabilitySearch" type="search" placeholder="Aircraft, parts, weather…"></label>
+              <label class="capability-search">Find an operation<input id="capabilitySearch" type="search" placeholder="Aircraft, maintenance, weather…"></label>
               <label class="capability-planned-toggle"><input id="capabilityShowPlanned" type="checkbox">Show planned operations</label>
               <button id="capabilityRefresh" class="btn-primary" type="button">Refresh</button>
             </div>
@@ -542,7 +534,7 @@
           <div class="settings-row">
             <div class="settings-label">
               <span>Demo Content</span>
-              <span class="settings-hint" id="settingsDemoDataStatus">Show a clean fictional Maintenance and Parts workspace, or hide it to return to operational records</span>
+              <span class="settings-hint" id="settingsDemoDataStatus">Show a clean fictional maintenance workspace, or hide it to return to operational records</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               <button class="btn-primary" style="padding:6px 16px;font-size:0.78rem;" id="settingsLoadDemoData" type="button" aria-pressed="false">Show Demo Content</button>
@@ -746,7 +738,6 @@
   <script src="spatial-context.js?v=3"></script>
   <script src="realtime-client.js?v=8"></script>
   <script src="case-workspace.js?v=21"></script>
-  <script src="parts-workspace.js?v=32"></script>
   <script src="capability-workbench.js?v=6"></script>
   <script src="guided-tooltip.js?v=14"></script>
   <script src="dashboard-splash.js?v=4"></script>

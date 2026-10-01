@@ -1,8 +1,7 @@
 //! Tool / resource / prompt registry. Built once at startup, immutable after.
 //!
 //! The `pool` field on `RegistryAdapters` is shared by the case/evidence/digital
-//! twin Postgres adapters, the compliance approval lookup, and the Parts
-//! inventory repository. When the pool is `None` the registry is in local mode
+//! twin Postgres adapters and the compliance approval lookup. When the pool is `None` the registry is in local mode
 //! and tools that need a Postgres-backed source register a typed
 //! `NotConfiguredTool` so `tools/list` and the runtime envelope agree.
 
@@ -120,7 +119,7 @@ pub fn default_registry(
 #[derive(Clone)]
 pub struct RegistryAdapters {
     /// Application Postgres pool. When `None` (local mode) the case, evidence,
-    /// digital-twin, parts, and compliance tools that need a Postgres-backed
+    /// digital-twin and compliance tools that need a Postgres-backed
     /// source register a typed `NotConfiguredTool` whose `tools/list`
     /// `availability` is `not_configured`. When `Some` the real implementations
     /// are wired in and metadata reports `available`.

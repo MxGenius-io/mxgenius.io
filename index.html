@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="MxGenius unifies aviation maintenance manuals, AI-guided troubleshooting, remote expert support, and parts intelligence in one platform.">
+  <meta name="description" content="MxGenius unifies aviation maintenance manuals, AI-guided troubleshooting, remote expert support, and spatial operations in one platform.">
   <meta name="theme-color" content="#06081b">
   <meta property="og:title" content="MxGenius | Aviation Maintenance Intelligence">
   <meta property="og:description" content="Every manual. Every part. Every answer - from anywhere in the world.">
@@ -183,10 +183,6 @@
     .result-stat strong { font-family: "Space Grotesk", sans-serif; font-size: clamp(2.1rem, 4vw, 3.45rem); line-height: 1; letter-spacing: -.06em; }
     .result-stat span { color: var(--muted); font-size: .76rem; }
 
-    .parts-band { display: grid; grid-template-columns: 1fr 1fr; min-height: 630px; border: 1px solid var(--line); border-radius: 27px; overflow: hidden; background: var(--panel); }
-    .parts-image { min-height: 500px; }
-    .parts-image img { width: 100%; height: 100%; object-fit: cover; }
-    .parts-copy { padding: 70px 62px; align-self: center; }
     .comparison { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; margin: 34px 0 18px; }
     .compare-value strong { display: block; font-family: "Space Grotesk", sans-serif; font-size: 2rem; color: #fff; }
     .compare-value span { color: var(--muted); font-size: .72rem; }
@@ -242,7 +238,7 @@
       .landing-identity { font-size: .7rem; }
       .section { padding: 85px 0; }
       .hero { min-height: auto; }
-      .hero-grid, .problem-grid, .showcase, .parts-band { grid-template-columns: 1fr; }
+      .hero-grid, .problem-grid, .showcase { grid-template-columns: 1fr; }
       .hero-copy { padding-top: 18px; }
       .hero-visual { min-height: 560px; }
       .hero-frame { inset: 0 50px 0 50px; }
@@ -251,7 +247,6 @@
       .portrait-card { min-height: 520px; }
       .showcase { gap: 44px; }
       .results-grid { grid-template-columns: 1fr; }
-      .parts-copy { padding: 58px 48px; }
       .vision-copy { width: 82%; }
     }
     @media (max-width: 760px) {
@@ -321,8 +316,8 @@
       <div class="shell hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">AI-powered aviation maintenance</p>
-          <h1>Every manual.<br>Every part.<br><span class="accent">Every answer.</span></h1>
-          <p class="lead">One intelligent platform for guided diagnostics, real-time compliance, live remote expertise, and faster parts sourcing - from anywhere in the world.</p>
+          <h1>Every manual.<br>Every case.<br><span class="accent">Every answer.</span></h1>
+          <p class="lead">One intelligent platform for guided diagnostics, real-time compliance, live remote expertise, and spatial operations - from anywhere in the world.</p>
           <div class="hero-actions">
             <a class="button primary" href="login.html">Open MxGenius <span class="arrow" aria-hidden="true">&#8599;</span></a>
             <a class="button secondary" href="witness.html">Join live service <span class="arrow" aria-hidden="true">&#8599;</span></a>
@@ -333,18 +328,14 @@
         <div class="hero-visual" aria-label="MxGenius featured content carousel" aria-roledescription="carousel">
           <div class="radar" aria-hidden="true"></div>
           <div class="hero-carousel" id="heroCarousel" aria-live="polite">
-            <article class="hero-slide active" data-slide-type="image" aria-label="1 of 3: Maintenance intelligence">
+            <article class="hero-slide active" data-slide-type="image" aria-label="1 of 2: Maintenance intelligence">
               <div class="hero-frame"><img src="media/deck-hero.jpg" alt="Aircraft maintenance technician working beside a business jet"></div>
               <div class="float-card top"><div class="float-label">Expert connection</div><div class="float-value"><span class="accent">Live</span> / 24-7</div><div class="float-detail">Remote viewing command center</div></div>
               <div class="float-card bottom"><div class="float-label">Case objective</div><div class="float-value">Minutes, not hours</div><div class="float-detail">From discrepancy to guided resolution</div></div>
             </article>
-            <article class="hero-slide" data-slide-type="image" aria-label="2 of 3: Remote viewing">
+            <article class="hero-slide" data-slide-type="image" aria-label="2 of 2: Remote viewing">
               <div class="hero-frame"><img src="media/deck-mechanic.jpg" alt="Mechanic using connected tools beside an aircraft engine"></div>
               <div class="slide-caption"><strong>Eyes on the aircraft, anywhere.</strong><span>Live remote expertise carries the full case context into the moment of work.</span></div>
-            </article>
-            <article class="hero-slide" data-slide-type="image" aria-label="3 of 3: Parts intelligence">
-              <div class="hero-frame"><img src="media/deck-parts.jpg" alt="Organized aviation parts warehouse"></div>
-              <div class="slide-caption"><strong>One search across the supply network.</strong><span>This slide structure also accepts muted inline video for future launches and product updates.</span></div>
             </article>
           </div>
           <div class="carousel-controls" aria-label="Featured content controls">
@@ -352,7 +343,6 @@
             <div class="carousel-dots" role="tablist" aria-label="Choose featured slide">
               <button class="carousel-dot active" type="button" role="tab" aria-selected="true" aria-label="Show slide 1" data-slide-to="0"></button>
               <button class="carousel-dot" type="button" role="tab" aria-selected="false" aria-label="Show slide 2" data-slide-to="1"></button>
-              <button class="carousel-dot" type="button" role="tab" aria-selected="false" aria-label="Show slide 3" data-slide-to="2"></button>
             </div>
             <button class="carousel-arrow" type="button" data-carousel-next aria-label="Next slide">&#8594;</button>
           </div>
@@ -377,7 +367,7 @@
           <h2>Critical answers are still trapped in <span class="accent">disconnected systems.</span></h2>
           <p class="lead">The cost is measured in lost hours, grounded aircraft, and uncertainty at the exact moment a team needs clarity.</p>
           <div class="issue-list">
-            <article class="issue-card"><div class="issue-number">01</div><div><h3>Subscription overload</h3><p>Manuals, bulletins, directives, and parts listings live behind overlapping products with no unified operational view.</p></div></article>
+            <article class="issue-card"><div class="issue-number">01</div><div><h3>Subscription overload</h3><p>Manuals, bulletins, directives, and operating records live behind overlapping products with no unified operational view.</p></div></article>
             <article class="issue-card"><div class="issue-number">02</div><div><h3>Compliance lag</h3><p>Late or confusing updates create risk while teams manually reconcile applicability across source material.</p></div></article>
             <article class="issue-card"><div class="issue-number">03</div><div><h3>No expert where the aircraft is</h3><p>A remote AOG event can wait hours for specialist dispatch before troubleshooting even begins.</p></div></article>
           </div>
@@ -389,9 +379,9 @@
       <div class="shell">
         <div class="section-head split reveal"><div><p class="eyebrow">One connected operating layer</p><h2>From first report to verified next step.</h2></div><p class="lead">MxGenius brings the library, diagnostic workflow, human expertise, and sourcing network into one continuous maintenance experience.</p></div>
         <div class="solution-grid">
-          <article class="solution-card featured reveal"><span class="solution-index">01 / Knowledge</span><h3>One subscription, one usable library</h3><p>Aircraft, engine, avionics, and parts manuals alongside current service bulletins and airworthiness directives - searchable in context.</p></article>
+          <article class="solution-card featured reveal"><span class="solution-index">01 / Knowledge</span><h3>One subscription, one usable library</h3><p>Aircraft, engine, and avionics manuals alongside current service bulletins and airworthiness directives - searchable in context.</p></article>
           <article class="solution-card reveal"><span class="solution-index">02 / Intelligence</span><h3>AI-guided troubleshooting</h3><p>Targeted questions and cross-referenced compliance checks help teams move from symptoms toward expert-level next steps.</p></article>
-          <article class="solution-card reveal"><span class="solution-index">03 / Supply</span><h3>Integrated parts intelligence</h3><p>Search, compare, and source across major platforms and internal inventory without repeating the same hunt vendor by vendor.</p></article>
+          <article class="solution-card reveal"><span class="solution-index">03 / Context</span><h3>Connected operational context</h3><p>Carry aircraft, case, evidence, and sensor context across browser, spatial, and remote-support workflows.</p></article>
           <article class="solution-card featured reveal"><span class="solution-index">04 / Presence</span><h3>Remote viewing command center</h3><p>Live FPV support lets a master mechanic see what the onsite technician sees and guide the work in real time.</p></article>
         </div>
       </div>
@@ -440,17 +430,6 @@
       </div>
     </section>
 
-    <section class="section-tight">
-      <div class="shell parts-band reveal">
-        <div class="parts-image"><img src="media/deck-parts.jpg" alt="Aviation parts warehouse with organized inventory shelves"></div>
-        <div class="parts-copy">
-          <p class="eyebrow">Parts intelligence</p><h2>Stop hunting. Start sourcing.</h2>
-          <p>An urgent part search can span days of calls, inboxes, and disconnected vendor sites. MxGenius turns that search into one structured workflow across major sources and internal inventory.</p>
-          <div class="comparison"><div class="compare-value"><strong>1-2 days</strong><span>Traditional vendor search</span></div><span class="compare-arrow" aria-hidden="true">&#8594;</span><div class="compare-value"><strong class="accent">&lt;15 min</strong><span>Deck's target sourcing result</span></div></div>
-        </div>
-      </div>
-    </section>
-
     <section class="section" id="operators">
       <div class="shell">
         <div class="section-head reveal"><p class="eyebrow">One standard, every scale</p><h2>Built for the people keeping aircraft moving.</h2><p class="lead">The same intelligence layer can support an independent mechanic, a high-utilization fleet, or an enterprise maintenance network.</p></div>
@@ -472,7 +451,7 @@
         <img src="media/deck-takeoff.jpg" alt="Business aircraft taking off at sunrise">
         <div class="vision-copy">
           <p class="eyebrow">The operating system for maintenance</p><h2>A future where expertise travels faster than the problem.</h2>
-          <p class="lead">MxGenius is building the point where AI, live expert guidance, compliance intelligence, and parts sourcing converge - so every operator can work with the advantages once reserved for the largest maintenance networks.</p>
+          <p class="lead">MxGenius is building the point where AI, live expert guidance, compliance intelligence, and spatial operations converge - so every operator can work with the advantages once reserved for the largest maintenance networks.</p>
           <div class="vision-points"><div class="vision-point"><strong>Aviation expertise</strong><span>Designed around real maintenance operations</span></div><div class="vision-point"><strong>Strategic distribution</strong><span>Built with MxCard.io and Advanced AOG</span></div><div class="vision-point"><strong>Compliance by design</strong><span>Source-aware workflows from day one</span></div></div>
         </div>
       </div>

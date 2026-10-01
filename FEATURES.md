@@ -1,6 +1,6 @@
 # MXGenius feature catalog
 
-Last updated: 2026-09-27
+Last updated: 2026-10-01
 
 This is the canonical product inventory. It records what the current repository actually supports, what is mounted but still needs field validation or completion, and what remains planned. It is a product map, not a claim that every mounted integration is configured in every deployment.
 
@@ -20,7 +20,6 @@ This is the canonical product inventory. It records what the current repository 
 | Fleet intelligence | `[~]` | JetNet-backed browser and spatial exploration are mounted; adapter availability must become more visible. |
 | Maintenance cases | `[~]` | Case creation, selection, status, context, and markers are mounted; the full evidence-to-closure workspace remains active work. |
 | AI copilot and maintenance advisory | `[~]` | Grounded text, multimodal, threads, Realtime voice, tools, and confirmation are mounted; streaming/fallback refinement remains. |
-| Parts and inventory | `[x]` | Receiving, review, inventory lifecycle, requests, shortages, rotables, robs, locations, and bulk import are reachable. |
 | Customer operations and edge devices | `[~]` | A tenant-scoped customer directory combines multi-device ownership, payment history, deployment telemetry, and Equipment Drive controls in Operations Center; migration deployment and live acceptance remain. |
 | Integration readiness | `[x]` | An organization-shared checklist captures required software connections, first-demo enclosure and peripheral hardware, aviation-authored response processes, and entity migration of accounts, servers, data, builds, authentication, and release ownership with dependency order, official help, readiness, and versioned saves. |
 | 3D inspection and digital-twin bridge | `[~]` | Model navigation, mesh selection, HUD, XR, animation, and media are mounted; validated aircraft mappings remain limited. |
@@ -43,7 +42,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Clear distinction between access denial, authentication failure, and service outage.
 - `[x]` Organization-scoped application client for browser requests.
 - `[x]` Role-aware manager/administrator surfaces.
-- `[x]` Tenant isolation for cases, parts, assets, feedback, projects, and persisted conversations.
+- `[x]` Tenant isolation for cases, assets, feedback, projects, and persisted conversations.
 - `[x]` Runtime configuration without browser-embedded service credentials.
 - `[x]` API connection status in the application shell.
 - `[~]` Entra B2B guest access for external Gmail users; the end-user invitation journey needs field validation.
@@ -71,7 +70,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Subscribed make/model selectors for market-intelligence results.
 - `[x]` Operator/company and contact search surface.
 - `[x]` Explicit tenant-authenticated demo-data load with confirmation.
-- `[x]` Demo presentation mode automatically scopes Maintenance and Parts to fictional seeded records, preserves operational data underneath, and provides a Settings-only return to the full record set.
+- `[x]` Demo presentation mode automatically scopes Maintenance to fictional seeded records, preserves operational data underneath, and provides a Settings-only return to the full record set.
 - `[x]` Cache layer and detailed JetNet success-state rendering.
 - `[~]` Market cost and performance intelligence depends on subscribed source coverage.
 - `[!]` Decide whether the current "Operator & Facility Directory" label should be narrowed to company/contact coverage or backed by a canonical facility source.
@@ -109,7 +108,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Persisted conversation threads and new-thread flow.
 - `[x]` Server-persisted conversation memory behind application identity.
 - `[x]` Bounded aircraft and case context instead of sending the full fleet dataset.
-- `[x]` Maintenance context explicitly excludes Parts and procurement data unless that workflow is requested.
+- `[x]` Maintenance context is bounded to supported case, aircraft, manual, evidence, and digital-twin slices.
 - `[x]` Image attachments through authenticated content upload.
 - `[x]` Multimodal questions with structured maintenance output.
 - `[x]` Grounded maintenance advisory with retrieval relevance and citations.
@@ -132,85 +131,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Shared Realtime presence in the fleet globe, sensor workspace, and 3D viewer.
 - `[~]` Streaming text presentation and fallback behavior still have tracked refinement work.
 
-## 5. Controlled parts and inventory
-
-### Receiving and evidence
-
-- `[x]` Searchable catalog-part and physical stock-unit separation.
-- `[x]` Start an idempotent receiving draft.
-- `[x]` Receive from manual entry without requiring an uploaded document.
-- `[x]` Attach private photos and documents when evidence is available.
-- `[x]` Authorized asset upload and download through the application API.
-- `[x]` MXGenius model extraction pipeline for document/image recreation and field proposals.
-- `[x]` Per-field human accept, edit, or reject review.
-- `[x]` Confidence, warnings, source evidence, and model provenance retained with suggestions.
-- `[x]` Low-friction review that asks for attention only on flagged fields.
-- `[x]` Atomic receiving confirmation creating the stock unit and ledger event.
-- `[x]` Browser-printable QR label with an opaque canonical unit URL.
-- `[x]` FAA candidate panel retaining source state and provenance.
-
-### Inventory control
-
-- `[x]` Search by part number, description, serial number, status, and location.
-- `[x]` Responsive inventory grid with desktop dock and narrow-screen detail drawer.
-- `[x]` Fictional demo stock uses a labeled visual registry and dark-theme inventory/detail cards without attaching illustrations to production stock; the expanded presentation adds 47 one-to-one synthetic cards and distinct catalog images across 12 shop categories, with a frozen roster and automated drift checks.
-- `[x]` Inventory, shortages, requests, locations, rotables, cannibalizations, discrepancies, imports, and report displays share one non-destructive Show/Hide Demo Content toggle; demo and operational records never mix in the presentation.
-- `[x]` Parts filters, checkboxes, and request paging controls share the application dark-theme interaction treatment.
-- `[x]` Versioned confirmed metadata corrections.
-- `[x]` Append-only inventory event history.
-- `[x]` All schema-defined inventory event types reachable through controlled workflows.
-- `[x]` Quarantine, available, reserved, issued, rejected, in-repair, shipped, and scrapped lifecycle handling.
-- `[x]` Status-aware actions that do not offer invalid movements.
-- `[x]` Return of an issued part without exposing invalid terminal actions.
-- `[x]` Tenant-defined stock locations and destination suggestions.
-- `[x]` Cycle counting for lots.
-- `[x]` Lot splitting so partial quantities can move independently.
-- `[x]` Shipment-leg and install/removal history.
-- `[x]` Separate installation and removal events.
-- `[x]` Paperwork vocabulary for common aviation release and trace documents.
-- `[x]` Ledger mutations carry confirmation grants.
-
-### Demand, requests, rotables, and robs
-
-- `[x]` Parts request queue with priority, need-by, and server-owned overdue state.
-- `[x]` Request/order actions constrained by status.
-- `[x]` Open case demand compared with genuinely free stock.
-- `[x]` Shortage view that excludes reserved or otherwise unavailable stock.
-- `[x]` Rotable register and serialized retirement.
-- `[x]` Retirement reason and retained history.
-- `[x]` Cannibalization/rob request, approval, and completion workflow.
-- `[x]` Separation of duties for rob approval.
-- `[x]` Life crossing an aircraft-tail boundary recorded for life-limited robs.
-- `[x]` Completion gated by the inventory event ledger.
-- `[x]` Read-only, headset-friendly spoken inventory lookup.
-
-### Import and recovery
-
-- `[x]` Bulk import surface with preview-before-apply.
-- `[x]` Add-only behavior as the default at every layer.
-- `[x]` Explicit warning before overwrite behavior.
-- `[x]` Whole-file rejection instead of partial application for invalid input.
-- `[x]` Re-import protection against duplicate stock.
-- `[x]` Append-only import journal.
-- `[x]` Privileged rollback that refuses to contradict later work.
-
-### Parts roadmap and blocked domain work
-
-- `[!]` Shelf life, cure date, calibration expiry, and issue-time blocking need maintenance-domain review.
-- `[!]` Rotable TSN, TSO, and cycles carried through installation/removal need domain review.
-- `[!]` Exchange/core obligations and return-by dates need domain review.
-- `[ ]` Ownership beyond owned stock: customer property, consignment, exchange core, and loaner.
-- `[ ]` Trace documents linked to canonical certificate records.
-- `[ ]` Recurring AD applicability on controlled parts.
-- `[ ]` Purchase orders and repair orders with full status flows.
-- `[ ]` PO-line receiving, vendor approvals, and quote comparison.
-- `[ ]` Counting sessions with variance reports.
-- `[ ]` Min/max levels, reorder thresholds, and stock-on-hand rollups.
-- `[ ]` Reserve directly from a shortage row.
-- `[ ]` Partial issue from a lot without a manual split.
-- `[-]` Dedicated label-printer and laser-etch integrations are outside the current slice.
-
-## 6. 3D inspection and digital-twin bridge
+## 5. 3D inspection and digital-twin bridge
 
 - `[x]` Bundled model catalog with explicit provenance and operational-status labels.
 - `[x]` Unified model library with tenant GLB upload plus searchable NASA, OpenVSP Airshow community aircraft, Smithsonian Air & Space, and FlightGear simulation geometry; lazy loading, source and size filters, catalog provenance, and non-authoritative labeling.
@@ -244,7 +165,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[ ]` Thermal mount assembly and authored exploded-view animation.
 - `[-]` Demonstration models are not presented as validated aircraft digital twins.
 
-## 7. Fleet globe XR
+## 6. Fleet globe XR
 
 - `[x]` Standalone Three.js/WebXR fleet-globe route.
 - `[x]` Cached, bounded fleet coordinates passed from the browser surface.
@@ -256,13 +177,13 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Shared globe-specific spatial audio cues.
 - `[x]` Operations VR and AR switch through an explicit fresh-gesture handoff that preserves the globe and active task-window state.
 - `[x]` Operations Remote Witness wearer approval hands the bootstrapped room to the Quest companion, exits WebXR deliberately for Horizon capture consent, and resumes only from a fresh wearer gesture.
-- `[~]` Shared VR browser launcher and animated quick-access panel are mounted for controller and fingertip input; PartsBase and other approved aircraft-resource destinations remain intentionally unconfigured.
+- `[~]` Shared VR browser launcher and animated quick-access panel are mounted for controller and fingertip input; Approved aircraft-resource destinations remain intentionally unconfigured.
 - `[x]` Contextual help entry point using the same guide as the browser globe.
 - `[x]` Fleet route excludes FLIR and Pi initialization.
 - `[!]` Final Quest/browser headset acceptance and comfort pass.
 - `[-]` Fleet points are fleet/registry context, not live flight tracking.
 
-## 8. Sensor bridge, FLIR, and Pi diagnostics
+## 7. Sensor bridge, FLIR, and Pi diagnostics
 
 - `[x]` Sensor workspace isolated from the JetNet fleet runtime.
 - `[x]` Standalone Quest FLIR companion with no Pi runtime dependency.
@@ -305,7 +226,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[~]` Production XR negotiation is intentionally not mounted until the relay contract is approved.
 - `[!]` Physical Quest + FLIR hardware acceptance and release-channel validation.
 
-## 9. Native iOS AR
+## 8. Native iOS AR
 
 - `[x]` Explicit Capacitor `ios` platform gate.
 - `[x]` Native capability check before AR controls appear.
@@ -320,11 +241,11 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` AR-specific contextual help appears only with a supported AR control.
 - `[!]` Final device acceptance on supported iPhone/iPad hardware.
 
-## 10. Onboarding, help, audio, and motion
+## 9. Onboarding, help, audio, and motion
 
 - `[x]` First-run welcome and guided onboarding flow.
 - `[x]` Persistent Tour launcher plus restartable onboarding from Settings.
-- `[x]` Role/workspace tour covering identity, navigation, status, copilot, cases, parts, fleet, XR, and sensor diagnostics.
+- `[x]` Role/workspace tour covering identity, navigation, status, copilot, cases, fleet, XR, and sensor diagnostics.
 - `[x]` Four-second dashboard arrival splash synchronized to the welcome sound, with smooth half-second fades and a clean handoff to onboarding.
 - `[x]` Empty-state calls to action.
 - `[x]` Question-mark contextual help controls and anchored non-modal popovers across the core browser and spatial surfaces.
@@ -342,7 +263,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Tooltip voiceover, caption, and video naming contract.
 - `[~]` Review the fourteen audio-first guides and add video only where motion materially improves the explanation.
 
-## 11. Feedback, project workspaces, and reports
+## 10. Feedback, project workspaces, and reports
 
 - `[x]` Separate Report a Bug and Request a Feature entry points.
 - `[x]` Keyboard shortcut for bug reporting, suppressed while typing.
@@ -364,7 +285,7 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Shared provisional-patent workspace with decision sections and private references.
 - `[x]` Generated weekly reports, progress page, and constrained report-media display.
 
-## 12. Compliance, manuals, weather, scheduling, and operations
+## 11. Compliance, manuals, weather, scheduling, and operations
 
 - `[x]` FAA AD candidate flow resolves a canonical aircraft first.
 - `[x]` FAA result states distinguish candidates, no candidates, incomplete identifiers, unconfigured, unavailable, and rejected source states.
@@ -377,14 +298,14 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Capability workbench surfaces mounted typed operations rather than hiding them in a dead library tab.
 - `[~]` FAA AD and SAIB source adapters are mounted but can degrade when configuration is absent.
 - `[~]` Aviation weather capability is mounted but shares the same adapter-visibility gap.
-- `[~]` Scheduling handlers exist and can use real parts-shortage readiness.
+- `[~]` Scheduling handlers exist for windows, resource matching, conflict scans, and confirmed plan publication.
 - `[!]` Decide per-adapter fail-closed versus visibly degraded production behavior.
 - `[!]` Resolve the remaining scheduling `facility_id` contract: remove it or restore a canonical facility source.
 - `[ ]` Per-adapter readiness/health presentation in API health and affected UI surfaces.
-- `[ ]` Analytics UI for executive KPIs, fleet health, parts risk, and repeat defects.
+- `[ ]` Analytics UI for executive KPIs, fleet health, and repeat defects.
 - `[-]` The former MRO facility capability and its tool family are retired.
 
-## 13. Security, integrity, and release controls
+## 12. Security, integrity, and release controls
 
 - `[x]` Browser clients use application identity rather than service credentials.
 - `[x]` Private assets remain behind authorized application routes or short-lived redirects.
@@ -394,12 +315,12 @@ This is the canonical product inventory. It records what the current repository 
 - `[x]` Human confirmation required for consequential ledger and marker mutations.
 - `[x]` Append-only event and import journals for traceability.
 - `[x]` Specific authorization denials preserved when safe instead of generic errors.
-- `[x]` XSS-safe rendering for extracted/user-authored parts data and project content.
+- `[x]` XSS-safe rendering for extracted/user-authored project and maintenance content.
 - `[x]` Credential-shaped values redacted from XR traces.
 - `[x]` Cleartext production relay URLs rejected.
 - `[x]` Azure health/readiness live-smoke coverage.
 - `[x]` Live field probe for frontend, core, memory, MCP, and manual assets.
-- `[x]` Structure and contract tests for core browser, backend-boundary, parts, feedback, Realtime, and XR behavior.
+- `[x]` Structure and contract tests for core browser, backend boundaries, feedback, Realtime, and XR behavior.
 - `[x]` GitHub Pages deployment is gated by the frontend suite and pinned Rust formatting, test, and lint checks.
 - `[x]` Pages assembly excludes local preview surfaces, scratch imagery, the research training payload, and non-rendered delivery-draft source files from the public artifact.
 - `[~]` Hardware-dependent and external-adapter gates remain separate from repository verification.
@@ -409,13 +330,13 @@ This is the canonical product inventory. It records what the current repository 
 - `[ ]` Golden AI evaluation suite covering groundedness, citation correctness, abstention, conflicts, tenant isolation, authorization, and prompt injection.
 - `[ ]` Privacy, transcript retention/consent, operational-authority, pilot runbook, and release-freeze review.
 
-## 14. Explicit product boundaries
+## 13. Explicit product boundaries
 
 - The fleet globe owns JetNet fleet context; it does not initialize thermal hardware.
 - The 3D viewer owns meshes, component mappings, authored animations, and the future thermal-mount exploded view.
 - The sensor workspace owns the FLIR/Pi bridge lifecycle and diagnostic evidence.
 - Native AR mirrors fleet-globe behavior only on supported iOS hosts.
-- OCR/vision/model extraction produces suggestions, never confirmed part identity, condition, trace, or airworthiness.
+- OCR/vision/model extraction produces suggestions, never confirmed maintenance or airworthiness determinations.
 - A selected mesh is navigation context until it has an approved mapping and evidence.
 - FAA results are candidates for human review, not compliance determinations.
 - Registry and fleet-location points are not live aircraft tracks.

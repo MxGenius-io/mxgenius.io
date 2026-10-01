@@ -22,7 +22,7 @@ The shell owns:
 - quiet, actionable connection state; and
 - contextual AI and voice presence.
 
-The shell does not own fleet, procurement, model-inspection, sensor, or case
+The shell does not own fleet, model-inspection, sensor, or case
 business logic. It routes shared context to the active mode.
 
 Nothing follows the headset except the FLIR thermal display. FLIR must retain an
@@ -34,7 +34,7 @@ world-anchored or deliberately placed by the user.
 Primary question: **What do we have, where is it, and what requires action?**
 
 Operations owns fleet geography, aircraft and organization lookup, operational
-triage, parts discovery, availability, request and logistics status, weather,
+triage, weather, scheduling, and operational status,
 scheduling readiness, and concise fleet or supply-risk summaries.
 
 The globe is a geographic operations surface. Its selected location or aircraft

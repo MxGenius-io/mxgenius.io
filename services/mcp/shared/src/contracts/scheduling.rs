@@ -84,24 +84,6 @@ pub struct SchedulingConflictScanResponse {
     pub conflicts: Vec<SchedulingConflict>,
 }
 
-// 41. mxg.scheduling.parts_readiness -------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct SchedulingPartsReadinessRequest {
-    pub case_id: CaseId,
-    pub target_start: UtcDateTime,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct SchedulingPartsReadinessResponse {
-    pub case_id: CaseId,
-    pub readiness_state: String,
-    pub blocking_requirements: Vec<String>,
-    pub eta_gaps: Vec<String>,
-    pub certificate_gaps: Vec<String>,
-    pub evidence_ids: Vec<String>,
-}
-
 // 42. mxg.scheduling.publish_plan ---------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

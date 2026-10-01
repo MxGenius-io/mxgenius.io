@@ -15,7 +15,7 @@ This record is the reference boundary between the existing browser VR/AR applica
 | Concern | Canonical source | Consumers |
 | --- | --- | --- |
 | Frozen CL350 manual corpus identity, index, model, dimensions, hashes, assets, and exclusions | `services/mcp/config/authoritative-manual-pack-v1.json` | MCP manual adapter, reconciliation utility, build/test gates |
-| External-provider credential behavior | `services/mcp/server/src/adapters/provider_auth.rs` | PartsBase and future provider adapters; never browser tool arguments |
+| External-provider credential behavior | `services/mcp/server/src/adapters/provider_auth.rs` | Future provider adapters; never browser tool arguments |
 | XR session negotiation wire format | `services/xr-diagnostics-kiosk/contracts/xr-session-gateway.schema.json` | Browser session client, future authenticated gateway, Quest companion |
 | Quest sensor activation and presence | `services/xr-diagnostics-kiosk/contracts/sensor-companion.schema.json` | Browser deep link, Android companion announce, FLIR source status |
 | Pi diagnostic state/delta format and XR panel map | `services/xr-diagnostics-kiosk/contracts/diagnostics-state.schema.json` | Pi bridge, kiosk, `xr-diagnostics-layout.js`, XR sensor orb |
@@ -38,7 +38,6 @@ Generated weekly reports are presentation artifacts, not runtime contracts or co
 | Scanner POC | Honeywell Xenon 1950g, Zebra DS3608, and Socket Mobile S740 profiles share `scan.observed`; USB CDC and Bluetooth SPP have an executable reader | Device-specific configuration and physical scans are pending; candidates remain unverified |
 | Manual retrieval | Frozen CL350 pack, read-only reconciliation, MiniLM readiness contract, applicability states, and fail-closed production mount exist | Manual currency remains unverified because revision/effective-date metadata is absent |
 | Aviation weather | Public AviationWeather.gov METAR/TAF powers `mxg.weather.airport_now` | Derived ramp, maintenance-window, ferry, and hazard judgments remain unavailable |
-| PartsBase | Documented market-pricing client and server-only authentication boundary exist | No credential is installed; live response mapping is not canonical or mounted |
 | Remote Witness | Consent, evidence, and transport contracts are documented | Media room, screen capture, viewer roles, and recording controls are not implemented |
 | MCP sensor access | Proposed bounded read-only tools are documented | No raw video, unrestricted stream, or device-control tool is mounted |
 
@@ -46,7 +45,7 @@ Generated weekly reports are presentation artifacts, not runtime contracts or co
 
 `xr-session-client.js` and the gateway JSON Schema define an authenticated production negotiation request that returns separate short-lived `wss://` consumer and companion-producer relay URLs. At this pivot the server route `/api/xr/sessions/negotiate` and its Azure Web PubSub token issuer are intentionally **contract-only and unmounted**. Local development may inject `sensorBridge` and `sensorIngest` explicitly; the Pi test route deterministically maps `/ws/xr` to `/ws/ingest`. Production must not derive roles from an Azure client URL or publish a long-lived bridge credential in `runtime-config.js`, a query string, the APK, or MCP arguments.
 
-External provider authentication is similarly staged. The shared server boundary supports anonymous, API-key, bearer, refreshable bearer-file, and OAuth password-grant mechanics. A browser OAuth experience, where a provider supports it, must terminate at a server-side connection broker. PartsBase remains disabled until issued credentials and licensed payloads can be tested.
+External provider authentication is similarly staged. The shared server boundary supports anonymous, API-key, bearer, refreshable bearer-file, and OAuth password-grant mechanics. A browser OAuth experience, where a provider supports it, must terminate at a server-side connection broker.
 
 ## Integrity and safety decisions
 
@@ -74,9 +73,8 @@ External provider authentication is similarly staged. The shared server boundary
 1. Install the built Quest Android companion and verify Horizon OS deep-link dispatch, USB enumeration, thermal cadence, radiometric metadata, foreground survival, and WebXR performance on physical hardware.
 2. Mount an authenticated WSS relay and implement `/api/xr/sessions/negotiate` with short-lived scoped connection URLs.
 3. Run cold Pi provisioning, SSH update, USB CDC, and Bluetooth SPP tests on physical hardware.
-4. Exercise PartsBase only after issued credentials exist; freeze typed response fixtures before supplier data enters orchestration.
-5. Implement Remote Witness consent, presence, viewer-role, capture, and retention controls before any HQ/customer session.
-6. Add append-only evidence persistence and bounded MCP sensor projections before a model can consume collected figures.
+4. Implement Remote Witness consent, presence, viewer-role, capture, and retention controls before any HQ/customer session.
+5. Add append-only evidence persistence and bounded MCP sensor projections before a model can consume collected figures.
 No deployment, SD-card rewrite, credential activation, commit, tag, or push is represented by this pivot record.
 
 ## 2026-08-15 pre-flash kiosk addendum
@@ -84,7 +82,7 @@ No deployment, SD-card rewrite, credential activation, commit, tag, or push is r
 - The operator confirmed the JetNet credential discovered during the audit had already been rotated when the integration moved to environment variables.
 - Kiosk release `0.3.1-poc.1` uses the canonical MxGenius logo and adds visible readiness lanes for FLIR ONE Pro, Honeywell Xenon XP 1950g, Zebra DS3608, and Socket Mobile S740.
 - A dedicated device-local commissioning log records bridge, diagnostics, thermal, node, scanner-profile, and peripheral transitions with warning/error filters and JSONL export. It does not persist raw scanner values.
-- `integration-fixtures.schema.json` and `/api/v1/integrations/simulated` define explicitly synthetic, provider-neutral AviationWeather, PartsBase, and Honeywell Forge envelopes. They are development shapes, not claims about undocumented vendor payloads or live data.
+- `integration-fixtures.schema.json` and `/api/v1/integrations/simulated` define explicitly synthetic, provider-neutral AviationWeather and Honeywell Forge envelopes. They are development shapes, not claims about undocumented provider payloads or live data.
 - The updated kiosk suite passes 26 tests, and the exact `0.3.1-poc.1` flash preview passes with 40 packaged files, including the branded asset, integration registry/schemas, sensor-companion contract, scanner relay, and synthetic thermal source.
 
 ## 2026-08-15 FLIR browser-activation addendum

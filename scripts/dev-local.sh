@@ -72,9 +72,8 @@ seed_demo() {
         -f "$REPO_ROOT/services/mcp/demo/seed.sql"
     echo "demo data loaded into $DB_NAME"
     psql -d "$DB_NAME" -tA -c \
-        "SELECT 'parts: '||count(*) FROM parts
-         UNION ALL SELECT 'stock units: '||count(*) FROM stock_units
-         UNION ALL SELECT 'requests: '||count(*) FROM part_requirements;"
+        "SELECT 'aircraft: '||count(*) FROM aircraft_canonical
+         UNION ALL SELECT 'cases: '||count(*) FROM maintenance_cases;"
 }
 
 case "${1:-start}" in
@@ -105,14 +104,9 @@ echo "building the backend"
 export DATABASE_URL="postgres://localhost/$DB_NAME"
 export MXGENIUS_MCP_ADDR="127.0.0.1:$API_PORT"
 export MXGENIUS_MCP_ALLOWED_ORIGINS="http://localhost:$WEB_PORT,http://127.0.0.1:$WEB_PORT"
-# The parts workspace is behind a flag; without it every parts route 404s.
-export MXGENIUS_PARTS_ENABLED=1
-# Stock-mutating parts operations (receiving confirm, unit transitions,
-# metadata correction, quantity adjust, split) require a signed single-use
-# confirmation grant. Without a secret the issuer is never built and all five
-# reject with 428, which reads as a broken feature rather than a missing
-# setting. The issuer requires at least 32 bytes. This is a fixed development
-# value on a local-only database; production supplies its own.
+# Consequential maintenance mutations require a signed single-use confirmation
+# grant. The issuer requires at least 32 bytes. This fixed value is restricted
+# to the local-only database; production supplies its own secret.
 export MXGENIUS_CONFIRMATION_SECRET="${MXGENIUS_CONFIRMATION_SECRET:-mxgenius-local-development-confirmation-secret}"
 # Which role the insecure-local provider presents. Defaults to administrator.
 # Set it to walk a gated path as the role that is actually restricted -- for
@@ -129,7 +123,7 @@ echo $! >"$RUN_DIR/api.pid"
 disown
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$API_PORT/api/parts" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$API_PORT/healthz" && break
     sleep 0.5
 done
 

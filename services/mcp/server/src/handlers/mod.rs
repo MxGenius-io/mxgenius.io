@@ -1,9 +1,7 @@
-//! Tool handler module: registers all 49 active tools. Each tool has its own
+//! Tool handler module: registers the active tool catalog. Each tool has its own
 //! request and response contract from `mxgenius-shared::contracts::*`.
 //!
-//! Tools that need a Postgres-backed source (parts inventory, parts
-//! certificate persistence, compliance return-to-service pack,
-//! and ranking) register a `NotConfiguredTool` when the application pool
+//! Tools that need a Postgres-backed source register a `NotConfiguredTool` when the application pool
 //! is absent, so the `tools/list` metadata reports `not_configured` while
 //! the runtime envelope emits a typed partial response with a
 //! `NOT_CONFIGURED` warning.
@@ -35,7 +33,6 @@ pub mod digital_twin;
 pub mod environment;
 pub mod evidence;
 pub mod manual;
-pub mod parts;
 pub mod scheduling;
 pub mod ui;
 pub mod weather;
@@ -62,7 +59,6 @@ pub fn register_all(
     environment::register(reg);
     ui::register(reg);
     manual::register(reg, adapters.manual.clone());
-    parts::register(reg, adapters.pool.clone());
     weather::register(reg, adapters.weather);
     compliance::register(
         reg,
@@ -226,28 +222,6 @@ where
         description,
         action,
         false,
-        default_factory,
-    ))
-}
-
-pub(crate) fn not_configured_mutating<Req, Resp, F>(
-    name: &str,
-    title: &str,
-    description: &str,
-    action: Action,
-    default_factory: F,
-) -> Arc<dyn Tool<Request = Req, Response = Resp>>
-where
-    Req: DeserializeOwned + JsonSchema + Send + Sync + 'static,
-    Resp: Serialize + JsonSchema + Send + Sync + 'static,
-    F: Fn(Req) -> Resp + Send + Sync + 'static,
-{
-    Arc::new(NotConfiguredTool::<Req, Resp>::new(
-        name,
-        title,
-        description,
-        action,
-        true,
         default_factory,
     ))
 }

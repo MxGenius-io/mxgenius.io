@@ -91,23 +91,17 @@ without duplicate controls, headset-following panels, or lost authentication.
 
 - [~] `SWC-020` Move the fleet globe, clusters, locations, and geographic
   exploration into Operations.
-- [ ] `SWC-021` Consolidate aircraft search and aircraft/operator/supplier/contact
+- [ ] `SWC-021` Consolidate aircraft search and aircraft/operator/contact
   drill-down around the selected globe context.
 - [ ] `SWC-022` Add focused fleet triage for AOG, high-time, for-sale, attention,
   and availability states.
-- [ ] `SWC-023` Add parts catalog, inventory, stock-location availability,
-  shortage, demand, and request-status views.
-- [ ] `SWC-024` Stage order, shipment, repair-order, and supplier status only when
-  their authoritative capabilities are mounted.
-- [ ] `SWC-025` Add operational rotable/robbed-part summaries, weather, scheduling
-  readiness, and bounded executive summaries.
+- [ ] `SWC-023` Add weather, scheduling readiness, and bounded executive summaries
+  only when their authoritative capabilities are mounted.
 - [ ] `SWC-026` Add spatial graphs only for decisions materially improved by
   geography, movement, shortage, or concentration.
 - [ ] `SWC-027` Add spoken lookup using the canonical MCP capabilities.
 - [ ] `SWC-028` Limit the model surface to read-only identity preview with an
   explicit **Open in Maintenance** action.
-- [ ] `SWC-029` Verify receiving, quarantine, corrections, inventory movement,
-  bulk import, PO construction, and approvals remain in 2D.
 
 Wave 2 gate: a user can answer what is available, where it is, and what requires
 attention without entering Maintenance or seeing transaction-heavy controls.
@@ -132,11 +126,11 @@ attention without entering Maintenance or seeing transaction-heavy controls.
   warnings, conflicts, and citations.
 - [~] `SWC-038` Retain Remote Witness, technician-to-HQ support, voice, and
   hands-free capture without exposing operational mutations to guests.
-- [ ] `SWC-039` Add **Need part** using the shared cross-mode handoff instead of a
-  second procurement surface.
+- [ ] `SWC-039` Keep cross-mode handoff bounded to shared aircraft, case, component,
+  and evidence context.
 
 Wave 3 gate: a technician can identify a component, verify it against evidence,
-stage the record, request a part, and return without encountering unrelated fleet
+stage the record, request support, and return without encountering unrelated fleet
 or administrative controls.
 
 ### Wave 4 — placement and legacy cleanup
@@ -180,12 +174,8 @@ required commissioning and recovery tool.
 
 ### Wave 6 — cross-mode handoff
 
-- [ ] `SWC-060` Send selected component, aircraft, case, and source revision from
-  Maintenance **Need part** to Operations.
-- [ ] `SWC-061` Resolve matching part, availability, stock location, and request
-  status without claiming an unconfirmed order or inventory action.
-- [ ] `SWC-062` Return the authoritative request/status to the original
-  Maintenance case and component context.
+- [ ] `SWC-060` Send selected component, aircraft, case, and source revision across
+  Operations and Maintenance without creating duplicate state.
 - [ ] `SWC-063` Open Maintenance from an Operations aircraft, defect trend, or
   alert with its typed source context preserved.
 - [ ] `SWC-064` Reject stale revisions, cross-tenant context, duplicate records,

@@ -1,9 +1,9 @@
 //! Tests for the Wave 1 remount: aircraft, evidence, digital_twin, and the
-//! `tools/list` metadata for parts/compliance tools that remain
+//! `tools/list` metadata for compliance tools that remain
 //! `not_configured` until the application Postgres pool is wired in.
 //!
 //! These tests exercise the default registry (no Postgres pool) and the
-//! in-memory case service. Pool-backed parts and compliance tools keep
+//! in-memory case service. Pool-backed compliance tools keep
 //! their `not_configured` availability in this mode; the four aircraft and
 //! three evidence remounts are exercised end-to-end.
 
@@ -70,12 +70,12 @@ async fn dispatch(d: &Dispatcher, method: &str, params: serde_json::Value) -> se
 }
 
 #[test]
-fn tools_list_reports_not_configured_for_pool_backed_parts_and_compliance() {
+fn tools_list_reports_not_configured_for_pool_backed_capabilities() {
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 49);
+    assert_eq!(info.tool_count, 41);
 
     let names: std::collections::BTreeMap<String, String> = reg
         .list_tools()
@@ -85,20 +85,12 @@ fn tools_list_reports_not_configured_for_pool_backed_parts_and_compliance() {
     // Pool-backed tools in default_registry (no pool) must report
     // not_configured so the metadata agrees with the runtime envelope.
     for name in [
-        "mxg.parts.resolve",
-        "mxg.parts.alternates",
-        "mxg.parts.inventory",
-        "mxg.parts.rank_options",
-        "mxg.parts.order_history",
-        "mxg.parts.attach_certificate",
         "mxg.compliance.manual_currency",
         "mxg.compliance.record_audit",
         "mxg.compliance.return_to_service_pack",
         "mxg.digital_twin.list_models",
         "mxg.digital_twin.highlight_zone",
         "mxg.digital_twin.link_documents",
-        "mxg.analytics.parts_risk",
-        "mxg.scheduling.parts_readiness",
         "mxg.scheduling.publish_plan",
     ] {
         assert_eq!(
@@ -602,50 +594,6 @@ async fn digital_twin_component_state_uses_case_history() {
         .as_array()
         .unwrap()
         .is_empty());
-}
-
-#[tokio::test]
-async fn parts_resolve_invocation_behavior_agrees_with_metadata() {
-    let ev = Arc::new(EvidenceService::new());
-    let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
-    let d = dispatcher_with_evidence(cs, ev);
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.parts.resolve",
-            "arguments": { "part_number": "N/A" }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-}
-
-#[tokio::test]
-async fn parts_attach_certificate_invocation_does_not_write_in_local_mode() {
-    let ev = Arc::new(EvidenceService::new());
-    let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
-    let before = ev.count_for_org(OrganizationId(Uuid::nil()));
-    let d = dispatcher_with_evidence(cs, ev.clone());
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.parts.attach_certificate",
-            "arguments": {
-                "case_id": Uuid::new_v4(),
-                "part_id": Uuid::new_v4(),
-                "certificate_type": "8130-3",
-                "document_reference": "upload://pending"
-            }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert!(r["output"]["certificate"].is_null());
-    assert!(r["output"]["audit_event_id"].is_null());
-    assert_eq!(ev.count_for_org(OrganizationId(Uuid::nil())), before);
 }
 
 #[tokio::test]

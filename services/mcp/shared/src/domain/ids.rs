@@ -72,13 +72,6 @@ typed_uuid!(ComponentId, "Aircraft component identifier.");
 typed_uuid!(DocumentId, "Technical document identifier.");
 typed_uuid!(RevisionId, "Document revision identifier.");
 typed_uuid!(AdvisoryId, "Regulatory advisory identifier (AD/SAIB/DRS).");
-typed_uuid!(PartId, "Canonical part identifier.");
-typed_uuid!(
-    PartRequirementId,
-    "PartRequirement identifier inside a case."
-);
-typed_uuid!(SupplierId, "Supplier identifier.");
-typed_uuid!(CertificateId, "Certificate record identifier.");
 typed_uuid!(
     FacilityId,
     "Maintenance site identifier used by scheduling."

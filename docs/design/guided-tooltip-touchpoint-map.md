@@ -16,17 +16,11 @@ This map is the recording and implementation contract for contextual help. Each 
 | --- | --- | --- | --- | --- |
 | Browser fleet globe | `fleet-globe-controls` | Globe top-right `?` | texture rail, fleet search/type filter, results sheet, XR launch | Filter JetNet fleet context, select a location, and carry that selection forward. |
 | Maintenance case | `maintenance-case` | Case header `?` | existing case selector, intake, spatial marker controls, result | Keep discrepancy, evidence, finding, approval, and closure in one record. |
-| Parts overview | `parts-management` | Parts toolbar `?` | receive, inventory views, unit drawer | Orient to the controlled-parts workspace. |
-| Parts receiving | `parts-receiving` | Receive toolbar `?` | receiving wizard, source evidence, extraction review, confirmation | Keep model extraction advisory and make the human review explicit. |
-| Parts inventory | `parts-inventory` | Inventory search `?` | search, filters, grid, unit drawer | Find and inspect the controlled physical unit record. |
-| Parts demand | `parts-demand` | Requests and Shortages `?` | request queue, priority, need-by, free-stock comparison | Separate open demand from genuinely available stock. |
-| Rotables and robs | `parts-rotables-robs` | Rotables and Robs `?` | serialized register, donor, receiver, approval, ledger | Explain serialized history and separation of duties. |
-| Parts import | `parts-import` | Import `?` | file, mode, preview, journal | Preview before apply and preserve recovery evidence. |
 | Aircraft Explorer | `aircraft-explorer` | Expanded section `?` | triage/direct mode, filters, aircraft result | Choose discovery or direct lookup without mixing the two modes. |
 | Mapped fleet location | `fleet-location-data` | Selected-location header `?` | location, grouped aircraft, active context | Explain that mapped fleet context is not live tracking. |
 | 3D viewer shell | `3d-viewer-navigation` | Viewer header `?` | model selector, canvas, camera reset, HUD preview, VR | Move from model selection to spatial inspection without losing context. |
 | Model library | `model-library` | Library header `?` | search, source filter, size filter, provenance | Separate local and tenant models from public reference geometry. |
-| 3D mesh inspector | `mesh-inspection` | Part inspector `?` | mesh selection, hierarchy path, mapping state | Make the selected mesh the anchor for parts, cases, and procedures. |
+| 3D mesh inspector | `mesh-inspection` | Component inspector `?` | mesh selection, hierarchy path, mapping state | Make the selected mesh the anchor for cases, evidence, and procedures. |
 | Procedure media | `procedure-media` | Open media drawer `?` | paired video, selected component, timing cues | Keep procedure media attached to the selected mesh and case context. |
 | Model context | `model-context` | Copilot header `?` | active object, thread, sources, proposed action | Confirm the object and evidence being discussed before acting. |
 | Fleet XR scene | `fleet-globe-controls` | XR scene HUD `?` | summary HUD, location points, detail card, model context | Reuse the browser fleet mental model in headset space. |

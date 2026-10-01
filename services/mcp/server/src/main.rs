@@ -41,10 +41,8 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("production OIDC mode requires HTTP request metadata; stdio is local-only");
     }
 
-    // Local development can use a database too. The parts module is entirely
-    // Postgres-backed, so without one every parts route answers
-    // "not configured" and none of it can be exercised locally. Production and
-    // pilot are unchanged below and still require DATABASE_URL.
+    // Local development can use a database too. Production and pilot are
+    // unchanged below and still require DATABASE_URL.
     let production_pool = if insecure_local && !pilot {
         match std::env::var("DATABASE_URL") {
             Ok(url) if !url.trim().is_empty() => {
@@ -168,9 +166,7 @@ async fn main() -> anyhow::Result<()> {
         );
         let mut provider = InsecureLocalProvider::new(role);
         // Without a verifier the provider leaves `confirmation` as `None` and
-        // every grant-gated parts operation rejects with 428, so receiving
-        // confirm, unit transitions, metadata correction, quantity adjust, and
-        // split are all unreachable locally. Attach the production verifier
+        // every grant-gated operation rejects with 428. Attach the production verifier
         // whenever the pool and a signing secret are both present.
         match (
             &production_pool,
@@ -195,7 +191,7 @@ async fn main() -> anyhow::Result<()> {
                 tracing::warn!(
                     target: "mxgenius.mcp",
                     "confirmation grants: disabled; MXGENIUS_CONFIRMATION_SECRET is unset, so \
-                     stock-mutating parts operations will reject with 428"
+                     protected operations will reject with 428"
                 );
             }
             (None, _) => {}

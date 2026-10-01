@@ -69,11 +69,10 @@ The executable boundary is `scanner line -> scan_serial.py -> scan.raw -> Pi nor
 ## Low-friction cloud adapters
 
 - AviationWeather.gov is the first live adapter: public METAR/TAF reads, custom user agent, bounded requests, and no browser credential.
-- PartsBase is prepared behind server-side bearer or its documented password-grant token flow. The adapter stays out of canonical supplier results until issued credentials and live payload mapping are validated.
 - Azure Document Intelligence remains the document/OCR lane and supports either a server-side key or managed identity in the existing application service.
 - Honeywell Forge remains a contract/fixture boundary until Hermetic Labs receives an authorized API product and credential flow.
 
-Before live authentication, the Pi exposes normalized development envelopes for AviationWeather, PartsBase, and Honeywell Forge through `/api/v1/integrations/simulated`, governed by `integration-fixtures.schema.json`. These fixtures exercise the kiosk, headset, logging, and orchestration consumers without claiming to reproduce undocumented provider payloads. They are always marked `status: fixture`, use `fixture://` sources, carry no secrets, and cannot emit an operational conclusion.
+Before live authentication, the Pi exposes normalized development envelopes for AviationWeather and Honeywell Forge through `/api/v1/integrations/simulated`, governed by `integration-fixtures.schema.json`. These fixtures exercise the kiosk, headset, logging, and orchestration consumers without claiming to reproduce undocumented provider payloads. They are always marked `status: fixture`, use `fixture://` sources, carry no secrets, and cannot emit an operational conclusion.
 
 Credentials never enter the headset page, scanner event, or MCP tool arguments. A future browser OAuth connection terminates at an MXG server-side broker and supplies a short-lived bearer token to the provider adapter; each provider must explicitly support that mode.
 

@@ -62,7 +62,7 @@ test('legacy floating browser implementation remains unmounted from primary VR s
   assert.doesNotMatch(viewer, /XRBrowserPanel/);
   assert.match(xrBrowser, /MXGeniusXRBrowserButton/);
   assert.match(xrBrowser, /MXGeniusXRBrowserPanel/);
-  assert.match(xrBrowser, /PARTS & SOURCING/);
+  assert.match(xrBrowser, /MAINTENANCE/);
   assert.match(xrBrowser, /AIRCRAFT RECORDS/);
   assert.match(xrBrowser, /TECHNICAL REFERENCES/);
   assert.match(xrBrowser, /URL PENDING/);

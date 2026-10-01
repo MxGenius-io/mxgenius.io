@@ -1,8 +1,6 @@
-//! Analytics tool handlers (4): `mxg.analytics.*`.
+//! Analytics tool handlers: `mxg.analytics.*`.
 //!
-//! All four tools are derived from the tenant-scoped case spine and the
-//! Parts inventory repository (when the application Postgres pool is
-//! configured). They never invent values: missing sources are surfaced
+//! The tools are derived from the tenant-scoped case spine. They never invent values: missing sources are surfaced
 //! as typed partial envelopes with explicit `not_configured` warnings.
 
 use std::collections::BTreeMap;
@@ -15,18 +13,15 @@ use mxgenius_shared::application::errors::StableErrorCode;
 use mxgenius_shared::application::policy::Action;
 use mxgenius_shared::contracts::{
     AnalyticsExecKpisRequest, AnalyticsExecKpisResponse, AnalyticsFleetHealthRequest,
-    AnalyticsFleetHealthResponse, AnalyticsPartsRiskRequest, AnalyticsPartsRiskResponse,
-    AnalyticsRepeatDefectsRequest, AnalyticsRepeatDefectsResponse, DrillThroughRef, ExecKpi,
-    FleetHealthMetric, PartsRisk, RepeatDefect,
+    AnalyticsFleetHealthResponse, AnalyticsRepeatDefectsRequest, AnalyticsRepeatDefectsResponse,
+    DrillThroughRef, ExecKpi, FleetHealthMetric, RepeatDefect,
 };
 use mxgenius_shared::domain::case::{CasePriority, CaseStatus, MaintenanceCase};
 use mxgenius_shared::domain::datetime::UtcDateTime;
 use mxgenius_shared::domain::evidence::ConfidenceBasis;
 use time::OffsetDateTime;
-use uuid::Uuid;
 
 use crate::application::case_service::CaseService;
-use crate::application::parts_inventory::{PartsInventoryRepository, SearchPartsQuery};
 use crate::handlers::limited_spec;
 use crate::registry::Registry;
 use crate::tool::Tool;
@@ -35,7 +30,7 @@ use crate::typed_tool::wrap;
 pub fn register(
     reg: &mut Registry,
     case_service: Arc<dyn CaseService>,
-    pool: Option<sqlx::PgPool>,
+    _pool: Option<sqlx::PgPool>,
 ) {
     reg.register_typed_tool(wrap(Arc::new(AnalyticsFleetHealthTool {
         case_service: case_service.clone(),
@@ -43,11 +38,6 @@ pub fn register(
     reg.register_typed_tool(wrap(Arc::new(AnalyticsRepeatDefectsTool {
         case_service: case_service.clone(),
     })));
-    if let Some(pool) = pool {
-        reg.register_typed_tool(wrap(Arc::new(AnalyticsPartsRiskTool { pool: Some(pool) })));
-    } else {
-        reg.register_typed_tool(wrap(Arc::new(AnalyticsPartsRiskTool { pool: None })));
-    }
     reg.register_typed_tool(wrap(Arc::new(AnalyticsExecKpisTool { case_service })));
 }
 
@@ -318,161 +308,6 @@ fn normalize_symptom(raw: &str) -> String {
         .take(3)
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-// 49. parts_risk -----------------------------------------------------------
-
-pub struct AnalyticsPartsRiskTool {
-    pool: Option<sqlx::PgPool>,
-}
-
-#[async_trait]
-impl Tool for AnalyticsPartsRiskTool {
-    type Request = AnalyticsPartsRiskRequest;
-    type Response = AnalyticsPartsRiskResponse;
-
-    fn spec(&self) -> crate::tool::ToolSpec {
-        let mut tool_spec = limited_spec::<Self::Request, Self::Response>(
-            "mxg.analytics.parts_risk",
-            "Parts Risk",
-            "Return shortage/lead-time/certificate/supplier risks with supporting history and uncertainty.",
-            Action::AnalyticsRead,
-            false,
-        );
-        if self.pool.is_none() {
-            tool_spec.availability = "not_configured".into();
-        }
-        tool_spec
-    }
-
-    async fn invoke(
-        &self,
-        ctx: &ExecutionContext,
-        _input: AnalyticsPartsRiskRequest,
-    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        let Some(pool) = self.pool.as_ref() else {
-            let mut env = CapabilityEnvelope::new(
-                ctx.request_id.0,
-                AnalyticsPartsRiskResponse { risks: vec![] },
-            );
-            env.status = EnvelopeStatus::Partial;
-            env.warnings.push(EnvelopeError {
-                code: StableErrorCode::NotConfigured,
-                severity: "warn".into(),
-                message: "parts_risk requires a mounted database; risk sources are not available in this build"
-                    .into(),
-                retryable: false,
-            });
-            env.confidence.score = 0.0;
-            return Ok(env);
-        };
-        let repository = PartsInventoryRepository::new(pool);
-        // Unwindowed: this scores risk across all available stock, and a page
-        // of it would be a different, quietly wrong answer.
-        let units = repository
-            .search_all(
-                ctx,
-                &SearchPartsQuery {
-                    query: None,
-                    status: Some("available".into()),
-                    location: None,
-                    page: None,
-                    page_size: None,
-                },
-            )
-            .await
-            .map_err(|e| EnvelopeError {
-                code: StableErrorCode::InternalError,
-                severity: "error".into(),
-                message: e.to_string(),
-                retryable: true,
-            })?;
-        // Group by part_id; missing certificate == certificate risk;
-        // condition codes other than NE/NS == quality risk.
-        let mut by_part: BTreeMap<
-            Uuid,
-            (
-                String,
-                Vec<&crate::application::parts_inventory::StockUnitDto>,
-            ),
-        > = BTreeMap::new();
-        for unit in &units {
-            let entry = by_part
-                .entry(unit.part_id)
-                .or_insert_with(|| (unit.part_number.clone(), Vec::new()));
-            entry.1.push(unit);
-        }
-        let mut risks: Vec<PartsRisk> = Vec::new();
-        for (_part_id, (part_number, group)) in by_part {
-            let missing_certificates = group
-                .iter()
-                .filter(|u| u.certificate_number.is_none())
-                .count();
-            if missing_certificates > 0 {
-                risks.push(PartsRisk {
-                    part_number: part_number.clone(),
-                    kind: "certificate".into(),
-                    severity: if missing_certificates == group.len() {
-                        "high".into()
-                    } else {
-                        "medium".into()
-                    },
-                    supporting_history: vec![format!(
-                        "{missing_certificates} of {} stock units lack a certificate_number",
-                        group.len()
-                    )],
-                    uncertainty:
-                        "supplier certificate authority is not provided by the supplied source"
-                            .into(),
-                    blocking_case_ids: vec![],
-                });
-            }
-            let non_optimal = group
-                .iter()
-                .filter(|u| !matches!(u.condition_code.as_str(), "NE" | "NS"))
-                .count();
-            if non_optimal > 0 {
-                risks.push(PartsRisk {
-                    part_number: part_number.clone(),
-                    kind: "lead_time".into(),
-                    severity: if non_optimal == group.len() {
-                        "medium".into()
-                    } else {
-                        "low".into()
-                    },
-                    supporting_history: vec![format!(
-                        "{non_optimal} of {} stock units are below NE/NS condition",
-                        group.len()
-                    )],
-                    uncertainty: "supplier lead-time is not provided by the supplied source".into(),
-                    blocking_case_ids: vec![],
-                });
-            }
-        }
-        let mut env =
-            CapabilityEnvelope::new(ctx.request_id.0, AnalyticsPartsRiskResponse { risks });
-        env.confidence.basis = ConfidenceBasis::DeterministicLookup;
-        env.confidence.explanation =
-            "tenant-scoped stock_units; supplier shortage, pricing, and lead-time are not provided by the supplied source"
-                .into();
-        if env.output.risks.is_empty() {
-            env.warnings.push(EnvelopeError {
-                code: StableErrorCode::EntityNotFound,
-                severity: "info".into(),
-                message: "no certificate or lead-time risks detected in current stock_units".into(),
-                retryable: false,
-            });
-        }
-        env.warnings.push(EnvelopeError {
-            code: StableErrorCode::NotConfigured,
-            severity: "info".into(),
-            message:
-                "supplier and shortage/lead-time sources are not provided by the supplied build"
-                    .into(),
-            retryable: false,
-        });
-        Ok(env)
-    }
 }
 
 // 50. exec_kpis -----------------------------------------------------------

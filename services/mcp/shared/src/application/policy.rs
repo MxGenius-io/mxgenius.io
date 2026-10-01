@@ -132,15 +132,6 @@ pub enum Action {
     CaseRead,
     CaseUpdateStatus,
     CaseAttachObservation,
-    // Parts
-    PartsRead,
-    /// Commercial figures: what was paid, to whom, on whose account.
-    ///
-    /// Separate from `PartsRead` because stock on a shelf and the price paid
-    /// for it are different disclosures. `PartsRead` reaches every role down
-    /// to `Viewer`; purchase costs and supplier identities should not.
-    PartsCostRead,
-    PartsAttachCertificate,
     // Weather
     WeatherRead,
     // Compliance
@@ -183,7 +174,6 @@ impl PolicyMatrix {
                     a,
                     AircraftRead
                         | CaseRead
-                        | PartsRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -200,7 +190,6 @@ impl PolicyMatrix {
                     AircraftRead
                         | CaseRead
                         | CaseAttachObservation
-                        | PartsRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -220,8 +209,6 @@ impl PolicyMatrix {
                         | CaseRead
                         | CaseCreate
                         | CaseUpdateStatus
-                        | PartsRead
-                        | PartsCostRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -239,8 +226,6 @@ impl PolicyMatrix {
                     AircraftRead
                         | CaseRead
                         | CaseUpdateStatus
-                        | PartsRead
-                        | PartsCostRead
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -256,9 +241,6 @@ impl PolicyMatrix {
                     a,
                     AircraftRead
                         | CaseRead
-                        | PartsRead
-                        | PartsCostRead
-                        | PartsAttachCertificate
                         | WeatherRead
                         | ComplianceRead
                         | TwinRead
@@ -274,8 +256,6 @@ impl PolicyMatrix {
                     a,
                     AircraftRead
                         | CaseRead
-                        | PartsRead
-                        | PartsAttachCertificate
                         | WeatherRead
                         | ComplianceRead
                         | ComplianceReturnToService

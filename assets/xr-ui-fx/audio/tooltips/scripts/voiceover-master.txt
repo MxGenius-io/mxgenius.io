@@ -1,24 +1,12 @@
 Your signed-in identity and organization determine which protected workspaces are available. Open your account menu here whenever you need to confirm access.
 
-The main navigation keeps cases, parts, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.
+The main navigation keeps cases, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.
 
 Connection status tells you when MXGenius services and live fleet data are available. Wait for the required service before starting a protected workflow.
 
-Ask about an aircraft, part, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.
+Ask about an aircraft, component, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.
 
 Start with the aircraft and the observed discrepancy. The case keeps the available evidence, spatial findings, approval state, and follow-up work connected as the maintenance workflow is completed.
-
-Use Parts Management to receive evidence, review model suggestions, manage serialized inventory, and return to the same controlled unit record from its QR label.
-
-Start a receiving draft with manual details or source evidence. MXGenius can extract and propose fields from a document or image, but you accept, edit, or reject those suggestions before confirmation creates the controlled stock unit and its first ledger event.
-
-Search by part number, description, serial number, status, or location, then open the physical unit record. Its documents, confirmed corrections, inventory events, installation history, FAA references, and QR label remain attached to that controlled unit.
-
-Requests capture priority, need-by date, and sourcing progress. Shortages compare open case demand with genuinely free stock, excluding units that are reserved or unavailable, so the team can see what is covered and what still needs action.
-
-The rotable register follows a serialized unit across stock, installation, repair, transit, loan, and retirement. A rob remains a separate controlled workflow: one person proposes it, another approves it, and completion waits for the donor removal and receiver installation records.
-
-Upload a CSV or Excel file and preview the exact changes before anything is written. Add-only mode refuses rows that would alter existing records. Applying requires confirmation, records an import journal, and preserves a guarded rollback path when later work has not made reversal unsafe.
 
 Fleet Context combines mapped aircraft, search, and source-backed company information. Load it before opening charts or the fleet globe.
 

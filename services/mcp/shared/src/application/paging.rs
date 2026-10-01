@@ -4,7 +4,7 @@
 //! response envelope, because the alternative is what this module replaces: a
 //! bare `LIMIT 250` repeated across seven queries. A hard cap with no cursor,
 //! no total, and no signal reads to the caller as "there are 250 of these"
-//! rather than "there are more than we will tell you about", and the parts
+//! rather than "there are more than we will tell you about", and the records
 //! request population is expected to run well past that.
 //!
 //! Two rules the callers depend on:

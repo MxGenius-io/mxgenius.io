@@ -97,7 +97,7 @@
       "properties": {
         "targetId": { "$ref": "#/$defs/targetId" },
         "kind": {
-          "enum": ["aircraft", "case", "component", "mesh", "part-unit", "sensor", "fleet-location", "observed-object"]
+          "enum": ["aircraft", "case", "component", "mesh", "sensor", "fleet-location", "observed-object"]
         },
         "label": { "type": "string", "minLength": 1, "maxLength": 180 },
         "state": { "enum": ["candidate", "locked", "lost", "cleared"] },

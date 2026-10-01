@@ -3,34 +3,31 @@ const MXCapabilityWorkbench = (() => {
   const FALLBACK_NAMES = [
     'mxg.aircraft.lookup','mxg.aircraft.profile','mxg.aircraft.location_context','mxg.aircraft.utilization_summary','mxg.aircraft.related_entities','mxg.aircraft.history_window',
     'mxg.maintenance_case.create','mxg.maintenance_case.get','mxg.maintenance_case.build_context','mxg.maintenance_case.similar_cases','mxg.maintenance_case.update_status','mxg.maintenance_case.attach_observation',
-    'mxg.parts.resolve','mxg.parts.alternates','mxg.parts.inventory','mxg.parts.rank_options','mxg.parts.order_history','mxg.parts.attach_certificate',
     'mxg.weather.airport_now','mxg.weather.maintenance_window','mxg.weather.ramp_risk','mxg.weather.ferry_assessment','mxg.weather.hazard_overlay',
     'mxg.compliance.applicable_ads','mxg.compliance.saib_search','mxg.compliance.manual_currency','mxg.compliance.record_audit','mxg.compliance.return_to_service_pack',
     'mxg.digital_twin.list_models','mxg.digital_twin.component_state','mxg.digital_twin.highlight_zone','mxg.digital_twin.link_documents','mxg.digital_twin.attach_case_marker',
-    'mxg.scheduling.window_options','mxg.scheduling.resource_match','mxg.scheduling.conflict_scan','mxg.scheduling.parts_readiness','mxg.scheduling.publish_plan',
+    'mxg.scheduling.window_options','mxg.scheduling.resource_match','mxg.scheduling.conflict_scan','mxg.scheduling.publish_plan',
     'mxg.evidence.collect','mxg.evidence.trace_case','mxg.evidence.citation_pack','mxg.evidence.conflict_check',
-    'mxg.analytics.fleet_health','mxg.analytics.repeat_defects','mxg.analytics.parts_risk','mxg.analytics.exec_kpis'
+    'mxg.analytics.fleet_health','mxg.analytics.repeat_defects','mxg.analytics.exec_kpis'
   ];
 
   const JOBS = [
     { id: 'aircraft', title: 'Assess an aircraft', description: 'Identity, profile, location, utilization, relationships, and history.', domains: ['aircraft'] },
     { id: 'case', title: 'Plan and execute maintenance', description: 'Build the case record, plan the work, schedule resources, and connect 3D findings.', domains: ['maintenance_case', 'scheduling', 'digital_twin'] },
-    { id: 'support', title: 'Source parts and support', description: 'Resolve parts and check supply for a case requirement.', domains: ['parts'] },
     { id: 'weather', title: 'Check operating conditions', description: 'Assess airport weather, ramp risk, maintenance windows, and ferry conditions.', domains: ['weather'] },
     { id: 'assurance', title: 'Verify compliance and evidence', description: 'Review regulatory applicability, source currency, evidence, and release records.', domains: ['compliance', 'evidence'] },
-    { id: 'analytics', title: 'Review fleet performance', description: 'Fleet health, repeat defects, parts risk, and operational KPIs.', domains: ['analytics'] }
+    { id: 'analytics', title: 'Review fleet performance', description: 'Fleet health, repeat defects, and operational KPIs.', domains: ['analytics'] }
   ];
 
   const ACTION_TITLES = {
     lookup: 'Find aircraft', profile: 'View aircraft profile', location_context: 'Check aircraft location', utilization_summary: 'Review utilization', related_entities: 'View owner and operator', history_window: 'Review aircraft history',
     create: 'Create maintenance case', get: 'Open maintenance case', build_context: 'Build case brief', similar_cases: 'Find similar cases', update_status: 'Move case forward', attach_observation: 'Add observation',
-    resolve: 'Identify a part', alternates: 'Check alternates', inventory: 'Check inventory', rank_options: 'Compare sourcing options', attach_certificate: 'Attach certificate',
     airport_now: 'Current airport weather', maintenance_window: 'Find maintenance window', ramp_risk: 'Assess ramp risk', ferry_assessment: 'Assess ferry window', hazard_overlay: 'Show weather hazards',
     applicable_ads: 'Check applicable ADs', saib_search: 'Search SAIBs', manual_currency: 'Check manual currency', record_audit: 'Audit maintenance records', return_to_service_pack: 'Prepare release evidence',
     list_models: 'Choose aircraft model', component_state: 'View component state', highlight_zone: 'Highlight component zone', link_documents: 'Link documents to model', attach_case_marker: 'Add 3D case marker',
-    window_options: 'Find schedule options', resource_match: 'Match resources', conflict_scan: 'Check schedule conflicts', parts_readiness: 'Check parts readiness', publish_plan: 'Publish maintenance plan',
+    window_options: 'Find schedule options', resource_match: 'Match resources', conflict_scan: 'Check schedule conflicts', publish_plan: 'Publish maintenance plan',
     collect: 'Collect evidence', trace_case: 'Trace case evidence', citation_pack: 'Create citation pack', conflict_check: 'Check evidence conflicts',
-    fleet_health: 'Review fleet health', repeat_defects: 'Find repeat defects', parts_risk: 'Review parts risk', exec_kpis: 'Review operational KPIs'
+    fleet_health: 'Review fleet health', repeat_defects: 'Find repeat defects', exec_kpis: 'Review operational KPIs'
   };
 
   const FIELD_LABELS = {

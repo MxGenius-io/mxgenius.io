@@ -1,5 +1,5 @@
-//! Typed contracts for the 49 active v1 capabilities retained from the
-//! originally numbered 50-capability specification. The original numbering is
+//! Typed contracts for the active v1 capabilities retained from the
+//! originally numbered capability specification. The original numbering is
 //! preserved in the modules for traceability. Each active tool has a request
 //! and response type, and all types derive `Serialize`, `Deserialize`, and
 //! `JsonSchema` so the dispatcher can publish authoritative schemas via
@@ -18,7 +18,6 @@ pub mod digital_twin;
 pub mod environment;
 pub mod evidence;
 pub mod manual;
-pub mod parts;
 pub mod scheduling;
 pub mod ui;
 pub mod weather;
@@ -32,7 +31,6 @@ pub use digital_twin::*;
 pub use environment::*;
 pub use evidence::*;
 pub use manual::*;
-pub use parts::*;
 pub use scheduling::*;
 pub use ui::*;
 pub use weather::*;

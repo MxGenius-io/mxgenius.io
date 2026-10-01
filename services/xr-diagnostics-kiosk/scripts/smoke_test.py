@@ -108,7 +108,7 @@ async def main() -> None:
         raise RuntimeError("Integration fixture schema is not the canonical contract")
     integrations = get_json(f"{base_url}/api/v1/integrations/simulated")
     providers = {row.get("provider") for row in integrations.get("integrations", [])}
-    if providers != {"aviationweather", "partsbase", "honeywell-forge"}:
+    if providers != {"aviationweather", "honeywell-forge"}:
         raise RuntimeError(f"Integration fixture registry mismatch: {providers}")
     print("PASS integration fixture schema + registry")
 

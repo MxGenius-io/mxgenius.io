@@ -107,7 +107,6 @@ pub struct ComplianceRecordAuditResponse {
     pub missing_evidence: Vec<String>,
     pub missing_signatures: Vec<String>,
     pub missing_approvals: Vec<String>,
-    pub part_documentation_gaps: Vec<String>,
     pub unresolved_warnings: Vec<RecordAuditFinding>,
     pub completeness: String,
 }

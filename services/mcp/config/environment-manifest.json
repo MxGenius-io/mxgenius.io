@@ -1,17 +1,16 @@
 {
   "manifest_kind": "mxgenius_environment",
   "schema_version": "1.0.0",
-  "version": 11,
-  "released_at": "2026-09-17",
+  "version": 12,
+  "released_at": "2026-10-01",
   "product": {
     "id": "mxgenius",
     "name": "MXGenius",
-    "purpose": "An aviation maintenance workspace that connects fleet context, maintenance cases, approved technical evidence, parts operations, spatial inspection, and governed edge delivery."
+    "purpose": "An aviation maintenance workspace that connects fleet context, maintenance cases, approved technical evidence, spatial inspection, and governed edge delivery."
   },
   "navigation_order": [
     "dashboard",
     "case",
-    "parts",
     "maintenance-workspace",
     "settings"
   ],
@@ -24,11 +23,24 @@
       "route": null,
       "purpose": "Keeps identity, service readiness, primary navigation, and persistent application controls visible across workspaces.",
       "capabilities": [
-        {"id": "identity-access", "description": "Show the signed-in identity, organization, and available role-scoped workspaces."},
-        {"id": "primary-navigation", "description": "Move among the primary application workspaces without discarding active context."},
-        {"id": "service-readiness", "description": "Distinguish ready, degraded, unavailable, and unverified application dependencies."}
+        {
+          "id": "identity-access",
+          "description": "Show the signed-in identity, organization, and available role-scoped workspaces."
+        },
+        {
+          "id": "primary-navigation",
+          "description": "Move among the primary application workspaces without discarding active context."
+        },
+        {
+          "id": "service-readiness",
+          "description": "Distinguish ready, degraded, unavailable, and unverified application dependencies."
+        }
       ],
-      "target_ids": ["account-access", "main-navigation", "connection-status"]
+      "target_ids": [
+        "account-access",
+        "main-navigation",
+        "connection-status"
+      ]
     },
     {
       "id": "dashboard",
@@ -38,11 +50,23 @@
       "route": "#dashboard",
       "purpose": "Orient to fleet, aircraft, organizations, contacts, market intelligence, and active maintenance work.",
       "capabilities": [
-        {"id": "fleet-context", "description": "Review fleet totals, mapped aircraft, urgency signals, and active-case context."},
-        {"id": "aircraft-explorer", "description": "Find an aircraft through scan or direct identifiers and open its operational detail."},
-        {"id": "operator-facility-directory", "description": "Review operators, facilities, contacts, and market intelligence in one directory."}
+        {
+          "id": "fleet-context",
+          "description": "Review fleet totals, mapped aircraft, urgency signals, and active-case context."
+        },
+        {
+          "id": "aircraft-explorer",
+          "description": "Find an aircraft through scan or direct identifiers and open its operational detail."
+        },
+        {
+          "id": "operator-facility-directory",
+          "description": "Review operators, facilities, contacts, and market intelligence in one directory."
+        }
       ],
-      "target_ids": ["fleet-context", "aircraft-explorer"]
+      "target_ids": [
+        "fleet-context",
+        "aircraft-explorer"
+      ]
     },
     {
       "id": "case",
@@ -52,27 +76,22 @@
       "route": "#case",
       "purpose": "Create or review a maintenance case while keeping observations, evidence, findings, warnings, approvals, and history together.",
       "capabilities": [
-        {"id": "case-intake", "description": "Start with an aircraft and observed discrepancy, then attach bounded evidence."},
-        {"id": "case-review", "description": "Review findings, source-backed guidance, approval state, and case history."},
-        {"id": "case-spatial-context", "description": "Keep spatial findings and captured media connected to the same case."}
+        {
+          "id": "case-intake",
+          "description": "Start with an aircraft and observed discrepancy, then attach bounded evidence."
+        },
+        {
+          "id": "case-review",
+          "description": "Review findings, source-backed guidance, approval state, and case history."
+        },
+        {
+          "id": "case-spatial-context",
+          "description": "Keep spatial findings and captured media connected to the same case."
+        }
       ],
-      "target_ids": ["maintenance-case"]
-    },
-    {
-      "id": "parts",
-      "label": "Parts Management",
-      "kind": "tab",
-      "parent_id": null,
-      "route": "#parts",
-      "purpose": "Manage receiving, controlled inventory, traceability, demand, procurement, rotables, aircraft robs, and imports.",
-      "capabilities": [
-        {"id": "parts-receiving", "description": "Create a receiving draft, review extracted proposals, and confirm the controlled stock record."},
-        {"id": "parts-inventory", "description": "Search and inspect serialized units, documents, state, location, history, and labels."},
-        {"id": "parts-demand", "description": "Track requests, shortages, need-by state, sourcing, orders, and shipments."},
-        {"id": "parts-rotables-robs", "description": "Track rotable history and separation-of-duties aircraft rob workflows."},
-        {"id": "parts-import", "description": "Preview bounded parts imports before confirmation and preserve guarded rollback evidence."}
-      ],
-      "target_ids": ["parts-management", "parts-receiving", "parts-inventory", "parts-demand", "parts-rotables-robs", "parts-import"]
+      "target_ids": [
+        "maintenance-case"
+      ]
     },
     {
       "id": "maintenance-workspace",
@@ -82,12 +101,32 @@
       "route": "#3d-viewer",
       "purpose": "Inspect 3D models and component targets alongside procedures, sensor diagnostics, case evidence, voice, and remote witness.",
       "capabilities": [
-        {"id": "model-inspection", "description": "Open curated or owned models, inspect meshes, and maintain component context."},
-        {"id": "procedure-media", "description": "Present bounded procedure media with optional timed mesh pairing."},
-        {"id": "sensor-diagnostics", "description": "Use the Pi diagnostics and sensor bridge without making it a requirement for the rest of the workspace."},
-        {"id": "spatial-collaboration", "description": "Carry case, target, voice, snapshot, and remote-witness context into the spatial workspace."}
+        {
+          "id": "model-inspection",
+          "description": "Open curated or owned models, inspect meshes, and maintain component context."
+        },
+        {
+          "id": "procedure-media",
+          "description": "Present bounded procedure media with optional timed mesh pairing."
+        },
+        {
+          "id": "sensor-diagnostics",
+          "description": "Use the Pi diagnostics and sensor bridge without making it a requirement for the rest of the workspace."
+        },
+        {
+          "id": "spatial-collaboration",
+          "description": "Carry case, target, voice, snapshot, and remote-witness context into the spatial workspace."
+        }
       ],
-      "target_ids": ["sensor-diagnostics", "3d-viewer-navigation", "model-library", "mesh-inspection", "procedure-media", "thermal-mount-exploded", "sensor-bridge-flow"]
+      "target_ids": [
+        "sensor-diagnostics",
+        "3d-viewer-navigation",
+        "model-library",
+        "mesh-inspection",
+        "procedure-media",
+        "thermal-mount-exploded",
+        "sensor-bridge-flow"
+      ]
     },
     {
       "id": "settings",
@@ -97,13 +136,33 @@
       "route": "#settings",
       "purpose": "Manage account and model preference, approved content upload, demo visibility, and customization. Customize contains colors, themes, and Interface Sounds. Restart Tour and Sign Out are standalone actions at the bottom. Open the Operations Center for R&D highlights, customer accounts, devices, Equipment Drives, reports, builds, readiness, patents, feedback, features, and access.",
       "capabilities": [
-        {"id": "profile-model", "description": "Manage the user profile and preferred orchestration-capable text model."},
-        {"id": "content-upload", "description": "Store an approved source for ingestion; upload alone does not make it searchable."},
-        {"id": "demo-content", "description": "Show or hide fictional maintenance and parts presentation records."},
-        {"id": "customize", "description": "Set colors and themes, then manage Interface Sounds within the same Customize card."},
-        {"id": "onboarding-session", "description": "Restart the onboarding tour or sign out using the standalone actions at the bottom of Settings."}
+        {
+          "id": "profile-model",
+          "description": "Manage the user profile and preferred orchestration-capable text model."
+        },
+        {
+          "id": "content-upload",
+          "description": "Store an approved source for ingestion; upload alone does not make it searchable."
+        },
+        {
+          "id": "demo-content",
+          "description": "Show or hide fictional maintenance presentation records."
+        },
+        {
+          "id": "customize",
+          "description": "Set colors and themes, then manage Interface Sounds within the same Customize card."
+        },
+        {
+          "id": "onboarding-session",
+          "description": "Restart the onboarding tour or sign out using the standalone actions at the bottom of Settings."
+        }
       ],
-      "target_ids": ["settings-operations-center", "settings-account", "settings-customize", "settings-restart-tour"]
+      "target_ids": [
+        "settings-operations-center",
+        "settings-account",
+        "settings-customize",
+        "settings-restart-tour"
+      ]
     },
     {
       "id": "copilot",
@@ -113,11 +172,23 @@
       "route": null,
       "purpose": "Provide natural, context-aware assistance and retrieve approved evidence when the user's question benefits from it.",
       "capabilities": [
-        {"id": "conversation", "description": "Carry the current thread and the last visible answer forward naturally."},
-        {"id": "manual-retrieval", "description": "Retrieve bounded approved manual excerpts and linked figures on demand."},
-        {"id": "environment-awareness", "description": "Understand stable product surfaces separately from live UI and operational state."}
+        {
+          "id": "conversation",
+          "description": "Carry the current thread and the last visible answer forward naturally."
+        },
+        {
+          "id": "manual-retrieval",
+          "description": "Retrieve bounded approved manual excerpts and linked figures on demand."
+        },
+        {
+          "id": "environment-awareness",
+          "description": "Understand stable product surfaces separately from live UI and operational state."
+        }
       ],
-      "target_ids": ["ai-copilot", "model-context"]
+      "target_ids": [
+        "ai-copilot",
+        "model-context"
+      ]
     },
     {
       "id": "fleet-globe",
@@ -127,12 +198,30 @@
       "route": "3d-viewer/index.html",
       "purpose": "Explore fleet locations and aircraft context inside the canonical spatial workspace, with capability-gated native AR available from the browser globe. One user-started live-flight control opens a provider-neutral aircraft list and maps only the selected flight over the unchanged fleet-location layer.",
       "capabilities": [
-        {"id": "location-exploration", "description": "Filter and select mapped fleet locations and inspect their aircraft."},
-        {"id": "live-flight-positions", "description": "Start or stop the shared live-flight feed, browse aircraft in the details panel, and map one selected airplane with a short course ribbon. It refreshes at most twice per minute only while the Fleet Globe is visible."},
-        {"id": "xr-fleet-view", "description": "Open the same bounded fleet context in a headset browser."},
-        {"id": "native-ar-fleet-view", "description": "Open native AR placement only when the host reports that capability."}
+        {
+          "id": "location-exploration",
+          "description": "Filter and select mapped fleet locations and inspect their aircraft."
+        },
+        {
+          "id": "live-flight-positions",
+          "description": "Start or stop the shared live-flight feed, browse aircraft in the details panel, and map one selected airplane with a short course ribbon. It refreshes at most twice per minute only while the Fleet Globe is visible."
+        },
+        {
+          "id": "xr-fleet-view",
+          "description": "Open the same bounded fleet context in a headset browser."
+        },
+        {
+          "id": "native-ar-fleet-view",
+          "description": "Open native AR placement only when the host reports that capability."
+        }
       ],
-      "target_ids": ["fleet-xr", "fleet-globe-controls", "fleet-live-traffic", "fleet-location-data", "native-ar-globe"]
+      "target_ids": [
+        "fleet-xr",
+        "fleet-globe-controls",
+        "fleet-live-traffic",
+        "fleet-location-data",
+        "native-ar-globe"
+      ]
     },
     {
       "id": "operations-center",
@@ -142,27 +231,79 @@
       "route": "operations-center.html",
       "purpose": "Review the report-backed R&D video collection, then operate customer accounts, registered Pi fleets, Equipment Drive delivery, payment history, service health, reports, build activity, integration readiness, patents, feedback, and access management.",
       "capabilities": [
-        {"id": "rd-highlights", "description": "Play the complete R&D video collection extracted from weekly reports and open the original report context for each recording."},
-        {"id": "customer-operations", "description": "Manage tenant-owned customer accounts, attach multiple Pi devices, review heartbeat and deployment errors, record payment history, and deliver approved Equipment Drives."},
-        {"id": "reports-builds", "description": "Review generated reports and shared build activity."},
-        {"id": "integration-readiness", "description": "Track integration boundaries, owners, access, and cutover state."},
-        {"id": "patent-portfolio", "description": "Create, switch, save, and archive independent patent drafting projects without mixing their documents or references."},
-        {"id": "feedback-access", "description": "Manage personal feedback, authorized triage, and access rules."},
-        {"id": "shared-workspaces", "description": "Open durable team workspaces from one authenticated center."}
+        {
+          "id": "rd-highlights",
+          "description": "Play the complete R&D video collection extracted from weekly reports and open the original report context for each recording."
+        },
+        {
+          "id": "customer-operations",
+          "description": "Manage tenant-owned customer accounts, attach multiple Pi devices, review heartbeat and deployment errors, record payment history, and deliver approved Equipment Drives."
+        },
+        {
+          "id": "reports-builds",
+          "description": "Review generated reports and shared build activity."
+        },
+        {
+          "id": "integration-readiness",
+          "description": "Track integration boundaries, owners, access, and cutover state."
+        },
+        {
+          "id": "patent-portfolio",
+          "description": "Create, switch, save, and archive independent patent drafting projects without mixing their documents or references."
+        },
+        {
+          "id": "feedback-access",
+          "description": "Manage personal feedback, authorized triage, and access rules."
+        },
+        {
+          "id": "shared-workspaces",
+          "description": "Open durable team workspaces from one authenticated center."
+        }
       ],
-      "target_ids": ["operations-rd-highlights", "operations-customers", "operations-patents"]
+      "target_ids": [
+        "operations-rd-highlights",
+        "operations-customers",
+        "operations-patents"
+      ]
     }
   ],
   "terminology": [
-    {"term": "Equipment Drive", "meaning": "A versioned approved library that can be assigned to a registered Pi; internal APIs retain the package contract name."},
-    {"term": "Content Upload", "meaning": "An approved source stored for later ingestion; an upload is not searchable until the ingestion pipeline promotes it."},
-    {"term": "Demo Content", "meaning": "A Settings control that shows or hides fictional presentation records in Maintenance and Parts."},
-    {"term": "Case Workspace", "meaning": "The aircraft-scoped maintenance record for observations, evidence, findings, approvals, and history."},
-    {"term": "Maintenance Workspace", "meaning": "The 3D and spatial inspection surface; it does not replace the Case Workspace record."},
-    {"term": "Equipment Drives", "meaning": "Versioned approved libraries managed in Operations Center customer accounts, then assigned to one of that customer's registered Pi devices."},
-    {"term": "Customer Operations", "meaning": "The tenant-owned account layer that groups customer information, multiple Pi devices, payment history, heartbeat and deployment health, and Equipment Drive delivery without storing payment credentials."},
-    {"term": "R&D Highlights", "meaning": "The first Operations Center tab: a playable collection of every video referenced by the weekly reports, with links back to each source report."},
-    {"term": "Operations Center", "meaning": "The consolidated entry point opened from Settings for R&D highlights, customer operations, reports, builds, readiness, patents, feedback, access, and shared workspaces."}
+    {
+      "term": "Equipment Drive",
+      "meaning": "A versioned approved library that can be assigned to a registered Pi; internal APIs retain the package contract name."
+    },
+    {
+      "term": "Content Upload",
+      "meaning": "An approved source stored for later ingestion; an upload is not searchable until the ingestion pipeline promotes it."
+    },
+    {
+      "term": "Demo Content",
+      "meaning": "A Settings control that shows or hides fictional presentation records in Maintenance."
+    },
+    {
+      "term": "Case Workspace",
+      "meaning": "The aircraft-scoped maintenance record for observations, evidence, findings, approvals, and history."
+    },
+    {
+      "term": "Maintenance Workspace",
+      "meaning": "The 3D and spatial inspection surface; it does not replace the Case Workspace record."
+    },
+    {
+      "term": "Equipment Drives",
+      "meaning": "Versioned approved libraries managed in Operations Center customer accounts, then assigned to one of that customer's registered Pi devices."
+    },
+    {
+      "term": "Customer Operations",
+      "meaning": "The tenant-owned account layer that groups customer information, multiple Pi devices, payment history, heartbeat and deployment health, and Equipment Drive delivery without storing payment credentials."
+    },
+    {
+      "term": "R&D Highlights",
+      "meaning": "The first Operations Center tab: a playable collection of every video referenced by the weekly reports, with links back to each source report."
+    },
+    {
+      "term": "Operations Center",
+      "meaning": "The consolidated entry point opened from Settings for R&D highlights, customer operations, reports, builds, readiness, patents, feedback, access, and shared workspaces."
+    }
   ],
   "state_boundary": {
     "stable_manifest": "This file describes durable product structure and guidance.",
@@ -177,7 +318,11 @@
       "voiceover": "../voiceover/account-access.wav",
       "captions": "../captions/account-access.vtt",
       "surface": "application-shell",
-      "touchpoints": ["#signedInAs", "account settings", "organization access"],
+      "touchpoints": [
+        "#signedInAs",
+        "account settings",
+        "organization access"
+      ],
       "beats": [
         "Identify the signed-in person and organization.",
         "Open account settings from the identity control.",
@@ -189,12 +334,16 @@
     {
       "id": "main-navigation",
       "title": "Move between workspaces",
-      "script": "The main navigation keeps cases, parts, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.",
+      "script": "The main navigation keeps cases, inspection, and settings in one predictable rail. Available workspaces follow your assigned role.",
       "video": "../../../visual/tooltips/main-navigation.mp4",
       "voiceover": "../voiceover/main-navigation.wav",
       "captions": null,
       "surface": "application-shell",
-      "touchpoints": ["#mainNav", "#caseNav", "#partsNav", "[data-tab=\"3d-viewer\"]"],
+      "touchpoints": [
+        "#mainNav",
+        "#caseNav",
+        "[data-tab=\"3d-viewer\"]"
+      ],
       "beats": [
         "Orient to the persistent application navigation.",
         "Move between the dashboard and an operational workspace.",
@@ -211,7 +360,11 @@
       "voiceover": "../voiceover/connection-status.wav",
       "captions": "../captions/connection-status.vtt",
       "surface": "application-shell",
-      "touchpoints": ["#apiStatus", "service state label", "affected workspace"],
+      "touchpoints": [
+        "#apiStatus",
+        "service state label",
+        "affected workspace"
+      ],
       "beats": [
         "Locate the application connection indicator.",
         "Distinguish ready, degraded, and unavailable states.",
@@ -223,12 +376,17 @@
     {
       "id": "ai-copilot",
       "title": "Use the AI copilot",
-      "script": "Ask about an aircraft, part, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.",
+      "script": "Ask about an aircraft, component, maintenance issue, or source record. MXGenius organizes evidence, while operational changes still require your confirmation.",
       "video": "../../../visual/tooltips/ai-copilot.mp4",
       "voiceover": "../voiceover/ai-copilot.wav",
       "captions": null,
       "surface": "copilot",
-      "touchpoints": ["#chatToggleNav", "#chatThreadSelect", "#chatInput", "source references"],
+      "touchpoints": [
+        "#chatToggleNav",
+        "#chatThreadSelect",
+        "#chatInput",
+        "source references"
+      ],
       "beats": [
         "Open the copilot from the application navigation.",
         "Confirm or change the active conversation and context.",
@@ -245,7 +403,12 @@
       "voiceover": "../voiceover/maintenance-case.wav",
       "captions": null,
       "surface": "case",
-      "touchpoints": ["#caseExistingSelect", "#caseIntakeForm", "#caseMarkerControls", "#caseWorkspaceResult"],
+      "touchpoints": [
+        "#caseExistingSelect",
+        "#caseIntakeForm",
+        "#caseMarkerControls",
+        "#caseWorkspaceResult"
+      ],
       "beats": [
         "Choose an existing case or start a new operational record.",
         "Describe the observed discrepancy without diagnosing it.",
@@ -255,108 +418,6 @@
       "status": "ready"
     },
     {
-      "id": "parts-management",
-      "title": "Work with controlled parts",
-      "script": "Use Parts Management to receive evidence, review model suggestions, manage serialized inventory, and return to the same controlled unit record from its QR label.",
-      "video": "../../../visual/tooltips/parts-management.mp4",
-      "voiceover": "../voiceover/parts-management.wav",
-      "captions": null,
-      "surface": "parts",
-      "touchpoints": ["#btnReceivePart", "#partsSearchInput", ".parts-view-switch", "#partsDrawer"],
-      "beats": [
-        "Receive a part and preserve the source document as evidence.",
-        "Review extraction suggestions before creating the controlled unit.",
-        "Track serial, status, location, requests, and rotable history.",
-        "Return to the same record from its QR label or linked maintenance case."
-      ],
-      "status": "ready"
-    },
-    {
-      "id": "parts-receiving",
-      "title": "Receive a controlled part",
-      "script": "Start a receiving draft with manual details or source evidence. MXGenius can extract and propose fields from a document or image, but you accept, edit, or reject those suggestions before confirmation creates the controlled stock unit and its first ledger event.",
-      "video": "../../../visual/tooltips/parts-receiving.mp4",
-      "voiceover": "../voiceover/parts-receiving.wav",
-      "captions": null,
-      "surface": "parts",
-      "touchpoints": ["#btnReceivePart", "#receivingWizard", "#wizardExtractedData", "#wizardConfirmationSummary"],
-      "beats": [
-        "Open a receiving draft from Parts Management.",
-        "Add source evidence or continue with manual entry.",
-        "Review each extracted suggestion and its warning state.",
-        "Confirm the stock unit only after the controlled fields are correct."
-      ],
-      "status": "ready"
-    },
-    {
-      "id": "parts-inventory",
-      "title": "Inspect an inventory unit",
-      "script": "Search by part number, description, serial number, status, or location, then open the physical unit record. Its documents, confirmed corrections, inventory events, installation history, FAA references, and QR label remain attached to that controlled unit.",
-      "video": "../../../visual/tooltips/parts-inventory.mp4",
-      "voiceover": "../voiceover/parts-inventory.wav",
-      "captions": "../captions/parts-inventory.vtt",
-      "surface": "parts",
-      "touchpoints": ["#partsSearchInput", "#partsStatusFilter", "#partsInventoryGrid", "#partsDrawer"],
-      "beats": [
-        "Narrow the inventory to the unit you need.",
-        "Open the physical stock-unit record rather than only the catalog part.",
-        "Review documents, status, location, and append-only history.",
-        "Return to the same unit through its QR label or linked case."
-      ],
-      "status": "recording"
-    },
-    {
-      "id": "parts-demand",
-      "title": "Manage requests and shortages",
-      "script": "Requests capture priority, need-by date, and sourcing progress. Shortages compare open case demand with genuinely free stock, excluding units that are reserved or unavailable, so the team can see what is covered and what still needs action.",
-      "video": "../../../visual/tooltips/parts-demand.mp4",
-      "voiceover": "../voiceover/parts-demand.wav",
-      "captions": "../captions/parts-demand.vtt",
-      "surface": "parts",
-      "touchpoints": ["#partsRequestsView", "#requestStatusFilter", "#partsShortageView", "#partsShortageList"],
-      "beats": [
-        "Open Requests and filter the active demand queue.",
-        "Confirm priority, need-by state, and sourcing status.",
-        "Switch to Shortages to compare demand with free stock.",
-        "Act on the uncovered requirement without counting reserved inventory twice."
-      ],
-      "status": "recording"
-    },
-    {
-      "id": "parts-rotables-robs",
-      "title": "Track rotables and aircraft robs",
-      "script": "The rotable register follows a serialized unit across stock, installation, repair, transit, loan, and retirement. A rob remains a separate controlled workflow: one person proposes it, another approves it, and completion waits for the donor removal and receiver installation records.",
-      "video": "../../../visual/tooltips/parts-rotables-robs.mp4",
-      "voiceover": "../voiceover/parts-rotables-robs.wav",
-      "captions": "../captions/parts-rotables-robs.vtt",
-      "surface": "parts",
-      "touchpoints": ["#partsRotablesView", "#partsRotableList", "#partsRobsView", "#partsRobList"],
-      "beats": [
-        "Find or register the serialized rotable.",
-        "Review its current state and aircraft history.",
-        "Propose a rob with donor, receiver, and rationale.",
-        "Complete it only after independent approval and both ledger movements."
-      ],
-      "status": "recording"
-    },
-    {
-      "id": "parts-import",
-      "title": "Import parts safely",
-      "script": "Upload a CSV or Excel file and preview the exact changes before anything is written. Add-only mode refuses rows that would alter existing records. Applying requires confirmation, records an import journal, and preserves a guarded rollback path when later work has not made reversal unsafe.",
-      "video": "../../../visual/tooltips/parts-import.mp4",
-      "voiceover": "../voiceover/parts-import.wav",
-      "captions": "../captions/parts-import.vtt",
-      "surface": "parts",
-      "touchpoints": ["#importFile", "#importMode", "#importPreviewPanel", "#importBatchList"],
-      "beats": [
-        "Choose the template-aligned CSV or Excel file.",
-        "Select add-only unless an explicit overwrite review is intended.",
-        "Preview and correct every rejected or conflicting row.",
-        "Confirm the import and retain its journal for recovery."
-      ],
-      "status": "recording"
-    },
-    {
       "id": "fleet-context",
       "title": "Explore fleet context",
       "script": "Fleet Context combines mapped aircraft, search, and source-backed company information. Load it before opening charts or the fleet globe.",
@@ -364,7 +425,12 @@
       "voiceover": "../voiceover/fleet-context.wav",
       "captions": "../captions/fleet-context.vtt",
       "surface": "dashboard",
-      "touchpoints": ["fleet context section", "#globeViz", "#aircraftExplorerCollapsible", "dashboard charts"],
+      "touchpoints": [
+        "fleet context section",
+        "#globeViz",
+        "#aircraftExplorerCollapsible",
+        "dashboard charts"
+      ],
       "beats": [
         "Open Fleet Context and establish the available fleet count.",
         "Show the mapped globe and Aircraft Explorer as two views of the same source.",
@@ -381,7 +447,12 @@
       "voiceover": "../voiceover/fleet-xr.wav",
       "captions": "../captions/fleet-xr.vtt",
       "surface": "fleet-globe",
-      "touchpoints": ["#globeVrButton", "XR summary HUD", "XR location points", "XR detail card"],
+      "touchpoints": [
+        "#globeVrButton",
+        "XR summary HUD",
+        "XR location points",
+        "XR detail card"
+      ],
       "beats": [
         "Load Fleet Context before entering the spatial globe.",
         "Open the XR scene from a supported headset browser.",
@@ -398,7 +469,12 @@
       "voiceover": "../voiceover/sensor-diagnostics.wav",
       "captions": "../captions/sensor-diagnostics.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": [".nav-tab[data-tab='3d-viewer']", "maintenance VR tray", "snapshot evidence control", "realtime witness"],
+      "touchpoints": [
+        ".nav-tab[data-tab='3d-viewer']",
+        "maintenance VR tray",
+        "snapshot evidence control",
+        "realtime witness"
+      ],
       "beats": [
         "Open the isolated sensor diagnostics scene.",
         "Confirm the native bridge and FLIR source state.",
@@ -415,7 +491,13 @@
       "voiceover": "../voiceover/fleet-globe-controls.wav",
       "captions": null,
       "surface": "fleet-globe",
-      "touchpoints": ["#globeTextureButtons", "#globeSearch", "#globeTypeFilter", "#globeSheetResults", "XR location points"],
+      "touchpoints": [
+        "#globeTextureButtons",
+        "#globeSearch",
+        "#globeTypeFilter",
+        "#globeSheetResults",
+        "XR location points"
+      ],
       "beats": [
         "Establish the fleet count, mapped count, and active filters.",
         "Use search or aircraft type to narrow the JetNet result set.",
@@ -432,7 +514,11 @@
       "voiceover": "../voiceover/fleet-location-data.wav",
       "captions": null,
       "surface": "fleet-globe",
-      "touchpoints": ["#globeTooltip", "#globeSheetResults", "XR selected-location card"],
+      "touchpoints": [
+        "#globeTooltip",
+        "#globeSheetResults",
+        "XR selected-location card"
+      ],
       "beats": [
         "Select a mapped point and name the location.",
         "Scan the aircraft and operator records grouped at that point.",
@@ -449,7 +535,13 @@
       "voiceover": null,
       "captions": null,
       "surface": "fleet-globe",
-      "touchpoints": ["#globeLiveTrafficButton", "#globeLiveTrafficRibbon", "#globeSheetResults", ".live-flight-marker", "live or stale status dot"],
+      "touchpoints": [
+        "#globeLiveTrafficButton",
+        "#globeLiveTrafficRibbon",
+        "#globeSheetResults",
+        ".live-flight-marker",
+        "live or stale status dot"
+      ],
       "beats": [
         "Open Fleet Context and expand the globe controls.",
         "Select live-flight data and let the details panel fill with the shared snapshot.",
@@ -467,7 +559,13 @@
       "voiceover": "../voiceover/aircraft-explorer.wav",
       "captions": null,
       "surface": "dashboard",
-      "touchpoints": ["#acModeScan", "#acScanBar", "#acModeDirect", "#acDirectBar", "#aircraftGrid"],
+      "touchpoints": [
+        "#acModeScan",
+        "#acScanBar",
+        "#acModeDirect",
+        "#acDirectBar",
+        "#aircraftGrid"
+      ],
       "beats": [
         "Choose Fleet Triage for discovery or Direct Search for a known tail.",
         "Apply the smallest useful set of filters.",
@@ -484,7 +582,13 @@
       "voiceover": "../voiceover/3d-viewer-navigation.wav",
       "captions": "../captions/3d-viewer-navigation.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": ["#model-select", "#canvas-container", "#reset-camera", "#hud-preview-button", "#enter-vr-button"],
+      "touchpoints": [
+        "#model-select",
+        "#canvas-container",
+        "#reset-camera",
+        "#hud-preview-button",
+        "#enter-vr-button"
+      ],
       "beats": [
         "Choose a tenant model or upload an authorized GLB.",
         "Orbit, zoom, and reset the inspection camera.",
@@ -501,7 +605,12 @@
       "voiceover": "../voiceover/model-library.wav",
       "captions": null,
       "surface": "maintenance-workspace",
-      "touchpoints": ["#model-library-button", "#model-library-search", "#model-library-provider", "#model-library-results"],
+      "touchpoints": [
+        "#model-library-button",
+        "#model-library-search",
+        "#model-library-provider",
+        "#model-library-results"
+      ],
       "beats": [
         "Open the full library from the compact model selector.",
         "Search or filter by provider and download size.",
@@ -518,7 +627,12 @@
       "voiceover": "../voiceover/mesh-inspection.wav",
       "captions": "../captions/mesh-inspection.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": ["#canvas-container", "#part-inspector", "#part-selection-name", "#part-selection-status"],
+      "touchpoints": [
+        "#canvas-container",
+        "#part-inspector",
+        "#part-selection-name",
+        "#part-selection-status"
+      ],
       "beats": [
         "Select a component directly on the model.",
         "Confirm its hierarchy path and mapping state in the inspector.",
@@ -535,7 +649,12 @@
       "voiceover": "../voiceover/procedure-media.wav",
       "captions": "../captions/procedure-media.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": ["#procedure-media-button", "#procedure-media-drawer", "#procedure-media-video", "#procedure-media-pairing"],
+      "touchpoints": [
+        "#procedure-media-button",
+        "#procedure-media-drawer",
+        "#procedure-media-video",
+        "#procedure-media-pairing"
+      ],
       "beats": [
         "Select a component that has paired procedure media.",
         "Open the media drawer without losing model context.",
@@ -552,7 +671,13 @@
       "voiceover": "../voiceover/thermal-mount-exploded.wav",
       "captions": "../captions/thermal-mount-exploded.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": ["#model-select", "#anim-select", "#anim-playpause", "#anim-scrubber", "#part-inspector"],
+      "touchpoints": [
+        "#model-select",
+        "#anim-select",
+        "#anim-playpause",
+        "#anim-scrubber",
+        "#part-inspector"
+      ],
       "beats": [
         "Load the thermal mount assembly and identify the installed state.",
         "Play or scrub the authored exploded animation.",
@@ -570,7 +695,13 @@
       "voiceover": "../voiceover/sensor-bridge-flow.wav",
       "captions": "../captions/sensor-bridge-flow.vtt",
       "surface": "maintenance-workspace",
-      "touchpoints": ["#openSensorCompanion", "#sensorRelayStep", "#sensorCompanionStep", "#sensorCameraStep", "#sensorTrace"],
+      "touchpoints": [
+        "#openSensorCompanion",
+        "#sensorRelayStep",
+        "#sensorCompanionStep",
+        "#sensorCameraStep",
+        "#sensorTrace"
+      ],
       "beats": [
         "Open the native thermal workspace from the browser scene.",
         "Confirm the app handoff and native panel stages.",
@@ -587,7 +718,12 @@
       "voiceover": "../voiceover/native-ar-globe.wav",
       "captions": "../captions/native-ar-globe.vtt",
       "surface": "fleet-globe",
-      "touchpoints": ["#globeArButton", "native AR placement", "native AR location pin", "native AR aircraft card"],
+      "touchpoints": [
+        "#globeArButton",
+        "native AR placement",
+        "native AR location pin",
+        "native AR aircraft card"
+      ],
       "beats": [
         "Open AR from a supported iOS installation.",
         "Place and scale the fleet globe in the room.",
@@ -604,7 +740,12 @@
       "voiceover": "../voiceover/model-context.wav",
       "captions": null,
       "surface": "copilot",
-      "touchpoints": ["#chatToggleNav", "active selection chip", "source references", "XR detail card"],
+      "touchpoints": [
+        "#chatToggleNav",
+        "active selection chip",
+        "source references",
+        "XR detail card"
+      ],
       "beats": [
         "Select the operational object you want to discuss.",
         "Open the copilot and confirm the active context.",
@@ -621,7 +762,10 @@
       "voiceover": null,
       "captions": null,
       "surface": "settings",
-      "touchpoints": ["#settingsOperationsCenterEntry", "#settingsOperationsCenterOpen"],
+      "touchpoints": [
+        "#settingsOperationsCenterEntry",
+        "#settingsOperationsCenterOpen"
+      ],
       "beats": [
         "Open Settings from the primary navigation.",
         "Locate the Operations Center entry above Account.",
@@ -639,7 +783,11 @@
       "voiceover": null,
       "captions": null,
       "surface": "operations-center",
-      "touchpoints": ["#tab-highlights", "#panel-highlights", ".highlight-card"],
+      "touchpoints": [
+        "#tab-highlights",
+        "#panel-highlights",
+        ".highlight-card"
+      ],
       "beats": [
         "Open Operations Center from Settings.",
         "Use the first R&D Highlights tab.",
@@ -657,7 +805,11 @@
       "voiceover": null,
       "captions": null,
       "surface": "settings",
-      "touchpoints": ["#settingsAccountCard", "#settingsAccountName", "#settingsAccountRole"],
+      "touchpoints": [
+        "#settingsAccountCard",
+        "#settingsAccountName",
+        "#settingsAccountRole"
+      ],
       "beats": [
         "Open Settings from the primary navigation.",
         "Locate the Account card at the top of the page.",
@@ -675,7 +827,12 @@
       "voiceover": null,
       "captions": null,
       "surface": "operations-center",
-      "touchpoints": ["#tab-customers", "#customerDirectoryList", "#settingsDevicesCard", "#settingsPacksCard"],
+      "touchpoints": [
+        "#tab-customers",
+        "#customerDirectoryList",
+        "#settingsDevicesCard",
+        "#settingsPacksCard"
+      ],
       "beats": [
         "Open Operations Center from Settings and choose Customers.",
         "Create or select the customer account before managing hardware.",
@@ -693,7 +850,11 @@
       "voiceover": null,
       "captions": null,
       "surface": "operations-center",
-      "touchpoints": ["#tab-patents", "#panel-patents", "#workspaceProjectSelect"],
+      "touchpoints": [
+        "#tab-patents",
+        "#panel-patents",
+        "#workspaceProjectSelect"
+      ],
       "beats": [
         "Open Operations Center from Settings.",
         "Choose the Patents tab.",
@@ -711,7 +872,11 @@
       "voiceover": null,
       "captions": null,
       "surface": "settings",
-      "touchpoints": ["#settingsCustomizeCard", "#settingsSoundsTitle", "#settingsSoundsCard"],
+      "touchpoints": [
+        "#settingsCustomizeCard",
+        "#settingsSoundsTitle",
+        "#settingsSoundsCard"
+      ],
       "beats": [
         "Open Settings from primary navigation.",
         "Locate Customize below the AI and data controls.",
@@ -729,7 +894,9 @@
       "voiceover": null,
       "captions": null,
       "surface": "settings",
-      "touchpoints": ["#settingsRestartTourBtn"],
+      "touchpoints": [
+        "#settingsRestartTourBtn"
+      ],
       "beats": [
         "Open Settings from primary navigation.",
         "Scroll to the standalone action row at the bottom.",

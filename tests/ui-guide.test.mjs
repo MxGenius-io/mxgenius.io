@@ -29,7 +29,7 @@ test('UI guide tool accepts only bounded semantic IDs and reversible behavior', 
 test('every primary surface has a manifest-owned semantic guide target', () => {
   const surfaceById = new Map(manifest.surfaces.map((surface) => [surface.id, surface]));
   const targetById = new Map(manifest.tooltips.map((target) => [target.id, target]));
-  assert.deepEqual(manifest.navigation_order, ['dashboard', 'case', 'parts', 'maintenance-workspace', 'settings']);
+  assert.deepEqual(manifest.navigation_order, ['dashboard', 'case', 'maintenance-workspace', 'settings']);
   for (const surfaceId of manifest.navigation_order) {
     const surface = surfaceById.get(surfaceId);
     assert.ok(surface, `${surfaceId} must exist`);
@@ -38,12 +38,7 @@ test('every primary surface has a manifest-owned semantic guide target', () => {
       assert.equal(targetById.get(targetId)?.surface, surfaceId, `${targetId} must belong to ${surfaceId}`);
     }
     const tabId = surface.route.slice(1);
-    if (surfaceId === 'parts') {
-      assert.doesNotMatch(dashboard, /data-tab="parts"/);
-      assert.match(dashboard, /id="tab-parts"/, 'Parts panel stays dormant until phase two');
-    } else {
-      assert.match(dashboard, new RegExp(`data-tab="${tabId}"`));
-    }
+    assert.match(dashboard, new RegExp(`data-tab="${tabId}"`));
   }
 });
 

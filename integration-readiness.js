@@ -50,14 +50,6 @@
       notes: 'Starter prompt only. Do not connect until purpose, privacy boundary, owner, and authorization are explicit.'
     },
     {
-      id: 'software-partspace', name: 'PartSpace', url: '', category: 'Parts & procurement', need: 'demo', status: 'needs_input', owner: 'Unassigned',
-      purpose: 'Locate or compare aviation parts inside the procurement workflow.',
-      dataIn: 'Part number, alternates, seller or inventory result, availability, condition, and lead time as authorized.',
-      dataOut: 'Search criteria, shortlist, source link, and buyer review request; no autonomous purchase.',
-      experience: 'A part requirement opens a familiar sourcing view with evidence and a clear human purchasing decision.',
-      notes: 'Add the exact vendor URL, API/product name, entitlement, sandbox availability, and named account owner.'
-    },
-    {
       id: 'software-faa-drs', name: 'FAA Dynamic Regulatory System (DRS)', url: 'https://drs.faa.gov/', category: 'Regulatory data', need: 'demo', status: 'scoped', owner: 'Unassigned',
       purpose: 'Surface candidate FAA regulatory material for applicability review.',
       dataIn: 'Airworthiness directives, type certificate data, and other approved/public FAA documents available to the workflow.',
@@ -225,7 +217,7 @@
     {
       id: 'migration-vendors', name: 'Vendor, API + data subscription ownership', platform: 'External providers', timing: 'review', status: 'needs_input',
       currentOwner: 'Current personal or project accounts — inventory', targetOwner: 'MXGenius contracts and company-managed identities', handoffOwner: 'Provider owner for each account — assign',
-      scope: 'JetNet, parts vendors, OEM portals, communications, analytics, AI/provider accounts, test services, licenses, API keys, support contracts, billing, and renewal contacts.',
+      scope: 'JetNet, maintenance vendors, OEM portals, communications, analytics, AI/provider accounts, test services, licenses, API keys, support contracts, billing, and renewal contacts.',
       platformRequirement: 'Each provider has its own contract, licensing, entitlement, and account-transfer rules. Some subscriptions may need a new company agreement rather than an ownership edit.',
       companyControl: 'Separate shared business access from personal credentials; give each provider one named owner, one backup, an approved billing source, and a secret-rotation record.',
       dependency: 'Use the Software list to identify every connected provider, then reconcile it against bank/card statements, password manager entries, source secrets, invoices, and support email.',
@@ -440,7 +432,7 @@
     form.append(
       textField(item, 'name', 'System or software name'),
       textField(item, 'url', 'URL / portal', { type: 'url', placeholder: 'https://…' }),
-      textField(item, 'category', 'Business area', { placeholder: 'Parts, manuals, communication…' }),
+      textField(item, 'category', 'Business area', { placeholder: 'Manuals, communication, operations…' }),
       selectField(item, 'need', 'When is it required?', NEED_OPTIONS),
       selectField(item, 'status', 'Readiness', STATUS_OPTIONS),
       textField(item, 'owner', 'Owner', { placeholder: 'Name or team' }),

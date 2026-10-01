@@ -61,22 +61,22 @@ async fn dispatch(d: &Dispatcher, method: &str, params: serde_json::Value) -> se
 }
 
 #[test]
-fn registry_has_49_unique_tools() {
+fn registry_has_41_unique_tools() {
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
     let reg = default_registry(cs, ev);
     let info = server_info(&reg);
-    assert_eq!(info.tool_count, 49);
-    assert_eq!(info.resource_count, 15);
-    assert_eq!(info.prompt_count, 8);
+    assert_eq!(info.tool_count, 41);
+    assert_eq!(info.resource_count, 14);
+    assert_eq!(info.prompt_count, 7);
 
     let names: std::collections::BTreeSet<String> =
         reg.list_tools().into_iter().map(|t| t.name).collect();
-    assert_eq!(names.len(), 49, "tool names must be unique");
+    assert_eq!(names.len(), 41, "tool names must be unique");
 }
 
 #[test]
-fn all_49_tool_names_match_the_locked_catalog() {
+fn all_41_tool_names_match_the_locked_catalog() {
     use std::collections::BTreeSet;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -98,12 +98,6 @@ fn all_49_tool_names_match_the_locked_catalog() {
         "mxg.environment.describe",
         "mxg.ui.guide",
         "mxg.manual.search",
-        "mxg.parts.resolve",
-        "mxg.parts.alternates",
-        "mxg.parts.inventory",
-        "mxg.parts.rank_options",
-        "mxg.parts.order_history",
-        "mxg.parts.attach_certificate",
         "mxg.weather.airport_now",
         "mxg.weather.maintenance_window",
         "mxg.weather.ramp_risk",
@@ -122,7 +116,6 @@ fn all_49_tool_names_match_the_locked_catalog() {
         "mxg.scheduling.window_options",
         "mxg.scheduling.resource_match",
         "mxg.scheduling.conflict_scan",
-        "mxg.scheduling.parts_readiness",
         "mxg.scheduling.publish_plan",
         "mxg.evidence.collect",
         "mxg.evidence.trace_case",
@@ -130,7 +123,6 @@ fn all_49_tool_names_match_the_locked_catalog() {
         "mxg.evidence.conflict_check",
         "mxg.analytics.fleet_health",
         "mxg.analytics.repeat_defects",
-        "mxg.analytics.parts_risk",
         "mxg.analytics.exec_kpis",
     ]
     .into_iter()
@@ -154,7 +146,7 @@ async fn environment_describe_uses_the_shared_stable_manifest() {
     )
     .await;
     assert_eq!(result["status"], "ok");
-    assert_eq!(result["output"]["manifest_version"], "1.0.0+11");
+    assert_eq!(result["output"]["manifest_version"], "1.0.0+12");
     assert_eq!(result["output"]["surfaces"].as_array().unwrap().len(), 1);
     assert_eq!(
         result["output"]["surfaces"][0]["label"],
@@ -181,17 +173,17 @@ async fn ui_guide_accepts_only_manifest_owned_semantic_targets() {
         serde_json::json!({
             "name": "mxg.ui.guide",
             "arguments": {
-                "surface_id": "parts",
-                "target_id": "parts-inventory",
-                "guidance": "Inventory and trace records live here.",
+                "surface_id": "fleet-globe",
+                "target_id": "fleet-location-data",
+                "guidance": "Mapped fleet context lives here.",
                 "behavior": "offer"
             }
         }),
     )
     .await;
     assert_eq!(result["status"], "ok");
-    assert_eq!(result["output"]["surface_id"], "parts");
-    assert_eq!(result["output"]["target_id"], "parts-inventory");
+    assert_eq!(result["output"]["surface_id"], "fleet-globe");
+    assert_eq!(result["output"]["target_id"], "fleet-location-data");
     assert_eq!(result["output"]["behavior"], "offer");
     assert!(result["output"].get("selector").is_none());
     assert!(result["output"].get("script").is_none());
@@ -203,7 +195,7 @@ async fn ui_guide_accepts_only_manifest_owned_semantic_targets() {
                 "name": "mxg.ui.guide",
                 "arguments": {
                     "surface_id": "settings",
-                    "target_id": "parts-inventory",
+                    "target_id": "fleet-location-data",
                     "guidance": "This target does not belong here.",
                     "behavior": "auto"
                 }
@@ -276,27 +268,8 @@ fn role_action_matrix_for_all_capabilities_matches_the_locked_snapshot() {
     snapshot.sort_by_key(serde_json::Value::to_string);
     let actual = hex::encode(sha2::Sha256::digest(serde_json::to_vec(&snapshot).unwrap()));
     assert_eq!(
-        actual, "a0f837077fe8883bd89ef5b1fdda30312981bd82a214d1533d40dc4a51a54f71",
+        actual, "18d7f4b89a09e38c923d613e39c584e074776e781779f8b0dfc272673854147e",
         "RBAC snapshot changed: {actual}"
-    );
-}
-
-#[tokio::test]
-async fn not_configured_tool_emits_typed_partial_envelope() {
-    let (d, _, _) = fresh_dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.parts.resolve", "arguments": {}
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    assert!(
-        r["output"]["matches"].is_array(),
-        "output.matches must be a typed array, not invented facts"
     );
 }
 
@@ -304,27 +277,8 @@ async fn not_configured_tool_emits_typed_partial_envelope() {
 async fn not_configured_mutations_return_no_record_shaped_fiction_or_writes() {
     let (d, service, _) = fresh_dispatcher();
     let case_id = Uuid::new_v4().to_string();
-    let part_id = Uuid::new_v4().to_string();
     let schedule_id = Uuid::new_v4().to_string();
     let before = service.mutation_counts();
-
-    let certificate = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.parts.attach_certificate",
-            "arguments": {
-                "case_id": case_id,
-                "part_id": part_id,
-                "certificate_type": "8130-3",
-                "document_reference": "upload://pending"
-            }
-        }),
-    )
-    .await;
-    assert_eq!(certificate["status"], "partial");
-    assert!(certificate["output"]["certificate"].is_null());
-    assert!(certificate["output"]["audit_event_id"].is_null());
 
     let schedule = dispatch(
         &d,
@@ -591,7 +545,7 @@ async fn aircraft_lookup_conflicting_identifiers_returns_ambiguous_match() {
 }
 
 #[test]
-fn all_49_tool_schemas_match_the_locked_snapshot() {
+fn all_41_tool_schemas_match_the_locked_snapshot() {
     use sha2::Digest;
     let ev = Arc::new(EvidenceService::new());
     let cs = Arc::new(InMemoryCaseService::new((*ev).clone()));
@@ -613,7 +567,7 @@ fn all_49_tool_schemas_match_the_locked_snapshot() {
     let encoded = serde_json::to_vec(&snapshot).unwrap();
     let actual = hex::encode(sha2::Sha256::digest(encoded));
     assert_eq!(
-        actual, "6c52c3528d1c406ef4a4de9f2ded384e439f8172f91d677f6689847524685f47",
+        actual, "cc52c7b15488716a695a371ca9de343e08f65883d4b21b77c4a95e2d94a4f29b",
         "schema snapshot changed: {actual}"
     );
 }
@@ -687,7 +641,6 @@ async fn case_context_marks_fixture_currency_unverified_and_cites_real_content()
                     "documents": true,
                     "compliance": false,
                     "weather": false,
-                    "parts": false,
                     "facilities": false,
                     "timeline": true
                 }
@@ -1734,8 +1687,8 @@ async fn streamable_http_handles_malformed_content_auth_resources_and_prompts() 
     );
 
     for (method, collection, expected_len) in [
-        ("resources/list", "resources", 15_u64),
-        ("prompts/list", "prompts", 8_u64),
+        ("resources/list", "resources", 14_u64),
+        ("prompts/list", "prompts", 7_u64),
     ] {
         let response = app
             .clone()
@@ -1818,121 +1771,3 @@ async fn stdio_transport_emits_no_line_for_notifications_and_preserves_id() {
 // Lint satisfaction
 #[allow(dead_code)]
 fn _refs(_: EnvelopeStatus, _: ClientIdentity, _: OrganizationId, _: UserId, _: Uuid) {}
-
-/// The commercial boundary, pinned in its own right.
-///
-/// The RBAC snapshot above would also catch a change here, but only as an
-/// opaque hash that a future author can silently re-bless. Purchase costs and
-/// supplier identities reaching one role more than intended is worth an
-/// assertion that says so in words.
-#[test]
-fn purchase_cost_disclosure_is_narrower_than_stock_visibility() {
-    use mxgenius_shared::application::policy::{Action, PolicyDecision, PolicyMatrix};
-
-    for role in [Role::Viewer, Role::Technician, Role::Quality] {
-        assert_eq!(
-            PolicyMatrix::is_authorized(role, Action::PartsRead),
-            PolicyDecision::Allow,
-            "{} must still see stock",
-            role.as_str()
-        );
-        assert_eq!(
-            PolicyMatrix::is_authorized(role, Action::PartsCostRead),
-            PolicyDecision::Deny,
-            "{} must not see what was paid",
-            role.as_str()
-        );
-    }
-
-    for role in [
-        Role::Planner,
-        Role::Controller,
-        Role::Procurement,
-        Role::Manager,
-        Role::Administrator,
-    ] {
-        assert_eq!(
-            PolicyMatrix::is_authorized(role, Action::PartsCostRead),
-            PolicyDecision::Allow,
-            "{} buys or approves buying and must see cost",
-            role.as_str()
-        );
-    }
-}
-
-/// A read must not acquire a confirmation gate by accident.
-///
-/// `is_read_only_action` drives `requires_human_approval` in the dispatcher, so
-/// an action missing from that list turns a lookup into a 428.
-#[test]
-fn order_history_is_a_read_and_never_asks_for_confirmation() {
-    let evidence = Arc::new(EvidenceService::new());
-    let cases = Arc::new(InMemoryCaseService::new((*evidence).clone()));
-    let registry = default_registry(cases, evidence);
-    let tool = registry
-        .list_tools()
-        .into_iter()
-        .find(|t| t.name == "mxg.parts.order_history")
-        .expect("order history tool is registered");
-    assert!(
-        !tool.requires_human_approval,
-        "a purchase-history read must not require human confirmation"
-    );
-}
-
-#[tokio::test]
-async fn order_history_without_a_pool_reports_not_configured_rather_than_never_ordered() {
-    let (d, _, _) = fresh_dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.parts.order_history",
-            "arguments": { "part_number": "ABC-123" }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["warnings"][0]["code"], "NOT_CONFIGURED");
-    // The dangerous misread: an absent procurement database answering
-    // "we have never bought this" instead of "I cannot tell you".
-    assert_eq!(r["output"]["ever_ordered"], false);
-    assert_eq!(r["output"]["order_count"], 0);
-    assert!(r["output"]["orders"].is_array());
-}
-
-#[tokio::test]
-async fn order_history_is_denied_to_a_role_that_may_still_read_stock() {
-    let (d, _) = dispatcher_with_trust(Role::Technician, true, true);
-    let response = d
-        .dispatch(rpc(
-            "tools/call",
-            serde_json::json!({
-                "name": "mxg.parts.order_history",
-                "arguments": { "part_number": "ABC-123" }
-            }),
-        ))
-        .await
-        .expect("response");
-    let error = response.error.expect("technician must be refused");
-    assert!(
-        error.message.contains("not authorized"),
-        "unexpected message: {}",
-        error.message
-    );
-
-    let stock = d
-        .dispatch(rpc(
-            "tools/call",
-            serde_json::json!({
-                "name": "mxg.parts.inventory",
-                "arguments": { "part_id": "00000000-0000-0000-0000-000000000000", "destination": "KATL" }
-            }),
-        ))
-        .await
-        .expect("response");
-    assert!(
-        stock.error.is_none(),
-        "the same role must still reach stock visibility"
-    );
-}

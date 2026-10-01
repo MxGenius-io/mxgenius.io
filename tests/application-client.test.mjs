@@ -199,7 +199,6 @@ test('first case slice uses one authenticated backend orchestration request', as
     documents: true,
     compliance: true,
     weather: true,
-    parts: false,
     timeline: true
   });
   assert.equal(requests[0].options.headers.Authorization, 'Bearer access-token');

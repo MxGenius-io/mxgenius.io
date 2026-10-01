@@ -167,7 +167,7 @@ test('namespaced IDs are deterministic and preserve aliases separately', () => {
   assert.match(normalized.targetId, registryApi.TARGET_ID_PATTERN);
 });
 
-test('legacy target facade preserves aircraft, case, fleet, parts, and mesh caller shapes', async () => {
+test('legacy target facade preserves aircraft, case, fleet, and mesh caller shapes', async () => {
   const registrySource = await readFile(new URL('xr-target-registry.js', root), 'utf8');
   const contextSource = await readFile(new URL('xr-target-context.js', root), 'utf8');
   const storage = new MemoryStorage();
@@ -203,9 +203,7 @@ test('legacy target facade preserves aircraft, case, fleet, parts, and mesh call
 
   const fleet = context.fromXRAction({ action: 'open-fleet-location', target: { icao: 'KTEB', city: 'Teterboro' } });
   assert.equal(context.set(fleet).id, 'KTEB');
-  const part = context.fromPartUnit({ id: 'unit-9', partNumber: 'AN-4', serialNumber: 'SN-2', status: 'available' });
-  assert.equal(context.set(part).state, 'ready');
-  const mesh = context.fromPartSelection({ model: { id: 'model-1' }, selection: { componentId: 'wing-left', meshName: 'Wing' } });
+  const mesh = context.fromComponentSelection({ model: { id: 'model-1' }, selection: { componentId: 'wing-left', meshName: 'Wing' } });
   assert.equal(context.set(mesh).context.componentId, 'wing-left');
   assert.equal(context.guideId(), 'mesh-inspection');
   assert.equal(context.clear({ match: { kind: 'mesh', id: 'wing-left' } }), true);

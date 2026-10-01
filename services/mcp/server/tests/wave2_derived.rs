@@ -137,24 +137,6 @@ async fn analytics_repeat_defects_flags_repeated_buckets() {
 }
 
 #[tokio::test]
-async fn analytics_parts_risk_returns_partial_when_no_pool() {
-    let (d, _) = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({"name": "mxg.analytics.parts_risk", "arguments": {}}),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert!(r["output"]["risks"].as_array().unwrap().is_empty());
-    assert!(r["warnings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|w| w["code"] == "NOT_CONFIGURED"));
-}
-
-#[tokio::test]
 async fn analytics_exec_kpis_reports_known_metrics() {
     let (d, cs) = dispatcher();
     let org = OrganizationId(Uuid::nil());
@@ -321,30 +303,6 @@ async fn scheduling_conflict_scan_detects_aircraft_contention() {
         .collect();
     assert!(kinds.contains(&"aircraft_contention".to_string()));
     assert!(kinds.contains(&"priority_mismatch".to_string()));
-}
-
-#[tokio::test]
-async fn scheduling_parts_readiness_returns_partial_when_no_pool() {
-    let (d, _) = dispatcher();
-    let r = dispatch(
-        &d,
-        "tools/call",
-        serde_json::json!({
-            "name": "mxg.scheduling.parts_readiness",
-            "arguments": {
-                "case_id": Uuid::new_v4(),
-                "target_start": "2026-09-01T00:00:00Z"
-            }
-        }),
-    )
-    .await;
-    assert_eq!(r["status"], "partial");
-    assert_eq!(r["output"]["readiness_state"], "unknown");
-    assert!(r["warnings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|w| w["code"] == "NOT_CONFIGURED"));
 }
 
 #[tokio::test]

@@ -36,7 +36,6 @@ const soundStorage = await readFile(new URL('../sound-storage.js', import.meta.u
 const soundCueSchema = await readFile(new URL('../assets/xr-ui-fx/sound-cues.csv', import.meta.url), 'utf8');
 const guidedTooltip = await readFile(new URL('../guided-tooltip.js', import.meta.url), 'utf8');
 const guidedTooltipStyles = await readFile(new URL('../guided-tooltip.css', import.meta.url), 'utf8');
-const partsWorkspace = await readFile(new URL('../parts-workspace.js', import.meta.url), 'utf8');
 const tooltipManifest = JSON.parse(
   await readFile(new URL('../services/mcp/config/environment-manifest.json', import.meta.url), 'utf8')
 );
@@ -110,7 +109,7 @@ test('every navigation tab resolves to exactly one panel', () => {
     assert.equal(panelCount, 1, `tab-${tab} should exist exactly once`);
   }
 
-  assert.equal((dashboard.match(/id="tab-parts"/g) || []).length, 1, 'Parts panel stays dormant until phase two');
+  assert.doesNotMatch(dashboard, /id="tab-parts"/);
 });
 
 test('critical retained surfaces remain present', () => {
@@ -392,8 +391,8 @@ test('maintenance case workspace is mounted through the canonical client boundar
   assert.match(application, /No maintenance case is selected\./);
   assert.doesNotMatch(caseWorkspace, /Status \/ version|· v\$\{/);
   assert.match(caseWorkspace, /mxg\.maintenance_case\.build_context/);
-  assert.match(caseWorkspace, /const MAINTENANCE_CONTEXT_INCLUDE = Object\.freeze\([\s\S]*parts: false/);
-  assert.doesNotMatch(caseWorkspace, /parts: true/);
+  assert.match(caseWorkspace, /const MAINTENANCE_CONTEXT_INCLUDE = Object\.freeze\(/);
+  assert.doesNotMatch(caseWorkspace, /\bparts:/);
   assert.doesNotMatch(caseWorkspace, /facilities: true/);
   assert.match(caseWorkspace, /mxg_active_case_id/);
 });
@@ -571,7 +570,6 @@ test('root documentation exposes one status-marked product feature catalog', () 
     'Fleet intelligence and JetNet',
     'Maintenance cases',
     'AI copilot, maintenance advisory, and Realtime voice',
-    'Controlled parts and inventory',
     '3D inspection and digital-twin bridge',
     'Fleet globe XR',
     'Sensor bridge, FLIR, and Pi diagnostics',
@@ -1263,12 +1261,12 @@ test('context help binds accessible anchored popovers across product surfaces', 
   assert.match(guidedTooltipStyles, /\.guided-tooltip-popover/);
   assert.match(guidedTooltipStyles, /max-width: 640px/);
 
-  const surfaceMarkup = [dashboard, globeVr, viewer, partsWorkspace].join('\n');
+  const surfaceMarkup = [dashboard, globeVr, viewer].join('\n');
   const declaredIds = matches(/data-guide-id=["']([a-z0-9-]+)["']/g, `${surfaceMarkup}\n${application}`);
   const onboardingIds = matches(/guideId:\s*'([a-z0-9-]+)'/g, onboarding);
   const reachableIds = new Set([...declaredIds, ...onboardingIds, 'sensor-bridge-flow']);
   const manifestIds = new Set(tooltipManifest.tooltips.map((item) => item.id));
-  assert.ok(declaredIds.length >= 7, 'expected contextual help on browser, parts, globe/sensor, and viewer surfaces');
+  assert.ok(declaredIds.length >= 7, 'expected contextual help on browser, globe/sensor, and viewer surfaces');
   declaredIds.forEach((id) => assert.ok(manifestIds.has(id), `${id} needs a tooltip manifest entry`));
   tooltipManifest.tooltips
     .filter((item) => item.status !== 'retired' && !['planned', 'semantic'].includes(item.activation))
@@ -1280,9 +1278,9 @@ test('context help binds accessible anchored popovers across product surfaces', 
 test('guided tooltip manifest keeps every onboarding guide scripted or media-complete', async () => {
   assert.equal(tooltipManifest.manifest_kind, 'mxgenius_environment');
   assert.equal(tooltipManifest.schema_version, '1.0.0');
-  assert.equal(tooltipManifest.version, 11);
+  assert.equal(tooltipManifest.version, 12);
   assert.ok(Array.isArray(tooltipManifest.surfaces));
-  assert.equal(tooltipManifest.surfaces.length, 9);
+  assert.equal(tooltipManifest.surfaces.length, 8);
   const surfaceIds = tooltipManifest.surfaces.map((surface) => surface.id);
   assert.equal(new Set(surfaceIds).size, surfaceIds.length, 'environment surface IDs must be unique');
   const surfaceById = new Map(tooltipManifest.surfaces.map((surface) => [surface.id, surface]));
@@ -1301,8 +1299,6 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       'main-navigation',
       'ai-copilot',
       'maintenance-case',
-      'parts-management',
-      'parts-receiving',
       'fleet-globe-controls',
       'fleet-location-data',
       'aircraft-explorer',
@@ -1311,7 +1307,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
       'model-context'
     ]
   );
-  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=11/);
+  assert.match(guidedTooltip, /services\/mcp\/config\/environment-manifest\.json\?v=12/);
   assert.match(guidedTooltip, /function loadEnvironmentManifest\(\)/);
   assert.match(viewerNavigationCaptions, /^WEBVTT\r?\n/);
   assert.match(viewerNavigationCaptions, /00:00:00\.400 --> 00:00:05\.850/);
@@ -1349,7 +1345,7 @@ test('guided tooltip manifest keeps every onboarding guide scripted or media-com
   }
 
   const productionGuides = tooltipManifest.tooltips.filter((item) => item.status !== 'retired' && item.activation !== 'semantic');
-  assert.equal(productionGuides.length, 25);
+  assert.equal(productionGuides.length, 19);
   productionGuides.forEach((item) => {
     assert.ok(item.surface, `${item.id} needs a surface`);
     assert.ok(Array.isArray(item.touchpoints) && item.touchpoints.length >= 3, `${item.id} needs mapped touchpoints`);

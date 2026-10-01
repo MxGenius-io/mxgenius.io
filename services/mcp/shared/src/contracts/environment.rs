@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct EnvironmentDescribeRequest {
-    /// Optional canonical surface ID, such as `parts` or `settings`.
+    /// Optional canonical surface ID, such as `maintenance` or `settings`.
     #[schemars(length(min = 1, max = 80))]
     pub surface_id: Option<String>,
-    /// Optional semantic target ID, such as `parts-receiving`.
+    /// Optional semantic target ID, such as `maintenance-case`.
     #[schemars(length(min = 1, max = 120))]
     pub target_id: Option<String>,
 }

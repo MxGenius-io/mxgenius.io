@@ -174,17 +174,6 @@
       updates: []
     },
     {
-      id: 'sprint-feedback-parts-acceptance',
-      lane: 'sprint',
-      title: 'Run Rocky acceptance on Feedback and Parts',
-      message: 'Exercise real team roles through feedback submission and triage, receiving, procurement, traceability, rotable/core obligations, cannibalization gates, and bulk-import rollback; record remaining gaps as tickets.',
-      owner: 'Thomas Hagy',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T09:48:00Z',
-      updated_at: '2026-08-24T09:48:00Z',
-      updates: []
-    },
-    {
       id: 'sprint-remote-witness-acceptance',
       lane: 'sprint',
       title: 'Run Remote Witness end-to-end acceptance',
@@ -289,17 +278,6 @@
       title: 'Publish the investor-deck landing page',
       message: 'The pitch deck now drives one flowing public story with aviation imagery, the retained media carousel, a compact AI entry point, the canonical logo, and current live smoke coverage.',
       owner: 'Joshua Millard + Dwayne Tillman',
-      author: 'Week 23 closeout',
-      created_at: '2026-08-24T09:48:00Z',
-      updated_at: '2026-08-24T09:48:00Z',
-      updates: []
-    },
-    {
-      id: 'complete-feedback-parts-azure',
-      lane: 'complete',
-      title: 'Promote Feedback and Parts expansion to Azure',
-      message: 'The authenticated feedback/debug flow and Parts migrations 0019–0023 reached a healthy production revision with readiness, fail-closed access, and rollback gates preserved.',
-      owner: 'Thomas Hagy + Dwayne Tillman',
       author: 'Week 23 closeout',
       created_at: '2026-08-24T09:48:00Z',
       updated_at: '2026-08-24T09:48:00Z',

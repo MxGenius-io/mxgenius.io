@@ -196,7 +196,7 @@ any stage fails.
 - `GET /api/v1/schema` — versioned JSON Schema contract
 - `GET /api/v1/schemas/scan-observation` — canonical scanner observation contract
 - `GET /api/v1/schemas/sensor-companion` — browser activation, Quest announce, and FLIR source-status contract
-- `GET /api/v1/integrations/simulated` — synthetic normalized AviationWeather, PartsBase, and Honeywell Forge envelopes
+- `GET /api/v1/integrations/simulated` — synthetic normalized AviationWeather and Honeywell Forge envelopes
 - `GET /api/v1/schemas/integration-fixtures` — fixture-registry JSON Schema
 - `GET /api/v1/control/session` — loopback-only, ephemeral local appliance control nonce
 - `POST /api/v1/control/wifi/scan` and `/connect` — local NetworkManager discovery and connection actions
@@ -255,7 +255,7 @@ The WebSocket control plane also accepts `node.announce` messages. Nodes identif
 
 The fleet-globe page activates the native Quest companion with `mxgenius://sensor-bridge` (or an Android intent targeting `io.mxgenius.sensorbridge`). The handoff carries only the opaque session ID and producer-scoped relay URL. In the local Pi bridge, the browser consumes `/ws/xr` while the companion produces to `/ws/ingest`; production negotiation issues separate short-lived WSS URLs for those roles. Presence is not inferred from the launch attempt: the page advances its relay → Quest app → FLIR ONE indicators only after relay state, the companion `node.announce`, and source status/frames are observed.
 
-Scanner producers send `scan.raw` over `/ws/ingest`. The Pi converts each read into a sequenced `scan.observed` event with device and transport identity, the original value, a SHA-256 digest, and conservative part/serial/lot candidates. Parsed values remain `verified: false` until a catalog or authorized supplier adapter resolves them. USB CDC or Bluetooth SPP is preferred for deterministic line framing; keyboard-wedge HID can be bridged later but is intentionally not treated as an authoritative input path.
+Scanner producers send `scan.raw` over `/ws/ingest`. The Pi converts each read into a sequenced `scan.observed` event with device and transport identity, the original value, a SHA-256 digest, and conservative identifier candidates. Parsed values remain `verified: false` until an authorized mapping or human-confirmed context resolves them. USB CDC or Bluetooth SPP is preferred for deterministic line framing; keyboard-wedge HID can be bridged later but is intentionally not treated as an authoritative input path.
 
 For a scanner configured as USB CDC/serial:
 

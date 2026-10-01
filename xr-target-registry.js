@@ -15,7 +15,7 @@
   const SESSION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
   const TARGET_ID_PATTERN = /^[a-z][a-z0-9-]{1,31}:[A-Za-z0-9._:-]{1,240}$/;
   const targetKinds = new Set([
-    'aircraft', 'case', 'component', 'mesh', 'part-unit', 'sensor',
+    'aircraft', 'case', 'component', 'mesh', 'sensor',
     'fleet-location', 'observed-object'
   ]);
   const targetStates = new Set(['candidate', 'locked', 'lost', 'cleared']);
@@ -32,7 +32,6 @@
     case: 'case',
     component: 'component',
     mesh: 'mesh',
-    'part-unit': 'part',
     sensor: 'sensor',
     'fleet-location': 'fleet',
     'observed-object': 'observation'

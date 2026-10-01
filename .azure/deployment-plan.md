@@ -1,5 +1,22 @@
 # MXGenius Azure Deployment Plan
 
+## Legacy vertical retirement — 2026-10-01
+
+> **Status:** Prepared; validation and promotion pending
+> **Recipe:** existing GitHub Pages and ACR/Container Apps release paths
+
+Remove the retired inventory/procurement browser surface and its application,
+model-tool, API, demo-data, provider-fixture, and static-media dependencies.
+Promote migration `0033_retire_legacy_parts_vertical.sql` with the backend so
+the old application-owned tables are removed without altering the immutable
+SQLx migration ledger. Preserve maintenance cases, aircraft components,
+manuals, evidence, and 3D component selection.
+
+Validation requires the complete JavaScript and Rust suites, formatting,
+clippy, `git diff --check`, a successful Pages deployment, healthy Container
+App startup after migration, and a live check showing no retired navigation,
+bundle, or API route.
+
 ## Protected Josh baseline rule — 2026-09-27
 
 > **Status:** Deployed and live-verified

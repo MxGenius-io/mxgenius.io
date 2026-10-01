@@ -1,10 +1,9 @@
-//! Scheduling tool handlers (5): `mxg.scheduling.*`.
+//! Scheduling tool handlers: `mxg.scheduling.*`.
 //!
-//! All five tools are remounted on the case spine, the Parts inventory
-//! repository (when the application Postgres pool is configured), and the
+//! The tools are remounted on the case spine and the
 //! `schedule_options` table. The `publish_plan` mutation requires
 //! trusted human confirmation and writes through to the
-//! `schedule_options` table; it never books facilities or parts.
+//! `schedule_options` table; it never books external resources.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -17,8 +16,7 @@ use mxgenius_shared::application::policy::Action;
 use mxgenius_shared::contracts::CaseStatusDto;
 use mxgenius_shared::contracts::{
     ScheduleOptionDto, SchedulingConflict, SchedulingConflictScanRequest,
-    SchedulingConflictScanResponse, SchedulingPartsReadinessRequest,
-    SchedulingPartsReadinessResponse, SchedulingPublishPlanRequest, SchedulingPublishPlanResponse,
+    SchedulingConflictScanResponse, SchedulingPublishPlanRequest, SchedulingPublishPlanResponse,
     SchedulingResourceMatchRequest, SchedulingResourceMatchResponse,
     SchedulingWindowOptionsRequest, SchedulingWindowOptionsResponse,
 };
@@ -30,7 +28,6 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::application::case_service::CaseService;
-use crate::application::parts_inventory::{PartsInventoryRepository, SearchPartsQuery};
 use crate::handlers::{limited_spec, spec};
 use crate::registry::Registry;
 use crate::tool::Tool;
@@ -41,7 +38,6 @@ pub fn register(
     pool: Option<sqlx::PgPool>,
     case_service: Arc<dyn CaseService>,
 ) {
-    let pool_arc = pool.clone().map(Arc::new);
     reg.register_typed_tool(wrap(Arc::new(SchedulingWindowOptionsTool {
         case_service: case_service.clone(),
     })));
@@ -49,9 +45,6 @@ pub fn register(
         case_service: case_service.clone(),
     })));
     reg.register_typed_tool(wrap(Arc::new(SchedulingConflictScanTool { case_service })));
-    reg.register_typed_tool(wrap(Arc::new(SchedulingPartsReadinessTool {
-        pool: pool_arc,
-    })));
     reg.register_typed_tool(wrap(Arc::new(SchedulingPublishPlanTool {
         pool: pool.map(Arc::new),
     })));
@@ -114,7 +107,7 @@ impl Tool for SchedulingWindowOptionsTool {
         let mut constraints: Vec<String> = Vec::new();
         let readiness = match case.status {
             CaseStatusDto::AwaitingParts => {
-                constraints.push("parts_readiness_unresolved".into());
+                constraints.push("material_readiness_unresolved".into());
                 "blocked"
             }
             CaseStatusDto::Closed | CaseStatusDto::Cancelled => {
@@ -172,7 +165,7 @@ impl Tool for SchedulingWindowOptionsTool {
             env.warnings.push(EnvelopeError {
                 code: StableErrorCode::NotConfigured,
                 severity: "warn".into(),
-                message: "case is awaiting parts; readiness remains blocked until parts_readiness resolves".into(),
+                message: "case is awaiting required material; readiness remains blocked until the requirement is resolved".into(),
                 retryable: false,
             });
         }
@@ -372,7 +365,7 @@ impl Tool for SchedulingConflictScanTool {
                 description: format!("aircraft {aircraft} has {} non-terminal cases", group.len()),
                 affected_objects: group.iter().map(|c| c.case_id.0.to_string()).collect(),
                 possible_resolutions: vec![
-                    "sequence cases by priority and required parts".into(),
+                    "sequence cases by priority and required resources".into(),
                     "defer lower-priority cases until AOG resolves".into(),
                 ],
             });
@@ -402,183 +395,6 @@ impl Tool for SchedulingConflictScanTool {
     }
 }
 
-// 41. parts_readiness -----------------------------------------------------
-
-pub struct SchedulingPartsReadinessTool {
-    pool: Option<Arc<sqlx::PgPool>>,
-}
-
-#[async_trait]
-impl Tool for SchedulingPartsReadinessTool {
-    type Request = SchedulingPartsReadinessRequest;
-    type Response = SchedulingPartsReadinessResponse;
-
-    fn spec(&self) -> crate::tool::ToolSpec {
-        let mut tool_spec = limited_spec::<Self::Request, Self::Response>(
-            "mxg.scheduling.parts_readiness",
-            "Parts Readiness",
-            "Return readiness state, blocking requirements, ETA gaps, certificate gaps.",
-            Action::SchedulingRead,
-            false,
-        );
-        if self.pool.is_none() {
-            tool_spec.availability = "not_configured".into();
-        }
-        tool_spec
-    }
-
-    async fn invoke(
-        &self,
-        ctx: &ExecutionContext,
-        input: SchedulingPartsReadinessRequest,
-    ) -> Result<CapabilityEnvelope<Self::Response>, EnvelopeError> {
-        let pool = self.pool.clone();
-        let Some(pool) = pool else {
-            let mut env = CapabilityEnvelope::new(
-                ctx.request_id.0,
-                SchedulingPartsReadinessResponse {
-                    case_id: input.case_id,
-                    readiness_state: "unknown".into(),
-                    blocking_requirements: vec![],
-                    eta_gaps: vec![],
-                    certificate_gaps: vec![],
-                    evidence_ids: vec![],
-                },
-            );
-            env.status = EnvelopeStatus::Partial;
-            env.warnings.push(EnvelopeError {
-                code: StableErrorCode::NotConfigured,
-                severity: "warn".into(),
-                message: "parts_readiness requires a mounted database".into(),
-                retryable: false,
-            });
-            env.confidence.score = 0.0;
-            return Ok(env);
-        };
-        let case_exists: Option<Uuid> = sqlx::query_scalar(
-            "SELECT case_id FROM maintenance_cases WHERE organization_id=$1 AND case_id=$2",
-        )
-        .bind(ctx.organization_id.0)
-        .bind(input.case_id.0)
-        .fetch_optional(pool.as_ref())
-        .await
-        .map_err(|e| EnvelopeError {
-            code: StableErrorCode::InternalError,
-            severity: "error".into(),
-            message: format!("maintenance_cases lookup failed: {e}"),
-            retryable: true,
-        })?;
-        if case_exists.is_none() {
-            return Err(EnvelopeError {
-                code: StableErrorCode::EntityNotFound,
-                severity: "error".into(),
-                message: "case is not present in this tenant".into(),
-                retryable: false,
-            });
-        }
-        // Pull part_requirements for the verified tenant case.
-        let part_ids: Vec<Uuid> = sqlx::query_scalar(
-            r#"SELECT part_id FROM part_requirements
-               WHERE case_id=$1"#,
-        )
-        .bind(input.case_id.0)
-        .fetch_all(pool.as_ref())
-        .await
-        .map_err(|e| EnvelopeError {
-            code: StableErrorCode::InternalError,
-            severity: "error".into(),
-            message: format!("part_requirements query failed: {e}"),
-            retryable: true,
-        })?;
-        let repository = PartsInventoryRepository::new(pool.as_ref());
-        let mut blocking: Vec<String> = Vec::new();
-        let mut certificate_gaps: Vec<String> = Vec::new();
-        for part_id in &part_ids {
-            // Unwindowed: `retain` below filters by part in Rust, so a page
-            // could report "no available stock" for a part that has some.
-            let mut units = repository
-                .search_all(
-                    ctx,
-                    &SearchPartsQuery {
-                        query: None,
-                        status: Some("available".into()),
-                        location: None,
-                        page: None,
-                        page_size: None,
-                    },
-                )
-                .await
-                .map_err(|e| EnvelopeError {
-                    code: StableErrorCode::InternalError,
-                    severity: "error".into(),
-                    message: e.to_string(),
-                    retryable: true,
-                })?;
-            units.retain(|u| u.part_id == *part_id);
-            if units.is_empty() {
-                blocking.push(format!("part {part_id} has no available stock units"));
-            } else {
-                let missing_cert = units
-                    .iter()
-                    .filter(|u| u.certificate_number.is_none())
-                    .count();
-                if missing_cert == units.len() {
-                    certificate_gaps.push(format!(
-                        "all available stock units for part {part_id} lack a certificate"
-                    ));
-                }
-            }
-        }
-        // Certificate rows linked to the case:
-        let case_certificate_gaps: Vec<String> = sqlx::query_scalar(
-            r#"SELECT certificate_type FROM certificate_records
-               WHERE case_id=$1 AND validated=false"#,
-        )
-        .bind(input.case_id.0)
-        .fetch_all(pool.as_ref())
-        .await
-        .map_err(|e| EnvelopeError {
-            code: StableErrorCode::InternalError,
-            severity: "error".into(),
-            message: format!("certificate_records query failed: {e}"),
-            retryable: true,
-        })?;
-        certificate_gaps.extend(case_certificate_gaps);
-        let readiness_state = if blocking.is_empty() && certificate_gaps.is_empty() {
-            "ready"
-        } else if !blocking.is_empty() {
-            "blocked"
-        } else {
-            "partially_ready"
-        };
-        let eta_gaps: Vec<String> =
-            vec!["supplier ETA is not provided by the supplied source".into()];
-        let mut env = CapabilityEnvelope::new(
-            ctx.request_id.0,
-            SchedulingPartsReadinessResponse {
-                case_id: input.case_id,
-                readiness_state: readiness_state.to_string(),
-                blocking_requirements: blocking,
-                eta_gaps,
-                certificate_gaps,
-                evidence_ids: vec![],
-            },
-        );
-        env.confidence.basis = ConfidenceBasis::DeterministicLookup;
-        env.confidence.explanation =
-            "tenant-scoped part_requirements + stock_units; supplier ETA is not provided".into();
-        if readiness_state != "ready" {
-            env.warnings.push(EnvelopeError {
-                code: StableErrorCode::NotConfigured,
-                severity: "info".into(),
-                message: "supplier ETA and quoting are not provided by the supplied build".into(),
-                retryable: false,
-            });
-        }
-        Ok(env)
-    }
-}
-
 // 42. publish_plan -------------------------------------------------------
 
 pub struct SchedulingPublishPlanTool {
@@ -594,7 +410,7 @@ impl Tool for SchedulingPublishPlanTool {
         let mut tool_spec = spec::<Self::Request, Self::Response>(
             "mxg.scheduling.publish_plan",
             "Publish Plan",
-            "Persist the approved planning record with versioning and audit event. Never books facilities or parts.",
+            "Persist the approved planning record with versioning and audit event. Never books facilities or resources.",
             Action::SchedulingPublish,
             true,
         );
@@ -634,14 +450,15 @@ impl Tool for SchedulingPublishPlanTool {
                     new_version: None,
                     audit_event_id: None,
                     published: false,
-                    note: "no application pool; schedule_options persistence requires a mounted database, and this tool does not book facilities or parts".into(),
+                    note: "no application pool; schedule_options persistence requires a mounted database, and this tool does not book facilities or resources".into(),
                 },
             );
             env.status = EnvelopeStatus::Partial;
             env.warnings.push(EnvelopeError {
                 code: StableErrorCode::NotConfigured,
                 severity: "warn".into(),
-                message: "no application pool; this tool does not book facilities or parts".into(),
+                message: "no application pool; this tool does not book facilities or resources"
+                    .into(),
                 retryable: false,
             });
             env.confidence.score = 0.0;
@@ -774,7 +591,7 @@ impl Tool for SchedulingPublishPlanTool {
                 new_version: Some(case_version),
                 audit_event_id: Some(audit_id.to_string()),
                 published: true,
-                note: "schedule_options row persisted; this tool does not book facilities or parts"
+                note: "schedule_options row persisted; this tool does not book facilities or resources"
                     .into(),
             },
         );

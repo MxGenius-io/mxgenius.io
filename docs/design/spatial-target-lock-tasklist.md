@@ -47,7 +47,7 @@ Build Point 1 gate: **GREEN — 2026-09-03**
   resync events.
 - [x] `STL-024` Add lifecycle, stale-delta, alias ambiguity, expiry, and
   projection tests.
-- [x] `STL-025` Verify current case, aircraft, fleet, parts, and mesh selections
+- [x] `STL-025` Verify current case, aircraft, fleet, maintenance, and mesh selections
   remain unchanged.
 
 Wave 1 verification: **GREEN — 2026-09-03**
@@ -358,13 +358,13 @@ Wave 6B local build verification: **GREEN; PHYSICAL GATE OPEN — 2026-09-03**
   - [x] Extend APK verification for permissions, foreground-service type,
     libwebrtc ABI/license, required controls, and forbidden credential storage.
   - [x] Run targeted Node, Rust format/test/Clippy, Android unit, debug APK, and
-    release-verification gates without changing the Parts flow.
+    release-verification gates without changing unrelated application flows.
 
 Wave 6C implementation gate: invitation, wearer controls, and browser playback
 are wired across the shared contract; pause, resume, expiry, revoke, and
 reconnect have deterministic bounded state; all automated touched-component
 gates are green. Physical compositor delivery and native callback behavior are
-accepted in Wave 6D. Unrelated Parts/Clippy findings are reported separately and
+accepted in Wave 6D. Unrelated Clippy findings are reported separately and
 do not get folded into this wave.
 
 Wave 6C local build verification: **GREEN; IMPLEMENTATION COMPLETE — 2026-09-03**

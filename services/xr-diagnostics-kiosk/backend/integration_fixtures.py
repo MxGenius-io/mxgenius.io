@@ -39,26 +39,6 @@ def simulated_integrations() -> dict[str, Any]:
                 },
             },
             {
-                "provider": "partsbase",
-                "label": "PartsBase market search",
-                "mode": "fixture",
-                "auth": "pending",
-                "description": "Candidate supplier offers behind the server-only provider authentication boundary.",
-                "contract": "mxg.parts.market-snapshot.v1",
-                "sample": {
-                    "type": "part.market.snapshot",
-                    "status": "fixture",
-                    "query": {"partNumber": "PN-EXAMPLE-001", "quantity": 1},
-                    "offers": [
-                        {"supplierId": "fixture-supplier-a", "condition": "NE", "availableQuantity": 2, "leadTimeDays": 1, "currency": "USD", "unitPrice": None},
-                        {"supplierId": "fixture-supplier-b", "condition": "SV", "availableQuantity": 1, "leadTimeDays": 3, "currency": "USD", "unitPrice": None},
-                    ],
-                    "source": {"provider": "PartsBase", "reference": "fixture://partsbase/PN-EXAMPLE-001"},
-                    "verified": False,
-                    "operationalConclusion": None,
-                },
-            },
-            {
                 "provider": "honeywell-forge",
                 "label": "Honeywell Forge health",
                 "mode": "contract-fixture",

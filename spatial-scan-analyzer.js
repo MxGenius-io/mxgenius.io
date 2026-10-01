@@ -53,7 +53,7 @@ const SCENARIOS = Object.freeze({
   ]
 });
 
-const TARGET_KINDS = new Set(['aircraft', 'component', 'mesh', 'part-unit', 'sensor', 'observed-object']);
+const TARGET_KINDS = new Set(['aircraft', 'component', 'mesh', 'sensor', 'observed-object']);
 
 export class SpatialScanError extends Error {
   constructor(code, message) {

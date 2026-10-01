@@ -26,7 +26,6 @@ test('chat uses a compact conversation envelope with model-selected, bounded man
   assert.match(manualAdapter, /"vectorFilterMode": "preFilter"/);
   assert.match(manualAdapter, /ata eq/);
   assert.match(backend, /Every technical procedure, limit, interval, or manual-derived part claim must cite/);
-  assert.match(backend, /Inventory identifiers, quantities, condition, trace, stageability, and locations supplied by authoritative_case_inventory are current application facts rather than manual claims/);
   assert.match(backend, /"semantic_requests_made": manual_tool_calls/);
   assert.match(backend, /DUPLICATE_TOOL_CALL/);
   assert.match(backend, /structured response failed citation validation; requesting one bounded repair/);
@@ -125,10 +124,9 @@ test('conversation evidence visibly includes a snippet and diagram before expand
   assert.match(productionStyles, /\.mx-manual-evidence__images/);
 });
 
-test('maintenance chat context stays separate from procurement state', () => {
+test('maintenance chat context contains only supported slices', () => {
   assert.match(backend, /fn maintenance_context_include\(\) -> Value/);
-  assert.match(backend, /"parts": false/);
-  assert.doesNotMatch(backend, /"parts": true/);
+  assert.doesNotMatch(backend, /"parts": (?:true|false)/);
 });
 
 test('structured output remains enabled with persisted memory and multimodal input', () => {
@@ -171,18 +169,6 @@ test('model awareness distinguishes verified runtime facts from mounted capabili
   assert.match(backend, /"mounted_read_only_capabilities"/);
   assert.match(backend, /Never imply that nothing is connected/);
   assert.doesNotMatch(backend, /Do not claim that a connection, service, tool, data source, or application is healthy/);
-});
-
-test('the conductor separates inventory lookup, manual evidence, and UI navigation', () => {
-  assert.match(backend, /When authoritative_case_inventory is present, it is the completed current tenant-scoped lookup/);
-  assert.match(backend, /Otherwise use mxg\.parts\.resolve whenever the user asks what is on hand/);
-  assert.match(backend, /authoritative_case_inventory_context/);
-  assert.match(backend, /inventory_lookup_satisfied_by_case_context/);
-  assert.match(backend, /use mxg\.parts\.inventory for current tenant stock and location/);
-  assert.match(backend, /Never infer inventory from manual records/);
-  assert.match(backend, /organization inventory SKU/);
-  assert.match(backend, /manual image, figure, diagram, excerpt, or other evidence is a content request/);
-  assert.match(backend, /must not invoke mxg\.ui\.guide/);
 });
 
 test('ordinary conversation is natural and does not populate maintenance sections', () => {

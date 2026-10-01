@@ -43,3 +43,4 @@ release gates.
 | `0030_promote_rocky_administrator.sql`    | promote Rocky's protected identities and existing memberships to administrator |
 | `0031_customer_operations.sql`            | customer accounts, device ownership, operational payment history, and fleet-health rollups |
 | `0032_provider_connections.sql`            | encrypted organization-owned provider credentials and safe connection state |
+| `0033_retire_legacy_parts_vertical.sql`     | removes the retired inventory/procurement schema while preserving the applied migration ledger |
