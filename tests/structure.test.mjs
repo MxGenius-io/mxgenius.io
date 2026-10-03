@@ -1505,4 +1505,10 @@ test('live field probe covers the deployed frontend, core, memory, MCP, and manu
   ]) {
     assert.match(liveProbe, new RegExp(marker));
   }
+  assert.match(liveProbe, /dashboardScriptAsset\('application-client\.js'\)/);
+  assert.match(liveProbe, /dashboardScriptAsset\('realtime-client\.js'\)/);
+  assert.match(liveProbe, /deployedAppAsset = dashboardScriptAsset\('app\.js'\)/);
+  assert.doesNotMatch(liveProbe, /application-client\.js\?v=\d+/);
+  assert.doesNotMatch(liveProbe, /realtime-client\.js\?v=\d+/);
+  assert.doesNotMatch(liveProbe, /app\.js\?v=\d+/);
 });

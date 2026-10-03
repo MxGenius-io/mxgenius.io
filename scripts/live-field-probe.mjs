@@ -103,18 +103,26 @@ async function mcp(method, params = {}, { notification = false } = {}) {
 }
 
 let deployedDashboard = '';
+let deployedAppAsset = '';
 let createdThreadId = null;
 let structuredResponse = null;
 let probeAircraft = null;
+
+function dashboardScriptAsset(filename) {
+  const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = deployedDashboard.match(new RegExp(`<script[^>]+src=["']([^"']*${escaped}(?:\\?[^"']*)?)["']`, 'i'));
+  requireCondition(match?.[1], `Missing deployed script asset: ${filename}`);
+  return match[1];
+}
 
 await check('Dashboard release assets', 'frontend', async () => {
   const response = await request(`${SITE}/dashboard.html?probe=${encodeURIComponent(runId)}`);
   requireCondition(response.status === 200, `Dashboard returned ${response.status}`);
   deployedDashboard = await response.text();
+  dashboardScriptAsset('application-client.js');
+  dashboardScriptAsset('realtime-client.js');
+  deployedAppAsset = dashboardScriptAsset('app.js');
   for (const marker of [
-    'application-client.js?v=43',
-    'realtime-client.js?v=4',
-    'app.js?v=57',
     'id="chatAttachBtn"',
     'value="gpt-5.5"'
   ]) {
@@ -124,7 +132,9 @@ await check('Dashboard release assets', 'frontend', async () => {
 });
 
 await check('Realtime companion bundle', 'frontend', async () => {
-  const response = await request(`${SITE}/app.js?v=57&probe=${encodeURIComponent(runId)}`);
+  const deployedAppUrl = new URL(deployedAppAsset, `${SITE}/`);
+  deployedAppUrl.searchParams.set('probe', runId);
+  const response = await request(deployedAppUrl);
   requireCondition(response.status === 200, `app.js returned ${response.status}`);
   const source = await response.text();
   for (const marker of [

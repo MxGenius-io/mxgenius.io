@@ -38,6 +38,8 @@ export class SpatialWindowManager {
   open(id, detail = {}) {
     const entry = this.windows.get(id);
     if (!entry) return false;
+    // An open request must not restart reveal or placement for the active panel.
+    if (entry.state === SPATIAL_WINDOW_STATES.OPEN && this.activeId === id) return true;
     if (this.activeId && this.activeId !== id) this.minimize(this.activeId, { reason: 'replaced', ...detail });
     entry.state = SPATIAL_WINDOW_STATES.OPEN;
     this.activeId = id;
@@ -92,17 +94,23 @@ export class SpatialWindowManager {
     for (const id of this.windows.keys()) {
       if (id === requestedActive) continue;
       const state = requested.get(id);
-      if (state === SPATIAL_WINDOW_STATES.MINIMIZED) {
+      // Only the requested active window may remain open after restoration.
+      if (state === SPATIAL_WINDOW_STATES.MINIMIZED || state === SPATIAL_WINDOW_STATES.OPEN) {
         const entry = this.windows.get(id);
         entry.state = SPATIAL_WINDOW_STATES.MINIMIZED;
         if (this.activeId === id) this.activeId = null;
         entry.hide({ preserve: true, ...detail });
         this.emit(id, detail);
-      } else if (state === SPATIAL_WINDOW_STATES.CLOSED || !state) {
+      } else {
         this.close(id, detail);
       }
     }
-    if (requestedActive) this.open(requestedActive, detail);
+    if (requestedActive) {
+      // Session teardown can reset the view while retaining the open manager state.
+      // Restoration must replay show/focus even when ordinary open is idempotent.
+      this.windows.get(requestedActive).state = SPATIAL_WINDOW_STATES.MINIMIZED;
+      this.open(requestedActive, detail);
+    }
     return this.snapshot();
   }
 

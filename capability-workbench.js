@@ -117,11 +117,12 @@ const MXCapabilityWorkbench = (() => {
   function readinessOf(tool) {
     const explicit = String(tool.meta?.implementation_state || tool.meta?.readiness || '').toLowerCase();
     const availability = String(tool.meta?.availability || (tool.mounted === false ? 'degraded' : 'available')).toLowerCase();
+    // Runtime availability and callability override optimistic readiness labels.
+    if (availability === 'not_configured' || availability === 'unavailable' || tool.meta?.callable === false) return { id: 'unavailable', label: 'Unavailable', runnable: false };
     if (explicit === 'live') return { id: 'live', label: 'Live', runnable: true };
     if (['limited', 'partial'].includes(explicit) || ['limited', 'partial'].includes(availability)) return { id: 'limited', label: 'Limited', runnable: tool.meta?.callable !== false };
     if (['preview', 'contract_only'].includes(explicit)) return { id: 'preview', label: 'Preview', runnable: false };
     if (['degraded', 'error', 'unavailable_now'].includes(explicit) || availability === 'degraded') return { id: 'degraded', label: 'Degraded', runnable: false };
-    if (availability === 'not_configured' || availability === 'unavailable' || tool.meta?.callable === false) return { id: 'unavailable', label: 'Unavailable', runnable: false };
     return { id: 'live', label: 'Live', runnable: true };
   }
 

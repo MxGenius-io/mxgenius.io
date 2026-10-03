@@ -87,6 +87,24 @@ test('capability catalog waits for Entra readiness before connecting', async () 
   assert.equal(runtime.listCalls[0].accessToken, 'cached-token');
 });
 
+test('runtime unavailability overrides an optimistic implementation label', async () => {
+  const runtime = harness({
+    list: () => ({
+      tools: [{
+        name: 'mxg.weather.airport_now',
+        description: 'Weather',
+        mounted: true,
+        inputSchema: { type: 'object', properties: {} },
+        meta: { implementation_state: 'live', availability: 'unavailable', callable: true }
+      }]
+    })
+  });
+
+  await vm.runInContext('MXCapabilityWorkbench.reload()', runtime.context);
+
+  assert.equal(runtime.elements.get('capabilityStatus').textContent, '1 unavailable');
+});
+
 test('capability catalog refreshes the token and retries once after AUTH_REQUIRED', async () => {
   const runtime = harness({
     list: (_requestSession, attempt) => {

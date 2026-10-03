@@ -100,6 +100,35 @@ test('spatial window manager keeps one active window and preserves minimized lif
   assert.equal(manager.state('thermal').state, 'minimized');
 });
 
+test('spatial window manager suppresses duplicate reveal and normalizes restored duplicate opens', () => {
+  const calls = [];
+  const manager = new SpatialWindowManager();
+  manager.register('witness', {
+    show: () => calls.push('witness:show'),
+    hide: ({ preserve }) => calls.push(`witness:hide:${preserve}`)
+  });
+  manager.register('thermal', {
+    show: () => calls.push('thermal:show'),
+    hide: ({ preserve }) => calls.push(`thermal:hide:${preserve}`)
+  });
+
+  manager.open('witness');
+  manager.open('witness');
+  assert.deepEqual(calls, ['witness:show']);
+
+  manager.restoreSnapshot({
+    activeId: 'witness',
+    windows: [
+      { id: 'witness', state: 'open', active: true },
+      { id: 'thermal', state: 'open', active: false }
+    ]
+  }, { reason: 'reality-handoff' });
+
+  assert.equal(manager.state('witness').state, 'open');
+  assert.equal(manager.state('thermal').state, 'minimized');
+  assert.deepEqual(calls, ['witness:show', 'thermal:hide:true', 'witness:show']);
+});
+
 test('the web application exposes one launcher and one canonical VR or AR session owner', () => {
   assert.equal((dashboard.match(/id="spatialWorkspaceBtn"/g) || []).length, 1);
   assert.doesNotMatch(dashboard, /id="globeVrButton"/);
