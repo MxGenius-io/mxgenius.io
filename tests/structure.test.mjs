@@ -841,7 +841,9 @@ test('viewer quick access is limited to the curated local model folder set', asy
       'Pelican Case',
       'Raspberry Pi Power Converter',
       'Single-Board Computer Prototype',
-      'Virtual Reality Headset'
+      'Virtual Reality Headset',
+      'Build - X-drive Rev3 - Exploded Assembly',
+      'Build - FLIR Quest3S - Exploded Assembly'
     ].sort()
   );
   await Promise.all(

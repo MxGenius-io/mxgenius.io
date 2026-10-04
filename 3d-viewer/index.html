@@ -2389,7 +2389,7 @@
         async function loadCatalog() {
             let staticCatalog = [];
             try {
-                const res = await fetch('./models.json?v=4');
+                const res = await fetch('./models.json?v=5');
                 if (!res.ok) throw new Error('models.json not found');
                 staticCatalog = await res.json();
             } catch (e) {

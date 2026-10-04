@@ -138,6 +138,34 @@
     "operationalStatus": "demo_asset"
   },
   {
+    "file": "models/XDrive_Rev3_ExplodedAssembly.glb",
+    "name": "Build - X-drive Rev3 - Exploded Assembly",
+    "type": "apparatus",
+    "lod": "source",
+    "revision": "rev3",
+    "provider": "workspace",
+    "sourceAuthority": "MXGenius",
+    "collection": "Local model set",
+    "sizeBytes": 1132896,
+    "quickAccess": true,
+    "operationalStatus": "demo_asset",
+    "description": "10-second exploded assembly of the X-drive Rev3 case with approximate electronics references. Physical fit and strength remain unverified."
+  },
+  {
+    "file": "models/FLIR_Quest3S_ExplodedAssembly.glb",
+    "name": "Build - FLIR Quest3S - Exploded Assembly",
+    "type": "apparatus",
+    "lod": "source",
+    "revision": "v1",
+    "provider": "workspace",
+    "sourceAuthority": "MXGenius",
+    "collection": "Local model set",
+    "sizeBytes": 213724,
+    "quickAccess": true,
+    "operationalStatus": "demo_asset",
+    "description": "10-second exploded assembly of five FLIR frame parts and the camera reference. Optional lower hook and cables omitted. Physical headset fit remains unverified."
+  },
+  {
     "file": "models/SM_AntiqueCamera_Optics_v1.glb",
     "name": "Antique Camera Optics",
     "type": "demo_model",
