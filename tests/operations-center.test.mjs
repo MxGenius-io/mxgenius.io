@@ -77,7 +77,7 @@ test('provider settings own one staged model-context uploader for files and fold
   assert.match(css, /\.model-knowledge-list/);
 });
 
-test('R&D Highlights contains every and only report-referenced video on the canonical media route', async () => {
+test('R&D Highlights preserves report videos and adds the three hardware build recordings', async () => {
   const reportsRoot = new URL('../Generated Reports/', import.meta.url);
   const weekFolders = (await readdir(reportsRoot, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory() && /^week-\d+$/.test(entry.name));
@@ -99,11 +99,24 @@ test('R&D Highlights contains every and only report-referenced video on the cano
   const catalog = [...html.matchAll(/data-report-video="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(expected.length, 7);
   assert.deepEqual(catalog.toSorted(), expected.toSorted());
-  assert.equal((html.match(/<video controls playsinline preload="metadata"/g) || []).length, expected.length);
-  for (const path of expected) {
+  const buildVideos = [...html.matchAll(/data-build-video="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(buildVideos.toSorted(), [
+    'media/build/2026-10-07/flir-exploded-assembly.mp4',
+    'media/build/2026-10-07/mxgenius-logo-print.mp4',
+    'media/build/2026-10-07/xdrive-exploded-assembly.mp4'
+  ]);
+  assert.equal((html.match(/<video controls playsinline preload="metadata"/g) || []).length, expected.length + buildVideos.length);
+  for (const path of [...expected, ...buildVideos]) {
     const encoded = path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
     assert.ok(html.includes(`https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/${encoded}`), path);
   }
+  for (const path of buildVideos) {
+    await readFile(new URL(`../${path}`, import.meta.url));
+    await readFile(new URL(`../${path.replace(/\.mp4$/, '.jpg')}`, import.meta.url));
+    assert.ok(html.includes(`poster="${path.replace(/\.mp4$/, '.jpg')}"`));
+  }
+  assert.match(html, /Completion and mounting fit remain to be confirmed/);
+  assert.match(html, /build-readiness-2026-10-07\.html/);
   assert.match(js, /if \(next !== 'highlights'\) highlightVideos\.forEach\(\(video\) => video\.pause\(\)\)/);
   assert.match(js, /candidate !== video && !candidate\.paused/);
 });
