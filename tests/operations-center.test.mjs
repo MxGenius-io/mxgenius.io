@@ -124,7 +124,7 @@ test('R&D Highlights preserves report videos and adds the three hardware build r
   assert.match(buildRecord, /2 in including wires/);
   assert.match(buildRecord, /V1 field acceptance stays open/);
   const hardwarePhotos = [...buildRecord.matchAll(/<img src="([^"]+)"/g)].map((match) => match[1]);
-  assert.equal(hardwarePhotos.length, 7);
+  assert.equal(hardwarePhotos.length, 9);
   assert.match(buildRecord, /drill-style grip/);
   assert.match(buildRecord, /retention strap/);
   for (const path of hardwarePhotos) await readFile(new URL(`../${path}`, import.meta.url));
