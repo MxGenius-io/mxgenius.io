@@ -116,7 +116,17 @@ test('R&D Highlights preserves report videos and adds the three hardware build r
     assert.ok(html.includes(`poster="${path.replace(/\.mp4$/, '.jpg')}"`));
   }
   assert.match(html, /Completion and mounting fit remain to be confirmed/);
-  assert.match(html, /build-readiness-2026-10-07\.html/);
+  assert.match(html, /data-build-update="2026-10-16"/);
+  assert.match(html, /build-readiness-2026-10-16\.html/);
+  const buildRecord = await readFile(new URL('../build-readiness-2026-10-16.html', import.meta.url), 'utf8');
+  const archive = await readFile(new URL('../build-readiness-2026-10-07.html', import.meta.url), 'utf8');
+  assert.match(archive, /October 7 archive\.[\s\S]*build-readiness-2026-10-16\.html/);
+  assert.match(buildRecord, /2 in including wires/);
+  assert.match(buildRecord, /V1 field acceptance stays open/);
+  const hardwarePhotos = [...buildRecord.matchAll(/<img src="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(hardwarePhotos.length, 7);
+  assert.match(buildRecord, /battery-based tapered enclosure/);
+  for (const path of hardwarePhotos) await readFile(new URL(`../${path}`, import.meta.url));
   assert.match(js, /if \(next !== 'highlights'\) highlightVideos\.forEach\(\(video\) => video\.pause\(\)\)/);
   assert.match(js, /candidate !== video && !candidate\.paused/);
 });

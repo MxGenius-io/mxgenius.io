@@ -392,3 +392,5 @@ button, input, select, textarea { font: inherit; }
   .customer-device { grid-template-columns: 1fr; }
   .customer-device__actions { align-items: stretch; flex-direction: column; }
 }
+
+.highlight-video-wrap img { display: block; width: 100%; height: 100%; object-fit: contain; }
