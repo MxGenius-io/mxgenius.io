@@ -63,6 +63,7 @@ assert len(screw_nodes) == 3, f"expected three animated screw nodes, found {len(
 assert animation.get("extras", {}).get("durationSeconds") == 10
 
 assert animation.get("extras", {}).get("closedPoseSource") == "3MF build transforms"
+assert animation.get("extras", {}).get("defaultPose") == "closed"
 assert animation.get("extras", {}).get("fastenerCount") == 3
 
 print(f"Validated {GLB.name}: 9 centered pivots, 12 motion tracks, 3 axial fasteners")

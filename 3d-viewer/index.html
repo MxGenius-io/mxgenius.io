@@ -4034,10 +4034,16 @@
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
+            const catalogEntry = currentCatalogEntry();
+            const targetYOffset = Number(catalogEntry?.cameraTargetYOffset);
+            if (Number.isFinite(targetYOffset)) center.y += targetYOffset;
 
             const fov = camera.fov * (Math.PI / 180);
             let cameraZ = (maxDim / 2) / Math.tan(fov / 2);
-            cameraZ *= 1.6; // add some breathing room
+            const catalogPadding = Number(catalogEntry?.cameraPadding);
+            cameraZ *= Number.isFinite(catalogPadding) && catalogPadding > 0
+                ? catalogPadding
+                : 1.6; // add some breathing room
 
             camera.position.set(
                 center.x + cameraZ * 0.3,

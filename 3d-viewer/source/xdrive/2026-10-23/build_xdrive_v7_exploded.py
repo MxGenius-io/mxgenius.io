@@ -255,11 +255,10 @@ def animate(parts: list[bpy.types.Object], screws: list[bpy.types.Object]) -> No
     scene.frame_start = 1
     scene.frame_end = 250
     scene.render.fps = 25
-    # Load expanded so the viewer frames the full motion envelope. The enclosure
-    # closes first, then each screw seats with an axial turn. Disassembly runs in
-    # reverse so no plate moves through an installed fastener.
-    exploded_frames = (1, 30, 240, 250)
-    closed_frames = (100, 212)
+    # Begin and end in the exact authored closed pose. The fasteners back out
+    # first, the enclosure opens and closes, then the fasteners seat again.
+    exploded_frames = (125, 145)
+    closed_frames = (1, 90, 185, 250)
     for obj in parts:
         closed = obj.location.copy()
         exploded = closed + EXPLODE_OFFSET[obj.name]
@@ -274,25 +273,25 @@ def animate(parts: list[bpy.types.Object], screws: list[bpy.types.Object]) -> No
 
     for index, screw in enumerate(screws):
         closed = screw.location.copy()
-        raised = closed + Vector((0.0, 0.0, (95.0 + index * 8.0) * MM))
-        assembly_start = 105 + index * 11
-        assembly_end = assembly_start + 18
+        raised = closed + Vector((0.0, 0.0, (88.0 + index * 6.0) * MM))
         removal_sequence = len(screws) - 1 - index
-        removal_start = 170 + removal_sequence * 11
+        removal_start = 40 + removal_sequence * 11
         removal_end = removal_start + 18
+        assembly_start = 190 + index * 11
+        assembly_end = assembly_start + 18
 
-        for frame in (1, 30, 100, assembly_start):
-            screw.location = raised
+        for frame in (1, removal_start):
+            screw.location = closed
             screw.rotation_euler.z = 0.0
             screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
             screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
-        for frame in (assembly_end, 165, removal_start):
-            screw.location = closed
-            screw.rotation_euler.z = -math.tau * 4.0
+        for frame in (removal_end, 185, assembly_start):
+            screw.location = raised
+            screw.rotation_euler.z = math.tau * 4.0
             screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
             screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
-        for frame in (removal_end, 240, 250):
-            screw.location = raised
+        for frame in (assembly_end, 250):
+            screw.location = closed
             screw.rotation_euler.z = 0.0
             screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
             screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
@@ -309,7 +308,7 @@ def world_bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
 
 def validate_authored_pose(parts: list[bpy.types.Object], screws: list[bpy.types.Object]) -> None:
     scene = bpy.context.scene
-    scene.frame_set(145)
+    scene.frame_set(1)
     bpy.context.view_layer.update()
     lo, hi = world_bounds(parts)
     actual = np.array((tuple(lo), tuple(hi))) / MM
@@ -324,7 +323,7 @@ def validate_authored_pose(parts: list[bpy.types.Object], screws: list[bpy.types
 
 def validate_exploded_clearance(parts: list[bpy.types.Object]) -> None:
     scene = bpy.context.scene
-    scene.frame_set(1)
+    scene.frame_set(135)
     bpy.context.view_layer.update()
     trees = {}
     for obj in parts:
@@ -378,7 +377,7 @@ def render_previews(objects: list[bpy.types.Object]) -> None:
     camera = bpy.data.objects.new("Preview camera", camera_data)
     bpy.context.collection.objects.link(camera)
     bpy.context.scene.camera = camera
-    for frame, filename in ((145, "authored-closed.png"), (1, "authored-exploded.png")):
+    for frame, filename in ((1, "authored-closed.png"), (135, "authored-exploded.png")):
         bpy.context.scene.frame_set(frame)
         frame_camera(camera, objects)
         bpy.context.scene.render.filepath = str(PREVIEW_DIR / filename)
@@ -414,6 +413,7 @@ def merge_glb_animations(path: Path) -> None:
             "revision": "XDrive V7 with authored board",
             "durationSeconds": 10,
             "closedPoseSource": "3MF build transforms",
+            "defaultPose": "closed",
             "fastenerCount": 3,
         },
     }]
