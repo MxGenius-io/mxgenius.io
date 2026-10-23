@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HTML = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
 JS = (ROOT / "frontend" / "assets" / "kiosk.js").read_text(encoding="utf-8")
+VOICE_CLIENT = (ROOT / "frontend" / "assets" / "realtime-voice.js").read_text(encoding="utf-8")
 BLUETOOTH_COMPAT = (ROOT / "systemd" / "mxg-bluetooth-compat.conf").read_text(encoding="utf-8")
 INSTALL = (ROOT / "install.sh").read_text(encoding="utf-8")
 UPDATE = (ROOT / "update.sh").read_text(encoding="utf-8")
@@ -18,6 +19,8 @@ BOOT_STATUS = (ROOT / "scripts" / "boot-status.sh").read_text(encoding="utf-8")
 BOOT_STATUS_SERVICE = (ROOT / "systemd" / "mxg-boot-status.service").read_text(encoding="utf-8")
 KIOSK_SERVICE = (ROOT / "systemd" / "mxg-diagnostics-kiosk.service").read_text(encoding="utf-8")
 KIOSK_START = (ROOT / "scripts" / "start-kiosk.sh").read_text(encoding="utf-8")
+BUTTON_SCRIPT = (ROOT / "scripts" / "hardware_buttons.py").read_text(encoding="utf-8")
+BUTTON_SERVICE = (ROOT / "systemd" / "mxg-hardware-buttons.service").read_text(encoding="utf-8")
 IMAGE_BUILDER = (ROOT / "scripts" / "build-appliance-image.sh").read_text(encoding="utf-8")
 IMAGE_WRAPPER = (ROOT / "scripts" / "build-appliance-image.ps1").read_text(encoding="utf-8")
 PREVIEW_WRAPPER = (ROOT / "scripts" / "preview-release.ps1").read_text(encoding="utf-8")
@@ -49,6 +52,21 @@ class KioskUiContractTests(unittest.TestCase):
         for marker in ('diagnostics.performance-history', 'recordPerformance(snapshot)', 'drawPerformanceGraph'):
             self.assertIn(marker, JS)
 
+    def test_voice_loop_uses_edge_identity_and_manual_push_to_talk(self):
+        for marker in ('id="voiceConnect"', 'id="talkButton"', 'GPIO17 trigger'):
+            self.assertIn(marker, HTML)
+        for marker in ('/api/v1/realtime/calls', 'input_audio_buffer.commit', 'response.create', 'response.cancel'):
+            self.assertIn(marker, VOICE_CLIENT)
+        self.assertNotIn('OPENAI_API_KEY', JS + VOICE_CLIENT + HTML)
+        self.assertIn("message.type === 'hardware.button'", JS)
+        self.assertIn('TALK_GPIO = int(os.getenv("MXG_TALK_GPIO", "17"))', BUTTON_SCRIPT)
+        self.assertIn('SupplementaryGroups=gpio', BUTTON_SERVICE)
+        for script in (INSTALL, UPDATE):
+            self.assertIn('mxg-hardware-buttons.service', script)
+            self.assertIn('python3-gpiozero', script)
+        self.assertIn('AudioCaptureAllowedUrls', APPLIANCE_CONFIG)
+        self.assertIn('--autoplay-policy=no-user-gesture-required', KIOSK_START)
+
     def test_peripheral_readiness_profiles_are_visible(self):
         for profile in ("FLIR ONE Pro", "Honeywell Xenon XP 1950g", "Zebra DS3608", "Socket Mobile S740"):
             self.assertIn(profile, HTML)
@@ -78,7 +96,7 @@ class KioskUiContractTests(unittest.TestCase):
 
     def test_boot_status_is_persistent_bounded_and_does_not_write_on_every_poll(self):
         for marker in (
-            "mxg-boot-status.txt", "kioskService=", "controlService=", "networkManagerService=",
+            "mxg-boot-status.txt", "kioskService=", "controlService=", "buttonService=", "networkManagerService=",
             "localHealth=", "wifiRadio=", "wifiState=", "ethernetState=", "last_hash",
         ):
             self.assertIn(marker, BOOT_STATUS)
@@ -205,7 +223,7 @@ class KioskUiContractTests(unittest.TestCase):
 
     def test_appliance_diagnostic_covers_boot_services_identity_cloud_and_usb_without_secrets(self):
         for marker in ('systemd.run=', 'NetworkManager.service', 'mxg-boot-status.service',
-                       '90-mxgenius-wired-recovery.conf', 'mxg-diagnostics-kiosk.service', 'mxg-device-identity.json',
+                       '90-mxgenius-wired-recovery.conf', 'mxg-diagnostics-kiosk.service', 'mxg-hardware-buttons.service', 'mxg-device-identity.json',
                        '/api/v1/equipment-pack/status', '/sys/class/udc', '/usb_gadget/mxgenius/UDC'):
             self.assertIn(marker, APPLIANCE_DIAGNOSTIC)
         self.assertNotIn('mxg-diagnostics-kiosk.env', APPLIANCE_DIAGNOSTIC)

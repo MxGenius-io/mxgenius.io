@@ -15,6 +15,7 @@ while true; do
       --disable-session-crashed-bubble \
       --no-first-run \
       --no-default-browser-check \
+      --autoplay-policy=no-user-gesture-required \
       --password-store=basic \
       --app="$APP_URL" >>"$LOG_FILE" 2>&1
   else

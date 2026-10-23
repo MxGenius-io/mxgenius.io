@@ -3,6 +3,7 @@
 backend
 contracts
 frontend
+docs
 systemd
 scripts/simulate_sensor.py
 scripts/simulate_scanner.py

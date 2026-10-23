@@ -3,10 +3,46 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app import app
+from app import app, equipment_pack_agent
+from equipment_pack_agent import EdgeIdentity
 
 
 class BridgeIntegrationTests(unittest.TestCase):
+    def test_local_realtime_proxy_uses_enrolled_device_without_exposing_credential(self):
+        class RealtimeCore:
+            def realtime_call(self, identity, sdp):
+                self.identity = identity
+                self.sdp = sdp
+                return "v=0\r\no=edge-answer\r\n", {
+                    "x-mxg-realtime-call-id": "rtc_test",
+                    "x-correlation-id": "correlation-test",
+                }
+
+        core = RealtimeCore()
+        original_identity = equipment_pack_agent.identity
+        original_client = equipment_pack_agent.client
+        equipment_pack_agent.identity = EdgeIdentity(
+            device_id="a1379f31-f033-4dc5-9b60-b5aecb5fc456",
+            display_name="Test edge",
+            credential="mxgd.a1379f31-f033-4dc5-9b60-b5aecb5fc456." + "a" * 64,
+        )
+        equipment_pack_agent.client = core
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/realtime/calls",
+                    content="v=0\r\no=edge-offer\r\n",
+                    headers={"Content-Type": "application/sdp"},
+                )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-type"], "application/sdp")
+            self.assertEqual(response.headers["x-mxg-realtime-call-id"], "rtc_test")
+            self.assertTrue(core.sdp.startswith("v=0"))
+            self.assertNotIn("mxgd.", response.text)
+        finally:
+            equipment_pack_agent.identity = original_identity
+            equipment_pack_agent.client = original_client
+
     def test_health_and_binary_sensor_relay(self):
         frame = struct.pack("<4sBBBBHHQI", b"MXGS", 1, 1, 1, 0, 2, 2, 123, 2) + b"{}" + b"jpeg"
         with TestClient(app) as client:
@@ -57,6 +93,21 @@ class BridgeIntegrationTests(unittest.TestCase):
                 while error.get("type") != "bridge.error":
                     error = consumer.receive_json()
                 self.assertEqual(error["code"], "INVALID_SESSION_ID")
+
+    def test_local_hardware_button_is_relayed_without_a_secret(self):
+        with TestClient(app) as client:
+            with client.websocket_connect("/ws/xr") as consumer:
+                consumer.receive_json()
+                response = client.post(
+                    "/api/v1/hardware/button",
+                    json={"button": "talk", "pressed": True},
+                )
+                self.assertEqual(response.status_code, 200)
+                event = consumer.receive_json()
+                while event.get("type") != "hardware.button":
+                    event = consumer.receive_json()
+                self.assertEqual(event["button"], "talk")
+                self.assertTrue(event["pressed"])
 
 
 if __name__ == "__main__":

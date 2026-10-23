@@ -46,6 +46,20 @@ EOF
   nmcli general reload >/dev/null 2>&1 || true
 fi
 
+# The fullscreen kiosk is the only browser surface on this appliance. Permit
+# its loopback origin to capture the attached microphone without a modal prompt
+# so a physical GPIO press can start a push-to-talk turn.
+install -d -m 0755 /etc/chromium/policies/managed
+cat > /etc/chromium/policies/managed/mxgenius-kiosk.json <<'EOF'
+{
+  "AudioCaptureAllowedUrls": [
+    "http://127.0.0.1:8844/*",
+    "http://localhost:8844/*"
+  ]
+}
+EOF
+chmod 0644 /etc/chromium/policies/managed/mxgenius-kiosk.json
+
 # The Pi remains a normal Raspberry Pi OS installation. Device-mode support is
 # a permanent hardware capability; package content is selected later by the
 # running agent and never by changing the boot target.

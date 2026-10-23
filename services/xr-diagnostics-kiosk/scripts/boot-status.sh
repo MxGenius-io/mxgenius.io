@@ -23,18 +23,19 @@ service_state() {
 }
 
 write_status() {
-  local kiosk control network health stage ipv4 hostname version boot_id wifi_radio wifi_state ethernet_state body next hash
+  local kiosk control buttons network health stage ipv4 hostname version boot_id wifi_radio wifi_state ethernet_state body next hash
   kiosk="$(service_state mxg-diagnostics-kiosk.service)"
   control="$(service_state mxg-edge-control.service)"
+  buttons="$(service_state mxg-hardware-buttons.service)"
   network="$(service_state NetworkManager.service)"
   if curl --fail --silent --max-time 2 http://127.0.0.1:8844/api/v1/health >/dev/null 2>&1; then
     health=ready
   else
     health=unavailable
   fi
-  if [ "$kiosk" = active ] && [ "$control" = active ] && [ "$health" = ready ]; then
+  if [ "$kiosk" = active ] && [ "$control" = active ] && [ "$buttons" = active ] && [ "$health" = ready ]; then
     stage=ready
-  elif [ "$kiosk" = failed ] || [ "$control" = failed ]; then
+  elif [ "$kiosk" = failed ] || [ "$control" = failed ] || [ "$buttons" = failed ]; then
     stage=service-failed
   else
     stage=starting
@@ -53,6 +54,7 @@ hostname=$(safe_value "$hostname")
 ipv4=$(safe_value "${ipv4:-unassigned}")
 kioskService=$(safe_value "${kiosk:-unknown}")
 controlService=$(safe_value "${control:-unknown}")
+buttonService=$(safe_value "${buttons:-unknown}")
 networkManagerService=$(safe_value "${network:-unknown}")
 localHealth=$(safe_value "$health")
 wifiRadio=$(safe_value "${wifi_radio:-unavailable}")

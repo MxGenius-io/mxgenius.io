@@ -1326,6 +1326,38 @@ async fn realtime_call_boundary_rejects_invalid_origin_content_type_and_sdp() {
             .status(),
         400
     );
+
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let edge_invalid_content_type = Request::builder()
+        .method("POST")
+        .uri("/api/edge/realtime/calls")
+        .header("content-type", "application/json")
+        .body(Body::from("v=0\r\n"))
+        .unwrap();
+    assert_eq!(
+        mxgenius_mcp::transport::http::router(dispatcher)
+            .oneshot(edge_invalid_content_type)
+            .await
+            .unwrap()
+            .status(),
+        415
+    );
+
+    let (dispatcher, _, _) = fresh_dispatcher();
+    let edge_invalid_sdp = Request::builder()
+        .method("POST")
+        .uri("/api/edge/realtime/calls")
+        .header("content-type", "application/sdp")
+        .body(Body::from("not-sdp"))
+        .unwrap();
+    assert_eq!(
+        mxgenius_mcp::transport::http::router(dispatcher)
+            .oneshot(edge_invalid_sdp)
+            .await
+            .unwrap()
+            .status(),
+        400
+    );
 }
 
 #[tokio::test]

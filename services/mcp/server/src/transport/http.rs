@@ -282,6 +282,7 @@ pub fn router_with_health_and_manual(
         .route("/api/edge/enroll", post(enroll_edge_device))
         .route("/api/edge/unregister", post(unregister_edge_device))
         .route("/api/edge/state", get(get_edge_desired_state))
+        .route("/api/edge/realtime/calls", post(create_edge_realtime_call))
         .route(
             "/api/edge/packs/:version_id/content",
             get(get_edge_pack_content),
@@ -9498,7 +9499,21 @@ fn extract_openai_output_text(payload: &Value) -> String {
         .join("")
 }
 
-fn realtime_session_config(model: String, voice: String, transcription_model: String) -> Value {
+fn realtime_session_config(
+    model: String,
+    voice: String,
+    transcription_model: String,
+    push_to_talk: bool,
+) -> Value {
+    let turn_detection = if push_to_talk {
+        Value::Null
+    } else {
+        json!({
+            "type": "server_vad",
+            "create_response": true,
+            "interrupt_response": true
+        })
+    };
     json!({
         "type": "realtime",
         "model": model,
@@ -9509,11 +9524,7 @@ fn realtime_session_config(model: String, voice: String, transcription_model: St
                     "model": transcription_model,
                     "language": "en"
                 },
-                "turn_detection": {
-                    "type": "server_vad",
-                    "create_response": true,
-                    "interrupt_response": true
-                }
+                "turn_detection": turn_detection
             },
             "output": {
                 "voice": voice
@@ -9523,12 +9534,43 @@ fn realtime_session_config(model: String, voice: String, transcription_model: St
     })
 }
 
+fn parse_realtime_offer<'a>(headers: &HeaderMap, offer: &'a Bytes) -> Result<&'a str, Response> {
+    let content_type_is_sdp = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.eq_ignore_ascii_case("application/sdp"))
+        .unwrap_or(false);
+    if !content_type_is_sdp {
+        return Err(realtime_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "INVALID_CONTENT_TYPE",
+            "Content-Type must be application/sdp",
+        ));
+    }
+    if offer.is_empty() || offer.len() > MAX_REALTIME_SDP_BYTES {
+        return Err(realtime_error(
+            StatusCode::BAD_REQUEST,
+            "INVALID_SDP",
+            "SDP offer must be between 1 byte and 64 KiB",
+        ));
+    }
+    std::str::from_utf8(offer)
+        .ok()
+        .filter(|value| value.starts_with("v=0"))
+        .ok_or_else(|| {
+            realtime_error(
+                StatusCode::BAD_REQUEST,
+                "INVALID_SDP",
+                "request body is not a valid SDP offer",
+            )
+        })
+}
+
 async fn create_realtime_call(
     State(state): State<AppState>,
     headers: HeaderMap,
     offer: Bytes,
 ) -> Response {
-    let exchange_started = Instant::now();
     if !origin_allowed(&headers) {
         return realtime_error(
             StatusCode::FORBIDDEN,
@@ -9536,34 +9578,9 @@ async fn create_realtime_call(
             "invalid Origin header",
         );
     }
-    let content_type_is_sdp = headers
-        .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.eq_ignore_ascii_case("application/sdp"))
-        .unwrap_or(false);
-    if !content_type_is_sdp {
-        return realtime_error(
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "INVALID_CONTENT_TYPE",
-            "Content-Type must be application/sdp",
-        );
-    }
-    if offer.is_empty() || offer.len() > MAX_REALTIME_SDP_BYTES {
-        return realtime_error(
-            StatusCode::BAD_REQUEST,
-            "INVALID_SDP",
-            "SDP offer must be between 1 byte and 64 KiB",
-        );
-    }
-    let offer = match std::str::from_utf8(&offer) {
-        Ok(value) if value.starts_with("v=0") => value,
-        _ => {
-            return realtime_error(
-                StatusCode::BAD_REQUEST,
-                "INVALID_SDP",
-                "request body is not a valid SDP offer",
-            )
-        }
+    let offer = match parse_realtime_offer(&headers, &offer) {
+        Ok(value) => value,
+        Err(response) => return response,
     };
     let mut auth = match auth_request(&headers) {
         Ok(value) => value,
@@ -9595,6 +9612,50 @@ async fn create_realtime_call(
             )
         }
     };
+    exchange_realtime_call(
+        &state,
+        offer,
+        realtime_safety_identifier(&context),
+        context.correlation_id.to_string(),
+        false,
+        "application",
+    )
+    .await
+}
+
+async fn create_edge_realtime_call(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    offer: Bytes,
+) -> Response {
+    let offer = match parse_realtime_offer(&headers, &offer) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    let (_, identity) = match edge_device_identity(&state, &headers).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    exchange_realtime_call(
+        &state,
+        offer,
+        edge_realtime_safety_identifier(&identity),
+        Uuid::new_v4().to_string(),
+        true,
+        "edge-device",
+    )
+    .await
+}
+
+async fn exchange_realtime_call(
+    state: &AppState,
+    offer: &str,
+    safety_identifier: String,
+    correlation_id: String,
+    push_to_talk: bool,
+    client_kind: &'static str,
+) -> Response {
+    let exchange_started = Instant::now();
     let api_key = match std::env::var("OPENAI_API_KEY") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
@@ -9610,7 +9671,12 @@ async fn create_realtime_call(
     let voice = std::env::var("MXGENIUS_REALTIME_VOICE").unwrap_or_else(|_| "marin".into());
     let transcription_model = std::env::var("MXGENIUS_REALTIME_TRANSCRIPTION_MODEL")
         .unwrap_or_else(|_| "gpt-4o-mini-transcribe".into());
-    let session = realtime_session_config(model.clone(), voice.clone(), transcription_model);
+    let session = realtime_session_config(
+        model.clone(),
+        voice.clone(),
+        transcription_model,
+        push_to_talk,
+    );
     let sdp_part = reqwest::multipart::Part::text(offer.to_owned())
         .mime_str("application/sdp")
         .expect("application/sdp is a valid multipart MIME type");
@@ -9620,20 +9686,19 @@ async fn create_realtime_call(
     let form = reqwest::multipart::Form::new()
         .part("sdp", sdp_part)
         .part("session", session_part);
-    let safety_identifier = realtime_safety_identifier(&context);
     let upstream = match state
         .realtime_client
         .post(OPENAI_REALTIME_CALLS_URL)
         .bearer_auth(api_key)
         .header("OpenAI-Safety-Identifier", safety_identifier)
-        .header("x-client-request-id", context.correlation_id.to_string())
+        .header("x-client-request-id", &correlation_id)
         .multipart(form)
         .send()
         .await
     {
         Ok(value) => value,
         Err(error) => {
-            tracing::warn!(target: "mxgenius.realtime", error = %error, correlation_id = %context.correlation_id, "Realtime call exchange failed");
+            tracing::warn!(target: "mxgenius.realtime", error = %error, correlation_id = %correlation_id, client_kind, "Realtime call exchange failed");
             return realtime_error(
                 StatusCode::BAD_GATEWAY,
                 "REALTIME_UPSTREAM_UNAVAILABLE",
@@ -9664,7 +9729,8 @@ async fn create_realtime_call(
             upstream_status = %status,
             upstream_request_id = upstream_request_id.as_deref().unwrap_or(""),
             upstream_error = %truncate_chars(&upstream_error, 1_000),
-            correlation_id = %context.correlation_id,
+            correlation_id = %correlation_id,
+            client_kind,
             "Realtime call exchange rejected"
         );
         let response_status = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -9697,7 +9763,7 @@ async fn create_realtime_call(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/sdp"),
     );
-    if let Ok(value) = HeaderValue::from_str(&context.correlation_id.to_string()) {
+    if let Ok(value) = HeaderValue::from_str(&correlation_id) {
         response_headers.insert("x-correlation-id", value);
     }
     if let Some(call_id) = call_id.and_then(|value| HeaderValue::from_str(&value).ok()) {
@@ -9705,7 +9771,9 @@ async fn create_realtime_call(
     }
     tracing::info!(
         target: "mxgenius.realtime",
-        correlation_id = %context.correlation_id,
+        correlation_id = %correlation_id,
+        client_kind,
+        push_to_talk,
         model = %model,
         voice = %voice,
         latency_ms = exchange_started.elapsed().as_millis(),
@@ -9722,6 +9790,14 @@ fn realtime_safety_identifier(
 
     let salt = std::env::var("MXGENIUS_SAFETY_IDENTIFIER_SALT").unwrap_or_default();
     let input = format!("{salt}:{}:{}", context.organization_id, context.user_id);
+    hex::encode(Sha256::digest(input.as_bytes()))
+}
+
+fn edge_realtime_safety_identifier(identity: &DeviceIdentity) -> String {
+    use sha2::{Digest, Sha256};
+
+    let salt = std::env::var("MXGENIUS_SAFETY_IDENTIFIER_SALT").unwrap_or_default();
+    let input = format!("{salt}:{}:{}", identity.organization_id, identity.device_id);
     hex::encode(Sha256::digest(input.as_bytes()))
 }
 
@@ -10784,6 +10860,7 @@ mod structured_advisory_tests {
             "gpt-realtime-2.1".into(),
             "marin".into(),
             "gpt-4o-mini-transcribe".into(),
+            false,
         );
         assert_eq!(session["type"], "realtime");
         assert_eq!(session["output_modalities"], json!(["audio"]));
@@ -10800,6 +10877,18 @@ mod structured_advisory_tests {
         assert!(session.get("voice").is_none());
         assert!(session.get("turn_detection").is_none());
         assert!(session.get("input_audio_transcription").is_none());
+    }
+
+    #[test]
+    fn edge_realtime_session_uses_manual_push_to_talk() {
+        let session = realtime_session_config(
+            "gpt-realtime-2.1".into(),
+            "marin".into(),
+            "gpt-4o-mini-transcribe".into(),
+            true,
+        );
+        assert!(session["audio"]["input"]["turn_detection"].is_null());
+        assert_eq!(session["audio"]["input"]["transcription"]["language"], "en");
     }
 
     #[test]

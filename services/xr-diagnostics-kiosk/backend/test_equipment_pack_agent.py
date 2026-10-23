@@ -445,6 +445,46 @@ class ReconciliationTests(unittest.IsolatedAsyncioTestCase):
 
 
 class RangeDownloadTests(unittest.TestCase):
+    def test_realtime_sdp_uses_edge_identity_and_returns_only_safe_headers(self):
+        observed: dict[str, str] = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                observed["path"] = self.path
+                observed["authorization"] = self.headers.get("Authorization", "")
+                observed["content_type"] = self.headers.get("Content-Type", "")
+                length = int(self.headers.get("Content-Length", "0"))
+                observed["body"] = self.rfile.read(length).decode("utf-8")
+                answer = b"v=0\r\no=edge-answer\r\n"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/sdp")
+                self.send_header("X-MXG-Realtime-Call-ID", "rtc_test")
+                self.send_header("X-Correlation-ID", "correlation-test")
+                self.send_header("Content-Length", str(len(answer)))
+                self.end_headers()
+                self.wfile.write(answer)
+
+            def log_message(self, _format, *_args):
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            answer, headers = HttpCoreClient(f"http://127.0.0.1:{server.server_port}").realtime_call(
+                IDENTITY, "v=0\r\no=edge-offer\r\n"
+            )
+            self.assertTrue(answer.startswith("v=0"))
+            self.assertEqual(observed["path"], "/api/edge/realtime/calls")
+            self.assertEqual(observed["authorization"], f"Bearer {IDENTITY.credential}")
+            self.assertEqual(observed["content_type"], "application/sdp")
+            self.assertEqual(observed["body"], "v=0\r\no=edge-offer\r\n")
+            self.assertEqual(headers["x-mxg-realtime-call-id"], "rtc_test")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_partial_download_resumes_with_http_range(self):
         payload = b"0123456789" * 4096
         observed_ranges: list[str | None] = []

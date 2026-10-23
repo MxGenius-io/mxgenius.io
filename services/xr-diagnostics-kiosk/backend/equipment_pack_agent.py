@@ -25,6 +25,7 @@ import websockets
 
 MAX_PACKAGE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_JSON_BYTES = 1024 * 1024
+MAX_SDP_BYTES = 64 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 ENROLLMENT_CODE = re.compile(r"^[0-9A-F]{24}$")
@@ -361,6 +362,8 @@ class CoreClient(Protocol):
 
     def unregister(self, identity: EdgeIdentity) -> None: ...
 
+    def realtime_call(self, identity: EdgeIdentity, sdp: str) -> tuple[str, dict[str, str]]: ...
+
 
 class HttpCoreClient:
     def __init__(self, base_url: str, timeout_seconds: float = 20.0) -> None:
@@ -433,6 +436,36 @@ class HttpCoreClient:
         if status != 200 or not isinstance(payload, dict) or payload.get("status") != "approved":
             raise EquipmentPackError("INVALID_CLAIM", "the core returned an invalid claim status")
         return EdgeIdentity.from_wire({"device": payload.get("device"), "credential": claim.credential})
+
+    def realtime_call(self, identity: EdgeIdentity, sdp: str) -> tuple[str, dict[str, str]]:
+        encoded = sdp.encode("utf-8")
+        if not sdp.startswith("v=0") or not 1 <= len(encoded) <= MAX_SDP_BYTES:
+            raise EquipmentPackError("INVALID_SDP", "the local Realtime offer is invalid")
+        request = urllib.request.Request(
+            f"{self.base_url}/api/edge/realtime/calls",
+            data=encoded,
+            headers={
+                "Accept": "application/sdp",
+                "Authorization": f"Bearer {identity.credential}",
+                "Content-Type": "application/sdp",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                raw = response.read(MAX_SDP_BYTES + 1)
+                if len(raw) > MAX_SDP_BYTES:
+                    raise EquipmentPackError("CORE_RESPONSE_TOO_LARGE", "the Realtime answer exceeded its limit")
+                answer = raw.decode("utf-8")
+                if response.status != 200 or not answer.startswith("v=0"):
+                    raise EquipmentPackError("INVALID_REALTIME_RESPONSE", "the core returned an invalid Realtime answer")
+                return answer, {key.lower(): value for key, value in response.headers.items()}
+        except urllib.error.HTTPError as error:
+            if error.code in {401, 403}:
+                raise EquipmentPackError("DEVICE_AUTH_REJECTED", "the edge-device credential was rejected") from error
+            raise EquipmentPackError("CORE_REJECTED", f"the core rejected Realtime with HTTP {error.code}") from error
+        except (urllib.error.URLError, TimeoutError, OSError, UnicodeDecodeError) as error:
+            raise EquipmentPackError("CORE_UNAVAILABLE", "the Realtime core is unavailable") from error
 
     def desired_state(self, identity: EdgeIdentity, etag: str | None) -> tuple[bool, str | None, DesiredPack | None]:
         headers = {"If-None-Match": etag} if etag else {}

@@ -23,6 +23,7 @@ command -v curl >/dev/null 2>&1 || MISSING_PACKAGES+=(curl)
 command -v avahi-daemon >/dev/null 2>&1 || MISSING_PACKAGES+=(avahi-daemon)
 command -v sshd >/dev/null 2>&1 || MISSING_PACKAGES+=(openssh-server)
 command -v bluetoothctl >/dev/null 2>&1 || MISSING_PACKAGES+=(bluez)
+/usr/bin/python3 -c 'import gpiozero,lgpio' >/dev/null 2>&1 || MISSING_PACKAGES+=(python3-gpiozero python3-lgpio)
 if [ "${#MISSING_PACKAGES[@]}" -gt 0 ]; then
   apt-get update
   for package in "${MISSING_PACKAGES[@]}"; do
@@ -41,15 +42,23 @@ rollback_on_error() {
   rm -rf "$NEXT_DIR"
   if [ "$status" -ne 0 ] && [ "$switched" -eq 1 ] && [ -d "$PREVIOUS_DIR" ]; then
     echo 'Update failed; restoring the last known working appliance release.' >&2
-    systemctl stop mxg-diagnostics-kiosk.service mxg-edge-control.service 2>/dev/null || true
+    systemctl stop mxg-hardware-buttons.service mxg-diagnostics-kiosk.service mxg-edge-control.service 2>/dev/null || true
     rm -rf "$INSTALL_DIR"
     mv "$PREVIOUS_DIR" "$INSTALL_DIR"
     install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/systemd/system/mxg-diagnostics-kiosk.service
     install -m 0644 "$INSTALL_DIR/systemd/mxg-edge-control.service" /etc/systemd/system/mxg-edge-control.service
     install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
     install -m 0644 "$INSTALL_DIR/systemd/mxg-boot-status.service" /etc/systemd/system/mxg-boot-status.service
+    if [ -f "$INSTALL_DIR/systemd/mxg-hardware-buttons.service" ]; then
+      install -m 0644 "$INSTALL_DIR/systemd/mxg-hardware-buttons.service" /etc/systemd/system/mxg-hardware-buttons.service
+    else
+      rm -f /etc/systemd/system/mxg-hardware-buttons.service
+    fi
     systemctl daemon-reload
     systemctl restart mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-boot-status.service || true
+    if [ -f "$INSTALL_DIR/systemd/mxg-hardware-buttons.service" ]; then
+      systemctl restart mxg-hardware-buttons.service || true
+    fi
   fi
   exit "$status"
 }
@@ -57,7 +66,7 @@ trap rollback_on_error EXIT
 
 rm -rf "$NEXT_DIR"
 install -d -m 0755 "$NEXT_DIR"
-for component in backend contracts frontend scripts systemd; do
+for component in backend contracts docs frontend scripts systemd; do
   cp -a "$SOURCE_DIR/$component" "$NEXT_DIR/$component"
 done
 install -m 0644 "$SOURCE_DIR/requirements.txt" "$NEXT_DIR/requirements.txt"
@@ -89,7 +98,7 @@ ensure_env MXG_EDGE_POLL_SECONDS 60
 # only after the root USB emulator had already attempted to start.
 install -d -o mxgdiag -g mxgdiag -m 0700 /var/lib/mxg-diagnostics-kiosk
 
-systemctl stop mxg-diagnostics-kiosk.service mxg-edge-control.service 2>/dev/null || true
+systemctl stop mxg-hardware-buttons.service mxg-diagnostics-kiosk.service mxg-edge-control.service 2>/dev/null || true
 rm -rf "$PREVIOUS_DIR"
 mv "$INSTALL_DIR" "$PREVIOUS_DIR"
 mv "$NEXT_DIR" "$INSTALL_DIR"
@@ -99,6 +108,7 @@ install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/system
 install -m 0644 "$INSTALL_DIR/systemd/mxg-edge-control.service" /etc/systemd/system/mxg-edge-control.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-boot-status.service" /etc/systemd/system/mxg-boot-status.service
+install -m 0644 "$INSTALL_DIR/systemd/mxg-hardware-buttons.service" /etc/systemd/system/mxg-hardware-buttons.service
 install -d -m 0755 /etc/systemd/system/bluetooth.service.d
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-compat.conf" /etc/systemd/system/bluetooth.service.d/mxg-compat.conf
 if [ -n "$KIOSK_USER" ] && [ -d "/home/$KIOSK_USER" ]; then
@@ -116,13 +126,14 @@ chmod +x \
 systemctl daemon-reload
 systemctl enable bluetooth.service avahi-daemon.service ssh.service
 systemctl disable NetworkManager-wait-online.service 2>/dev/null || true
-systemctl enable mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-boot-status.service
+systemctl enable mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-hardware-buttons.service mxg-boot-status.service
 systemctl restart bluetooth.service
 systemctl restart avahi-daemon.service
 systemctl restart ssh.service
 systemctl restart mxg-edge-control.service
 systemctl restart mxg-bluetooth-sdp.service
 systemctl restart mxg-diagnostics-kiosk.service
+systemctl restart mxg-hardware-buttons.service
 systemctl restart mxg-boot-status.service
 
 healthy=0

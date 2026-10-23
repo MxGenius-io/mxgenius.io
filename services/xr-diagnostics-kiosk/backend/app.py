@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from bluetooth_stream import BluetoothDiagnosticsServer
@@ -339,6 +339,58 @@ async def equipment_pack_status(request: Request) -> dict[str, Any]:
     if host not in LOCAL_CLIENTS:
         raise HTTPException(status_code=403, detail="Equipment Pack status is local-only")
     return equipment_pack_agent.public_status()
+
+
+@app.post("/api/v1/realtime/calls")
+async def realtime_call(request: Request) -> Response:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="Realtime setup is local-only")
+    if equipment_pack_agent.identity is None or equipment_pack_agent.client is None:
+        raise HTTPException(status_code=409, detail="Enroll this Pi before starting Realtime voice")
+    body = await request.body()
+    if not 1 <= len(body) <= 64 * 1024:
+        raise HTTPException(status_code=400, detail="SDP offer must be between 1 byte and 64 KiB")
+    try:
+        offer = body.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise HTTPException(status_code=400, detail="SDP offer must be UTF-8") from error
+    try:
+        answer, response_headers = await asyncio.to_thread(
+            equipment_pack_agent.client.realtime_call,
+            equipment_pack_agent.identity,
+            offer,
+        )
+    except EquipmentPackError as error:
+        status = 503 if error.code in {"CORE_UNAVAILABLE", "CORE_REJECTED"} else 409
+        raise HTTPException(status_code=status, detail=error.detail) from error
+    headers = {}
+    for source, target in (
+        ("x-mxg-realtime-call-id", "X-MXG-Realtime-Call-ID"),
+        ("x-correlation-id", "X-Correlation-ID"),
+    ):
+        if value := response_headers.get(source) or response_headers.get(target):
+            headers[target] = value
+    return Response(content=answer, media_type="application/sdp", headers=headers)
+
+
+@app.post("/api/v1/hardware/button")
+async def hardware_button(request: Request) -> dict[str, Any]:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="hardware input is local-only")
+    payload = await request.json()
+    if payload.get("button") != "talk" or not isinstance(payload.get("pressed"), bool):
+        raise HTTPException(status_code=400, detail="a talk button state is required")
+    event = {
+        "type": "hardware.button",
+        "version": 1,
+        "button": "talk",
+        "pressed": payload["pressed"],
+        "observedAtMs": int(time.time() * 1000),
+    }
+    await bridge.broadcast_json(event)
+    return {"accepted": True, "button": "talk", "pressed": payload["pressed"]}
 
 
 @app.post("/api/v1/equipment-pack/enroll")

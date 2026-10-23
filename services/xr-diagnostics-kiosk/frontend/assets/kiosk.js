@@ -1,3 +1,5 @@
+import { RealtimeVoice } from './realtime-voice.js';
+
 const $ = (id) => document.getElementById(id);
 const formatBytes = (value = 0) => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -28,6 +30,46 @@ let equipmentPackBusy = false;
 let controlNoticeTimer = null;
 let performanceHistory = [];
 let performanceIntervalSeconds = 5;
+const voice = new RealtimeVoice({ onEvent: handleVoiceEvent });
+
+function handleVoiceEvent(event) {
+  const state = event.state || 'disconnected';
+  $('voiceState').dataset.state = state;
+  $('voiceState').textContent = state.toUpperCase();
+  $('talkButton').setAttribute('aria-pressed', String(Boolean(voice.talking)));
+  $('voiceConnect').textContent = ['disconnected', 'failed'].includes(state) ? 'Connect voice' : 'Disconnect voice';
+  if (event.type === 'state' && event.reason) {
+    $('voiceHint').textContent = event.reason;
+    if (state === 'failed') logEvent('error', 'voice', 'Voice loop failed', { error: event.reason });
+  } else if (event.type === 'talk') {
+    $('voiceHint').textContent = event.pressed ? 'Listening… release to send.' : 'Turn sent. Waiting for the response…';
+  } else if (event.type === 'transcript' && event.text) {
+    const label = event.role === 'assistant' ? 'MxGenius' : 'You';
+    $('voiceTranscript').textContent = `${label}: ${event.text}`;
+    logEvent('info', 'voice', `${label} transcript completed`);
+  } else if (event.type === 'connected') {
+    $('voiceHint').textContent = 'Hold the screen button or the GPIO17 trigger to talk.';
+    logEvent('info', 'voice', 'Realtime voice connected through the enrolled edge identity');
+  }
+}
+
+async function startVoiceTurn(source = 'screen') {
+  $('talkButton').setAttribute('aria-pressed', 'true');
+  try {
+    await voice.startTalking();
+    if (voice.talking) logEvent('info', 'voice', 'Push-to-talk pressed', { source });
+  } catch (error) {
+    $('talkButton').setAttribute('aria-pressed', 'false');
+    logEvent('error', 'voice', 'Push-to-talk could not start', { source, error: error.message });
+  }
+}
+
+function stopVoiceTurn(source = 'screen') {
+  $('talkButton').setAttribute('aria-pressed', 'false');
+  if (!voice.talking) return;
+  voice.stopTalking();
+  logEvent('info', 'voice', 'Push-to-talk released', { source });
+}
 
 try {
   const stored = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || '[]');
@@ -726,6 +768,10 @@ function connect() {
         else connectedNodes.delete(message.node.nodeId);
         logEvent(message.status === 'disconnected' ? 'warning' : 'info', 'node', `${message.node.nodeName || message.node.nodeId} ${message.status}`, { type: message.node.nodeType || 'unknown' });
       }
+      if (message.type === 'hardware.button' && message.button === 'talk') {
+        if (message.pressed) void startVoiceTurn('gpio17');
+        else stopVoiceTurn('gpio17');
+      }
       return;
     }
     // Thermal frames remain available to XR clients; the local kiosk no longer renders a decorative preview.
@@ -812,6 +858,34 @@ $('wifiForm').addEventListener('submit', async (event) => {
     logEvent('error', 'wifi', 'Wi-Fi connection failed', { ssid: $('wifiSsid').value, error: error.message });
   } finally {
     button.disabled = false;
+  }
+});
+$('voiceConnect').addEventListener('click', async () => {
+  if (!['disconnected', 'failed'].includes(voice.state)) {
+    voice.disconnect();
+    $('voiceHint').textContent = 'Voice disconnected.';
+    return;
+  }
+  try { await voice.connect(); } catch { /* the voice client already published its failure state */ }
+});
+$('talkButton').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  void startVoiceTurn('screen');
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  $('talkButton').addEventListener(type, () => stopVoiceTurn('screen'));
+}
+$('talkButton').addEventListener('keydown', (event) => {
+  if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) {
+    event.preventDefault();
+    void startVoiceTurn('keyboard');
+  }
+});
+$('talkButton').addEventListener('keyup', (event) => {
+  if (event.key === ' ' || event.key === 'Enter') {
+    event.preventDefault();
+    stopVoiceTurn('keyboard');
   }
 });
 $('powerButton').addEventListener('click', () => $('powerDialog').showModal());

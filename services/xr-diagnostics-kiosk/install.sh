@@ -18,12 +18,12 @@ if [ -z "$KIOSK_USER" ]; then
 fi
 
 apt-get update
-apt-get install -y python3 python3-venv python3-pip chromium openssl bluez network-manager dosfstools curl avahi-daemon openssh-server
+apt-get install -y python3 python3-venv python3-pip python3-gpiozero python3-lgpio chromium openssl bluez network-manager dosfstools curl avahi-daemon openssh-server
 
 if ! id mxgdiag >/dev/null 2>&1; then
   useradd --system --home-dir "$INSTALL_DIR" --shell /usr/sbin/nologin mxgdiag
 fi
-for group in dialout video render plugdev bluetooth; do
+for group in dialout video render plugdev bluetooth gpio; do
   getent group "$group" >/dev/null 2>&1 && usermod -a -G "$group" mxgdiag
 done
 
@@ -37,7 +37,7 @@ cleanup_install() { rm -rf "$NEXT_DIR"; }
 trap cleanup_install EXIT
 rm -rf "$NEXT_DIR"
 install -d -m 0755 "$NEXT_DIR"
-cp -a "$SOURCE_DIR/backend" "$SOURCE_DIR/contracts" "$SOURCE_DIR/frontend" "$SOURCE_DIR/scripts" "$SOURCE_DIR/systemd" "$SOURCE_DIR/requirements.txt" "$NEXT_DIR/"
+cp -a "$SOURCE_DIR/backend" "$SOURCE_DIR/contracts" "$SOURCE_DIR/docs" "$SOURCE_DIR/frontend" "$SOURCE_DIR/scripts" "$SOURCE_DIR/systemd" "$SOURCE_DIR/requirements.txt" "$NEXT_DIR/"
 if [ -f "$SOURCE_DIR/VERSION" ]; then
   install -m 0644 "$SOURCE_DIR/VERSION" "$NEXT_DIR/VERSION"
 fi
@@ -71,6 +71,7 @@ install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.service" /etc/system
 install -m 0644 "$INSTALL_DIR/systemd/mxg-edge-control.service" /etc/systemd/system/mxg-edge-control.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-bluetooth-sdp.service" /etc/systemd/system/mxg-bluetooth-sdp.service
 install -m 0644 "$INSTALL_DIR/systemd/mxg-boot-status.service" /etc/systemd/system/mxg-boot-status.service
+install -m 0644 "$INSTALL_DIR/systemd/mxg-hardware-buttons.service" /etc/systemd/system/mxg-hardware-buttons.service
 install -d -m 0755 "/home/$KIOSK_USER/.config/autostart"
 install -m 0644 "$INSTALL_DIR/systemd/mxg-diagnostics-kiosk.desktop" "/home/$KIOSK_USER/.config/autostart/mxg-diagnostics-kiosk.desktop"
 chown -R "$KIOSK_USER:$KIOSK_USER" "/home/$KIOSK_USER/.config"
@@ -80,7 +81,7 @@ chmod +x "$INSTALL_DIR/scripts/configure-appliance.sh" "$INSTALL_DIR/scripts/dia
 systemctl daemon-reload
 systemctl enable bluetooth.service avahi-daemon.service ssh.service
 systemctl disable NetworkManager-wait-online.service 2>/dev/null || true
-systemctl enable mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-boot-status.service
+systemctl enable mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-hardware-buttons.service mxg-boot-status.service
 if [ "$IMAGE_BUILD_MODE" != "1" ]; then
   systemctl restart bluetooth.service
   systemctl restart avahi-daemon.service
@@ -88,6 +89,7 @@ if [ "$IMAGE_BUILD_MODE" != "1" ]; then
   systemctl restart mxg-edge-control.service
   systemctl restart mxg-bluetooth-sdp.service
   systemctl restart mxg-diagnostics-kiosk.service
+  systemctl restart mxg-hardware-buttons.service
   systemctl restart mxg-boot-status.service
 fi
 

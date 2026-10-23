@@ -23,7 +23,7 @@ else
   warn 'boot command line was not readable'
 fi
 
-for service in NetworkManager.service avahi-daemon.service ssh.service mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-boot-status.service; do
+for service in NetworkManager.service avahi-daemon.service ssh.service mxg-edge-control.service mxg-bluetooth-sdp.service mxg-diagnostics-kiosk.service mxg-hardware-buttons.service mxg-boot-status.service; do
   if systemctl is-active --quiet "$service"; then
     pass "$service active"
   else

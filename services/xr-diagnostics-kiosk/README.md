@@ -4,6 +4,11 @@ Architecture reference: [`MXG-PIVOT-2026-08-14-XR-EDGE-V1`](../../docs/PIVOT_202
 
 This service turns a Raspberry Pi into a standalone fullscreen diagnostics appliance. It keeps raw port/device readings local and emits a reduced summary for the Quest companion and MXG server session.
 
+The current breadboard voice and two-button wiring is documented in
+[`docs/XDRIVE_VOICE_BREADBOARD.md`](docs/XDRIVE_VOICE_BREADBOARD.md). Realtime
+voice reuses the appliance's enrolled device identity; the provider key remains
+server-side in Azure and is never copied into the image.
+
 ## Iteration pipes
 
 The POC has three deliberately separate paths. UI work should not require an SD-card write, and routine Pi updates should not require reprovisioning the device.
@@ -199,6 +204,8 @@ any stage fails.
 - `GET /api/v1/integrations/simulated` — synthetic normalized AviationWeather and Honeywell Forge envelopes
 - `GET /api/v1/schemas/integration-fixtures` — fixture-registry JSON Schema
 - `GET /api/v1/control/session` — loopback-only, ephemeral local appliance control nonce
+- `POST /api/v1/realtime/calls` — loopback-only SDP proxy using the enrolled edge-device credential
+- `POST /api/v1/hardware/button` — loopback-only physical push-to-talk event relay
 - `POST /api/v1/control/wifi/scan` and `/connect` — local NetworkManager discovery and connection actions
 - `POST /api/v1/control/bluetooth/scan` and `/action` — local BlueZ discovery, pair, connect, disconnect, and forget actions
 - `POST /api/v1/control/poweroff` — guarded local safe-shutdown action

@@ -1,0 +1,25 @@
+[Unit]
+Description=MXG physical push-to-talk button relay
+After=mxg-diagnostics-kiosk.service
+Wants=mxg-diagnostics-kiosk.service
+
+[Service]
+Type=simple
+User=mxgdiag
+Group=mxgdiag
+SupplementaryGroups=gpio
+WorkingDirectory=/opt/mxg-diagnostics-kiosk
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MXG_TALK_GPIO=17
+ExecStart=/usr/bin/python3 /opt/mxg-diagnostics-kiosk/scripts/hardware_buttons.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
