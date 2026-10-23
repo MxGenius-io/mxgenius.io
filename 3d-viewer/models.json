@@ -146,10 +146,10 @@
     "provider": "workspace",
     "sourceAuthority": "MXGenius",
     "collection": "Local model set",
-    "sizeBytes": 16300552,
+    "sizeBytes": 16479800,
     "quickAccess": true,
     "operationalStatus": "demo_asset",
-    "description": "10-second authored-pose exploded view of the five-part XDrive V7 enclosure and calibrated Raspberry Pi board, with centered pivots and collision-checked separation."
+    "description": "10-second authored-pose exploded view of the five-part XDrive V7 enclosure and calibrated Raspberry Pi board, with three sequenced axial fasteners and collision-checked separation."
   },
   {
     "file": "models/FLIR_Quest3S_ExplodedAssembly.glb",

@@ -49,6 +49,20 @@ PART_ORDER = (
     "06 Raspberry Pi board",
 )
 
+# Three 5 mm counterbores in the authored upper plate define the visible case
+# fasteners. These are presentation screws (M3-class socket heads) whose shaft
+# axes and closed locations come from those existing holes.
+SCREW_HOLES_MM = (
+    (-34.44, 11.50),
+    (-34.44, -27.00),
+    (15.70, -27.00),
+)
+SCREW_SEAT_Z_MM = 42.50
+SCREW_SHAFT_LENGTH_MM = 10.0
+SCREW_SHAFT_RADIUS_MM = 1.50
+SCREW_HEAD_HEIGHT_MM = 1.80
+SCREW_HEAD_RADIUS_MM = 2.75
+
 COLORS = {
     "01 Base tray": (0.92, 0.95, 1.0, 1.0),
     "02 Front I-O frame": (0.01, 0.07, 0.72, 1.0),
@@ -149,15 +163,103 @@ def load_parts() -> list[bpy.types.Object]:
     return [by_role[role] for role in PART_ORDER]
 
 
-def animate(parts: list[bpy.types.Object]) -> None:
+def create_screw_mesh(name: str, material: bpy.types.Material) -> bpy.types.Object:
+    """Create a compact socket-head screw with its pivot on the shaft axis."""
+    shaft_length = SCREW_SHAFT_LENGTH_MM * MM
+    head_height = SCREW_HEAD_HEIGHT_MM * MM
+
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=24,
+        radius=SCREW_SHAFT_RADIUS_MM * MM,
+        depth=shaft_length,
+        location=(0.0, 0.0, -shaft_length * 0.5),
+    )
+    shaft = bpy.context.object
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=32,
+        radius=SCREW_HEAD_RADIUS_MM * MM,
+        depth=head_height,
+        location=(0.0, 0.0, head_height * 0.5),
+    )
+    head = bpy.context.object
+
+    # A shallow hex socket makes the axial rotation readable in the viewer.
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=6,
+        radius=1.18 * MM,
+        depth=0.85 * MM,
+        location=(0.0, 0.0, head_height - 0.25 * MM),
+    )
+    cutter = bpy.context.object
+    modifier = head.modifiers.new("Hex socket", "BOOLEAN")
+    modifier.operation = "DIFFERENCE"
+    modifier.solver = "EXACT"
+    modifier.object = cutter
+    bpy.context.view_layer.objects.active = head
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+
+    bpy.ops.object.select_all(action="DESELECT")
+    shaft.select_set(True)
+    head.select_set(True)
+    bpy.context.view_layer.objects.active = head
+    bpy.ops.object.join()
+    screw = bpy.context.object
+    screw.name = name
+    screw.data.name = f"{name} mesh"
+    screw.data.materials.append(material)
+
+    bevel = screw.modifiers.new("Manufactured edge", "BEVEL")
+    bevel.width = 0.12 * MM
+    bevel.segments = 2
+    bevel.limit_method = "ANGLE"
+    bpy.context.view_layer.objects.active = screw
+    bpy.ops.object.modifier_apply(modifier=bevel.name)
+
+    bounds_min = Vector(tuple(min(vertex.co[axis] for vertex in screw.data.vertices) for axis in range(3)))
+    bounds_max = Vector(tuple(max(vertex.co[axis] for vertex in screw.data.vertices) for axis in range(3)))
+    center = (bounds_min + bounds_max) * 0.5
+    for vertex in screw.data.vertices:
+        vertex.co -= center
+    screw.data.update()
+    screw["assembly_role"] = "Upper-plate mounting screw"
+    screw["hardware_class"] = "Representative M3 socket head"
+    screw["pivot_axis"] = "local Z"
+    # Return the offset from shaft/head interface to the centered object origin.
+    screw["seat_to_origin_m"] = center.z
+    return screw
+
+
+def add_screws() -> list[bpy.types.Object]:
+    material = new_material("Mounting screws", (0.035, 0.045, 0.060, 1.0))
+    material.metallic = 0.88
+    material.roughness = 0.22
+    principled = material.node_tree.nodes.get("Principled BSDF")
+    principled.inputs["Metallic"].default_value = 0.88
+    principled.inputs["Roughness"].default_value = 0.22
+
+    screws = []
+    for index, (x_mm, y_mm) in enumerate(SCREW_HOLES_MM, start=1):
+        screw = create_screw_mesh(f"{6 + index:02d} Upper plate screw {index}", material)
+        screw.location = Vector((
+            x_mm * MM,
+            y_mm * MM,
+            SCREW_SEAT_Z_MM * MM + screw["seat_to_origin_m"],
+        ))
+        screws.append(screw)
+    return screws
+
+
+def animate(parts: list[bpy.types.Object], screws: list[bpy.types.Object]) -> None:
     scene = bpy.context.scene
     scene.frame_start = 1
     scene.frame_end = 250
     scene.render.fps = 25
-    # Load expanded so the viewer frames the full motion envelope. The middle
-    # of the loop returns to the exact 3MF-authored closed pose.
+    # Load expanded so the viewer frames the full motion envelope. The enclosure
+    # closes first, then each screw seats with an axial turn. Disassembly runs in
+    # reverse so no plate moves through an installed fastener.
     exploded_frames = (1, 30, 240, 250)
-    closed_frames = (110, 165)
+    closed_frames = (100, 212)
     for obj in parts:
         closed = obj.location.copy()
         exploded = closed + EXPLODE_OFFSET[obj.name]
@@ -170,6 +272,33 @@ def animate(parts: list[bpy.types.Object]) -> None:
         if obj.animation_data and obj.animation_data.action:
             obj.animation_data.action.name = f"XDrive V7 explode {obj.name[:2]}"
 
+    for index, screw in enumerate(screws):
+        closed = screw.location.copy()
+        raised = closed + Vector((0.0, 0.0, (95.0 + index * 8.0) * MM))
+        assembly_start = 105 + index * 11
+        assembly_end = assembly_start + 18
+        removal_sequence = len(screws) - 1 - index
+        removal_start = 170 + removal_sequence * 11
+        removal_end = removal_start + 18
+
+        for frame in (1, 30, 100, assembly_start):
+            screw.location = raised
+            screw.rotation_euler.z = 0.0
+            screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
+            screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
+        for frame in (assembly_end, 165, removal_start):
+            screw.location = closed
+            screw.rotation_euler.z = -math.tau * 4.0
+            screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
+            screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
+        for frame in (removal_end, 240, 250):
+            screw.location = raised
+            screw.rotation_euler.z = 0.0
+            screw.keyframe_insert(data_path="location", frame=frame, group="Fastener motion")
+            screw.keyframe_insert(data_path="rotation_euler", frame=frame, group="Fastener motion")
+        if screw.animation_data and screw.animation_data.action:
+            screw.animation_data.action.name = f"XDrive V7 fastener {index + 1:02d}"
+
 
 def world_bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
     corners = [obj.matrix_world @ Vector(corner) for obj in objects for corner in obj.bound_box]
@@ -178,7 +307,7 @@ def world_bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
     return lo, hi
 
 
-def validate_authored_pose(parts: list[bpy.types.Object]) -> None:
+def validate_authored_pose(parts: list[bpy.types.Object], screws: list[bpy.types.Object]) -> None:
     scene = bpy.context.scene
     scene.frame_set(145)
     bpy.context.view_layer.update()
@@ -187,6 +316,9 @@ def validate_authored_pose(parts: list[bpy.types.Object]) -> None:
     expected = np.array(json.loads(MANIFEST.read_text(encoding="utf-8"))["sceneBoundsMillimeters"])
     if not np.allclose(actual, expected, atol=0.02):
         raise RuntimeError(f"Authored pose bounds changed: expected={expected.tolist()}, actual={actual.tolist()}")
+    for index, (screw, (x_mm, y_mm)) in enumerate(zip(screws, SCREW_HOLES_MM), start=1):
+        if not np.allclose((screw.location.x / MM, screw.location.y / MM), (x_mm, y_mm), atol=0.01):
+            raise RuntimeError(f"Screw {index} is not aligned to its authored upper-plate hole")
     print(f"Authored pose bounds preserved: {tuple(round(value / MM, 3) for value in (hi - lo))} mm")
 
 
@@ -238,7 +370,7 @@ def frame_camera(camera: bpy.types.Object, objects: list[bpy.types.Object]) -> N
     camera.rotation_euler = (center - camera.location).to_track_quat("-Z", "Y").to_euler()
 
 
-def render_previews(parts: list[bpy.types.Object]) -> None:
+def render_previews(objects: list[bpy.types.Object]) -> None:
     configure_preview()
     camera_data = bpy.data.cameras.new("Preview camera")
     camera_data.lens = 62
@@ -248,7 +380,7 @@ def render_previews(parts: list[bpy.types.Object]) -> None:
     bpy.context.scene.camera = camera
     for frame, filename in ((145, "authored-closed.png"), (1, "authored-exploded.png")):
         bpy.context.scene.frame_set(frame)
-        frame_camera(camera, parts)
+        frame_camera(camera, objects)
         bpy.context.scene.render.filepath = str(PREVIEW_DIR / filename)
         bpy.ops.render.render(write_still=True)
 
@@ -282,6 +414,7 @@ def merge_glb_animations(path: Path) -> None:
             "revision": "XDrive V7 with authored board",
             "durationSeconds": 10,
             "closedPoseSource": "3MF build transforms",
+            "fastenerCount": 3,
         },
     }]
     encoded = json.dumps(document, separators=(",", ":")).encode("utf-8")
@@ -295,12 +428,12 @@ def merge_glb_animations(path: Path) -> None:
             handle.write(payload)
 
 
-def export_glb(parts: list[bpy.types.Object]) -> None:
+def export_glb(objects: list[bpy.types.Object]) -> None:
     bpy.context.scene.frame_set(1)
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in parts:
+    for obj in objects:
         obj.select_set(True)
-    bpy.context.view_layer.objects.active = parts[0]
+    bpy.context.view_layer.objects.active = objects[0]
     bpy.ops.export_scene.gltf(
         filepath=str(OUTPUT),
         export_format="GLB",
@@ -315,18 +448,21 @@ def export_glb(parts: list[bpy.types.Object]) -> None:
 def main() -> None:
     clear_scene()
     parts = load_parts()
-    animate(parts)
-    validate_authored_pose(parts)
+    screws = add_screws()
+    objects = parts + screws
+    animate(parts, screws)
+    validate_authored_pose(parts, screws)
     validate_exploded_clearance(parts)
-    render_previews(parts)
+    render_previews(objects)
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_OUTPUT))
-    export_glb(parts)
+    export_glb(objects)
     BUILD_LOG.write_text(
         "SUCCESS\n"
         f"output={OUTPUT}\n"
         f"sizeBytes={OUTPUT.stat().st_size}\n"
         f"boardVertices={len(parts[-1].data.vertices)}\n"
-        f"boardTriangles={len(parts[-1].data.polygons)}\n",
+        f"boardTriangles={len(parts[-1].data.polygons)}\n"
+        f"fasteners={len(screws)}\n",
         encoding="utf-8",
     )
     print(f"Wrote {OUTPUT}")

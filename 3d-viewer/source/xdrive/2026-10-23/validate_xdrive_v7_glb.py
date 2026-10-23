@@ -25,7 +25,7 @@ def read_document(path):
 
 document = read_document(GLB)
 mesh_nodes = [node for node in document["nodes"] if "mesh" in node]
-assert len(mesh_nodes) == 6, f"expected 6 mesh nodes, found {len(mesh_nodes)}"
+assert len(mesh_nodes) == 9, f"expected 9 mesh nodes, found {len(mesh_nodes)}"
 
 for node in mesh_nodes:
     primitive = document["meshes"][node["mesh"]]["primitives"][0]
@@ -39,14 +39,30 @@ animations = document.get("animations", [])
 assert len(animations) == 1, f"expected one merged animation, found {len(animations)}"
 animation = animations[0]
 assert animation.get("name") == "Explode and reassemble (10 seconds)"
-assert len(animation["channels"]) == 6, f'expected 6 animation channels, found {len(animation["channels"])}'
-assert {channel["target"]["path"] for channel in animation["channels"]} == {"translation"}
+assert len(animation["channels"]) == 12, f'expected 12 animation channels, found {len(animation["channels"])}'
+assert {channel["target"]["path"] for channel in animation["channels"]} == {"translation", "rotation"}
 
-animated_nodes = {channel["target"]["node"] for channel in animation["channels"]}
 mesh_node_indices = {index for index, node in enumerate(document["nodes"]) if "mesh" in node}
-assert animated_nodes == mesh_node_indices, "animation does not address every mesh exactly once"
+translation_nodes = {
+    channel["target"]["node"]
+    for channel in animation["channels"]
+    if channel["target"]["path"] == "translation"
+}
+rotation_nodes = {
+    channel["target"]["node"]
+    for channel in animation["channels"]
+    if channel["target"]["path"] == "rotation"
+}
+screw_nodes = {
+    index for index, node in enumerate(document["nodes"])
+    if "Upper plate screw" in node.get("name", "")
+}
+assert translation_nodes == mesh_node_indices, "translation animation does not address every mesh"
+assert rotation_nodes == screw_nodes, "only the three screw nodes should have axial rotation"
+assert len(screw_nodes) == 3, f"expected three animated screw nodes, found {len(screw_nodes)}"
 assert animation.get("extras", {}).get("durationSeconds") == 10
 
 assert animation.get("extras", {}).get("closedPoseSource") == "3MF build transforms"
+assert animation.get("extras", {}).get("fastenerCount") == 3
 
-print(f"Validated {GLB.name}: 6 centered pivots, 6 translation tracks, one authored-pose animation")
+print(f"Validated {GLB.name}: 9 centered pivots, 12 motion tracks, 3 axial fasteners")
