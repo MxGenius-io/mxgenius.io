@@ -146,10 +146,10 @@
     "provider": "workspace",
     "sourceAuthority": "MXGenius",
     "collection": "Local model set",
-    "sizeBytes": 2538868,
+    "sizeBytes": 2464648,
     "quickAccess": true,
     "operationalStatus": "demo_asset",
-    "description": "10-second exploded assembly of the current five-part XDrive V7 enclosure, restored from print-plate geometry using shared rear and vertical assembly datums."
+    "description": "10-second exploded assembly of the current five-part XDrive V7 enclosure with centered part pivots and verified 0.8 mm interface clearances."
   },
   {
     "file": "models/FLIR_Quest3S_ExplodedAssembly.glb",

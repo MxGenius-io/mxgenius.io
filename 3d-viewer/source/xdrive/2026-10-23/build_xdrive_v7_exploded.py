@@ -28,17 +28,17 @@ NS = {"m": "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}
 ASSEMBLED_MM = [
     (0.000, 0.000, 0.000),       # base tray
     (-2.879, 67.420, 3.500),     # rear I/O wall; vertical face at base rear
-    (-2.968, 90.697, 16.700),    # upper U trim; rear edge at base rear
+    (-2.968, 90.697, 17.500),    # upper U trim; 0.8 mm above base top
     (-102.864, 64.794, 3.500),   # internal carrier; rear edge at base rear
-    (-106.590, -5.836, 26.900),  # ventilated upper plate on carrier standoffs
+    (-106.590, -5.836, 27.700),  # upper plate; 0.8 mm above carrier standoffs
 ]
 
 EXPLODED_OFFSET_MM = [
     (0.0, 0.0, 0.0),
     (0.0, 45.0, 8.0),
     (0.0, -42.0, 22.0),
-    (0.0, 0.0, 46.0),
-    (0.0, 0.0, 86.0),
+    (0.0, 0.0, 23.0),
+    (0.0, 0.0, 35.0),
 ]
 
 PART_NAMES = [
@@ -71,13 +71,22 @@ def load_parts():
         model = ET.fromstring(archive.read("3D/3dmodel.model"))
 
     objects = []
+    assembled_locations = []
     sources = [obj for obj in model.findall(".//m:resources/m:object", NS) if obj.find("m:mesh", NS) is not None]
     for index, source_object in enumerate(sources):
         mesh_xml = source_object.find("m:mesh", NS)
-        vertices = [
-            tuple(float(vertex.attrib[axis]) * MM for axis in "xyz")
+        source_vertices_mm = [
+            Vector(tuple(float(vertex.attrib[axis]) for axis in "xyz"))
             for vertex in mesh_xml.find("m:vertices", NS)
         ]
+        bounds_min = Vector(tuple(min(vertex[axis] for vertex in source_vertices_mm) for axis in range(3)))
+        bounds_max = Vector(tuple(max(vertex[axis] for vertex in source_vertices_mm) for axis in range(3)))
+        pivot_mm = (bounds_min + bounds_max) * 0.5
+        # Keep every object's origin inside its own geometry.  The 3MF stores
+        # all parts in a shared print-bed coordinate system; leaving those
+        # coordinates on the mesh puts the animation pivots far outside the
+        # individual parts and makes viewer manipulation look like clipping.
+        vertices = [tuple((vertex - pivot_mm) * MM) for vertex in source_vertices_mm]
         triangles = [
             (int(face.attrib["v1"]), int(face.attrib["v2"]), int(face.attrib["v3"]))
             for face in mesh_xml.find("m:triangles", NS)
@@ -97,14 +106,17 @@ def load_parts():
         principled.inputs["Metallic"].default_value = 0.04
         principled.inputs["Roughness"].default_value = 0.34
         obj.data.materials.append(material)
-        obj.location = Vector(ASSEMBLED_MM[index]) * MM
+        assembled_location = (pivot_mm + Vector(ASSEMBLED_MM[index])) * MM
+        obj.location = assembled_location
         obj["assembly_role"] = PART_NAMES[index][3:]
         obj["source_revision"] = "XDrive V7"
+        obj["pivot_source_mm"] = tuple(round(value, 4) for value in pivot_mm)
         objects.append(obj)
-    return objects
+        assembled_locations.append(assembled_location)
+    return objects, assembled_locations
 
 
-def animate(objects):
+def animate(objects, assembled_locations):
     scene = bpy.context.scene
     scene.frame_start = 1
     scene.frame_end = 250
@@ -112,7 +124,7 @@ def animate(objects):
     assembled_frames = (1, 30, 240, 250)
     exploded_frames = (110, 165)
     for index, obj in enumerate(objects):
-        assembled = Vector(ASSEMBLED_MM[index]) * MM
+        assembled = assembled_locations[index]
         exploded = assembled + Vector(EXPLODED_OFFSET_MM[index]) * MM
         for frame in assembled_frames:
             obj.location = assembled
@@ -122,6 +134,24 @@ def animate(objects):
             obj.keyframe_insert(data_path="location", frame=frame, group="Assembly motion")
         if obj.animation_data and obj.animation_data.action:
             obj.animation_data.action.name = f"XDrive V7 explode {index + 1:02d}"
+
+
+def validate_assembly_clearances(objects):
+    bpy.context.view_layer.update()
+
+    def z_bounds(obj):
+        values = [(obj.matrix_world @ Vector(corner)).z for corner in obj.bound_box]
+        return min(values), max(values)
+
+    base = z_bounds(objects[0])
+    trim = z_bounds(objects[2])
+    carrier = z_bounds(objects[3])
+    upper = z_bounds(objects[4])
+    gaps_mm = ((trim[0] - base[1]) / MM, (upper[0] - carrier[1]) / MM)
+    for gap in gaps_mm:
+        if abs(gap - 0.8) > 0.01:
+            raise RuntimeError(f"Unexpected XDrive assembly clearance: {gap:.3f} mm")
+    print(f"Assembly clearances: trim/base={gaps_mm[0]:.3f} mm, upper/carrier={gaps_mm[1]:.3f} mm")
 
 
 def world_bounds(objects):
@@ -244,8 +274,9 @@ def export_glb(objects):
 
 
 clear_scene()
-parts = load_parts()
-animate(parts)
+parts, assembled_locations = load_parts()
+validate_assembly_clearances(parts)
+animate(parts, assembled_locations)
 render_preview(parts)
 export_glb(parts)
 print(f"Wrote {OUTPUT}")
