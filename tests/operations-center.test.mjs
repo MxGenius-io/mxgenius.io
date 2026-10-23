@@ -77,7 +77,7 @@ test('provider settings own one staged model-context uploader for files and fold
   assert.match(css, /\.model-knowledge-list/);
 });
 
-test('R&D Highlights preserves report videos and adds the three hardware build recordings', async () => {
+test('R&D Highlights preserves report videos and adds the four hardware build recordings', async () => {
   const reportsRoot = new URL('../Generated Reports/', import.meta.url);
   const weekFolders = (await readdir(reportsRoot, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory() && /^week-\d+$/.test(entry.name));
@@ -103,7 +103,8 @@ test('R&D Highlights preserves report videos and adds the three hardware build r
   assert.deepEqual(buildVideos.toSorted(), [
     'media/build/2026-10-07/flir-exploded-assembly.mp4',
     'media/build/2026-10-07/mxgenius-logo-print.mp4',
-    'media/build/2026-10-07/xdrive-exploded-assembly.mp4'
+    'media/build/2026-10-07/xdrive-exploded-assembly.mp4',
+    'media/build/2026-10-23/xdrive-v7-bench-walkthrough.mp4'
   ]);
   assert.equal((html.match(/<video controls playsinline preload="metadata"/g) || []).length, expected.length + buildVideos.length);
   for (const path of [...expected, ...buildVideos]) {
@@ -114,6 +115,16 @@ test('R&D Highlights preserves report videos and adds the three hardware build r
     await readFile(new URL(`../${path}`, import.meta.url));
     await readFile(new URL(`../${path.replace(/\.mp4$/, '.jpg')}`, import.meta.url));
     assert.ok(html.includes(`poster="${path.replace(/\.mp4$/, '.jpg')}"`));
+  }
+  for (const path of [
+    'media/build/2026-10-23/xdrive-v7-authored-exploded.png',
+    'media/build/2026-10-23/xdrive-v7-viewer-exploded.png',
+    'media/build/2026-10-23/xdrive-concept-dewalt.webp',
+    'media/build/2026-10-23/xdrive-concept-makita.webp',
+    'media/build/2026-10-23/xdrive-concept-milwaukee.webp'
+  ]) {
+    await readFile(new URL(`../${path}`, import.meta.url));
+    assert.ok(html.includes(path), path);
   }
   assert.match(html, /Completion and mounting fit remain to be confirmed/);
   assert.match(html, /data-build-update="2026-10-16"/);

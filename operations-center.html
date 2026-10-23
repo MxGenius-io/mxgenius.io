@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations Center · MXGenius</title>
   <meta name="description" content="One authenticated view for MXGenius customer operations, devices, delivery, reports, readiness, provider settings, feedback, and access rules">
-  <link rel="stylesheet" href="operations-center.css?v=9">
+  <link rel="stylesheet" href="operations-center.css?v=10">
   <link rel="stylesheet" href="guided-tooltip.css?v=7">
   <style id="auth-gate">body { visibility: hidden; }</style>
   <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
@@ -56,19 +56,65 @@
           <p>Build evidence, walkthroughs, and experiments, preserved with their original context and remaining acceptance checks.</p>
         </div>
         <div class="highlights-summary" aria-label="R and D video collection summary">
-          <strong>10</strong>
-          <span>3 build videos + 7 report videos</span>
+          <strong>11</strong>
+          <span>4 build videos + 7 report videos</span>
         </div>
       </header>
 
       <div class="highlights-grid">
-        <article class="highlight-card highlight-card--featured" data-build-update="2026-10-16">
+        <article class="highlight-card highlight-card--featured" data-build-video="media/build/2026-10-23/xdrive-v7-bench-walkthrough.mp4">
+          <div class="highlight-video-wrap">
+            <video controls playsinline preload="metadata" poster="media/build/2026-10-23/xdrive-v7-bench-walkthrough.jpg" aria-label="XDrive V7 bench walkthrough">
+              <source src="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/media/build/2026-10-23/xdrive-v7-bench-walkthrough.mp4" type="video/mp4">
+              Your browser cannot play this video.
+            </video>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Build evidence · October 23</span><span>04:50 · 180 MB</span></div>
+            <h3>XDrive V7 · bench walkthrough</h3>
+            <p>A physical-state walkthrough of the current Raspberry Pi and 52Pi electronics, printed V7 enclosure, and bench integration. It records the assembly now in hand while fit, fasteners, battery integration, and field acceptance remain open.</p>
+            <div class="highlight-card__actions"><a href="3d-viewer/index.html" target="_blank" rel="noopener">Open V7 viewer</a><a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/media/build/2026-10-23/xdrive-v7-bench-walkthrough.mp4" target="_blank" rel="noopener">Open video</a><a href="#readiness">Shared readiness</a></div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-build-update="2026-10-23">
+          <div class="highlight-video-wrap">
+            <div class="highlight-media-gallery highlight-media-gallery--pair">
+              <a href="media/build/2026-10-23/xdrive-v7-authored-exploded.png" target="_blank" rel="noopener"><img src="media/build/2026-10-23/xdrive-v7-authored-exploded.png" alt="XDrive V7 authored exploded assembly in the CAD workspace" width="1091" height="728" loading="lazy"></a>
+              <a href="media/build/2026-10-23/xdrive-v7-viewer-exploded.png" target="_blank" rel="noopener"><img src="media/build/2026-10-23/xdrive-v7-viewer-exploded.png" alt="XDrive V7 exploded assembly running in the MXGenius viewer" width="1027" height="838" loading="lazy"></a>
+            </div>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Interactive build · October 23</span><span>Closed-first sequence</span></div>
+            <h3>XDrive V7 · authored and in the viewer</h3>
+            <p>The current five-part enclosure, calibrated Pi board, and three axial fasteners begin assembled, then separate into an inspection view without part clipping. The viewer record shows the same authored geometry used for the current build.</p>
+            <div class="highlight-card__actions"><a href="3d-viewer/index.html" target="_blank" rel="noopener">Open build viewer</a></div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-build-update="2026-10-16">
+          <div class="highlight-video-wrap">
+            <div class="highlight-media-gallery highlight-media-gallery--concepts">
+              <a href="media/build/2026-10-23/xdrive-concept-dewalt.webp" target="_blank" rel="noopener"><img src="media/build/2026-10-23/xdrive-concept-dewalt.webp" alt="Yellow and black XDrive industrial design concept paired with a DeWalt-style battery platform" width="1400" height="1400" loading="lazy"></a>
+              <a href="media/build/2026-10-23/xdrive-concept-makita.webp" target="_blank" rel="noopener"><img src="media/build/2026-10-23/xdrive-concept-makita.webp" alt="Teal and black XDrive industrial design concept paired with a Makita-style battery platform" width="1400" height="1400" loading="lazy"></a>
+              <a href="media/build/2026-10-23/xdrive-concept-milwaukee.webp" target="_blank" rel="noopener"><img src="media/build/2026-10-23/xdrive-concept-milwaukee.webp" alt="Red and black XDrive industrial design concept paired with a Milwaukee-style battery platform" width="1400" height="1400" loading="lazy"></a>
+            </div>
+          </div>
+          <div class="highlight-card__body">
+            <div class="highlight-card__meta"><span>Direction studies · October 16</span><span>Concepts, not compatibility claims</span></div>
+            <h3>Industrial-intelligence platform direction</h3>
+            <p>Early DeWalt, Makita, and Milwaukee color studies established the tool-like grip, battery-foot stance, side vents, voice trigger, and MXGenius identity that informed V7. They communicate a modular product direction; only the current hardware path is being engineered and tested.</p>
+            <div class="highlight-card__actions"><a href="build-readiness-2026-10-16.html">Read the concept-stage record</a></div>
+          </div>
+        </article>
+
+        <article class="highlight-card" data-build-update="2026-10-16">
           <div class="highlight-video-wrap"><img src="media/build/2026-10-16/battery-based-tapered-layout.jpg" alt="Operator-marked battery and Pi stack showing the proposed tapered XDrive enclosure" width="1600" height="1201" loading="lazy"></div>
           <div class="highlight-card__body">
             <div class="highlight-card__meta"><span>Build update · October 16</span><span>Hardware photos + CAD references</span></div>
             <h3>XDrive V1 · enclosure and battery integration</h3>
-            <p>The latest direction uses the battery as a tool-style foot, adds a reinforced drill-style grip and retention strap, and puts the electronics above. Current hardware photos and earlier R04/tapered-body studies are documented; field acceptance remains open.</p>
-            <div class="highlight-card__actions"><a href="build-readiness-2026-10-16.html">Read the current build report</a><a href="#readiness">Shared readiness</a></div>
+            <p>The battery-foot and reinforced-grip investigation established the load-path, wiring, and retention questions that preceded V7. The October 16 record preserves those physical references and remaining acceptance checks.</p>
+            <div class="highlight-card__actions"><a href="build-readiness-2026-10-16.html">Read the concept-stage record</a><a href="#readiness">Shared readiness</a></div>
           </div>
         </article>
 
