@@ -2,3 +2,4 @@
 services/mcp/migrations/*.sql text eol=lf
 services/xr-diagnostics-kiosk/**/*.sh text eol=lf
 services/xr-diagnostics-kiosk/*.sh text eol=lf
+*.3mf filter=lfs diff=lfs merge=lfs -text
