@@ -5,7 +5,7 @@
   const WORKSPACE_TITLE = 'MXGenius Build Board';
   const CARD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
   const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
-  const BUILD_BOARD_SCHEMA_VERSION = 6;
+  const BUILD_BOARD_SCHEMA_VERSION = 7;
   const STATIC_CARD_ARTWORK = new Map([
     ['sprint-xr-spatial-workspace', {
       src: 'assets/xr-spatial-workspace-map.png',
@@ -19,6 +19,28 @@
   ];
 
   const starterCards = [
+    {
+      id: 'sprint-xdrive-v7-field-acceptance',
+      lane: 'sprint',
+      title: 'Assemble and field-accept XDrive V7',
+      message: 'Use the current V7 geometry as the build candidate. Print and assemble the enclosure, secure the Pi and 52Pi without board stress, and verify every fastener, port, control, card, wire bend, strain-relief point, and cooling path. Integrate the battery footer, internal steel load path, dense grip, and retention strap; then run battery boot, network, USB transfer, thermal, shutdown, reconnect, and carry acceptance. Record the tested configuration and an explicit accept-or-revise decision.',
+      owner: 'Dwayne Tillman',
+      author: 'October 23 V7 readiness sync',
+      created_at: '2026-10-23T00:00:00Z',
+      updated_at: '2026-10-23T00:00:00Z',
+      updates: []
+    },
+    {
+      id: 'complete-xdrive-v7-cad-viewer',
+      lane: 'complete',
+      title: 'Publish XDrive V7 CAD and exploded viewer',
+      message: 'The current five-part enclosure, calibrated Raspberry Pi reference, and three representative axial fasteners are secured in the repository. The ten-second viewer sequence starts closed and separates without part clipping; the bench video and authored/viewer stills are published in R&D Highlights. This closes representation and evidence work, while physical fit and field acceptance remain open.',
+      owner: 'Dwayne Tillman',
+      author: 'October 23 V7 readiness sync',
+      created_at: '2026-10-23T00:00:00Z',
+      updated_at: '2026-10-23T00:00:00Z',
+      updates: []
+    },
     {
       id: 'sprint-xr-spatial-workspace',
       lane: 'sprint',
@@ -306,9 +328,9 @@
       updates: []
     }
   ];
-  const BUILD_BOARD_V6_STARTER_IDS = new Set(starterCards.map((card) => card.id));
-  const BUILD_BOARD_V6_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
-  const BUILD_BOARD_V6_RETIRED_IDS = new Set([
+  const BUILD_BOARD_V7_STARTER_IDS = new Set(starterCards.map((card) => card.id));
+  const BUILD_BOARD_V7_STARTER_TITLES = new Set(starterCards.map((card) => card.title));
+  const BUILD_BOARD_V7_RETIRED_IDS = new Set([
     'question-operations-connections',
     'question-structured-output-example',
     'question-demonstration-done',
@@ -322,7 +344,7 @@
     'sprint-flir-libssh2-disposition',
     'sprint-final-release-closeout'
   ]);
-  const BUILD_BOARD_V6_RETIRED_TITLES = new Set([
+  const BUILD_BOARD_V7_RETIRED_TITLES = new Set([
     'Can we provide a model structured-output example to mimic?',
     'Which POC devices and programs should run with the Pi?',
     'Prepare the final release and handoff report',
@@ -392,8 +414,8 @@
     let cards = Array.isArray(input.cards) ? input.cards.map(normalizeCard) : clone(starterCards);
     if (Number(input.schema_version || 0) < BUILD_BOARD_SCHEMA_VERSION) {
       const retained = cards.filter((card) => (
-        !BUILD_BOARD_V6_RETIRED_IDS.has(card.id)
-        && !BUILD_BOARD_V6_RETIRED_TITLES.has(card.title)
+        !BUILD_BOARD_V7_RETIRED_IDS.has(card.id)
+        && !BUILD_BOARD_V7_RETIRED_TITLES.has(card.title)
       ));
       const existingById = new Map(retained.map((card) => [card.id, card]));
       const legacyByTitle = new Map(retained.map((card) => [card.title, card]));
@@ -407,8 +429,8 @@
         } : starter);
       });
       const teamCards = retained.filter((card) => (
-        !BUILD_BOARD_V6_STARTER_IDS.has(card.id)
-        && !BUILD_BOARD_V6_STARTER_TITLES.has(card.title)
+        !BUILD_BOARD_V7_STARTER_IDS.has(card.id)
+        && !BUILD_BOARD_V7_STARTER_TITLES.has(card.title)
       ));
       cards = [...refreshedStarters, ...teamCards];
     }

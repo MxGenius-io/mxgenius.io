@@ -3,7 +3,7 @@
 
   const WORKSPACE_KEY = 'integration-readiness';
   const WORKSPACE_TITLE = 'MXGenius Integration Readiness';
-  const READINESS_SCHEMA_VERSION = 4;
+  const READINESS_SCHEMA_VERSION = 5;
   const STATUS_OPTIONS = [
     ['needs_input', 'Needs team input'],
     ['scoped', 'Scope agreed'],
@@ -108,15 +108,16 @@
   ];
 
   const starterDevices = [
-    { id: 'device-pi', name: 'Raspberry Pi 5 · 16 GB', location: 'Inside enclosure', interface: 'Core compute and network gateway', power: 'Regulated supply from step-down converter', reading: 'Runs local bridge, device services, health, and diagnostic transport.', demo: 'Boot to the MXGenius kiosk, discover approved peripherals, and report stable health.', safety: 'Record OS image, service versions, thermal limits, shutdown procedure, and owner.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Validated as the current 16 GB edge-compute target; final enclosure acceptance is still required.' },
-    { id: 'device-dewalt-battery', name: 'DeWalt battery + adapter', location: 'External power source', interface: 'Battery adapter into protected DC power path', power: 'Exact battery family, voltage, capacity, fuse, and connector need confirmation', reading: 'Supply voltage, current, remaining capacity, and fault/low-power state if available.', demo: 'Power the complete box safely for the required demo duration.', safety: 'Confirm pack model, protection, step-down input range, fuse, thermal clearance, and safe shutdown.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Compatibility is a working assumption until the exact battery, adapter, runtime, and protection path are documented and tested.' },
+    { id: 'device-pi', name: 'Raspberry Pi 5 · 16 GB', location: 'Inside XDrive V7 enclosure', interface: 'Core compute and network gateway', power: 'Regulated supply from the 52Pi path', reading: 'Runs local bridge, device services, health, and diagnostic transport.', demo: 'Boot to the MXGenius kiosk, discover approved peripherals, and report stable health.', safety: 'Record OS image, service versions, thermal limits, shutdown procedure, and owner.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Validated as the current 16 GB edge-compute target. V7 is the current enclosure candidate; physical mounting, port access, and closed-case acceptance remain open.' },
+    { id: 'device-dewalt-battery', name: 'DeWalt battery + adapter', location: 'External power source and XDrive foot', interface: 'Battery adapter into protected DC power path', power: 'Pictured 20V MAX 5 Ah pack through the adapter, protection, regulation, and safe-disconnect path', reading: 'Supply voltage, current, remaining capacity, and fault/low-power state if available.', demo: 'Power the complete V7 assembly safely for the required demo duration.', safety: 'Confirm adapter protection, step-down input range, fuse, thermal clearance, structural load path, battery release travel, and safe shutdown.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'The pictured 20V MAX 5 Ah pack and earlier 18-hour Pi/52Pi runtime baseline are documented. Integrated V7 footer, protection, reinforced load path, and repeat acceptance remain open.' },
     { id: 'device-step-down', name: 'DC step-down converter', location: 'Inside enclosure', interface: 'Battery input to regulated Pi/peripheral rails', power: 'Input/output voltage and continuous/peak current must match final load', reading: 'Optional voltage/current/temperature telemetry if the selected unit exposes it.', demo: 'Hold stable power through boot, connected-device load, network use, and orderly shutdown.', safety: 'Select exact part number; verify fuse, heat, isolation, transient behavior, and connector polarity.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Add the selected converter and measured power budget.' },
     { id: 'device-port-panel', name: 'External port panel + cable harness', location: 'Enclosure boundary', interface: 'Panel-mounted USB, network, power, and approved sensor connections', power: 'Pass through only the rails required by the final devices', reading: 'Provides labeled, strain-relieved physical paths rather than a data reading itself.', demo: 'Every demo cable connects without opening the enclosure and remains secure during use.', safety: 'Define connector types, pinout, ESD protection, weather/dust expectation, strain relief, and labels.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'This is the physical answer to “what attaches to the box”; finalize after the device list is locked.' },
     { id: 'device-flir', name: 'FLIR ONE thermal camera', location: 'External sensor', interface: 'Camera to Quest companion / approved device bridge; exact production cable path must be recorded', power: 'Camera/device dependent', reading: 'Thermal frames and camera readiness; temperature claims depend on supported calibration and mode.', demo: 'Show stable thermal imagery in the MXGenius spatial panel and attach selected evidence to a case.', safety: 'Keep camera readiness distinct from diagnostic readiness; resolve vendor library disposition before public release.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Mounted sensor path; final headset hardware acceptance remains.' },
     { id: 'device-quest', name: 'Meta Quest headset', location: 'External display / operator interface', interface: 'Wi-Fi/WebXR plus the native sensor companion', power: 'Headset battery or approved external power', reading: 'Head pose, controller/hand input, spatial panel state, and relayed sensor context.', demo: 'Open the apparatus workspace, view FLIR/Pi status, manipulate panels, and capture evidence.', safety: 'Confirm safe demo area, guardian/passthrough behavior, hygiene, battery state, and exit path.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Private Alpha path is mounted; complete the current on-hardware acceptance checklist.' },
     { id: 'device-pressure', name: 'Pressure gauge / transducer', location: 'External sensor', interface: 'Unknown — analog, USB, Bluetooth, Wi-Fi, serial, or an acquisition module', power: 'Specify sensor excitation, range, connector, and whether isolation is required', reading: 'Pressure value, unit, range, sample rate, timestamp, calibration identity, and quality/fault state.', demo: 'Read a stable value, preserve its provenance, compare only against approved aircraft data, and record the human disposition.', safety: 'Exact medium, pressure range, accuracy, fittings, overpressure protection, calibration, and aircraft interface are required.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Placeholder for the exact gauge/transducer and aircraft-safe test setup.' },
     { id: 'device-ios', name: 'iPhone / iPad test device', location: 'External display / AR interface', interface: 'Secure network plus the MXGenius iOS wrapper', power: 'Device battery or approved charger', reading: 'Camera/AR pose, selected aircraft/model context, microphone state, and spatial UI events.', demo: 'Prove the agreed native AR and voice path on a named supported device.', safety: 'Record supported hardware/OS, permissions, test account, network, and device acceptance owner.', owner: 'Unassigned', need: 'review', status: 'ready_to_test', notes: 'Native AR path is mounted; decide whether it is part of the first black-box demo or a separate lane.' },
-    { id: 'device-52pi-gpio-power', name: '52Pi direct GPIO power path', location: 'Inside enclosure', interface: '52Pi power board wired directly to the Raspberry Pi power pins, leaving USB-C available for data gadget mode', power: 'DeWalt battery through the protected and regulated 52Pi path; validate voltage, current, fuse, polarity, and shutdown behavior', reading: 'Input and rail health where available, Pi undervoltage state, temperature, and orderly-shutdown evidence.', demo: 'Run the Pi under representative service and transfer load without undervoltage, thermal fault, or USB-C contention.', safety: 'Record the exact pins, wire gauge, connector retention, fuse/protection, enclosure strain relief, and safe disconnect sequence.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Physical wiring is complete; finish sustained-load, battery-runtime, thermal, and transport acceptance before sealing the enclosure.' },
+    { id: 'device-52pi-gpio-power', name: '52Pi direct GPIO power path', location: 'Inside XDrive V7 enclosure', interface: '52Pi power board wired directly to the Raspberry Pi power pins, leaving USB-C available for data gadget mode', power: 'DeWalt battery through the protected and regulated 52Pi path; validate voltage, current, fuse, polarity, and shutdown behavior', reading: 'Input and rail health where available, Pi undervoltage state, temperature, and orderly-shutdown evidence.', demo: 'Run the Pi under representative service and transfer load without undervoltage, thermal fault, or USB-C contention.', safety: 'Record the exact pins, wire gauge, connector retention, fuse/protection, enclosure strain relief, and safe disconnect sequence.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Direct GPIO wiring and the earlier runtime baseline are established. Repeat sustained-load, battery-runtime, thermal, strain-relief, and transport acceptance inside the sealed V7 assembly.' },
+    { id: 'device-xdrive-v7-enclosure', name: 'XDrive V7 enclosure + fastener set', location: 'Apparatus body around the Pi and 52Pi stack', interface: 'Five-part printed shell with accessible controls, ports, card, ventilation, and service fasteners', power: 'Passive enclosure that must preserve the protected 52Pi power path and safe disconnect', reading: 'No direct telemetry; acceptance comes from fit, retention, access, inspection, and in-enclosure health evidence.', demo: 'Assemble the current V7 without stress or clipping, reach every required connector and control, and run the integrated battery, network, and USB demonstration.', safety: 'Verify exact screw size, length, engagement, standoff alignment, wall strength around ports, card access, wire strain relief, ventilation, and absence of PCB loading.', owner: 'Dwayne Tillman', need: 'demo', status: 'ready_to_test', notes: 'CAD, viewer, bench video, and stills are published. Physical print fit, battery-handle reinforcement, and field acceptance remain open.' },
     { id: 'device-usb-c-gadget', name: 'USB-C mass-storage gadget and data path', location: 'External host connection', interface: 'Pi USB-C data connection presented to a host computer as the approved mass-storage gadget and service channel', power: 'Pi remains powered through the direct GPIO path so the USB-C port is dedicated to data', reading: 'Host enumeration, mounted volume identity, transfer progress, checksums, eject state, health, and update status.', demo: 'Connect to a clean host, enumerate once, transfer a representative package end to end, verify it, safely eject, and reconnect without repair.', safety: 'Prevent host/Pi concurrent writes, protect credentials and system partitions, define cable and port requirements, and make interrupted-transfer recovery explicit.', owner: 'Unassigned', need: 'demo', status: 'ready_to_test', notes: 'Validate the complete file lifecycle: stage, copy, checksum, ingest, acknowledge, archive or purge, interruption recovery, and update rollback.' }
   ];
 
@@ -260,6 +261,7 @@
   };
   const READINESS_V4_REMOVED_DEVICE_IDS = new Set(['device-fan', 'device-drill']);
   const READINESS_V4_REMOVED_DEVICE_NAMES = new Set(['Enclosure cooling fan', 'Demo drill / driver']);
+  const READINESS_V5_REFRESHED_DEVICE_IDS = new Set(['device-pi', 'device-dewalt-battery', 'device-52pi-gpio-power', 'device-xdrive-v7-enclosure']);
 
   const state = { version: 0, document: null, dirty: false, saving: false, openItemId: null };
   const elements = {};
@@ -301,6 +303,26 @@
     document.workflows = document.workflows.filter((item) => item.status !== 'needs_input');
     return document;
   }
+  function applyReadinessV5(document) {
+    const starterById = new Map(starterDevices
+      .filter((item) => READINESS_V5_REFRESHED_DEVICE_IDS.has(item.id))
+      .map((item) => [item.id, item]));
+    const existingIds = new Set(document.devices.map((item) => item.id));
+    document.devices = document.devices.map((item) => {
+      const starter = starterById.get(item.id);
+      if (!starter) return item;
+      const priorOwner = item.owner === 'Bless' ? 'Dwayne Tillman' : item.owner;
+      return normalizeDevice({
+        ...starter,
+        owner: priorOwner && priorOwner !== 'Unassigned' ? priorOwner : starter.owner,
+        status: item.status === 'proven' ? 'proven' : starter.status
+      });
+    });
+    for (const starter of starterById.values()) {
+      if (!existingIds.has(starter.id)) document.devices.push(normalizeDevice(starter));
+    }
+    return document;
+  }
   function normalizeDocument(value) {
     const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const inputSchemaVersion = Number(input.schema_version || 0);
@@ -318,6 +340,7 @@
       document.migrations = mergeStarterUpgrade(document.migrations, starterMigrations, READINESS_V3_IDS.migrations, normalizeMigration);
     }
     if (inputSchemaVersion < 4) applyReadinessV4(document);
+    if (inputSchemaVersion < 5) applyReadinessV5(document);
     return document;
   }
 

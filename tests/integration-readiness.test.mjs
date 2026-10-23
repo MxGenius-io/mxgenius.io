@@ -75,12 +75,12 @@ test('starter software inventory includes known external, live-flight, model, an
 
 test('starter hardware separates enclosure internals, power/data paths, and attached demo equipment', () => {
   const starterDevices = js.match(/const starterDevices = \[([\s\S]*?)\n  \];\n\n  const starterWorkflows/)[1];
-  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Pressure gauge / transducer', 'iPhone / iPad test device', '52Pi direct GPIO power path', 'USB-C mass-storage gadget and data path']) {
+  for (const name of ['Raspberry Pi 5 · 16 GB', 'DeWalt battery + adapter', 'DC step-down converter', 'External port panel + cable harness', 'FLIR ONE thermal camera', 'Meta Quest headset', 'Pressure gauge / transducer', 'iPhone / iPad test device', '52Pi direct GPIO power path', 'XDrive V7 enclosure + fastener set', 'USB-C mass-storage gadget and data path']) {
     assert.match(starterDevices, new RegExp(name.replace(/[+/.]/g, '\\$&')));
   }
   assert.doesNotMatch(starterDevices, /Enclosure cooling fan|Demo drill \/ driver/);
-  assert.equal((starterDevices.match(/id: 'device-/g) || []).length, 10);
-  assert.equal((starterDevices.match(/status: 'ready_to_test'/g) || []).length, 10);
+  assert.equal((starterDevices.match(/id: 'device-/g) || []).length, 11);
+  assert.equal((starterDevices.match(/status: 'ready_to_test'/g) || []).length, 11);
   assert.doesNotMatch(starterDevices, /status: 'needs_input'/);
   assert.match(html, /Inside[\s\S]*Pi 5 · 16 GB[\s\S]*Outside/);
   assert.match(js, /calibration/);
@@ -111,12 +111,14 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /element\.textContent = text/);
   assert.doesNotMatch(js, /innerHTML/);
   assert.match(js, /beforeunload/);
-  assert.match(js, /READINESS_SCHEMA_VERSION = 4/);
+  assert.match(js, /READINESS_SCHEMA_VERSION = 5/);
   assert.match(js, /READINESS_V3_IDS/);
   assert.match(js, /READINESS_V4_REMOVED_DEVICE_IDS/);
   assert.match(js, /READINESS_V4_REMOVED_DEVICE_NAMES/);
+  assert.match(js, /READINESS_V5_REFRESHED_DEVICE_IDS/);
   assert.match(js, /inputSchemaVersion < 3/);
   assert.match(js, /inputSchemaVersion < 4\) applyReadinessV4\(document\)/);
+  assert.match(js, /inputSchemaVersion < 5\) applyReadinessV5\(document\)/);
   assert.match(js, /mergeStarterUpgrade/);
   assert.match(js, /needsSchemaSave/);
   assert.match(js, /needsInitialSave = !workspace/);
@@ -125,15 +127,18 @@ test('the shared checklist persists with optimistic versioning and safe DOM rend
   assert.match(js, /save to publish it/);
 });
 
-test('readiness v4 clears retired and yellow work while leaving migrations outside the v4 transform', () => {
+test('readiness migrations clear retired work and add the current XDrive V7 candidate', () => {
   const migration = js.match(/function applyReadinessV4\(document\) \{([\s\S]*?)\n  \}/)[1];
   assert.match(migration, /READINESS_V4_REMOVED_DEVICE_IDS/);
   assert.match(migration, /READINESS_V4_REMOVED_DEVICE_NAMES/);
   assert.match(migration, /status: 'ready_to_test'/);
   assert.match(migration, /item\.status !== 'needs_input'/);
   assert.doesNotMatch(migration, /migrations/);
-  assert.match(html, /integration-readiness\.js\?v=5/);
-  assert.match(operationsCenter, /integration-readiness\.html\?embed=1&amp;release=readiness-v5/);
+  const v5 = js.match(/function applyReadinessV5\(document\) \{([\s\S]*?)\n  \}/)[1];
+  assert.match(v5, /device-xdrive-v7-enclosure|READINESS_V5_REFRESHED_DEVICE_IDS/);
+  assert.match(v5, /Dwayne Tillman/);
+  assert.match(html, /integration-readiness\.js\?v=6/);
+  assert.match(operationsCenter, /integration-readiness\.html\?embed=1&amp;release=readiness-v6/);
 });
 
 test('progressive disclosure keeps the first view light and forms usable on narrow screens', () => {

@@ -54,10 +54,12 @@ test('board lanes lead the composer and cards support private picture attachment
 });
 
 test('the starter build list reflects the current hardware and release work', () => {
-  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V6_STARTER_IDS'));
+  const starterSource = js.slice(js.indexOf('const starterCards'), js.indexOf('const BUILD_BOARD_V7_STARTER_IDS'));
   assert.equal((starterSource.match(/lane: 'question'/g) || []).length, 0);
-  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 17);
-  assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 9);
+  assert.equal((starterSource.match(/lane: 'sprint'/g) || []).length, 18);
+  assert.equal((starterSource.match(/lane: 'complete'/g) || []).length, 10);
+  assert.match(starterSource, /Assemble and field-accept XDrive V7/);
+  assert.match(starterSource, /Publish XDrive V7 CAD and exploded viewer/);
   assert.match(starterSource, /Publish and accept Quest Sensor Bridge alpha\.25/);
   assert.match(starterSource, /Wire the Pi power and data paths/);
   assert.match(starterSource, /Define the Pi POC stack/);
@@ -86,11 +88,11 @@ test('the starter build list reflects the current hardware and release work', ()
     'Field-test selected OpenSky trip paths',
     'Close the model response-loop regression'
   ]) assert.match(starterSource, new RegExp(title.replace(/[+/.]/g, '\\$&')));
-  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 6/);
-  assert.match(js, /BUILD_BOARD_V6_STARTER_IDS/);
-  assert.match(js, /BUILD_BOARD_V6_STARTER_TITLES/);
-  assert.match(js, /BUILD_BOARD_V6_RETIRED_IDS/);
-  assert.match(js, /BUILD_BOARD_V6_RETIRED_TITLES/);
+  assert.match(js, /BUILD_BOARD_SCHEMA_VERSION = 7/);
+  assert.match(js, /BUILD_BOARD_V7_STARTER_IDS/);
+  assert.match(js, /BUILD_BOARD_V7_STARTER_TITLES/);
+  assert.match(js, /BUILD_BOARD_V7_RETIRED_IDS/);
+  assert.match(js, /BUILD_BOARD_V7_RETIRED_TITLES/);
   for (const id of ['question-demonstration-done', 'question-thermal-acceptance-duration', 'question-ios-build33-owner', 'sprint-quest-poc12-acceptance']) {
     assert.match(js, new RegExp(id));
   }
@@ -98,7 +100,7 @@ test('the starter build list reflects the current hardware and release work', ()
   assert.match(js, /created_at: existing\.created_at \|\| starter\.created_at/);
   assert.match(js, /image: existing\.image/);
   assert.match(js, /updates: existing\.updates/);
-  assert.match(html, /build-board\.js\?v=7/);
+  assert.match(html, /build-board\.js\?v=8/);
 });
 
 test('the locked lean spatial workspace direction is a Current sprint card', () => {

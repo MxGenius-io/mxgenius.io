@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>XDrive V7 build readiness · October 23 · MXGenius</title>
+<style>body{font:17px/1.65 system-ui,sans-serif;margin:0;background:#f1f5f9;color:#172033}main{max-width:1050px;margin:auto;padding:32px 24px}h1{line-height:1.2}h2{margin-top:36px}a{color:#075cc8}table{border-collapse:collapse;width:100%;background:white}th,td{padding:14px;text-align:left;border-bottom:1px solid #dbe3ed;vertical-align:top}th{background:#e2e8f0}figure{margin:24px 0}img{display:block;max-width:100%;border-radius:12px}nav{display:flex;gap:20px;flex-wrap:wrap}.status{display:inline-block;background:#dbeafe;border-radius:6px;padding:3px 10px}.lead{padding:18px;background:#dbeafe;border-left:5px solid #075cc8;border-radius:8px}.pending{background:#fef3c7;padding:14px;border-radius:8px}.evidence{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.evidence figure{margin:0;padding:14px;background:white;border:1px solid #dbe3ed;border-radius:12px}.evidence img{width:100%;height:340px;object-fit:contain;background:#e9eef4}.evidence figcaption{font-size:15px;margin-top:10px}li{margin:8px 0}@media(max-width:650px){table,tbody,tr,th,td{display:block}thead{display:none}td:first-child{font-weight:700;background:#e2e8f0}.evidence{grid-template-columns:1fr}.evidence img{height:auto}}</style></head>
+<body><main><nav><a href="operations-center.html#build">Build board</a><a href="operations-center.html#readiness">Shared readiness</a><a href="operations-center.html#highlights">R&amp;D Highlights</a><a href="3d-viewer/index.html">Build viewer</a></nav>
+<p>MXGenius apparatus · updated October 23, 2026</p>
+<h1>XDrive V7: current build and acceptance plan</h1>
+<p class="lead"><strong>Current state: the V7 enclosure is the active build candidate.</strong> Its five enclosure parts, calibrated Raspberry Pi reference board, and three representative axial fasteners are secured in the repository and published in the build viewer. The ten-second sequence starts closed and separates into an inspection view without part clipping. Bench video and stills document the current physical electronics and printed enclosure. Physical assembly, reinforced battery-handle integration, and field acceptance remain open.</p>
+
+<h2>Readiness at a glance</h2>
+<table><thead><tr><th>Area</th><th>Established</th><th>Next proof</th></tr></thead><tbody>
+<tr><td>V7 enclosure geometry</td><td>The current five-part shell and authored assembly are published. Closed and exploded states use the same part geometry and calibrated offsets.</td><td>Print the current parts and confirm closure, retention, wall strength, and repeatable assembly.</td></tr>
+<tr><td>Pi and 52Pi packaging</td><td>The viewer uses a calibrated Raspberry Pi board reference. The current power architecture routes regulated power through the 52Pi GPIO path and leaves USB-C available for data.</td><td>Dry-fit the real stack and verify every mounting point, connector, control, card, wire bend, and cooling path.</td></tr>
+<tr><td>Fasteners</td><td>Three representative M3-class fasteners follow their mounting axes in the assembly sequence.</td><td>Confirm exact screw diameter, length, head clearance, thread engagement, and standoff alignment on the physical build.</td></tr>
+<tr><td>Battery, footer, handle, and strap</td><td>The DeWalt battery-foot direction, internal steel reinforcement, dense grip, wire channel, rear flare, and retention requirement are carried forward from the October 16 study.</td><td>Complete the structural load path from footer through handle to enclosure, preserve battery release travel, and verify balance while standing, holding, and carrying.</td></tr>
+<tr><td>Power, data, and thermal operation</td><td>The Pi/52Pi wiring and earlier 18-hour battery-runtime baseline establish the compute power approach. The USB-C mass-storage path remains a separate data interface.</td><td>Repeat boot, network, transfer, thermal, shutdown, reconnect, and recovery checks in the assembled V7 enclosure.</td></tr>
+</tbody></table>
+
+<h2>Decisions carried into V7</h2>
+<ul>
+<li>The actual Raspberry Pi board and connector layout are the dimensional reference. Earlier work based on a different Pi case is superseded.</li>
+<li>Earlier prints exposed thin port walls, support-removal damage, split mounting holes, and missing power-button clearance. Those prints remain diagnostic evidence and are not acceptance models.</li>
+<li>The current V7 viewer is the source for assembly communication. Rev3, R04, and the drill-style color mockups remain design-history references.</li>
+<li>The DeWalt configuration is the active hardware path. Makita and Milwaukee images communicate a possible platform direction and do not claim compatibility.</li>
+</ul>
+
+<h2>Integrated acceptance gate</h2>
+<ol>
+<li><strong>Print and inspect.</strong> Print the current V7 parts; reject cracks, weak travel layers, blocked supports, distorted holes, and incomplete port walls.</li>
+<li><strong>Dry assemble the electronics.</strong> Seat the Pi and 52Pi without bending either board. Confirm mounts, fasteners, power button, card access, ports, plug collars, wire routing, strain relief, and ventilation.</li>
+<li><strong>Complete the portable structure.</strong> Integrate the purchased battery footer, internal steel reinforcement, handle, strap, and stable standing surfaces without transferring battery or carry loads into PCB mounts.</li>
+<li><strong>Run the appliance.</strong> Boot from the battery, join the intended network, expose the approved USB-C data path, transfer and verify a representative package, then test safe eject, shutdown, reconnect, and recovery.</li>
+<li><strong>Observe the enclosure under load.</strong> Record voltage and undervoltage state where available, temperatures, connector retention, wire movement, and enclosure behavior during standing, holding, tilting, and carrying.</li>
+<li><strong>Make the decision explicit.</strong> Record the tested configuration, results, defects, and an accept-or-revise decision. Until that record exists, V7 remains ready to test rather than field accepted.</li>
+</ol>
+
+<p class="pending"><strong>Open gate:</strong> a completed V7 print and dry fit, exact fastener acceptance, reinforced battery-handle assembly, and the integrated battery/network/USB/thermal test.</p>
+
+<h2>Current evidence</h2>
+<div class="evidence">
+<figure><a href="media/build/2026-10-23/xdrive-v7-authored-exploded.png"><img src="media/build/2026-10-23/xdrive-v7-authored-exploded.png" alt="XDrive V7 authored exploded assembly" loading="lazy"></a><figcaption><strong>Authored V7 assembly.</strong> Five enclosure pieces, the calibrated board, and hardware are separated for inspection.</figcaption></figure>
+<figure><a href="media/build/2026-10-23/xdrive-v7-viewer-exploded.png"><img src="media/build/2026-10-23/xdrive-v7-viewer-exploded.png" alt="XDrive V7 exploded assembly in the MXGenius viewer" loading="lazy"></a><figcaption><strong>Published build viewer.</strong> The closed-first sequence presents assembly order and current component relationships.</figcaption></figure>
+</div>
+<p><a href="https://media.githubusercontent.com/media/MxGenius-io/mxgenius.io/main/media/build/2026-10-23/xdrive-v7-bench-walkthrough.mp4">Watch the V7 bench walkthrough</a> or open <a href="operations-center.html#highlights">R&amp;D Highlights</a> for the complete visual record.</p>
+
+<h2>Earlier records</h2>
+<p>The <a href="build-readiness-2026-10-16.html">October 16 concept-stage record</a> preserves the measured battery/footer envelope, steel reinforcement, grip, strap, wire-clearance, and platform-direction work. The <a href="build-readiness-2026-10-07.html">October 7 archive</a> preserves Rev3, FLIR, slicing, and early print evidence. Those records explain the progression; this page defines the current V7 readiness state.</p>
+</main></body></html>
