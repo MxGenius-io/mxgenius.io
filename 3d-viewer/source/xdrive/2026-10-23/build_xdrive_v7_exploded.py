@@ -12,6 +12,7 @@ import struct
 import zipfile
 import xml.etree.ElementTree as ET
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 
 ROOT = r"D:\AAog\mxgenius.io"
@@ -23,23 +24,28 @@ os.makedirs(PREVIEW_DIR, exist_ok=True)
 MM = 0.001
 NS = {"m": "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}
 
-# Plate-layout coordinates are translated onto shared physical datums.  Values
-# are millimetres and preserve the authored orientation of every V7 part.
-ASSEMBLED_MM = [
+# Plate-layout coordinates are translated onto shared reference datums.  The
+# source 3MF contains independent print-bed parts and does not preserve a
+# closed-assembly transform.  These values align the repeated perimeter and
+# mounting-hole patterns without presenting that inferred pose as assembled.
+REFERENCE_DATUM_MM = [
     (0.000, 0.000, 0.000),       # base tray
     (-2.879, 67.420, 3.500),     # rear I/O wall; vertical face at base rear
     (-2.968, 90.697, 17.500),    # upper U trim; 0.8 mm above base top
     (-102.864, 64.794, 3.500),   # internal carrier; rear edge at base rear
-    (-106.590, -5.836, 27.700),  # upper plate; 0.8 mm above carrier standoffs
+    (-109.220, -9.836, 27.700),  # upper plate; hole pattern aligned to carrier
 ]
 
-EXPLODED_OFFSET_MM = [
+# The viewer starts in a collision-free compact exploded view.  It expands to
+# 1.4x these offsets and returns, so no frame collapses into an unverified pose.
+COMPACT_EXPLODED_OFFSET_MM = [
     (0.0, 0.0, 0.0),
     (0.0, 45.0, 8.0),
-    (0.0, -42.0, 22.0),
-    (0.0, 0.0, 23.0),
-    (0.0, 0.0, 35.0),
+    (-25.0, -42.0, 18.0),
+    (20.0, 0.0, 40.0),
+    (0.0, 0.0, 65.0),
 ]
+EXPANDED_SCALE = 1.4
 
 PART_NAMES = [
     "01 Base tray",
@@ -71,7 +77,7 @@ def load_parts():
         model = ET.fromstring(archive.read("3D/3dmodel.model"))
 
     objects = []
-    assembled_locations = []
+    reference_locations = []
     sources = [obj for obj in model.findall(".//m:resources/m:object", NS) if obj.find("m:mesh", NS) is not None]
     for index, source_object in enumerate(sources):
         mesh_xml = source_object.find("m:mesh", NS)
@@ -106,37 +112,38 @@ def load_parts():
         principled.inputs["Metallic"].default_value = 0.04
         principled.inputs["Roughness"].default_value = 0.34
         obj.data.materials.append(material)
-        assembled_location = (pivot_mm + Vector(ASSEMBLED_MM[index])) * MM
-        obj.location = assembled_location
+        reference_location = (pivot_mm + Vector(REFERENCE_DATUM_MM[index])) * MM
+        obj.location = reference_location
         obj["assembly_role"] = PART_NAMES[index][3:]
         obj["source_revision"] = "XDrive V7"
         obj["pivot_source_mm"] = tuple(round(value, 4) for value in pivot_mm)
         objects.append(obj)
-        assembled_locations.append(assembled_location)
-    return objects, assembled_locations
+        reference_locations.append(reference_location)
+    return objects, reference_locations
 
 
-def animate(objects, assembled_locations):
+def animate(objects, reference_locations):
     scene = bpy.context.scene
     scene.frame_start = 1
     scene.frame_end = 250
     scene.render.fps = 25
-    assembled_frames = (1, 30, 240, 250)
-    exploded_frames = (110, 165)
+    compact_frames = (1, 30, 240, 250)
+    expanded_frames = (110, 165)
     for index, obj in enumerate(objects):
-        assembled = assembled_locations[index]
-        exploded = assembled + Vector(EXPLODED_OFFSET_MM[index]) * MM
-        for frame in assembled_frames:
-            obj.location = assembled
+        offset = Vector(COMPACT_EXPLODED_OFFSET_MM[index]) * MM
+        compact = reference_locations[index] + offset
+        expanded = reference_locations[index] + offset * EXPANDED_SCALE
+        for frame in compact_frames:
+            obj.location = compact
             obj.keyframe_insert(data_path="location", frame=frame, group="Assembly motion")
-        for frame in exploded_frames:
-            obj.location = exploded
+        for frame in expanded_frames:
+            obj.location = expanded
             obj.keyframe_insert(data_path="location", frame=frame, group="Assembly motion")
         if obj.animation_data and obj.animation_data.action:
             obj.animation_data.action.name = f"XDrive V7 explode {index + 1:02d}"
 
 
-def validate_assembly_clearances(objects):
+def validate_reference_datums(objects):
     bpy.context.view_layer.update()
 
     def z_bounds(obj):
@@ -150,8 +157,31 @@ def validate_assembly_clearances(objects):
     gaps_mm = ((trim[0] - base[1]) / MM, (upper[0] - carrier[1]) / MM)
     for gap in gaps_mm:
         if abs(gap - 0.8) > 0.01:
-            raise RuntimeError(f"Unexpected XDrive assembly clearance: {gap:.3f} mm")
-    print(f"Assembly clearances: trim/base={gaps_mm[0]:.3f} mm, upper/carrier={gaps_mm[1]:.3f} mm")
+            raise RuntimeError(f"Unexpected XDrive reference clearance: {gap:.3f} mm")
+    print(f"Reference clearances: trim/base={gaps_mm[0]:.3f} mm, upper/carrier={gaps_mm[1]:.3f} mm")
+
+
+def validate_animation_clearances(objects):
+    scene = bpy.context.scene
+    sample_frames = (1, 30, 50, 80, 110, 145, 165, 190, 220, 240, 250)
+    for frame in sample_frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        trees = [
+            BVHTree.FromPolygons(
+                [obj.matrix_world @ vertex.co for vertex in obj.data.vertices],
+                [[vertex for vertex in polygon.vertices] for polygon in obj.data.polygons],
+                all_triangles=True,
+            )
+            for obj in objects
+        ]
+        for left in range(len(trees)):
+            for right in range(left + 1, len(trees)):
+                if trees[left].overlap(trees[right]):
+                    raise RuntimeError(
+                        f"XDrive parts {left + 1} and {right + 1} clip at animation frame {frame}"
+                    )
+    print(f"Animation clearance check passed at {len(sample_frames)} sampled frames")
 
 
 def world_bounds(objects):
@@ -201,7 +231,7 @@ def render_preview(objects):
     scene = bpy.context.scene
     configure_preview()
     add_preview_camera(objects)
-    for frame, filename in ((1, "assembled.png"), (145, "exploded.png")):
+    for frame, filename in ((1, "compact-exploded.png"), (145, "expanded-exploded.png")):
         scene.frame_set(frame)
         # Reframe at each state so neither preview clips the assembly.
         camera = scene.camera
@@ -274,9 +304,10 @@ def export_glb(objects):
 
 
 clear_scene()
-parts, assembled_locations = load_parts()
-validate_assembly_clearances(parts)
-animate(parts, assembled_locations)
+parts, reference_locations = load_parts()
+validate_reference_datums(parts)
+animate(parts, reference_locations)
+validate_animation_clearances(parts)
 render_preview(parts)
 export_glb(parts)
 print(f"Wrote {OUTPUT}")
