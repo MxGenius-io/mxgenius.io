@@ -138,18 +138,18 @@
     "operationalStatus": "demo_asset"
   },
   {
-    "file": "models/XDrive_Rev3_ExplodedAssembly.glb",
-    "name": "Build - X-drive Rev3 - Exploded Assembly",
+    "file": "models/XDrive_V7_ExplodedAssembly.glb",
+    "name": "Build - XDrive V7 - Exploded Assembly",
     "type": "apparatus",
     "lod": "source",
-    "revision": "rev3",
+    "revision": "v7",
     "provider": "workspace",
     "sourceAuthority": "MXGenius",
     "collection": "Local model set",
-    "sizeBytes": 1132896,
+    "sizeBytes": 2538868,
     "quickAccess": true,
     "operationalStatus": "demo_asset",
-    "description": "10-second exploded assembly of the X-drive Rev3 case with approximate electronics references. Physical fit and strength remain unverified."
+    "description": "10-second exploded assembly of the current five-part XDrive V7 enclosure, restored from print-plate geometry using shared rear and vertical assembly datums."
   },
   {
     "file": "models/FLIR_Quest3S_ExplodedAssembly.glb",

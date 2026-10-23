@@ -842,7 +842,7 @@ test('viewer quick access is limited to the curated local model folder set', asy
       'Raspberry Pi Power Converter',
       'Single-Board Computer Prototype',
       'Virtual Reality Headset',
-      'Build - X-drive Rev3 - Exploded Assembly',
+      'Build - XDrive V7 - Exploded Assembly',
       'Build - FLIR Quest3S - Exploded Assembly'
     ].sort()
   );
