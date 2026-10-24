@@ -77,6 +77,15 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertIn('AudioCaptureAllowedUrls', APPLIANCE_CONFIG)
         self.assertIn('--autoplay-policy=no-user-gesture-required', KIOSK_START)
 
+    def test_product_surface_leads_and_commissioning_tools_live_under_settings(self):
+        for marker in (
+            'id="experienceView"', 'SECURE VOICE WORKSPACE', 'id="experienceCloudState"',
+            'data-section="settings"', 'class="settings-switch"', 'Open device settings',
+        ):
+            self.assertIn(marker, HTML)
+        self.assertIn("setView('experience')", JS)
+        self.assertIn("$('experienceView').hidden = !showExperience", JS)
+
     def test_peripheral_readiness_profiles_are_visible(self):
         for profile in ("FLIR ONE Pro", "Honeywell Xenon XP 1950g", "Zebra DS3608", "Socket Mobile S740"):
             self.assertIn(profile, HTML)

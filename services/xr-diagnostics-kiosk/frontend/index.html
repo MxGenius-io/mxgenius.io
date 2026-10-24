@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>MXG Local Diagnostics</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.31">
+  <title>MXGenius XDrive</title>
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.32">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -13,10 +13,10 @@
       <div class="boot-mark">
         <img src="/assets/mxgenius-logo.png" alt="">
       </div>
-      <p class="boot-eyebrow">Edge diagnostics</p>
+      <p class="boot-eyebrow">XDrive edge appliance</p>
       <p class="boot-brand">MXGenius<span>.</span></p>
-      <p class="boot-message" id="bootTitle">Initializing edge node</p>
-      <small class="boot-detail" id="bootDetail">Loading the local diagnostics surface</small>
+      <p class="boot-message" id="bootTitle">Starting XDrive</p>
+      <small class="boot-detail" id="bootDetail">Preparing local controls and secure cloud services</small>
       <div class="boot-progress" aria-hidden="true"><span id="bootProgressBar"></span></div>
     </div>
     <ol class="boot-stages" aria-label="Startup stages">
@@ -31,21 +31,64 @@
       <div class="site-brand">
         <img src="/assets/mxgenius-logo.png" alt="">
         <div>
-        <p class="eyebrow">MXGENIUS · EDGE NODE</p>
-        <h1>Local diagnostics</h1>
+        <p class="eyebrow">MXGENIUS · XDRIVE</p>
+        <h1>Voice workspace</h1>
         </div>
       </div>
       <div class="header-actions">
-        <nav class="view-switch" aria-label="Kiosk views">
-          <button class="view-tab active" type="button" data-view="overview" role="tab" aria-selected="true" aria-controls="overviewView">Overview</button>
-          <button class="view-tab" type="button" data-view="connections" role="tab" aria-selected="false" aria-controls="connectionsView">Connections</button>
-          <button class="view-tab" type="button" data-view="logs" role="tab" aria-selected="false" aria-controls="logView">Live log <span id="logCount">0</span></button>
+        <nav class="view-switch" aria-label="XDrive views">
+          <button class="view-tab active" type="button" data-view="experience" data-section="experience" role="tab" aria-selected="true" aria-controls="experienceView">XDrive</button>
+          <button class="view-tab" type="button" data-view="overview" data-section="settings" role="tab" aria-selected="false" aria-controls="overviewView">Settings</button>
         </nav>
+        <span id="logCount" hidden>0</span>
         <div class="bridge-state"><i id="stateLamp"></i><span id="bridgeState">Starting bridge</span></div>
       </div>
     </header>
 
-    <div id="overviewView" class="view-panel" role="tabpanel">
+    <section id="experienceView" class="view-panel experience-view" role="tabpanel">
+      <div class="experience-stage card">
+        <div class="experience-copy">
+          <p class="label">SECURE VOICE WORKSPACE</p>
+          <h2>Ask. Inspect. Move the work forward.</h2>
+          <p>XDrive keeps the physical controls simple while routing each turn through the best available inference path.</p>
+          <div class="route-strip" aria-label="Inference and input status">
+            <span class="route-state local"><i></i><small>LOCAL</small><b id="experienceLocalState">STANDBY</b></span>
+            <span class="route-state cloud"><i></i><small>XDRIVE CLOUD</small><b id="experienceCloudState">OFFLINE</b></span>
+            <span class="route-state trigger"><i></i><small>INPUT</small><b id="experienceListenState">READY</b></span>
+          </div>
+        </div>
+        <div class="voice-console" data-state="disconnected">
+          <div class="voice-orbit" aria-hidden="true"><span></span><i></i></div>
+          <span id="voiceState" class="voice-state" data-state="disconnected">DISCONNECTED</span>
+          <h3 id="voiceTitle">XDrive is ready to connect</h3>
+          <p id="voiceHint">Connect once, then hold the screen control or the GPIO17 trigger to speak.</p>
+          <div class="voice-controls">
+            <button id="voiceConnect" class="scan-button" type="button">Connect XDrive</button>
+            <button id="talkButton" class="talk-button" type="button" aria-pressed="false"><span>HOLD</span> TALK</button>
+          </div>
+        </div>
+      </div>
+      <div class="conversation-card card">
+        <div class="conversation-heading"><div><p class="label">CURRENT TURN</p><h3>Conversation</h3></div><span>Private on this appliance</span></div>
+        <div id="voiceTranscript" class="voice-transcript" role="log" aria-live="polite">No voice turns yet.</div>
+      </div>
+      <div class="experience-footer">
+        <span><i class="green"></i> Local runtime reserved</span>
+        <span><i class="blue"></i> Cloud session</span>
+        <span><i class="amber"></i> Trigger / listening</span>
+        <button type="button" class="settings-shortcut" data-view="overview">Open device settings</button>
+      </div>
+    </section>
+
+    <div id="overviewView" class="view-panel settings-view" role="tabpanel" hidden>
+    <div class="settings-heading">
+      <div><p class="label">DEVICE ADMINISTRATION</p><h2>Settings</h2><p>Commissioning, hardware health, and appliance controls live here.</p></div>
+      <nav class="settings-switch" aria-label="Settings sections">
+        <button class="settings-tab active" type="button" data-view="overview">System</button>
+        <button class="settings-tab" type="button" data-view="connections">Connections</button>
+        <button class="settings-tab" type="button" data-view="logs">Diagnostics</button>
+      </nav>
+    </div>
     <section class="hero card">
       <div>
         <p class="label">SYSTEM POSTURE</p>
@@ -81,19 +124,6 @@
       </div>
       <div class="performance-chart"><canvas id="performanceCanvas" width="1200" height="260" aria-label="CPU, memory, and temperature history over Raspberry Pi uptime"></canvas></div>
       <p id="performanceResolution" class="performance-resolution">History stays on this Pi and automatically compresses older samples.</p>
-    </section>
-
-    <section class="voice-card card" aria-labelledby="voiceTitle">
-      <div class="voice-heading">
-        <div><p class="label">VOICE LOOP</p><h2 id="voiceTitle">Push-to-talk bench test</h2><p>Uses this Pi's enrolled device identity. The provider key remains in Azure.</p></div>
-        <span id="voiceState" class="voice-state" data-state="disconnected">DISCONNECTED</span>
-      </div>
-      <div class="voice-controls">
-        <button id="voiceConnect" class="scan-button" type="button">Connect voice</button>
-        <button id="talkButton" class="talk-button" type="button" aria-pressed="false">HOLD TO TALK</button>
-        <p id="voiceHint">Connect, then hold the screen button or the GPIO17 trigger.</p>
-      </div>
-      <div id="voiceTranscript" class="voice-transcript" role="log" aria-live="polite">No voice turns yet.</div>
     </section>
 
     <section class="peripheral-section card" aria-labelledby="peripheralTitle">
@@ -146,6 +176,14 @@
     </div>
 
     <section id="connectionsView" class="view-panel connections-view" role="tabpanel" hidden>
+      <div class="settings-heading compact">
+        <div><p class="label">DEVICE ADMINISTRATION</p><h2>Settings</h2></div>
+        <nav class="settings-switch" aria-label="Settings sections">
+          <button class="settings-tab" type="button" data-view="overview">System</button>
+          <button class="settings-tab active" type="button" data-view="connections">Connections</button>
+          <button class="settings-tab" type="button" data-view="logs">Diagnostics</button>
+        </nav>
+      </div>
       <div class="connections-heading">
         <div><p class="label">LOCAL APPLIANCE CONTROL</p><h2>Connections</h2><p>Discover and switch the Pi's local network and peripheral links. Credentials remain on this device.</p></div>
         <button id="powerButton" class="power-button" type="button"><span>POWER</span> Shut down safely</button>
@@ -203,6 +241,14 @@
     </section>
 
     <section id="logView" class="view-panel log-view" role="tabpanel" hidden>
+      <div class="settings-heading compact">
+        <div><p class="label">DEVICE ADMINISTRATION</p><h2>Settings</h2></div>
+        <nav class="settings-switch" aria-label="Settings sections">
+          <button class="settings-tab" type="button" data-view="overview">System</button>
+          <button class="settings-tab" type="button" data-view="connections">Connections</button>
+          <button class="settings-tab active" type="button" data-view="logs">Diagnostics</button>
+        </nav>
+      </div>
       <div class="log-heading">
         <div><p class="label">COMMISSIONING TRACE</p><h2>Live diagnostic log</h2><p>Browser, bridge, thermal, scanner, and peripheral transitions captured locally for the first hardware run.</p></div>
         <div class="log-summary" aria-label="Log summary">
@@ -245,6 +291,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.31"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.32"></script>
 </body>
 </html>

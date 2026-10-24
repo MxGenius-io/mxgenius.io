@@ -57,8 +57,12 @@ function handleVoiceEvent(event) {
   publishHardwareLeds(state);
   $('voiceState').dataset.state = state;
   $('voiceState').textContent = state.toUpperCase();
+  document.querySelector('.voice-console').dataset.state = state;
+  $('experienceLocalState').textContent = 'STANDBY';
+  $('experienceCloudState').textContent = ['disconnected', 'failed'].includes(state) ? 'OFFLINE' : 'CONNECTED';
+  $('experienceListenState').textContent = state === 'listening' ? 'LISTENING' : state === 'thinking' ? 'THINKING' : state === 'speaking' ? 'SPEAKING' : 'READY';
   $('talkButton').setAttribute('aria-pressed', String(Boolean(voice.talking)));
-  $('voiceConnect').textContent = ['disconnected', 'failed'].includes(state) ? 'Connect voice' : 'Disconnect voice';
+  $('voiceConnect').textContent = ['disconnected', 'failed'].includes(state) ? 'Connect XDrive' : 'Disconnect';
   if (event.type === 'state' && event.reason) {
     $('voiceHint').textContent = event.reason;
     if (state === 'failed') logEvent('error', 'voice', 'Voice loop failed', { error: event.reason });
@@ -160,22 +164,29 @@ function logEvent(level, source, message, detail = {}) {
 }
 
 function setView(view) {
+  const showExperience = view === 'experience';
   const showLogs = view === 'logs';
   const showConnections = view === 'connections';
-  $('overviewView').hidden = showLogs || showConnections;
+  const showOverview = !showExperience && !showLogs && !showConnections;
+  $('experienceView').hidden = !showExperience;
+  $('overviewView').hidden = !showOverview;
   $('connectionsView').hidden = !showConnections;
   $('logView').hidden = !showLogs;
   document.querySelectorAll('.view-tab').forEach((button) => {
-    const active = button.dataset.view === view;
+    const section = showExperience ? 'experience' : 'settings';
+    const active = button.dataset.section === section;
     button.classList.toggle('active', active);
     button.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('.settings-tab').forEach((button) => {
+    button.classList.toggle('active', button.dataset.view === view);
   });
   if (showLogs) renderLog();
   if (showConnections) {
     loadEquipmentPackStatus();
     loadUsbGadgetStatus();
   }
-  if (!showLogs && !showConnections) requestAnimationFrame(drawPerformanceGraph);
+  if (showOverview) requestAnimationFrame(drawPerformanceGraph);
 }
 
 function setBootStage(stage, title, detail) {
@@ -192,7 +203,7 @@ function setBootStage(stage, title, detail) {
 }
 
 function finishBoot() {
-  setBootStage('bootReady', 'Edge node ready', 'Local diagnostics are live');
+  setBootStage('bootReady', 'XDrive ready', 'Voice controls and device services are live');
   if (!holdSplash) window.setTimeout(() => $('bootSplash').classList.add('complete'), 650);
 }
 
@@ -809,7 +820,7 @@ function connect() {
   });
 }
 
-document.querySelectorAll('.view-tab').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
 $('wifiScan').addEventListener('click', scanWifi);
 $('bluetoothScan').addEventListener('click', scanBluetooth);
 $('packRetry').addEventListener('click', async () => {
@@ -950,7 +961,7 @@ window.addEventListener('error', (event) => logEvent('error', 'browser', 'Unhand
 window.addEventListener('unhandledrejection', (event) => logEvent('error', 'browser', 'Unhandled asynchronous error', { reason: String(event.reason || 'unknown') }));
 window.addEventListener('resize', drawPerformanceGraph);
 
-setView('overview');
+setView('experience');
 renderLog();
 publishHardwareLeds('disconnected');
 logEvent('info', 'ui', 'Kiosk surface initialized', { mode: new URLSearchParams(location.search).has('preview') ? 'release-preview' : 'device' });
