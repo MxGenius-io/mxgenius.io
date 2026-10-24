@@ -43,6 +43,14 @@ CONTROL_NONCE = secrets.token_urlsafe(32)
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 PERFORMANCE_HISTORY_LIMIT = 720
 PERFORMANCE_HISTORY_INTERVAL_SECONDS = 5.0
+HARDWARE_LED_NAMES = ("local", "cloud", "listening", "thinking")
+hardware_led_state: dict[str, bool | int] = {
+    "local": False,
+    "cloud": False,
+    "listening": False,
+    "thinking": False,
+    "updatedAtMs": 0,
+}
 
 
 class Bridge:
@@ -391,6 +399,27 @@ async def hardware_button(request: Request) -> dict[str, Any]:
     }
     await bridge.broadcast_json(event)
     return {"accepted": True, "button": "talk", "pressed": payload["pressed"]}
+
+
+@app.get("/api/v1/hardware/leds")
+async def hardware_leds(request: Request) -> dict[str, bool | int]:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="hardware status is local-only")
+    return dict(hardware_led_state)
+
+
+@app.post("/api/v1/hardware/leds")
+async def set_hardware_leds(request: Request) -> dict[str, bool | int]:
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_CLIENTS:
+        raise HTTPException(status_code=403, detail="hardware status is local-only")
+    payload = await request.json()
+    if any(not isinstance(payload.get(name), bool) for name in HARDWARE_LED_NAMES):
+        raise HTTPException(status_code=400, detail="local, cloud, listening, and thinking booleans are required")
+    hardware_led_state.update({name: payload[name] for name in HARDWARE_LED_NAMES})
+    hardware_led_state["updatedAtMs"] = int(time.time() * 1000)
+    return dict(hardware_led_state)
 
 
 @app.post("/api/v1/equipment-pack/enroll")

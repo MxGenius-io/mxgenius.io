@@ -11,6 +11,9 @@ SupplementaryGroups=gpio
 WorkingDirectory=/opt/mxg-diagnostics-kiosk
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=MXG_TALK_GPIO=17
+Environment=MXG_LOCAL_LED_GPIO=22
+Environment=MXG_CLOUD_LED_GPIO=23
+Environment=MXG_LISTENING_LED_GPIO=24
 ExecStart=/usr/bin/python3 /opt/mxg-diagnostics-kiosk/scripts/hardware_buttons.py
 Restart=always
 RestartSec=2

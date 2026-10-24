@@ -30,10 +30,31 @@ let equipmentPackBusy = false;
 let controlNoticeTimer = null;
 let performanceHistory = [];
 let performanceIntervalSeconds = 5;
+let lastHardwareLedPayload = '';
 const voice = new RealtimeVoice({ onEvent: handleVoiceEvent });
+
+function publishHardwareLeds(state = voice.state) {
+  const payload = {
+    // The current POC has no local inference process yet; this output is
+    // reserved so a later local runtime can assert it without rewiring.
+    local: false,
+    cloud: ['connecting', 'ready', 'listening', 'thinking', 'speaking'].includes(state),
+    listening: state === 'listening',
+    thinking: state === 'thinking',
+  };
+  const serialized = JSON.stringify(payload);
+  if (serialized === lastHardwareLedPayload) return;
+  lastHardwareLedPayload = serialized;
+  fetch('/api/v1/hardware/leds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: serialized,
+  }).catch(() => { /* status LEDs are optional bench hardware */ });
+}
 
 function handleVoiceEvent(event) {
   const state = event.state || 'disconnected';
+  publishHardwareLeds(state);
   $('voiceState').dataset.state = state;
   $('voiceState').textContent = state.toUpperCase();
   $('talkButton').setAttribute('aria-pressed', String(Boolean(voice.talking)));
@@ -931,6 +952,7 @@ window.addEventListener('resize', drawPerformanceGraph);
 
 setView('overview');
 renderLog();
+publishHardwareLeds('disconnected');
 logEvent('info', 'ui', 'Kiosk surface initialized', { mode: new URLSearchParams(location.search).has('preview') ? 'release-preview' : 'device' });
 loadIntegrationFixtures();
 loadEquipmentPackStatus();

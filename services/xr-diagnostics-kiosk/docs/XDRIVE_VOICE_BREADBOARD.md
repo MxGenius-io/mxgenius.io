@@ -1,8 +1,8 @@
 # XDrive voice breadboard
 
-This is the minimum two-button circuit for the Pi 5 kiosk proof of concept. It
-keeps the power control on the Pi's supported power-button input and keeps all
-audio off the GPIO header.
+This is the two-button, three-indicator circuit for the Pi 5 kiosk proof of
+concept. It keeps the power control on the Pi's supported power-button input
+and keeps all audio off the GPIO header.
 
 ![XDrive Raspberry Pi 5 voice breadboard schematic](xdrive-voice-breadboard.svg)
 
@@ -22,6 +22,11 @@ audio off the GPIO header.
 
  momentary TALK switch:  GPIO17 (physical pin 11) ── switch ── GND (pin 9)
  momentary POWER switch: Pi 5 J2 pad ─────────────── switch ── other J2 pad
+
+ GPIO22 (physical pin 15) ── green LOCAL AI LED ── 330 Ω ── GND rail
+ GPIO23 (physical pin 16) ── blue CLOUD AI LED ─── 330 Ω ── GND rail
+ GPIO24 (physical pin 18) ── amber LISTENING LED ─ 330 Ω ── GND rail
+ physical pin 20 / GND ───────────────────────────────────── GND rail
 ```
 
 ## Wiring table
@@ -32,6 +37,10 @@ audio off the GPIO header.
 | Push-to-talk return | Other side of the TALK switch | Pi header physical pin 9 / GND | A press pulls GPIO17 low. |
 | Power | One Pi 5 J2 power-button pad | One side of a normally-open momentary switch | J2 is the two-pad power-button breakout near the RTC battery connector and board edge. |
 | Power return | Other Pi 5 J2 pad | Other side of the POWER switch | Briefly close it. Do not put supply voltage on J2. |
+| Local inference indicator | Pi physical pin 15 / BCM GPIO22 | Green LED anode; cathode through 330 Ω to the ground rail | Reserved for a future local inference runtime. It remains off in the cloud-only POC. |
+| Cloud AI indicator | Pi physical pin 16 / BCM GPIO23 | Blue LED anode; cathode through 330 Ω to the ground rail | Steady while the Realtime cloud session is connected. |
+| Listening indicator | Pi physical pin 18 / BCM GPIO24 | Amber LED anode; cathode through 330 Ω to the ground rail | Steady while the microphone is live. |
+| Breadboard ground | Pi physical pin 20 / GND | Breadboard negative rail | Common return for the three LEDs and TALK switch only. |
 | Microphone | Electret capsule | Electret preamp or a USB sound adapter microphone input that explicitly supplies electret bias | Capsule polarity and the adapter's bias voltage must be confirmed before soldering. |
 | Audio input | Preamp / USB microphone | Pi USB-A host port | Select the device as the Chromium default capture source. |
 | Audio output | Pi USB-A host port / USB sound output | Powered speaker or amplifier input | A raw speaker cannot be connected directly to a GPIO or headphone-level output. |
@@ -53,6 +62,11 @@ pin assignments while the push-to-talk and cloud loop are being proven.
 The appliance software uses:
 
 - BCM GPIO17, active-low, 30 ms debounce for push-to-talk;
+- BCM GPIO22 / physical pin 15 for the green local-AI indicator;
+- BCM GPIO23 / physical pin 16 for the blue cloud-AI indicator;
+- BCM GPIO24 / physical pin 18 for the amber listening indicator;
+- a three-LED chase while the Realtime response is thinking, then restoration
+  of the steady connection/listening state;
 - the Pi 5 J2 power header for safe shutdown and restart;
 - the enrolled XDrive device credential for `/api/edge/realtime/calls`;
 - the Azure-hosted `OPENAI_API_KEY` only inside `mxg-core`;

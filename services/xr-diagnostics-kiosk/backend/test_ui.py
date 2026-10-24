@@ -60,6 +60,16 @@ class KioskUiContractTests(unittest.TestCase):
         self.assertNotIn('OPENAI_API_KEY', JS + VOICE_CLIENT + HTML)
         self.assertIn("message.type === 'hardware.button'", JS)
         self.assertIn('TALK_GPIO = int(os.getenv("MXG_TALK_GPIO", "17"))', BUTTON_SCRIPT)
+        for marker in (
+            'LOCAL_LED_GPIO = int(os.getenv("MXG_LOCAL_LED_GPIO", "22"))',
+            'CLOUD_LED_GPIO = int(os.getenv("MXG_CLOUD_LED_GPIO", "23"))',
+            'LISTENING_LED_GPIO = int(os.getenv("MXG_LISTENING_LED_GPIO", "24"))',
+            'LED(LOCAL_LED_GPIO',
+            'state["thinking"]',
+        ):
+            self.assertIn(marker, BUTTON_SCRIPT)
+        self.assertIn("/api/v1/hardware/leds", JS)
+        self.assertIn("thinking: state === 'thinking'", JS)
         self.assertIn('SupplementaryGroups=gpio', BUTTON_SERVICE)
         for script in (INSTALL, UPDATE):
             self.assertIn('mxg-hardware-buttons.service', script)

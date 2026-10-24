@@ -109,6 +109,17 @@ class BridgeIntegrationTests(unittest.TestCase):
                 self.assertEqual(event["button"], "talk")
                 self.assertTrue(event["pressed"])
 
+    def test_local_hardware_led_state_is_validated_and_reported(self):
+        payload = {"local": False, "cloud": True, "listening": True, "thinking": False}
+        with TestClient(app) as client:
+            response = client.post("/api/v1/hardware/leds", json=payload)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual({name: response.json()[name] for name in payload}, payload)
+            self.assertGreater(response.json()["updatedAtMs"], 0)
+            self.assertEqual(client.get("/api/v1/hardware/leds").json()["cloud"], True)
+            invalid = client.post("/api/v1/hardware/leds", json={"cloud": True})
+            self.assertEqual(invalid.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
