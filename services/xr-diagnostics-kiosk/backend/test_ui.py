@@ -45,6 +45,7 @@ class KioskUiContractTests(unittest.TestCase):
     def test_kiosk_assets_are_cache_busted_with_the_exact_release_version(self):
         self.assertIn(f'/assets/kiosk.css?v={VERSION}', HTML)
         self.assertIn(f'/assets/kiosk.js?v={VERSION}', HTML)
+        self.assertIn(f"./realtime-voice.js?v={VERSION}", JS)
 
     def test_temperature_gauge_and_uptime_history_are_visible(self):
         for marker in ('id="temperatureGauge"', 'id="performanceCanvas"', 'PERFORMANCE OVER UPTIME'):
@@ -55,7 +56,11 @@ class KioskUiContractTests(unittest.TestCase):
     def test_voice_loop_uses_edge_identity_and_manual_push_to_talk(self):
         for marker in ('id="voiceConnect"', 'id="talkButton"', 'GPIO17 trigger'):
             self.assertIn(marker, HTML)
-        for marker in ('/api/v1/realtime/calls', 'input_audio_buffer.commit', 'response.create', 'response.cancel'):
+        for marker in (
+            '/api/v1/realtime/calls', 'input_audio_buffer.commit', 'response.create', 'response.cancel',
+            'conversation.item.input_audio_transcription.delta', 'response.output_audio_transcript.delta',
+            'waitForIceGathering', 'setOutputVolume',
+        ):
             self.assertIn(marker, VOICE_CLIENT)
         self.assertNotIn('OPENAI_API_KEY', JS + VOICE_CLIENT + HTML)
         self.assertIn("message.type === 'hardware.button'", JS)
@@ -66,10 +71,15 @@ class KioskUiContractTests(unittest.TestCase):
             'LISTENING_LED_GPIO = int(os.getenv("MXG_LISTENING_LED_GPIO", "24"))',
             'LED(LOCAL_LED_GPIO',
             'state["thinking"]',
+            'UP_GPIO = int(os.getenv("MXG_UP_GPIO", "5"))',
+            'BACK_GPIO = int(os.getenv("MXG_BACK_GPIO", "19"))',
+            'RotaryEncoder(VOLUME_A_GPIO, VOLUME_B_GPIO',
         ):
             self.assertIn(marker, BUTTON_SCRIPT)
         self.assertIn("/api/v1/hardware/leds", JS)
         self.assertIn("thinking: state === 'thinking'", JS)
+        for marker in ('handleHardwareButton(message)', 'moveHardwareFocus(message.button)', 'VOLUME_STORAGE_KEY'):
+            self.assertIn(marker, JS)
         self.assertIn('SupplementaryGroups=gpio', BUTTON_SERVICE)
         for script in (INSTALL, UPDATE):
             self.assertIn('mxg-hardware-buttons.service', script)

@@ -1,4 +1,5 @@
 const CONNECTION_TIMEOUT_MS = 30_000;
+const ICE_GATHERING_TIMEOUT_MS = 5_000;
 const MIN_TURN_MS = 180;
 
 export class RealtimeVoice {
@@ -15,6 +16,9 @@ export class RealtimeVoice {
     this.talkRequested = false;
     this.talkStartedAt = 0;
     this.eventSequence = 0;
+    this.userTranscript = '';
+    this.assistantTranscript = '';
+    this.outputVolume = 0.7;
     this.state = 'disconnected';
   }
 
@@ -64,6 +68,7 @@ export class RealtimeVoice {
       this.peer = peer;
       peer.addEventListener('track', (event) => {
         audio.srcObject = event.streams[0];
+        audio.volume = this.outputVolume;
         void audio.play().catch(() => {});
       });
       peer.addEventListener('connectionstatechange', () => {
@@ -88,6 +93,7 @@ export class RealtimeVoice {
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
+      await this.waitForIceGathering(peer);
       const answer = await this.exchangeSdp(peer.localDescription?.sdp || offer.sdp);
       await peer.setRemoteDescription({ type: 'answer', sdp: answer });
       if (channel.readyState !== 'open') {
@@ -120,6 +126,33 @@ export class RealtimeVoice {
     for (const track of this.media?.getAudioTracks?.() || []) track.enabled = enabled;
   }
 
+  setOutputVolume(value) {
+    this.outputVolume = Math.max(0, Math.min(1, Number(value) || 0));
+    if (this.audio) this.audio.volume = this.outputVolume;
+    this.emit('volume', { volume: this.outputVolume });
+  }
+
+  async waitForIceGathering(peer) {
+    if (peer.iceGatheringState === 'complete') return;
+    await new Promise((resolve) => {
+      let settled = false;
+      let timer;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        peer.removeEventListener('icegatheringstatechange', onStateChange);
+        resolve();
+      };
+      const onStateChange = () => {
+        if (peer.iceGatheringState === 'complete') finish();
+      };
+      timer = setTimeout(finish, ICE_GATHERING_TIMEOUT_MS);
+      peer.addEventListener('icegatheringstatechange', onStateChange);
+      onStateChange();
+    });
+  }
+
   interrupt() {
     if (!this.responseActive) return;
     this.send({ type: 'response.cancel', ...(this.responseId ? { response_id: this.responseId } : {}) });
@@ -134,6 +167,7 @@ export class RealtimeVoice {
     await this.connect();
     if (!this.talkRequested) return;
     this.interrupt();
+    this.userTranscript = '';
     this.send({ type: 'input_audio_buffer.clear' });
     this.setMicrophone(true);
     this.talking = true;
@@ -163,6 +197,7 @@ export class RealtimeVoice {
     let event;
     try { event = JSON.parse(raw); } catch { return; }
     if (event.type === 'response.created') {
+      this.assistantTranscript = '';
       this.responseActive = true;
       this.responseId = event.response?.id || null;
       this.setState('thinking');
@@ -173,9 +208,17 @@ export class RealtimeVoice {
       this.responseId = null;
       this.setState('ready');
     } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
-      this.emit('transcript', { role: 'user', text: event.transcript || '', final: true });
+      this.userTranscript = event.transcript || this.userTranscript;
+      this.emit('transcript', { role: 'user', text: this.userTranscript, final: true });
+    } else if (event.type === 'conversation.item.input_audio_transcription.delta') {
+      this.userTranscript += event.delta || '';
+      this.emit('transcript', { role: 'user', text: this.userTranscript, final: false });
+    } else if (event.type === 'response.output_audio_transcript.delta') {
+      this.assistantTranscript += event.delta || '';
+      this.emit('transcript', { role: 'assistant', text: this.assistantTranscript, final: false });
     } else if (event.type === 'response.output_audio_transcript.done') {
-      this.emit('transcript', { role: 'assistant', text: event.transcript || '', final: true });
+      this.assistantTranscript = event.transcript || this.assistantTranscript;
+      this.emit('transcript', { role: 'assistant', text: this.assistantTranscript, final: true });
     } else if (event.type === 'error') {
       this.setState('failed', { reason: event.error?.message || 'Realtime service error' });
     }
@@ -199,6 +242,8 @@ export class RealtimeVoice {
     this.audio = null;
     this.responseActive = false;
     this.responseId = null;
+    this.userTranscript = '';
+    this.assistantTranscript = '';
     if (announce) this.emit('state', { state: 'disconnected' });
   }
 }

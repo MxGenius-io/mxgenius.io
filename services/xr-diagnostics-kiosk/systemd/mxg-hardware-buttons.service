@@ -1,5 +1,5 @@
 [Unit]
-Description=MXG physical push-to-talk button relay
+Description=MXG physical voice, navigation, volume, and status controls
 After=mxg-diagnostics-kiosk.service
 Wants=mxg-diagnostics-kiosk.service
 
@@ -11,6 +11,15 @@ SupplementaryGroups=gpio
 WorkingDirectory=/opt/mxg-diagnostics-kiosk
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=MXG_TALK_GPIO=17
+Environment=MXG_UP_GPIO=5
+Environment=MXG_DOWN_GPIO=6
+Environment=MXG_LEFT_GPIO=12
+Environment=MXG_RIGHT_GPIO=13
+Environment=MXG_OK_GPIO=16
+Environment=MXG_BACK_GPIO=19
+Environment=MXG_VOLUME_A_GPIO=20
+Environment=MXG_VOLUME_B_GPIO=21
+Environment=MXG_VOLUME_MUTE_GPIO=26
 Environment=MXG_LOCAL_LED_GPIO=22
 Environment=MXG_CLOUD_LED_GPIO=23
 Environment=MXG_LISTENING_LED_GPIO=24

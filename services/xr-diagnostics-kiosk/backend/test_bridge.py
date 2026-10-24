@@ -98,16 +98,21 @@ class BridgeIntegrationTests(unittest.TestCase):
         with TestClient(app) as client:
             with client.websocket_connect("/ws/xr") as consumer:
                 consumer.receive_json()
-                response = client.post(
-                    "/api/v1/hardware/button",
-                    json={"button": "talk", "pressed": True},
-                )
-                self.assertEqual(response.status_code, 200)
-                event = consumer.receive_json()
-                while event.get("type") != "hardware.button":
+                for button in ("talk", "right", "ok", "back", "volume_up", "volume_mute"):
+                    response = client.post(
+                        "/api/v1/hardware/button",
+                        json={"button": button, "pressed": True},
+                    )
+                    self.assertEqual(response.status_code, 200)
                     event = consumer.receive_json()
-                self.assertEqual(event["button"], "talk")
-                self.assertTrue(event["pressed"])
+                    while event.get("type") != "hardware.button":
+                        event = consumer.receive_json()
+                    self.assertEqual(event["button"], button)
+                    self.assertTrue(event["pressed"])
+                self.assertEqual(
+                    client.post("/api/v1/hardware/button", json={"button": "eject", "pressed": True}).status_code,
+                    400,
+                )
 
     def test_local_hardware_led_state_is_validated_and_reported(self):
         payload = {"local": False, "cloud": True, "listening": True, "thinking": False}

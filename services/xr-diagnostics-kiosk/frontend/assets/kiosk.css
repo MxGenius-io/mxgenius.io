@@ -92,11 +92,18 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .voice-state[data-state="listening"] { border-color:rgba(65,215,231,.5); color:var(--cyan); }
 .voice-state[data-state="thinking"],.voice-state[data-state="speaking"] { border-color:rgba(250,204,21,.4); color:#fde047; }
 .voice-state[data-state="failed"] { border-color:rgba(251,113,133,.45); color:#fda4af; }
+.volume-state { margin-top:8px; padding:6px 9px; border:1px solid rgba(65,215,231,.24); border-radius:999px; background:rgba(2,9,18,.82); color:#c9f7fb; font:800 9px ui-monospace,monospace; letter-spacing:.08em; }
 .voice-controls { display:flex; align-items:center; gap:12px; margin-top:18px; }
 .voice-controls p { margin:0; color:#7893a4; font-size:12px; }
 .talk-button { min-width:170px; padding:12px 18px; border:1px solid rgba(65,215,231,.42); border-radius:999px; background:rgba(65,215,231,.1); color:#d9fbff; cursor:pointer; touch-action:none; user-select:none; font:850 11px ui-monospace,monospace; letter-spacing:.09em; }
 .talk-button[aria-pressed="true"] { border-color:rgba(74,222,128,.75); background:rgba(74,222,128,.2); color:#bbf7d0; box-shadow:0 0 0 4px rgba(74,222,128,.08); }
 .voice-transcript { min-height:44px; margin-top:15px; padding:12px 14px; border:1px solid rgba(65,215,231,.12); border-radius:10px; background:rgba(0,8,18,.42); color:#b8d6df; font-size:12px; line-height:1.5; }
+.voice-turn { display:grid; grid-template-columns:70px minmax(0,1fr); gap:12px; margin:0; padding:10px 0; border-bottom:1px solid rgba(69,209,229,.1); }
+.voice-turn:last-child { border-bottom:0; }
+.voice-turn b { color:var(--cyan); font:800 9px ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; }
+.voice-turn[data-role="assistant"] b { color:var(--green); }
+.voice-turn span { color:#c4dce4; line-height:1.55; }
+.voice-turn.streaming span:after { display:inline-block; width:5px; height:12px; margin-left:5px; background:var(--cyan); content:""; animation:transcript-caret .8s steps(1) infinite; vertical-align:-2px; }
 .lower { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:16px; }
 .list-card { min-height:245px; padding:22px; }
 .card-title { display:flex; justify-content:space-between; gap:12px; color:#e8f7fb; font:700 12px ui-monospace,monospace; letter-spacing:.1em; }
@@ -300,6 +307,7 @@ meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,var(--cyan
 .settings-tab.active { border-color:rgba(65,215,231,.24); background:rgba(65,215,231,.1); color:#e5fbff; }
 @keyframes voice-orbit { to { transform:rotate(360deg); } }
 @keyframes voice-pulse { to { transform:scale(1.13); box-shadow:0 0 52px rgba(74,222,128,.48); } }
+@keyframes transcript-caret { 50% { opacity:0; } }
 @media (max-width:1100px) { .peripheral-grid { grid-template-columns:repeat(2,1fr); }.integration-layout { grid-template-columns:1fr; }.integration-grid { grid-template-columns:repeat(3,1fr); } }
 @media (max-width:950px) { header{align-items:flex-start}.header-actions{align-items:flex-end;flex-direction:column-reverse}.experience-stage{grid-template-columns:1fr}.experience-copy{padding-bottom:20px}.voice-console{min-height:430px}.hero { grid-template-columns:1fr 1fr; }.metrics,.lower,.connection-grid { grid-template-columns:repeat(2,1fr); }.log-layout{grid-template-columns:1fr}.log-stream{border-right:0}.runbook{display:none} }
 @media (max-width:760px) { .settings-heading,.connections-heading{align-items:flex-start;flex-direction:column}.settings-switch{width:100%}.settings-tab{flex:1}.route-strip{grid-template-columns:1fr}.conversation-card{grid-template-columns:1fr}.connection-grid{grid-template-columns:1fr}.connect-form,.pack-enroll-form{grid-template-columns:1fr}.pack-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.pack-actions{align-items:stretch;flex-direction:column}.pack-buttons{align-items:stretch;flex-direction:column}.connection-card{min-height:0}.hero{grid-template-columns:1fr}.hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-stats span{gap:10px;min-width:0}.voice-heading,.voice-controls{align-items:stretch;flex-direction:column}.talk-button{width:100%}.experience-footer{align-items:flex-start;flex-wrap:wrap}.settings-shortcut{margin-left:0} }

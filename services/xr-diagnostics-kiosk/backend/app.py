@@ -44,6 +44,10 @@ LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 PERFORMANCE_HISTORY_LIMIT = 720
 PERFORMANCE_HISTORY_INTERVAL_SECONDS = 5.0
 HARDWARE_LED_NAMES = ("local", "cloud", "listening", "thinking")
+HARDWARE_BUTTON_NAMES = {
+    "talk", "up", "down", "left", "right", "ok", "back",
+    "volume_up", "volume_down", "volume_mute",
+}
 hardware_led_state: dict[str, bool | int] = {
     "local": False,
     "cloud": False,
@@ -388,17 +392,18 @@ async def hardware_button(request: Request) -> dict[str, Any]:
     if host not in LOCAL_CLIENTS:
         raise HTTPException(status_code=403, detail="hardware input is local-only")
     payload = await request.json()
-    if payload.get("button") != "talk" or not isinstance(payload.get("pressed"), bool):
-        raise HTTPException(status_code=400, detail="a talk button state is required")
+    button = payload.get("button")
+    if button not in HARDWARE_BUTTON_NAMES or not isinstance(payload.get("pressed"), bool):
+        raise HTTPException(status_code=400, detail="a supported hardware button state is required")
     event = {
         "type": "hardware.button",
         "version": 1,
-        "button": "talk",
+        "button": button,
         "pressed": payload["pressed"],
         "observedAtMs": int(time.time() * 1000),
     }
     await bridge.broadcast_json(event)
-    return {"accepted": True, "button": "talk", "pressed": payload["pressed"]}
+    return {"accepted": True, "button": button, "pressed": payload["pressed"]}
 
 
 @app.get("/api/v1/hardware/leds")

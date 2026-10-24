@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MXGenius XDrive</title>
-  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.32">
+  <link rel="stylesheet" href="/assets/kiosk.css?v=0.3.1-poc.33">
 </head>
 <body>
   <section id="bootSplash" class="boot-splash" aria-live="polite" aria-label="MxGenius edge node startup">
@@ -60,6 +60,7 @@
         <div class="voice-console" data-state="disconnected">
           <div class="voice-orbit" aria-hidden="true"><span></span><i></i></div>
           <span id="voiceState" class="voice-state" data-state="disconnected">DISCONNECTED</span>
+          <span id="volumeState" class="volume-state" hidden>VOLUME 70%</span>
           <h3 id="voiceTitle">XDrive is ready to connect</h3>
           <p id="voiceHint">Connect once, then hold the screen control or the GPIO17 trigger to speak.</p>
           <div class="voice-controls">
@@ -291,6 +292,6 @@
       <div><button value="cancel" class="utility-button" type="submit">Cancel</button><button id="confirmPoweroff" value="confirm" class="danger-button" type="submit">Power off MxGenius</button></div>
     </form>
   </dialog>
-  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.32"></script>
+  <script type="module" src="/assets/kiosk.js?v=0.3.1-poc.33"></script>
 </body>
 </html>

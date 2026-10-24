@@ -1,4 +1,4 @@
-import { RealtimeVoice } from './realtime-voice.js';
+import { RealtimeVoice } from './realtime-voice.js?v=0.3.1-poc.33';
 
 const $ = (id) => document.getElementById(id);
 const formatBytes = (value = 0) => {
@@ -16,6 +16,7 @@ let firstSnapshotReceived = false;
 const recentScans = [];
 const connectedNodes = new Map();
 const LOG_STORAGE_KEY = 'mxg.edge.commissioning-log.v1';
+const VOLUME_STORAGE_KEY = 'mxg.edge.output-volume.v1';
 const MAX_LOG_ENTRIES = 400;
 let logFilter = 'all';
 let logSequence = 0;
@@ -31,7 +32,12 @@ let controlNoticeTimer = null;
 let performanceHistory = [];
 let performanceIntervalSeconds = 5;
 let lastHardwareLedPayload = '';
+let outputVolume = Math.max(0, Math.min(1, Number(localStorage.getItem(VOLUME_STORAGE_KEY) || 0.7)));
+let lastAudibleVolume = outputVolume || 0.7;
+let volumeNoticeTimer = null;
+const liveTranscriptRows = { user: null, assistant: null };
 const voice = new RealtimeVoice({ onEvent: handleVoiceEvent });
+voice.outputVolume = outputVolume;
 
 function publishHardwareLeds(state = voice.state) {
   const payload = {
@@ -52,6 +58,91 @@ function publishHardwareLeds(state = voice.state) {
   }).catch(() => { /* status LEDs are optional bench hardware */ });
 }
 
+function renderVoiceTranscript(role, text, final) {
+  if (!text) return;
+  const transcript = $('voiceTranscript');
+  if (transcript.textContent === 'No voice turns yet.') transcript.replaceChildren();
+  let row = liveTranscriptRows[role];
+  if (!row) {
+    row = document.createElement('p');
+    row.className = 'voice-turn';
+    row.dataset.role = role;
+    const label = document.createElement('b');
+    label.textContent = role === 'assistant' ? 'XDrive' : 'You';
+    const content = document.createElement('span');
+    row.append(label, content);
+    transcript.append(row);
+    liveTranscriptRows[role] = row;
+  }
+  row.querySelector('span').textContent = text;
+  row.classList.toggle('streaming', !final);
+  if (final) liveTranscriptRows[role] = null;
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function setOutputVolume(value) {
+  outputVolume = Math.round(Math.max(0, Math.min(1, value)) * 20) / 20;
+  if (outputVolume > 0) lastAudibleVolume = outputVolume;
+  voice.setOutputVolume(outputVolume);
+  localStorage.setItem(VOLUME_STORAGE_KEY, String(outputVolume));
+  const notice = $('volumeState');
+  notice.hidden = false;
+  notice.textContent = outputVolume === 0 ? 'MUTED' : `VOLUME ${Math.round(outputVolume * 100)}%`;
+  clearTimeout(volumeNoticeTimer);
+  volumeNoticeTimer = setTimeout(() => { notice.hidden = true; }, 1400);
+}
+
+function visibleControls() {
+  return [...document.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex="0"]')]
+    .filter((element) => !element.hidden && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
+}
+
+function moveHardwareFocus(direction) {
+  const controls = visibleControls();
+  if (!controls.length) return;
+  const current = controls.includes(document.activeElement) ? document.activeElement : controls[0];
+  const origin = current.getBoundingClientRect();
+  const ox = origin.left + origin.width / 2;
+  const oy = origin.top + origin.height / 2;
+  const horizontal = direction === 'left' || direction === 'right';
+  const sign = direction === 'left' || direction === 'up' ? -1 : 1;
+  const candidates = controls.filter((candidate) => {
+    if (candidate === current) return false;
+    const rect = candidate.getBoundingClientRect();
+    const delta = horizontal ? rect.left + rect.width / 2 - ox : rect.top + rect.height / 2 - oy;
+    return Math.sign(delta) === sign;
+  });
+  const next = candidates.sort((a, b) => {
+    const score = (element) => {
+      const rect = element.getBoundingClientRect();
+      const dx = rect.left + rect.width / 2 - ox;
+      const dy = rect.top + rect.height / 2 - oy;
+      return Math.hypot(dx, dy) + Math.abs(horizontal ? dy : dx) * 2;
+    };
+    return score(a) - score(b);
+  })[0];
+  (next || current).focus({ preventScroll: false });
+}
+
+function handleHardwareButton(message) {
+  if (message.button === 'talk') {
+    if (message.pressed) void startVoiceTurn('gpio17');
+    else stopVoiceTurn('gpio17');
+    return;
+  }
+  if (!message.pressed) return;
+  if (message.button === 'volume_up') setOutputVolume(outputVolume + 0.05);
+  else if (message.button === 'volume_down') setOutputVolume(outputVolume - 0.05);
+  else if (message.button === 'volume_mute') setOutputVolume(outputVolume ? 0 : lastAudibleVolume);
+  else if (message.button === 'ok') document.activeElement?.click?.();
+  else if (message.button === 'back') {
+    if (!$('experienceView').hidden) document.activeElement?.blur?.();
+    else setView('experience');
+  } else if (['up', 'down', 'left', 'right'].includes(message.button)) {
+    moveHardwareFocus(message.button);
+  }
+}
+
 function handleVoiceEvent(event) {
   const state = event.state || 'disconnected';
   publishHardwareLeds(state);
@@ -69,9 +160,9 @@ function handleVoiceEvent(event) {
   } else if (event.type === 'talk') {
     $('voiceHint').textContent = event.pressed ? 'Listening… release to send.' : 'Turn sent. Waiting for the response…';
   } else if (event.type === 'transcript' && event.text) {
-    const label = event.role === 'assistant' ? 'MxGenius' : 'You';
-    $('voiceTranscript').textContent = `${label}: ${event.text}`;
-    logEvent('info', 'voice', `${label} transcript completed`);
+    const label = event.role === 'assistant' ? 'XDrive' : 'You';
+    renderVoiceTranscript(event.role, event.text, event.final);
+    if (event.final) logEvent('info', 'voice', `${label} transcript completed`);
   } else if (event.type === 'connected') {
     $('voiceHint').textContent = 'Hold the screen button or the GPIO17 trigger to talk.';
     logEvent('info', 'voice', 'Realtime voice connected through the enrolled edge identity');
@@ -776,7 +867,7 @@ function connect() {
       nodeId: 'mxg-pi-kiosk',
       nodeType: 'edge-kiosk',
       nodeName: 'MXG Raspberry Pi Diagnostics',
-      capabilities: ['local-diagnostics', 'sensor-relay', 'thermal-preview', 'scan-observed-1']
+      capabilities: ['local-diagnostics', 'sensor-relay', 'thermal-preview', 'scan-observed-1', 'physical-navigation', 'realtime-stt-tts']
     }));
   });
   socket.addEventListener('message', (event) => {
@@ -800,10 +891,7 @@ function connect() {
         else connectedNodes.delete(message.node.nodeId);
         logEvent(message.status === 'disconnected' ? 'warning' : 'info', 'node', `${message.node.nodeName || message.node.nodeId} ${message.status}`, { type: message.node.nodeType || 'unknown' });
       }
-      if (message.type === 'hardware.button' && message.button === 'talk') {
-        if (message.pressed) void startVoiceTurn('gpio17');
-        else stopVoiceTurn('gpio17');
-      }
+      if (message.type === 'hardware.button') handleHardwareButton(message);
       return;
     }
     // Thermal frames remain available to XR clients; the local kiosk no longer renders a decorative preview.
