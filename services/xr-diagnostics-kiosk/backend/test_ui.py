@@ -72,7 +72,9 @@ class KioskUiContractTests(unittest.TestCase):
             'LED(LOCAL_LED_GPIO',
             'state["thinking"]',
             'UP_GPIO = int(os.getenv("MXG_UP_GPIO", "5"))',
-            'BACK_GPIO = int(os.getenv("MXG_BACK_GPIO", "19"))',
+            'BACK_GPIO = int(os.getenv("MXG_BACK_GPIO", "25"))',
+            'VOLUME_A_GPIO = int(os.getenv("MXG_VOLUME_A_GPIO", "27"))',
+            'VOLUME_B_GPIO = int(os.getenv("MXG_VOLUME_B_GPIO", "4"))',
             'RotaryEncoder(VOLUME_A_GPIO, VOLUME_B_GPIO',
         ):
             self.assertIn(marker, BUTTON_SCRIPT)

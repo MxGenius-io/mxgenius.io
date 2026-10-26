@@ -16,9 +16,9 @@ Environment=MXG_DOWN_GPIO=6
 Environment=MXG_LEFT_GPIO=12
 Environment=MXG_RIGHT_GPIO=13
 Environment=MXG_OK_GPIO=16
-Environment=MXG_BACK_GPIO=19
-Environment=MXG_VOLUME_A_GPIO=20
-Environment=MXG_VOLUME_B_GPIO=21
+Environment=MXG_BACK_GPIO=25
+Environment=MXG_VOLUME_A_GPIO=27
+Environment=MXG_VOLUME_B_GPIO=4
 Environment=MXG_VOLUME_MUTE_GPIO=26
 Environment=MXG_LOCAL_LED_GPIO=22
 Environment=MXG_CLOUD_LED_GPIO=23
