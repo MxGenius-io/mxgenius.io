@@ -1,60 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
-  <title id="title">XDrive Raspberry Pi 5 voice breadboard schematic</title>
-  <desc id="desc">Electret microphone through a preamp and USB audio adapter, speaker through an amplifier, push-to-talk on GPIO17 to ground, and power button across the Pi 5 J2 header.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100" role="img" aria-labelledby="title desc">
+  <title id="title">XDrive Raspberry Pi 5 voice, controls, display, and audio schematic</title>
+  <desc id="desc">System overview showing USB electret microphone and amplified speaker audio, HDMI display, active-low GPIO buttons, rotary volume encoder, three status LEDs, and a separate J2 power switch.</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#41d7e7"/></marker>
     <style>
-      .bg{fill:#07101d}.box{fill:#0d1f32;stroke:#41d7e7;stroke-width:2}.pi{fill:#102a24;stroke:#4ade80;stroke-width:3}.wire{fill:none;stroke:#41d7e7;stroke-width:4;marker-end:url(#arrow)}.contact{fill:none;stroke:#fbbf24;stroke-width:4}.ground{stroke:#e5edf3;stroke-width:3}.title{fill:#edfaff;font:700 30px system-ui,sans-serif}.label{fill:#edfaff;font:700 20px system-ui,sans-serif}.small{fill:#9bb8c8;font:16px system-ui,sans-serif}.pin{fill:#fbbf24;font:700 17px ui-monospace,monospace}.warn{fill:#fb7185;font:700 16px system-ui,sans-serif}
+      .title{font:700 31px Arial,sans-serif;fill:#172b4d}.sub{font:16px Arial,sans-serif;fill:#44546f}.head{font:700 18px Arial,sans-serif}.body{font:14px Arial,sans-serif}.small{font:12px Arial,sans-serif}.warn{font:700 14px Arial,sans-serif;fill:#bf360c}.wire{fill:none;stroke-width:4}.thin{fill:none;stroke-width:3}
     </style>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#1976d2"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#6a1b9a"/></marker>
+    <marker id="arrowPink" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#c2185b"/></marker>
+    <marker id="arrowCyan" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#00838f"/></marker>
   </defs>
-  <rect class="bg" width="1400" height="820" rx="24"/>
-  <text class="title" x="50" y="58">XDrive voice breadboard · Raspberry Pi 5</text>
-  <text class="small" x="50" y="88">Minimum POC: USB audio, one GPIO trigger, and the dedicated J2 power-button input</text>
+  <rect width="1800" height="1100" fill="#fff"/>
+  <text class="title" x="45" y="58">XDrive voice control · Raspberry Pi 5</text>
+  <text class="sub" x="47" y="90">Bench POC wiring contract · GPIO detail and audio/power detail live on pages 2 and 3 of the editable diagrams.net source</text>
 
-  <rect class="pi" x="540" y="225" width="320" height="280" rx="28"/>
-  <text class="label" x="700" y="280" text-anchor="middle">Raspberry Pi 5</text>
-  <text class="small" x="700" y="316" text-anchor="middle">Chromium kiosk + WebRTC</text>
-  <text class="small" x="700" y="345" text-anchor="middle">enrolled device identity</text>
-  <rect class="box" x="585" y="380" width="230" height="80" rx="14"/>
-  <text class="label" x="700" y="414" text-anchor="middle">USB audio adapter</text>
-  <text class="small" x="700" y="442" text-anchor="middle">mic in + line/headphone out</text>
+  <circle cx="105" cy="290" r="67" fill="#e3f2fd" stroke="#1976d2" stroke-width="3"/>
+  <text class="head" x="105" y="275" text-anchor="middle" fill="#0d47a1">Electret mic</text>
+  <text class="small" x="105" y="300" text-anchor="middle" fill="#0d47a1">+ biased MIC</text><text class="small" x="105" y="318" text-anchor="middle" fill="#0d47a1">− MIC sleeve</text>
+  <rect x="245" y="215" width="245" height="150" rx="14" fill="#ede7f6" stroke="#6a1b9a" stroke-width="3"/>
+  <text class="head" x="367" y="252" text-anchor="middle" fill="#4a148c">USB audio adapter</text>
+  <text class="body" x="367" y="282" text-anchor="middle" fill="#4a148c">biased microphone input</text><text class="body" x="367" y="306" text-anchor="middle" fill="#4a148c">headphone / line output</text><text class="small" x="367" y="334" text-anchor="middle" fill="#4a148c">class compliant</text>
+  <path class="wire" d="M172 290 H245" stroke="#1976d2" marker-end="url(#arrowBlue)"/>
 
-  <circle class="box" cx="105" cy="330" r="55"/>
-  <text class="label" x="105" y="322" text-anchor="middle">MIC</text>
-  <text class="small" x="105" y="349" text-anchor="middle">electret</text>
-  <rect class="box" x="220" y="280" width="210" height="100" rx="16"/>
-  <text class="label" x="325" y="322" text-anchor="middle">Bias + preamp</text>
-  <text class="small" x="325" y="351" text-anchor="middle">or biased mic input</text>
-  <path class="wire" d="M160 330 H215"/>
-  <path class="wire" d="M430 330 H520 Q540 330 560 380"/>
+  <rect x="610" y="140" width="535" height="500" rx="18" fill="#e8f5e9" stroke="#2e7d32" stroke-width="4"/>
+  <text class="head" x="878" y="182" text-anchor="middle" fill="#1b5e20" style="font-size:24px">Raspberry Pi 5</text>
+  <text class="small" x="878" y="207" text-anchor="middle" fill="#1b5e20">XDrive kiosk + gpiozero hardware service</text>
+  <rect x="665" y="250" width="175" height="72" rx="10" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2"/><text class="head" x="752" y="279" text-anchor="middle" fill="#4a148c">USB-A host</text><text class="small" x="752" y="302" text-anchor="middle" fill="#4a148c">USB audio</text>
+  <rect x="875" y="240" width="220" height="135" rx="10" fill="#fff8e1" stroke="#f9a825" stroke-width="2"/><text class="head" x="985" y="270" text-anchor="middle" fill="#5d4037">40-pin header</text><text class="small" x="985" y="294" text-anchor="middle" fill="#5d4037">inputs: 17, 5, 6, 12, 13, 16, 19,</text><text class="small" x="985" y="313" text-anchor="middle" fill="#5d4037">20, 21, 26 · outputs: 22, 23, 24</text><text class="small" x="985" y="340" text-anchor="middle" fill="#5d4037">GND rail: physical pin 20</text>
+  <rect x="665" y="370" width="175" height="72" rx="10" fill="#e0f7fa" stroke="#00838f" stroke-width="2"/><text class="head" x="752" y="398" text-anchor="middle" fill="#006064">micro-HDMI</text><text class="small" x="752" y="422" text-anchor="middle" fill="#006064">display video</text>
+  <rect x="875" y="415" width="220" height="82" rx="10" fill="#ffebee" stroke="#d32f2f" stroke-width="2"/><text class="head" x="985" y="446" text-anchor="middle" fill="#b71c1c">J2 power pads</text><text class="small" x="985" y="471" text-anchor="middle" fill="#b71c1c">separate dry contact</text>
+  <rect x="665" y="485" width="175" height="92" rx="10" fill="#eceff1" stroke="#455a64" stroke-width="2"/><text class="head" x="752" y="516" text-anchor="middle" fill="#263238">5 V / GND</text><text class="small" x="752" y="541" text-anchor="middle" fill="#263238">pin 4 / pin 6</text><text class="small" x="752" y="558" text-anchor="middle" fill="#263238">check power budget</text>
+  <path class="wire" d="M490 290 H665" stroke="#6a1b9a" marker-end="url(#arrowPurple)"/><text class="small" x="575" y="279" text-anchor="middle" fill="#4a148c">USB</text>
 
-  <rect class="box" x="970" y="280" width="190" height="100" rx="16"/>
-  <text class="label" x="1065" y="322" text-anchor="middle">5 V amplifier</text>
-  <text class="small" x="1065" y="351" text-anchor="middle">match speaker Ω</text>
-  <rect class="box" x="1240" y="275" width="110" height="110" rx="16"/>
-  <path d="M1272 309 H1300 L1325 287 V373 L1300 351 H1272 Z" fill="none" stroke="#edfaff" stroke-width="4"/>
-  <path class="wire" d="M815 420 H915 Q940 420 965 355"/>
-  <path class="wire" d="M1160 330 H1230"/>
-  <text class="warn" x="1065" y="407" text-anchor="middle">Never drive raw speaker from GPIO</text>
+  <rect x="1290" y="105" width="300" height="135" rx="12" fill="#e0f7fa" stroke="#00838f" stroke-width="3"/>
+  <text class="head" x="1440" y="149" text-anchor="middle" fill="#006064">Small HDMI display</text><text class="body" x="1440" y="180" text-anchor="middle" fill="#006064">micro-HDMI video</text><text class="body" x="1440" y="204" text-anchor="middle" fill="#006064">rated USB power / touch</text>
+  <path class="wire" d="M840 406 H1180 V172 H1290" stroke="#00838f" marker-end="url(#arrowCyan)"/>
+  <rect x="1280" y="315" width="285" height="160" rx="14" fill="#fce4ec" stroke="#c2185b" stroke-width="3"/>
+  <text class="head" x="1422" y="352" text-anchor="middle" fill="#880e4f">5 V mono amplifier</text><text class="body" x="1422" y="383" text-anchor="middle" fill="#880e4f">one headphone channel → IN</text><text class="body" x="1422" y="408" text-anchor="middle" fill="#880e4f">audio GND → GND</text><text class="body" x="1422" y="433" text-anchor="middle" fill="#880e4f">SPK+ / SPK− floating pair</text>
+  <path class="wire" d="M490 335 H1210 V395 H1280" stroke="#6a1b9a" marker-end="url(#arrowPurple)"/>
+  <rect x="1660" y="340" width="105" height="110" rx="52" fill="#fce4ec" stroke="#c2185b" stroke-width="3"/>
+  <text class="head" x="1712" y="385" text-anchor="middle" fill="#880e4f">Speaker</text><text class="small" x="1712" y="410" text-anchor="middle" fill="#880e4f">confirm Ω/W</text>
+  <path class="wire" d="M1565 395 H1660" stroke="#c2185b" marker-end="url(#arrowPink)"/>
 
-  <rect class="box" x="80" y="570" width="420" height="170" rx="18"/>
-  <text class="label" x="105" y="610">TALK · normally-open momentary</text>
-  <text class="pin" x="105" y="653">GPIO17 · physical pin 11</text>
-  <line class="contact" x1="360" y1="648" x2="420" y2="615"/>
-  <circle cx="350" cy="650" r="7" fill="#fbbf24"/><circle cx="430" cy="650" r="7" fill="#fbbf24"/>
-  <line class="contact" x1="430" y1="650" x2="430" y2="682"/>
-  <line class="ground" x1="404" y1="682" x2="456" y2="682"/><line class="ground" x1="412" y1="692" x2="448" y2="692"/><line class="ground" x1="420" y1="702" x2="440" y2="702"/>
-  <text class="small" x="105" y="710">Internal pull-up · press pulls low · 30 ms debounce</text>
-  <path class="wire" d="M500 625 H580 V505"/>
-
-  <rect class="box" x="900" y="570" width="420" height="170" rx="18"/>
-  <text class="label" x="925" y="610">POWER · normally-open momentary</text>
-  <text class="pin" x="925" y="653">Pi 5 J2 pad</text>
-  <line class="contact" x1="1120" y1="648" x2="1180" y2="615"/>
-  <circle cx="1110" cy="650" r="7" fill="#fbbf24"/><circle cx="1190" cy="650" r="7" fill="#fbbf24"/>
-  <text class="pin" x="1210" y="653">J2 pad</text>
-  <text class="small" x="925" y="710">Brief press = normal Pi power action · long hold = forced shutdown</text>
-  <path class="wire" d="M900 625 H820 V505"/>
-
-  <text class="small" x="700" y="785" text-anchor="middle">All audio stays on USB. GPIO17 is contact sensing only. J2 is the Pi 5 power-button header—not a supply input.</text>
+  <rect x="55" y="700" width="205" height="100" rx="18" fill="#fff8e1" stroke="#f9a825" stroke-width="3"/><text class="head" x="157" y="735" text-anchor="middle" fill="#5d4037">TALK / trigger</text><text class="body" x="157" y="763" text-anchor="middle" fill="#5d4037">GPIO17 · pin 11</text><text class="small" x="157" y="784" text-anchor="middle" fill="#5d4037">NO switch to GND</text>
+  <rect x="310" y="680" width="280" height="140" rx="18" fill="#e8f5e9" stroke="#2e7d32" stroke-width="3"/><text class="head" x="450" y="714" text-anchor="middle" fill="#1b5e20">Three status LEDs</text><text class="body" x="335" y="747" fill="#1b5e20">22 / pin 15 · LOCAL green</text><text class="body" x="335" y="772" fill="#0d47a1">23 / pin 16 · CLOUD blue</text><text class="body" x="335" y="797" fill="#bf360c">24 / pin 18 · LISTEN amber</text>
+  <rect x="640" y="680" width="295" height="140" rx="18" fill="#fff8e1" stroke="#f9a825" stroke-width="3"/><text class="head" x="787" y="714" text-anchor="middle" fill="#5d4037">Six-button navigation</text><text class="body" x="665" y="746" fill="#5d4037">UP 5/29 · DOWN 6/31</text><text class="body" x="665" y="772" fill="#5d4037">LEFT 12/32 · RIGHT 13/33</text><text class="body" x="665" y="798" fill="#5d4037">OK 16/36 · BACK 19/35</text>
+  <rect x="985" y="680" width="275" height="140" rx="18" fill="#fff8e1" stroke="#f9a825" stroke-width="3"/><text class="head" x="1122" y="714" text-anchor="middle" fill="#5d4037">Volume encoder</text><text class="body" x="1010" y="746" fill="#5d4037">A: 20 / pin 38</text><text class="body" x="1010" y="772" fill="#5d4037">B: 21 / pin 40</text><text class="body" x="1010" y="798" fill="#5d4037">push: 26 / pin 37</text>
+  <rect x="1320" y="700" width="210" height="100" rx="18" fill="#ffebee" stroke="#d32f2f" stroke-width="3"/><text class="head" x="1425" y="738" text-anchor="middle" fill="#b71c1c">POWER</text><text class="body" x="1425" y="765" text-anchor="middle" fill="#b71c1c">NO switch across J2</text><text class="small" x="1425" y="786" text-anchor="middle" fill="#b71c1c">never to GND rail</text>
+  <path class="thin" d="M985 375 V635 H158" stroke="#f9a825"/><path class="thin" d="M985 375 V650 H450" stroke="#2e7d32"/><path class="thin" d="M985 375 V650 H787" stroke="#f9a825"/><path class="thin" d="M985 375 V650 H1122" stroke="#f9a825"/><path class="thin" d="M985 497 V655 H1425" stroke="#d32f2f"/>
+  <rect x="310" y="880" width="950" height="70" rx="10" fill="#eceff1" stroke="#455a64" stroke-width="3"/><text class="head" x="785" y="910" text-anchor="middle" fill="#263238">Breadboard GND rail · Pi physical pin 20</text><text class="small" x="785" y="936" text-anchor="middle" fill="#263238">button returns, passive encoder common, and each LED through its own 330 Ω resistor</text>
+  <rect x="130" y="1000" width="1540" height="66" rx="10" fill="#fff3e0" stroke="#ef6c00" stroke-width="3"/><text class="warn" x="900" y="1027" text-anchor="middle">3.3 V GPIO ONLY · inputs close to GND with internal pull-ups · J2 is separate · raw speaker requires an amplifier</text><text class="small" x="900" y="1051" text-anchor="middle" fill="#bf360c">Do not short headphone L/R. Do not ground either bridge-amplifier speaker output.</text>
 </svg>

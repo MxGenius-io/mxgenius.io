@@ -6,6 +6,16 @@ power-button input and keeps all audio and video off the GPIO header.
 
 ![XDrive Raspberry Pi 5 voice breadboard schematic](xdrive-voice-breadboard.svg)
 
+The editable diagrams.net source now has three pages:
+
+1. **System overview** — the complete Pi, controls, indicators, display, and
+   audio signal path.
+2. **GPIO breadboard** — the literal BCM/physical-pin wire map for the LEDs,
+   active-low buttons, common ground rail, and passive rotary encoder.
+3. **Audio, display & power** — electret polarity, USB-audio connections,
+   amplifier input/output and supply choices, HDMI, J2, the bench BOM, and the
+   staged bring-up gates.
+
 ## Signal path
 
 ```text
@@ -83,6 +93,20 @@ Use one class-compliant USB audio adapter with a biased microphone input and a
 headphone output. Feed the raw speaker from a small powered amplifier such as a
 mono 5 V module; do not connect the speaker directly to the Pi. This avoids I2S
 pin assignments while the push-to-talk and cloud loop are being proven.
+
+For the first audio test, connect the electret capsule positive lead to the USB
+adapter's biased microphone signal contact and its negative/case lead to the
+microphone sleeve. Use **one** headphone channel for the mono amplifier input;
+do not short the adapter's left and right outputs together. Connect the
+amplifier's `SPK+` and `SPK-` outputs only to the two speaker leads. Neither
+bridge-amplifier speaker output is ground.
+
+Power the amplifier from a regulated 5 V source. Pi header physical pin 4 and
+ground pin 6 are acceptable for the bench only after the Pi PSU, USB devices,
+display, amplifier draw, and speaker load have been checked as one power
+budget. A separate regulated 5 V supply is the safer fallback; join its ground
+to Pi/audio ground for the amplifier input reference, while keeping both
+speaker outputs isolated from ground.
 
 The appliance software uses:
 
