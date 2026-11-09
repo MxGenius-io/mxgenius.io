@@ -25,7 +25,8 @@ branches, pull requests, or reconciliation work behind.
 
 ## Credential and platform boundaries
 
-- Use the MXGenius GitHub credential configured in `D:\AAog\.env` when GitHub
+- Use the MXGenius GitHub credential configured in
+  `D:\AAog\mxgenius.io\.env.local` when GitHub
   authorization is required. Never print or commit its value.
 - A limitation uploading source to Azure applies only to the Azure upload path.
   Never infer that it restricts GitHub pushes.
