@@ -117,6 +117,9 @@ test('R&D Highlights preserves report videos and adds the four hardware build re
     assert.ok(html.includes(`poster="${path.replace(/\.mp4$/, '.jpg')}"`));
   }
   for (const path of [
+    'media/build/2026-11-09/xdrive-compute-cartridge.jpg',
+    'media/build/2026-11-09/xdrive-cooling-package.jpg',
+    'media/build/2026-11-09/xdrive-reinforced-footer.jpg',
     'media/build/2026-10-23/xdrive-v7-authored-exploded.png',
     'media/build/2026-10-23/xdrive-v7-viewer-exploded.png',
     'media/build/2026-10-23/xdrive-concept-dewalt.webp',
@@ -127,23 +130,37 @@ test('R&D Highlights preserves report videos and adds the four hardware build re
     assert.ok(html.includes(path), path);
   }
   assert.match(html, /Completion and mounting fit remain to be confirmed/);
+  assert.match(html, /data-build-update="2026-11-09"/);
+  assert.match(html, /XDrive enters V1/);
   assert.match(html, /data-build-update="2026-10-16"/);
+  assert.match(html, /build-readiness-2026-11-09\.html/);
   assert.match(html, /build-readiness-2026-10-23\.html/);
   assert.match(html, /build-readiness-2026-10-16\.html/);
-  const currentRecord = await readFile(new URL('../build-readiness-2026-10-23.html', import.meta.url), 'utf8');
+  const currentRecord = await readFile(new URL('../build-readiness-2026-11-09.html', import.meta.url), 'utf8');
+  const previousRecord = await readFile(new URL('../build-readiness-2026-10-23.html', import.meta.url), 'utf8');
   const buildRecord = await readFile(new URL('../build-readiness-2026-10-16.html', import.meta.url), 'utf8');
   const archive = await readFile(new URL('../build-readiness-2026-10-07.html', import.meta.url), 'utf8');
-  assert.match(archive, /October 7 archive\.[\s\S]*build-readiness-2026-10-23\.html/);
-  assert.match(buildRecord, /October 16 concept-stage archive\.[\s\S]*build-readiness-2026-10-23\.html/);
-  assert.match(currentRecord, /Current state: the V7 enclosure is the active build candidate/);
-  assert.match(currentRecord, /five enclosure parts, calibrated Raspberry Pi reference board/);
-  assert.match(currentRecord, /ready to test rather than field accepted/);
-  assert.match(currentRecord, /reinforced battery-handle/);
+  assert.match(archive, /October 7 archive\.[\s\S]*build-readiness-2026-11-09\.html/);
+  assert.match(buildRecord, /October 16 concept-stage archive\.[\s\S]*build-readiness-2026-11-09\.html/);
+  assert.match(previousRecord, /October 23 build archive\.[\s\S]*build-readiness-2026-11-09\.html/);
+  assert.match(previousRecord, /Current state: the V7 enclosure is the active build candidate/);
+  assert.match(previousRecord, /five enclosure parts, calibrated Raspberry Pi reference board/);
+  assert.match(previousRecord, /ready to test rather than field accepted/);
+  assert.match(previousRecord, /reinforced battery-handle/);
+  assert.match(currentRecord, /XDrive enters V1/);
+  assert.match(currentRecord, /cordless-tool-battery-powered field appliance/);
+  assert.match(currentRecord, /Milled aluminum/);
+  assert.match(currentRecord, /Flexible printed elastomer filament/);
+  assert.match(currentRecord, /40 mm-class speaker/);
+  assert.match(currentRecord, /Six-fastener target/);
+  assert.match(currentRecord, /End-of-week target/);
   assert.match(currentRecord, /build-readiness-2026-10-16\.html/);
   assert.match(currentRecord, /build-readiness-2026-10-07\.html/);
   for (const path of [
-    'media/build/2026-10-23/xdrive-v7-authored-exploded.png',
-    'media/build/2026-10-23/xdrive-v7-viewer-exploded.png'
+    'media/build/2026-11-09/xdrive-compute-cartridge.jpg',
+    'media/build/2026-11-09/xdrive-cooling-package.jpg',
+    'media/build/2026-11-09/xdrive-reinforced-footer.jpg',
+    'media/build/2026-11-09/xdrive-cartridge-engineering.png'
   ]) {
     await readFile(new URL(`../${path}`, import.meta.url));
     assert.ok(currentRecord.includes(path), path);
